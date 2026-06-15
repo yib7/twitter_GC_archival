@@ -32,6 +32,7 @@ personal_data/
   config.json   { sourceJs:[paths], mediaDir, me, gcName, gcPhoto, names:{}, pfps:{} }
   data.js       built window.CHAT_DATA
   local.js      window.LOCAL_NAMES / LOCAL_PFPS / LOCAL_ME / LOCAL_GC{name,photo}
+  source/       copied raw export .js (direct-messages-group.js)
   media/        copied group media (referenced by root-relative path)
   pfps/         gc.<ext> + <participantId>.<ext> profile images
 ```
@@ -47,7 +48,7 @@ Server endpoints:
 
 | Endpoint | Role |
 |----------|------|
-| `POST /api/source` | `{ sourceJs, mediaDir }` → validate, copy media into `personal_data/media/`, write `config.json`, run `build.js`, return a summary. |
+| `POST /api/source` | `{ sourceJs, mediaDir }` → validate, copy the export(s) into `personal_data/source/` and media into `personal_data/media/`, write `config.json`, run `build.js`, return a summary. |
 | `GET /api/parts` | Participants from the built data, each with up to 10 Twitter/X-link-free sample messages + a few shared-media paths. |
 | `POST /api/identity` | `{ me, gcName, gcPhoto, names, pfps }` (images as data URLs) → write files into `personal_data/pfps/`, then `personal_data/local.js`. |
 

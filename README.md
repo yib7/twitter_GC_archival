@@ -88,8 +88,9 @@ node scripts/server.js                 # → http://localhost:8765
 4. **Finish** — saves everything and links to the archive.
 
 Everything the wizard writes lands in one git-ignored folder, **`personal_data/`**
-(`config.json`, the built `data.js`, `local.js`, copied `media/`, and `pfps/`).
-After setup, daily use is just double-clicking `index.html`.
+(`config.json`, the built `data.js`, `local.js`, the copied raw export under
+`source/`, copied `media/`, and `pfps/`). After setup, daily use is just
+double-clicking `index.html`.
 
 ### Option B — manual build
 
@@ -166,7 +167,7 @@ sample_media/       committed placeholder media
 docs/               architecture + scraper notes
 exports/            (git-ignored) drop your raw X exports here
 personal_data/      (git-ignored) wizard output: config.json, data.js, local.js,
-                    media/, pfps/ — all your real, private data in one place
+                    source/, media/, pfps/ — all your real, private data in one place
 ```
 
 Built with [Fuse.js](https://www.fusejs.io/) and

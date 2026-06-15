@@ -100,7 +100,18 @@ function apiSource(body, res) {
   const mediaDirIn = body.mediaDir ? String(body.mediaDir).trim() : "";
   let mediaCopied = 0;
   const cfg = loadConfig();
-  cfg.sourceJs = sourceJs;
+
+  // Copy the source export(s) into personal_data/source/ so ALL private data
+  // lives under personal_data/ (the export is just as private as the messages).
+  const srcDir = path.join(PERSONAL, "source");
+  fs.mkdirSync(srcDir, { recursive: true });
+  cfg.sourceJs = sourceJs.map((p) => {
+    const abs = path.isAbsolute(p) ? p : path.join(ROOT, p);
+    const destRel = "personal_data/source/" + path.basename(abs);
+    const dest = path.join(ROOT, destRel);
+    if (path.resolve(abs) !== path.resolve(dest)) fs.copyFileSync(abs, dest);
+    return destRel;
+  });
   if (mediaDirIn) {
     const abs = path.isAbsolute(mediaDirIn) ? mediaDirIn : path.join(ROOT, mediaDirIn);
     if (!fs.existsSync(abs) || !fs.statSync(abs).isDirectory()) return sendJSON(res, 400, { error: "Media folder not found: " + mediaDirIn });
