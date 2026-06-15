@@ -14,7 +14,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const here = __dirname;
+const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
 const MEDIA = path.join(here, "sample_media");
 fs.mkdirSync(MEDIA, { recursive: true });
 
@@ -101,20 +101,17 @@ function groupConvo(id, title, participants, n) {
   const msgs = makeMessages(participants, n, { media: true });
   return { id, type: "group", title, participants, count: msgs.length, msgs, events };
 }
-function dmConvo(id, participants, n) {
-  const msgs = makeMessages(participants, n, { media: true });
-  return { id, type: "dm", title: null, participants, count: msgs.length, msgs, events: [] };
-}
 
 /* ---- build the 3 demo conversations -------------------------------------- */
 const A = ["1001", "1002", "1003", "1004", "1005"];   // Demo Squad
 const B = ["1002", "1003", "1006"];                    // Weekend Plans
-const C = ["1001", "1006"];                            // 1:1
+const C = ["1001", "1003", "1006", "1007"];            // Study Group
 
+// Group chats only (the app is group-chats focused)
 const conversations = [
   groupConvo("900000000000000001", "Demo Squad", A, 64),
   groupConvo("900000000000000002", "Weekend Plans", B, 38),
-  dmConvo("1001-1006", C, 26),
+  groupConvo("900000000000000003", "Study Group", C, 30),
 ];
 
 // largest first (matches build.js ordering)
@@ -124,6 +121,6 @@ const OUT = path.join(here, "data.sample.js");
 fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: new Date().toISOString(), conversations }) + ";\n");
 
 const total = conversations.reduce((s, c) => s + c.count, 0);
-console.log("Wrote data.sample.js —", conversations.length, "conversations,", total, "messages.");
-conversations.forEach((c) => console.log("  ·", c.type, c.title || "(1:1)", "—", c.count, "msgs"));
+console.log("Wrote data.sample.js —", conversations.length, "group conversations,", total, "messages.");
+conversations.forEach((c) => console.log("  ·", c.title, "—", c.count, "msgs"));
 console.log("Wrote", fs.readdirSync(MEDIA).length, "placeholder files to sample_media/.");

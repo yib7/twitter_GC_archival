@@ -21,7 +21,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const here = __dirname;
+const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
 const OUT = path.join(here, "data.js");
 const log = (...a) => console.log(...a);
 const toMs = (iso) => (iso ? Date.parse(iso) : 0);
@@ -40,10 +40,10 @@ function walk(dir, cb) {
     if (e.isDirectory()) walk(full, cb); else cb(full);
   }
 }
-// match direct-messages.js AND direct-messages-group.js (+ dated copies),
-// but NOT the *-headers.js metadata files.
+// match direct-messages-group.js (+ dated copies) only — this build is
+// group-chats only; the 1:1 direct-messages.js and *-headers.js are ignored.
 const isExportFile = (name) =>
-  /^direct-messages(-group)?(-.*)?\.js$/i.test(name) && !/headers/i.test(name);
+  /^direct-messages-group(-.*)?\.js$/i.test(name) && !/headers/i.test(name);
 
 function findExports() {
   const out = [];
@@ -54,17 +54,15 @@ function findExports() {
 }
 function findMediaDirs() {
   const dirs = [];
-  for (const name of ["direct_messages_media", "direct_messages_group_media"]) {
-    const main = path.join(here, name);
-    if (fs.existsSync(main)) dirs.push(main);
-  }
+  const main = path.join(here, "direct_messages_group_media");
+  if (fs.existsSync(main)) dirs.push(main);
   const exDir = path.join(here, "exports");
   if (fs.existsSync(exDir)) {
     (function walkDirs(dir) {
       for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
         if (e.isDirectory()) {
           const full = path.join(dir, e.name);
-          if (e.name === "direct_messages_media" || e.name === "direct_messages_group_media") dirs.push(full);
+          if (e.name === "direct_messages_group_media") dirs.push(full);
           walkDirs(full);
         }
       }
@@ -216,7 +214,7 @@ for (const c of convos.values()) {
   }
   const msgs = [...c.msgMap.values()].sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
   const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
-  if (!msgs.length) continue;   // drop empty conversations
+  if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
 
   const participants = [...new Set(msgs.map((m) => m.s))];
   const nameEv = events.filter((e) => e.type === "name");
@@ -236,12 +234,10 @@ fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: new 
 
 const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);
 log("---");
-log("Conversations:", conversations.length,
-  "(" + conversations.filter((c) => c.type === "group").length + " group, " +
-  conversations.filter((c) => c.type === "dm").length + " 1:1)");
+log("Group conversations:", conversations.length);
 log("Total messages:", totalMsgs, prev ? "(" + (totalMsgs - prevCount >= 0 ? "+" : "") + (totalMsgs - prevCount) + " since last build)" : "");
 log("With media:", totalMedia);
 conversations.slice(0, 12).forEach((c) =>
-  log("  ·", c.type === "group" ? "[grp]" : "[dm ]", String(c.id).slice(-8).padStart(8), fmtN(c.count).padStart(8), c.title || "(1:1)"));
+  log("  ·", String(c.id).slice(-8).padStart(8), fmtN(c.count).padStart(8), c.title || "(group)"));
 log("Wrote data.js (" + mb + " MB). Open index.html to view.");
 function fmtN(n) { return n.toLocaleString("en-US"); }

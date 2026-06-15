@@ -10,7 +10,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, "..");   // serve the project root (this script lives in scripts/)
 const PORT = 8765;
 const TYPES = {
   ".html": "text/html", ".js": "text/javascript", ".css": "text/css",

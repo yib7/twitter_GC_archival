@@ -368,11 +368,6 @@ html, body {
 .mbar:hover { outline: 1px solid var(--accent); }
 
 /* heatmap calendar */
-.heat-cell { background: var(--bg-2); border-radius: 2px; width: 12px; height: 12px; }
-.heat-1 { background: rgba(59, 130, 246, 0.2); }
-.heat-2 { background: rgba(59, 130, 246, 0.5); }
-.heat-3 { background: rgba(59, 130, 246, 0.8); }
-.heat-4 { background: #3b82f6; box-shadow: 0 0 4px var(--accent-glow); }
 
 
 /* word cloud / chips */
@@ -882,90 +877,13 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .thr-extra { font-size: 11px; color: var(--text-dim); margin-left: 6px; }
 
 /* ---- GC Trivia Quiz ------------------------------------------------------ */
-.quiz-progress {
-  width: 100%; height: 6px; background: var(--bg-2); border-radius: 99px;
-  overflow: hidden; margin-bottom: 20px;
-}
-.quiz-progress-bar {
-  height: 100%; background: linear-gradient(90deg, var(--accent), #22c55e);
-  border-radius: 99px; transition: width 0.4s ease;
-}
-.quiz-meta { color: var(--text-dim); font-size: 13px; margin-bottom: 10px; }
-.quiz-question {
-  font-size: 22px; font-weight: 700; margin-bottom: 16px; line-height: 1.3;
-  background: linear-gradient(120deg, var(--text), var(--accent));
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.quiz-quote {
-  background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px;
-  padding: 18px 22px; font-size: 16px; line-height: 1.5; color: var(--text);
-  margin-bottom: 22px; font-style: italic; position: relative;
-  border-left: 3px solid var(--accent);
-}
-.quiz-options { display: flex; flex-direction: column; gap: 10px; }
-.quiz-opt {
-  display: flex; align-items: center; gap: 12px;
-  background: var(--bg-1); border: 2px solid var(--line); border-radius: 14px;
-  padding: 16px 20px; font-size: 16px; font-weight: 600; color: var(--text);
-  cursor: pointer; transition: all 0.2s; font-family: var(--font); text-align: left;
-}
-.quiz-opt:hover { border-color: var(--accent); background: var(--accent-glow); transform: translateX(4px); }
-.quiz-opt.quiz-correct {
-  border-color: #22c55e !important; background: rgba(34, 197, 94, 0.15) !important;
-  animation: quizPop 0.3s ease;
-}
-.quiz-opt.quiz-wrong {
-  border-color: #ef4444 !important; background: rgba(239, 68, 68, 0.15) !important;
-  animation: quizShake 0.4s ease;
-}
-.quiz-opt.quiz-locked { pointer-events: none; }
-@keyframes quizPop { 0% { transform: scale(1); } 50% { transform: scale(1.03); } 100% { transform: scale(1); } }
-@keyframes quizShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 
-.quiz-end {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 60vh; text-align: center; gap: 12px;
-  animation: wrIn 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
-}
-.quiz-end-emoji { font-size: 72px; margin-bottom: 8px; }
-.quiz-end-score {
-  font-size: 56px; font-weight: 800;
-  background: linear-gradient(120deg, var(--text), var(--accent));
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.quiz-end-pct { font-size: 28px; font-weight: 700; color: var(--accent); }
-.quiz-end-verdict { font-size: 18px; color: var(--text-dim); margin-bottom: 12px; }
-.quiz-restart { font-size: 16px !important; padding: 14px 32px !important; border-radius: 14px !important; }
 
 /* ---- Mood Ring ----------------------------------------------------------- */
-.mood-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px;
-}
-.mood-card {
-  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px;
-  transition: transform 0.2s, border-color 0.2s;
-}
-.mood-card:hover { transform: translateY(-3px); border-color: var(--accent); }
-.mood-ring {
-  position: relative; width: 68px; height: 68px; border-radius: 50%;
-  background: conic-gradient(var(--ring-color), transparent, var(--ring-color));
-  padding: 4px; display: grid; place-items: center;
-  animation: moodPulse 3s ease-in-out infinite;
-}
-.mood-ring .av { border: 3px solid var(--bg-1); }
 @keyframes moodPulse {
   0%, 100% { box-shadow: 0 0 0 0 var(--ring-color); }
   50% { box-shadow: 0 0 16px 4px var(--ring-color); }
 }
-.mood-name { font-weight: 700; font-size: 14px; }
-.mood-dominant { font-size: 13px; color: var(--text-dim); text-transform: capitalize; }
-.mood-bars { width: 100%; display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
-.mood-bar-row { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-.mood-bar-row > span:first-child { width: 20px; text-align: center; }
-.mood-bar-track { flex: 1; height: 6px; background: var(--bg-2); border-radius: 99px; overflow: hidden; }
-.mood-bar-fill { height: 100%; border-radius: 99px; transition: width 0.6s ease; min-width: 1px; }
-.mood-bar-pct { width: 36px; font-size: 11px; color: var(--text-faint); text-align: right; font-variant-numeric: tabular-nums; }
 
 /* ---- Word Battles -------------------------------------------------------- */
 .battle-selectors {
@@ -1010,68 +928,8 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 }
 
 /* ---- Sleep Schedule Heatmap ---------------------------------------------- */
-.sleep-grid-container { display: flex; flex-direction: column; gap: 24px; }
-.sleep-person {
-  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 18px; transition: border-color 0.2s;
-}
-.sleep-person:hover { border-color: var(--accent); }
-.sleep-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.sleep-name { font-weight: 700; font-size: 15px; }
-.sleep-sub { font-size: 12px; color: var(--text-dim); }
-.sleep-grid-wrap { position: relative; padding-left: 36px; padding-top: 20px; }
-.sleep-hour-labels {
-  position: absolute; top: 0; left: 36px; right: 0;
-  display: flex; justify-content: space-between;
-  font-size: 10px; color: var(--text-faint);
-}
-.sleep-day-labels {
-  position: absolute; left: 0; top: 20px; bottom: 0;
-  display: flex; flex-direction: column; justify-content: space-between;
-  font-size: 10px; color: var(--text-faint); width: 30px; text-align: right; padding-right: 6px;
-}
-.sleep-grid {
-  display: grid; grid-template-columns: repeat(24, 1fr); grid-template-rows: repeat(7, 1fr);
-  gap: 2px;
-}
-.sleep-cell {
-  aspect-ratio: 1; border-radius: 3px; min-width: 0; min-height: 14px;
-  transition: transform 0.1s, box-shadow 0.1s; cursor: default;
-}
-.sleep-cell:hover { transform: scale(1.4); z-index: 2; box-shadow: 0 0 8px var(--accent-glow); }
 
 /* ---- Emoji DNA ----------------------------------------------------------- */
-.dna-grid { display: flex; flex-direction: column; gap: 18px; }
-.dna-card {
-  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 20px; transition: border-color 0.2s;
-}
-.dna-card:hover { border-color: var(--accent); }
-.dna-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-.dna-name { font-weight: 700; font-size: 15px; }
-.dna-total { font-size: 12px; color: var(--text-dim); }
-.dna-strand {
-  display: flex; gap: 8px; align-items: center; padding: 12px 0;
-  overflow-x: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);
-}
-.dna-strand::before {
-  content: ""; position: absolute; left: 0; right: 0; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--accent), transparent);
-}
-.dna-node {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  min-width: 56px; position: relative;
-}
-.dna-emoji { font-size: 28px; line-height: 1; }
-.dna-year { font-size: 10px; color: var(--text-faint); font-weight: 700; }
-.dna-count { font-size: 10px; color: var(--text-dim); }
-.dna-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
-.dna-chip {
-  background: var(--bg-2); border: 1px solid var(--line); border-radius: 999px;
-  padding: 4px 10px; font-size: 13px; transition: all 0.12s;
-}
-.dna-chip:hover { background: var(--accent-glow); border-color: var(--accent); }
-.dna-chip b { color: var(--accent); margin-left: 4px; font-size: 11px; }
 
 /* ---- Reply Chains -------------------------------------------------------- */
 .chain-list { display: flex; flex-direction: column; gap: 10px; }
@@ -1091,30 +949,6 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .chain-preview { font-size: 12px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- First & Last Messages ----------------------------------------------- */
-.firsts-leaderboard {
-  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 14px; display: flex; flex-direction: column; gap: 8px;
-}
-.firsts-row {
-  display: flex; align-items: center; gap: 10px; font-size: 14px;
-}
-.firsts-rank { font-weight: 800; color: var(--text-faint); width: 20px; text-align: center; }
-.firsts-name { font-weight: 600; flex: 1; }
-.firsts-count { font-size: 12px; color: var(--accent); font-weight: 700; }
-.firsts-timeline { display: flex; flex-direction: column; gap: 8px; }
-.firsts-day {
-  background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 12px 16px; display: flex; flex-direction: column; gap: 6px;
-}
-.firsts-date { font-size: 12px; color: var(--text-faint); font-weight: 700; margin-bottom: 2px; }
-.firsts-msg {
-  display: flex; align-items: center; gap: 8px; font-size: 13px;
-  padding: 6px 8px; border-radius: 8px; transition: background 0.12s;
-}
-.firsts-msg:hover { background: var(--bg-2); }
-.firsts-label { font-size: 14px; width: 20px; text-align: center; }
-.firsts-who { font-weight: 700; font-size: 13px; white-space: nowrap; }
-.firsts-text { color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 
 /* ---- Threads ------------------------------------------------------------- */
 .thr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
@@ -1133,41 +967,8 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .thr-extra { font-size: 10px; color: var(--text-faint); margin-left: 4px; font-weight: 700; }
 
 /* ---- Quiz ---------------------------------------------------------------- */
-.quiz-progress { height: 6px; background: var(--bg-2); border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
-.quiz-progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent-soft), var(--accent)); transition: width 0.3s; }
-.quiz-meta { text-align: center; font-size: 12px; color: var(--text-dim); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 24px; }
-.quiz-question { text-align: center; font-size: 24px; font-weight: 800; line-height: 1.2; margin-bottom: 16px; color: var(--text); }
-.quiz-quote { text-align: center; font-size: 16px; font-style: italic; color: var(--text-dim); background: var(--bg-1); padding: 16px; border-radius: 12px; border: 1px solid var(--line); margin-bottom: 24px; box-shadow: inset 0 2px 8px rgba(0,0,0,0.2); }
-.quiz-options { display: grid; grid-template-columns: 1fr; gap: 12px; }
-.quiz-opt {
-  background: var(--bg-1); border: 2px solid var(--line); color: var(--text);
-  padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 600; font-family: var(--font);
-  cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 10px;
-}
-.quiz-opt:hover:not(.quiz-locked) { border-color: var(--accent); background: var(--bg-2); transform: translateY(-2px); }
-.quiz-correct { border-color: #22c55e !important; background: rgba(34, 197, 94, 0.1) !important; color: #22c55e !important; }
-.quiz-wrong { border-color: #ef4444 !important; background: rgba(239, 68, 68, 0.1) !important; color: #ef4444 !important; opacity: 0.7; }
-.quiz-locked { cursor: default; }
-.quiz-end { text-align: center; padding: 40px 20px; }
-.quiz-end-emoji { font-size: 72px; margin-bottom: 16px; animation: pulse 2s infinite; }
-.quiz-end-score { font-size: 32px; font-weight: 800; color: var(--accent); margin-bottom: 8px; }
-.quiz-end-pct { font-size: 48px; font-weight: 900; background: linear-gradient(135deg, var(--text), var(--accent)); -webkit-background-clip: text; color: transparent; margin-bottom: 12px; }
-.quiz-end-verdict { font-size: 18px; color: var(--text-dim); margin-bottom: 32px; }
-.quiz-restart { font-size: 16px; padding: 12px 32px; }
 
 /* ---- Moods --------------------------------------------------------------- */
-.mood-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-.mood-card { background: var(--bg-1); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; transition: all 0.2s; }
-.mood-card:hover { border-color: var(--accent); box-shadow: 0 8px 24px rgba(0,0,0,0.3); transform: translateY(-3px); }
-.mood-ring { width: 60px; height: 60px; border-radius: 50%; padding: 4px; background: conic-gradient(var(--ring-color) 0%, transparent 100%); margin-bottom: 12px; display: grid; place-items: center; }
-.mood-ring .av { border: 2px solid var(--bg-1); }
-.mood-name { font-size: 16px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-.mood-dominant { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 16px; color: var(--text-dim); }
-.mood-bars { width: 100%; display: flex; flex-direction: column; gap: 8px; }
-.mood-bar-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-.mood-bar-track { flex: 1; height: 8px; background: var(--bg-2); border-radius: 4px; overflow: hidden; }
-.mood-bar-fill { height: 100%; border-radius: 4px; }
-.mood-bar-pct { font-size: 11px; color: var(--text-faint); width: 32px; text-align: right; }
 
 /* ---- Battles ------------------------------------------------------------- */
 .battle-selectors { display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 24px; flex-wrap: wrap; }

@@ -49,14 +49,13 @@ function assignGenericNames() {
 // drop derived caches / per-view state so the next render uses the active conversation
 function resetDerived() {
   STATS = null; WORDS = null; MILES = null; HOF = null; fuseIndex = null;
-  threadsCache = null; moodsCache = null;
+  threadsCache = null;
   searchBuilt = false; sEls = {};
   tlBuilt = false; if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
   galleryState = { items: [], page: 0 }; galEls = {};
   if (galleryObserver) { try { galleryObserver.disconnect(); } catch (e) {} galleryObserver = null; }
   hofYear = "all"; wrappedYear = null; wrappedSlide = 0;
   battleP1 = null; battleP2 = null;
-  quizState = { questions: [], current: 0, score: 0, answered: false, total: 10 };
   for (const k in wrappedCache) delete wrappedCache[k];
   if (trendChart) { try { trendChart.destroy(); } catch (e) {} trendChart = null; }
 }
@@ -1587,45 +1586,6 @@ function computeWords() {
   WORDS = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 42);
   return WORDS;
 }
-function buildHeatmapHTML(s) {
-  const startD = new Date(s.first);
-  const endD = new Date(s.last);
-  const firstSun = new Date(startD);
-  firstSun.setDate(firstSun.getDate() - firstSun.getDay());
-  
-  const lastSat = new Date(endD);
-  lastSat.setDate(lastSat.getDate() + (6 - lastSat.getDay()));
-  
-  let html = `<div class="heatmap-wrap" style="overflow-x: auto; padding-bottom: 8px;">
-    <div class="heatmap-grid" style="display: grid; grid-template-rows: repeat(7, 12px); grid-auto-flow: column; gap: 3px;">`;
-  
-  const cur = new Date(firstSun);
-  const maxDays = Math.max(...Object.values(s.days || {}));
-  const maxDayCount = maxDays > 0 ? maxDays : 1;
-  
-  while (cur <= lastSat) {
-    const dk = cur.getFullYear() + "-" + String(cur.getMonth() + 1).padStart(2, "0") + "-" + String(cur.getDate()).padStart(2, "0");
-    const count = s.days[dk] || 0;
-    
-    let lvl = 0;
-    if (count > 0) {
-      const ratio = count / maxDayCount;
-      if (ratio > 0.6) lvl = 4;
-      else if (ratio > 0.3) lvl = 3;
-      else if (ratio > 0.1) lvl = 2;
-      else lvl = 1;
-    }
-    
-    const title = `${dk}: ${count} messages`;
-    html += `<div class="heat-cell heat-${lvl}" title="${title}"></div>`;
-    
-    cur.setDate(cur.getDate() + 1);
-  }
-  
-  html += `</div></div>`;
-  return html;
-}
-
 let trendChart = null;
 function computeKeywordTrend(word) {
   const wordLower = word.toLowerCase();
@@ -1809,49 +1769,28 @@ function renderStats() {
           { win: s.ghosterWinner, title: "The Ghoster", desc: s.ghosterWinner.val > 3600000 ? (s.ghosterWinner.val/3600000).toFixed(1) + "h avg reply" : s.ghosterWinner.val > 60000 ? (s.ghosterWinner.val/60000).toFixed(1) + "m avg reply" : Math.round(s.ghosterWinner.val/1000) + "s avg reply" },
           { win: s.flashWinner, title: "The Flash", desc: s.flashWinner.val > 3600000 ? (s.flashWinner.val/3600000).toFixed(1) + "h avg reply" : s.flashWinner.val > 60000 ? (s.flashWinner.val/60000).toFixed(1) + "m avg reply" : Math.round(s.flashWinner.val/1000) + "s avg reply" },
           { win: s.scholarWinner, title: "The Scholar", desc: fmtNum(s.scholarWinner.val) + " unique words" },
-          { win: s.policeWinner, title: "Punctuation Police", desc: fmtNum(s.policeWinner.val) + " periods used" },
-          { win: s.ellipsisWinner, title: "The Trail Off", desc: fmtNum(s.ellipsisWinner.val) + ' uses of "..."' },
-          { win: s.singleCharWinner, title: "1-Char Sender", desc: fmtNum(s.singleCharWinner.val) + " one-char msgs" },
           { win: s.novelistWinner, title: "The Novelist", desc: fmtNum(s.novelistWinner.val) + " chars (longest msg)" },
-          { win: s.minimalistWinner, title: "The Minimalist", desc: s.minimalistWinner.val.toFixed(1) + "% all-lowercase" },
           { win: s.keysmashWinner, title: "The Keysmasher", desc: fmtNum(s.keysmashWinner.val) + " gibberish words" },
           { win: s.earlyBirdWinner, title: "The Early Bird", desc: fmtNum(s.earlyBirdWinner.val) + " msgs (5AM-8AM)" },
           { win: s.vampiricOwlWinner, title: "Vampiric Owl", desc: fmtNum(s.vampiricOwlWinner.val) + " msgs (3AM-5AM)" },
-          { win: s.holidayWinner, title: "Holiday Cheerer", desc: fmtNum(s.holidayWinner.val) + " holiday msgs" },
           { win: s.deserterWinner, title: "The Deserter", desc: s.deserterWinner.val > 86400000 ? (s.deserterWinner.val/86400000).toFixed(1) + " days without sending" : (s.deserterWinner.val/3600000).toFixed(1) + " hrs without sending" },
           { win: s.monologuerWinner, title: "The Monologuer", desc: fmtNum(s.monologuerWinner.val) + " x 5+ msgs in a row" },
           { win: s.crowdPleaserWinner, title: "Crowd Pleaser", desc: s.crowdPleaserWinner.val.toFixed(1) + " reacts / msg avg" },
           { win: s.ignoredWinner, title: "The Ignored", desc: s.ignoredWinner.val.toFixed(1) + "% msgs 0 reacts" },
-          { win: s.selfLoverWinner, title: "Self-Lover", desc: fmtNum(s.selfLoverWinner.val) + " self-reacts" },
           { win: s.laughTrackWinner, title: "The Laugh Track", desc: fmtNum(s.laughTrackWinner.val) + " 😂/😭 given" },
           { win: s.haterWinner, title: "The Hater", desc: fmtNum(s.haterWinner.val) + " 👎/😡 given" },
           { win: s.tiktokWinner, title: "The TikToker", desc: fmtNum(s.tiktokWinner.val) + " TikToks shared" },
           { win: s.youtubeWinner, title: "The YouTuber", desc: fmtNum(s.youtubeWinner.val) + " YouTubes shared" },
           { win: s.twitterWinner, title: "X/Twitter Addict", desc: fmtNum(s.twitterWinner.val) + " Tweets shared" },
-          { win: s.instaWinner, title: "The Instagrammer", desc: fmtNum(s.instaWinner.val) + " Instas shared" },
-          { win: s.hashtagWinner, title: "The Hashtagger", desc: fmtNum(s.hashtagWinner.val) + " hashtags used" },
-          { win: s.mentionWinner, title: "The @Mentioner", desc: fmtNum(s.mentionWinner.val) + " mentions used" },
-          { win: s.hesitatorWinner, title: "The Hesitator", desc: fmtNum(s.hesitatorWinner.val) + " 'um'/'uh's" },
-          { win: s.apologistWinner, title: "The Apologist", desc: fmtNum(s.apologistWinner.val) + " apologies" },
           { win: s.gratitudeWinner, title: "Gratitude King", desc: fmtNum(s.gratitudeWinner.val) + " 'thank you's" },
-          { win: s.agreeableWinner, title: "The Agreeable One", desc: fmtNum(s.agreeableWinner.val) + " agreements" },
-          { win: s.disagreerWinner, title: "The Disagreer", desc: fmtNum(s.disagreerWinner.val) + " 'no'/'nah's" },
-          { win: s.selfCorrectorWinner, title: "Self-Corrector", desc: fmtNum(s.selfCorrectorWinner.val) + " '*typo's" },
           { win: s.laughVoidWinner, title: "The Laughing Void", desc: fmtNum(s.laughVoidWinner.val) + " 'lol' only msgs" },
           { win: s.exclaimerWinner, title: "The Exclaimer", desc: fmtNum(s.exclaimerWinner.val) + " exclamation marks!" },
-          { win: s.numberCruncherWinner, title: "Number Cruncher", desc: fmtNum(s.numberCruncherWinner.val) + " numbers used" },
-          { win: s.fourTwentyWinner, title: "The 420 Blazer", desc: fmtNum(s.fourTwentyWinner.val) + " msgs at 4:20" },
           { win: s.midnightSniperWinner, title: "Midnight Sniper", desc: fmtNum(s.midnightSniperWinner.val) + " msgs at 12:00 AM" },
-          { win: s.birthdayWinner, title: "Birthday Wisher", desc: fmtNum(s.birthdayWinner.val) + " 'Happy Birthday's" },
           { win: s.optimistWinner, title: "The Optimist", desc: fmtNum(s.optimistWinner.val) + " positive words" },
           { win: s.pessimistWinner, title: "The Pessimist", desc: fmtNum(s.pessimistWinner.val) + " negative words" },
-          { win: s.confusedWinner, title: "The Confused", desc: fmtNum(s.confusedWinner.val) + " confusion words" },
           { win: s.zoomerWinner, title: "The Zoomer", desc: fmtNum(s.zoomerWinner.val) + " Gen-Z slangs" },
           { win: s.gamerWinner, title: "The Gamer", desc: fmtNum(s.gamerWinner.val) + " gamer terms" },
           { win: s.financeBroWinner, title: "Finance Bro", desc: fmtNum(s.financeBroWinner.val) + " crypto/stock terms" },
-          { win: s.paragrapherWinner, title: "Multi-Paragrapher", desc: fmtNum(s.paragrapherWinner.val) + " line breaks" },
-          { win: s.screamerWinner, title: "The Screamer", desc: fmtNum(s.screamerWinner.val) + " '!!!'s" },
-          { win: s.multiQuestionerWinner, title: "The Questioner", desc: fmtNum(s.multiQuestionerWinner.val) + " '???'s" }
         ].filter(x => x.win && x.win.id && x.win.val > 0).map(x => `
           <div class="card" style="display:flex; align-items:center; gap:12px;">
             ${pfpHtml(x.win.id, "width:40px;height:40px;font-size:16px")}
@@ -1992,11 +1931,6 @@ function renderStats() {
   });
   html += `</div>
         </div>
-      </div>
-
-      <div class="section">
-        <div class="section-h">Activity Heatmap</div>
-        ${buildHeatmapHTML(s)}
       </div>
 
       <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(s.busy[0])} (${fmtNum(s.busy[1])} msgs)</div>
@@ -2468,13 +2402,8 @@ function setView(name) {
   else if (name === "hof") renderHallOfFame();
   else if (name === "wrapped") renderWrapped();
   else if (name === "threads") renderThreads();
-  else if (name === "quiz") renderQuiz();
-  else if (name === "moods") renderMoods();
   else if (name === "battles") renderBattles();
-  else if (name === "sleep") renderSleep();
-  else if (name === "emoji-story") renderEmojiStory();
   else if (name === "chains") renderChains();
-  else if (name === "firsts") renderFirsts();
 }
 
 // A name that does NOT depend on the active conversation's GENERIC map, so
@@ -2483,10 +2412,6 @@ function stableName(id) { return settings.names[id] || LOCAL_NAMES[id] || ("User
 function convLabel(c) {
   if (!c) return "Conversation";
   if (c.title) return c.title;
-  if (c.type === "dm") {
-    const others = (c.participants || []).slice(0, 2).map(stableName).filter(Boolean);
-    return others.length ? others.join(" ↔ ") : "Direct message";
-  }
   return "Group " + String(c.id).slice(-4);
 }
 
@@ -2506,17 +2431,8 @@ function renderConvPicker() {
   if (CONVOS.length <= 1) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
   const opt = (c) => `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`;
-  const groups = CONVOS.filter((c) => c.type === "group");
-  const dms = CONVOS.filter((c) => c.type !== "group");
-  let body = "";
-  // when both kinds exist, split into labelled optgroups for navigability
-  if (groups.length && dms.length) {
-    body = `<optgroup label="👥 Group chats (${groups.length})">${groups.map(opt).join("")}</optgroup>` +
-           `<optgroup label="💬 Direct messages (${dms.length})">${dms.map(opt).join("")}</optgroup>`;
-  } else {
-    body = CONVOS.map(opt).join("");
-  }
-  host.innerHTML = `<label class="conv-pick-label">Conversation (${CONVOS.length})</label>
+  const body = CONVOS.map(opt).join("");
+  host.innerHTML = `<label class="conv-pick-label">Group chat (${CONVOS.length})</label>
     <select id="conv-select" class="conv-select">${body}</select>`;
   host.querySelector("#conv-select").onchange = (e) => activateConversation(e.target.value, true);
 }
@@ -2561,7 +2477,7 @@ function init() {
   buildSidebarSparkline();
   showOnThisDayToast();
   const lastView = localStorage.getItem("gca.lastView");
-  setView((lastView && ["search","timeline","stats","people","settings","capsule","gallery","pins","hof","wrapped","threads","quiz","moods","battles","sleep","emoji-story","chains","firsts"].includes(lastView)) ? lastView : "search");
+  setView((lastView && ["search","timeline","stats","people","settings","capsule","gallery","pins","hof","wrapped","threads","battles","chains"].includes(lastView)) ? lastView : "search");
 }
 
 /* ===========================================================================
@@ -3022,7 +2938,6 @@ function openProfileModal(id) {
   addBadge(s.starterWinner, "🚀", "Thread Starter");
   addBadge(s.killerWinner, "💀", "Thread Killer");
   addBadge(s.scholarWinner, "📚", "The Scholar");
-  addBadge(s.policeWinner, "👮", "Punctuation Police");
   addBadge(s.crowdPleaserWinner, "👏", "Crowd Pleaser");
 
   let badgesHtml = badges.map(b => `<div class="profile-badge"><i>${b.icon}</i> ${b.text}</div>`).join("");
@@ -3245,13 +3160,8 @@ function buildCommands() {
     ["pins", "★", "Pinned messages"], ["capsule", "⏳", "Time Capsule (on this day)"],
     ["wrapped", "🎁", "Wrapped (year in review)"],
     ["threads", "🧵", "Conversation Threads"],
-    ["quiz", "🧠", "GC Trivia Quiz"],
-    ["moods", "💫", "Mood Ring (sentiment analysis)"],
     ["battles", "⚔", "Word Battles (head-to-head)"],
-    ["sleep", "🌙", "Sleep Schedule Heatmap"],
-    ["emoji-story", "🎭", "Emoji DNA (emoji evolution)"],
     ["chains", "⛓", "Reply Chains (longest exchanges)"],
-    ["firsts", "🌅", "First & Last Messages"],
     ["stats", "▤", "Stats & overview"],
     ["people", "◉", "People"], ["settings", "⚙", "Settings"],
   ];
@@ -3486,331 +3396,6 @@ function renderThreads() {
 }
 
 /* ===========================================================================
-   GC TRIVIA QUIZ — auto-generated multiple-choice questions from chat data
-   ======================================================================== */
-let quizState = { questions: [], current: 0, score: 0, answered: false, total: 10 };
-
-function generateQuizQuestions() {
-  const qs = [];
-  const personIds = PARTS.filter(p => p.count > 50).map(p => p.id);
-  if (personIds.length < 3) return qs;
-
-  // Question Type 1: "Who said this?"
-  for (let attempt = 0; attempt < 30 && qs.length < 4; attempt++) {
-    const idx = Math.floor(Math.random() * N);
-    const m = MSGS[idx];
-    if (!m.x || m.x.trim().length < 20 || m.x.trim().length > 200 || /^https?:/.test(m.x.trim())) continue;
-    if (!personIds.includes(m.s)) continue;
-
-    const wrong = personIds.filter(id => id !== m.s).sort(() => Math.random() - 0.5).slice(0, 3);
-    if (wrong.length < 2) continue;
-    const options = [m.s, ...wrong].sort(() => Math.random() - 0.5);
-    qs.push({
-      type: "who_said",
-      question: "Who said this?",
-      quote: m.x.trim().slice(0, 150),
-      options: options.map(id => ({ id, label: nameOf(id) })),
-      answer: m.s, year: new Date(m.t).getFullYear()
-    });
-  }
-
-  // Question Type 2: "What year was this message from?"
-  const yearSet = [...new Set(MSGS.map(m => new Date(m.t).getFullYear()))].sort();
-  for (let attempt = 0; attempt < 30 && qs.length < 7; attempt++) {
-    const idx = Math.floor(Math.random() * N);
-    const m = MSGS[idx];
-    if (!m.x || m.x.trim().length < 15 || /^https?:/.test(m.x.trim())) continue;
-    const correctYear = new Date(m.t).getFullYear();
-    const wrongYears = yearSet.filter(y => y !== correctYear).sort(() => Math.random() - 0.5).slice(0, 3);
-    if (wrongYears.length < 2) continue;
-    const options = [correctYear, ...wrongYears].sort(() => Math.random() - 0.5);
-    qs.push({
-      type: "what_year",
-      question: `What year did ${nameOf(m.s)} say this?`,
-      quote: m.x.trim().slice(0, 150),
-      options: options.map(y => ({ id: String(y), label: String(y) })),
-      answer: String(correctYear)
-    });
-  }
-
-  // Question Type 3: "Who sent the most messages in [year]?"
-  const yearCounts = {};
-  for (let i = 0; i < N; i++) {
-    const yr = new Date(MSGS[i].t).getFullYear();
-    if (!yearCounts[yr]) yearCounts[yr] = {};
-    yearCounts[yr][MSGS[i].s] = (yearCounts[yr][MSGS[i].s] || 0) + 1;
-  }
-  const yrs = Object.keys(yearCounts);
-  for (const yr of yrs.sort(() => Math.random() - 0.5).slice(0, 2)) {
-    const sorted = Object.entries(yearCounts[yr]).sort((a, b) => b[1] - a[1]);
-    if (sorted.length < 3) continue;
-    const correctId = sorted[0][0];
-    const options = sorted.slice(0, 4).map(([id]) => ({ id, label: nameOf(id) })).sort(() => Math.random() - 0.5);
-    qs.push({
-      type: "most_active",
-      question: `Who was the most active in ${yr}?`,
-      quote: null,
-      options,
-      answer: correctId
-    });
-  }
-
-  // Question Type 4: "Which word is used more by [person]?"
-  if (!STATS) computeStats();
-  for (let attempt = 0; attempt < 10 && qs.length < 12; attempt++) {
-    const pid = personIds[Math.floor(Math.random() * personIds.length)];
-    const wordsUsed = {};
-    for (let i = 0; i < N; i++) {
-      if (MSGS[i].s !== pid || !MSGS[i].x) continue;
-      const toks = MSGS[i].x.toLowerCase().split(/\s+/);
-      for (const t of toks) { if (t.length >= 4 && t.length <= 12 && !/^https?:/.test(t)) wordsUsed[t] = (wordsUsed[t] || 0) + 1; }
-    }
-    const topWords = Object.entries(wordsUsed).filter(w => w[1] > 5 && !STOPWORDS.has(w[0])).sort((a, b) => b[1] - a[1]).slice(0, 8);
-    if (topWords.length < 4) continue;
-    const correct = topWords[0];
-    const wrong = topWords.slice(1).sort(() => Math.random() - 0.5).slice(0, 3);
-    const options = [correct, ...wrong].sort(() => Math.random() - 0.5).map(([w, c]) => ({ id: w, label: '"' + w + '"' }));
-    qs.push({
-      type: "fav_word",
-      question: `Which word does ${nameOf(pid)} use most?`,
-      quote: null,
-      options,
-      answer: correct[0]
-    });
-  }
-
-  return qs.sort(() => Math.random() - 0.5).slice(0, 10);
-}
-
-function renderQuiz() {
-  const v = document.getElementById("view-quiz");
-  if (quizState.questions.length === 0 || quizState.current >= quizState.total) {
-    quizState.questions = generateQuizQuestions();
-    quizState.current = 0;
-    quizState.score = 0;
-    quizState.answered = false;
-    quizState.total = quizState.questions.length;
-  }
-  drawQuizQuestion(v);
-}
-
-function drawQuizQuestion(v) {
-  const { questions, current, score, total } = quizState;
-  if (current >= total || !questions.length) {
-    // Game over screen
-    const pct = total > 0 ? Math.round((score / total) * 100) : 0;
-    let verdict = "🤔";
-    if (pct >= 90) verdict = "🧠 You ARE the group chat!";
-    else if (pct >= 70) verdict = "🔥 GC veteran!";
-    else if (pct >= 50) verdict = "👍 Not bad at all!";
-    else if (pct >= 30) verdict = "😅 Do you even read the chat?";
-    else verdict = "💀 Lurker detected…";
-
-    v.innerHTML = `<div class="page"><div class="quiz-end">
-      <div class="quiz-end-emoji">${pct >= 70 ? "🏆" : pct >= 50 ? "🎯" : "🎲"}</div>
-      <div class="quiz-end-score">${score} / ${total}</div>
-      <div class="quiz-end-pct">${pct}%</div>
-      <div class="quiz-end-verdict">${verdict}</div>
-      <button class="btn quiz-restart" id="quiz-restart">Play Again</button>
-    </div></div>`;
-    v.querySelector("#quiz-restart").onclick = () => {
-      quizState.questions = [];
-      renderQuiz();
-    };
-    return;
-  }
-
-  const q = questions[current];
-  const progressPct = ((current) / total * 100).toFixed(0);
-
-  v.innerHTML = `<div class="page"><div class="page-body" style="max-width:640px;margin:0 auto;">
-    <div class="quiz-progress">
-      <div class="quiz-progress-bar" style="width:${progressPct}%"></div>
-    </div>
-    <div class="quiz-meta">Question ${current + 1} of ${total} · Score: ${score}</div>
-    <div class="quiz-question">${esc(q.question)}</div>
-    ${q.quote ? '<div class="quiz-quote">"' + esc(q.quote) + '"</div>' : ''}
-    <div class="quiz-options" id="quiz-options"></div>
-  </div></div>`;
-
-  const optWrap = v.querySelector("#quiz-options");
-  q.options.forEach(opt => {
-    const btn = el("button", "quiz-opt");
-    btn.dataset.id = opt.id;
-    if (q.type === "who_said" || q.type === "most_active") {
-      btn.innerHTML = pfpHtml(opt.id, "width:28px;height:28px;font-size:11px") + " " + esc(opt.label);
-    } else {
-      btn.textContent = opt.label;
-    }
-    btn.onclick = () => {
-      if (quizState.answered) return;
-      quizState.answered = true;
-      const correct = opt.id === q.answer;
-      if (correct) quizState.score++;
-
-      // Highlight answers
-      optWrap.querySelectorAll(".quiz-opt").forEach(b => {
-        if (b.dataset.id === q.answer) b.classList.add("quiz-correct");
-        else if (b === btn && !correct) b.classList.add("quiz-wrong");
-        b.classList.add("quiz-locked");
-      });
-
-      setTimeout(() => {
-        quizState.current++;
-        quizState.answered = false;
-        drawQuizQuestion(v);
-      }, 1400);
-    };
-    optWrap.appendChild(btn);
-  });
-}
-
-/* ===========================================================================
-   MOODS — sentiment analysis timeline & per-person mood ring
-   ======================================================================== */
-const MOOD_WORDS = {
-  positive: new Set("love great awesome amazing good nice cool happy excited beautiful wonderful fire perfect best dope fun lit hype incredible fantastic sick sweet beautiful blessed goated".split(" ")),
-  negative: new Set("hate bad terrible awful sad angry wtf ugly boring stupid dumb worst sucks trash dead damn pain broken annoying tired disappointed".split(" ")),
-  funny: new Set("lol lmao lmfao rofl haha hahaha hilarious funny joke bruh 💀 😂 😭 dead comedy clown".split(" ")),
-  surprise: new Set("what whoa omg wait really wow holy damn bruh nah seriously 😮 😱 shocked shook unexpected".split(" "))
-};
-
-function analyzeSentiment(text) {
-  if (!text) return { pos: 0, neg: 0, funny: 0, surprise: 0 };
-  const words = text.toLowerCase().split(/\s+/);
-  let pos = 0, neg = 0, funny = 0, surprise = 0;
-  for (const w of words) {
-    if (MOOD_WORDS.positive.has(w)) pos++;
-    if (MOOD_WORDS.negative.has(w)) neg++;
-    if (MOOD_WORDS.funny.has(w)) funny++;
-    if (MOOD_WORDS.surprise.has(w)) surprise++;
-  }
-  return { pos, neg, funny, surprise };
-}
-
-let moodsCache = null;
-function computeMoods() {
-  if (moodsCache) return moodsCache;
-  // Per-month group mood
-  const monthMoods = {};
-  // Per-person totals
-  const personMoods = {};
-
-  for (let i = 0; i < N; i++) {
-    const m = MSGS[i];
-    const s = analyzeSentiment(m.x);
-    const d = new Date(m.t);
-    const ym = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-
-    if (!monthMoods[ym]) monthMoods[ym] = { pos: 0, neg: 0, funny: 0, surprise: 0, total: 0 };
-    monthMoods[ym].pos += s.pos;
-    monthMoods[ym].neg += s.neg;
-    monthMoods[ym].funny += s.funny;
-    monthMoods[ym].surprise += s.surprise;
-    monthMoods[ym].total++;
-
-    if (!personMoods[m.s]) personMoods[m.s] = { pos: 0, neg: 0, funny: 0, surprise: 0, total: 0 };
-    personMoods[m.s].pos += s.pos;
-    personMoods[m.s].neg += s.neg;
-    personMoods[m.s].funny += s.funny;
-    personMoods[m.s].surprise += s.surprise;
-    personMoods[m.s].total++;
-  }
-
-  const monthArr = Object.entries(monthMoods).sort((a, b) => a[0] < b[0] ? -1 : 1);
-  moodsCache = { monthArr, personMoods };
-  return moodsCache;
-}
-
-function renderMoods() {
-  const v = document.getElementById("view-moods");
-  const data = computeMoods();
-
-  // Determine dominant mood per person
-  function dominantMood(pm) {
-    const { pos, neg, funny, surprise, total } = pm;
-    if (total === 0) return { mood: "neutral", emoji: "😐", color: "#666" };
-    const moods = [
-      { mood: "positive", val: pos, emoji: "😊", color: "#22c55e" },
-      { mood: "funny", val: funny, emoji: "😂", color: "#f59e0b" },
-      { mood: "surprised", val: surprise, emoji: "😮", color: "#8b5cf6" },
-      { mood: "negative", val: neg, emoji: "😤", color: "#ef4444" },
-    ];
-    moods.sort((a, b) => b.val - a.val);
-    if (moods[0].val === 0) return { mood: "neutral", emoji: "😐", color: "#666" };
-    return moods[0];
-  }
-
-  // Person mood rings
-  let personCards = "";
-  PARTS.forEach(p => {
-    const pm = data.personMoods[p.id];
-    if (!pm || pm.total < 10) return;
-    const dom = dominantMood(pm);
-    const posR = pm.total > 0 ? (pm.pos / pm.total * 100).toFixed(1) : "0";
-    const funR = pm.total > 0 ? (pm.funny / pm.total * 100).toFixed(1) : "0";
-    const negR = pm.total > 0 ? (pm.neg / pm.total * 100).toFixed(1) : "0";
-    const surR = pm.total > 0 ? (pm.surprise / pm.total * 100).toFixed(1) : "0";
-
-    personCards += `<div class="mood-card">
-      <div class="mood-ring" style="--ring-color:${dom.color}">
-        ${pfpHtml(p.id, "width:52px;height:52px;font-size:18px")}
-      </div>
-      <div class="mood-name">${esc(nameOf(p.id))}</div>
-      <div class="mood-dominant">${dom.emoji} ${dom.mood}</div>
-      <div class="mood-bars">
-        <div class="mood-bar-row"><span>😊</span><div class="mood-bar-track"><div class="mood-bar-fill" style="width:${posR}%;background:#22c55e"></div></div><span class="mood-bar-pct">${posR}%</span></div>
-        <div class="mood-bar-row"><span>😂</span><div class="mood-bar-track"><div class="mood-bar-fill" style="width:${funR}%;background:#f59e0b"></div></div><span class="mood-bar-pct">${funR}%</span></div>
-        <div class="mood-bar-row"><span>😤</span><div class="mood-bar-track"><div class="mood-bar-fill" style="width:${negR}%;background:#ef4444"></div></div><span class="mood-bar-pct">${negR}%</span></div>
-        <div class="mood-bar-row"><span>😮</span><div class="mood-bar-track"><div class="mood-bar-fill" style="width:${surR}%;background:#8b5cf6"></div></div><span class="mood-bar-pct">${surR}%</span></div>
-      </div>
-    </div>`;
-  });
-
-  v.innerHTML = `<div class="page"><div class="page-head">
-    <div class="page-title">💫 Mood Ring</div>
-    <div class="page-sub">Sentiment analysis of the group chat — who's the positive one, who's always cracking jokes, and what's the vibe over time?</div></div>
-  <div class="page-body">
-    <div class="section"><div class="section-h">Group Mood Over Time</div>
-      <div class="chart-container" style="position:relative;height:220px;width:100%"><canvas id="chart-moods"></canvas></div>
-    </div>
-    <div class="section"><div class="section-h">Individual Mood Rings</div>
-      <div class="mood-grid">${personCards}</div>
-    </div>
-  </div></div>`;
-
-  // Draw mood chart
-  if (window.Chart && data.monthArr.length > 0) {
-    const labels = data.monthArr.map(m => m[0]);
-    const posData = data.monthArr.map(m => m[1].total > 0 ? (m[1].pos / m[1].total * 100) : 0);
-    const funData = data.monthArr.map(m => m[1].total > 0 ? (m[1].funny / m[1].total * 100) : 0);
-    const negData = data.monthArr.map(m => m[1].total > 0 ? (m[1].neg / m[1].total * 100) : 0);
-    const surData = data.monthArr.map(m => m[1].total > 0 ? (m[1].surprise / m[1].total * 100) : 0);
-
-    Chart.defaults.color = 'rgba(255,255,255,0.6)';
-    Chart.defaults.borderColor = 'rgba(255,255,255,0.1)';
-    const ctx = document.getElementById("chart-moods").getContext("2d");
-    new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [
-          { label: '😊 Positive', data: posData, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.4, borderWidth: 2 },
-          { label: '😂 Funny', data: funData, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', fill: true, tension: 0.4, borderWidth: 2 },
-          { label: '😤 Negative', data: negData, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4, borderWidth: 2 },
-          { label: '😮 Surprise', data: surData, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4, borderWidth: 2 },
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: true, position: 'top' } },
-        scales: { y: { beginAtZero: true, title: { display: true, text: '% of messages' } } }
-      }
-    });
-  }
-}
-
-/* ===========================================================================
    WORD BATTLES — head-to-head word usage comparison
    ======================================================================== */
 let battleP1 = null, battleP2 = null;
@@ -3944,154 +3529,6 @@ function addBattleRow(word) {
 }
 
 /* ===========================================================================
-   SLEEP SCHEDULE HEATMAP — per-person hourly activity heatmap
-   ======================================================================== */
-function renderSleep() {
-  const v = document.getElementById("view-sleep");
-
-  const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const HOUR_LABELS = Array.from({length: 24}, (_, h) => h === 0 ? "12a" : h < 12 ? h + "a" : h === 12 ? "12p" : (h-12) + "p");
-
-  let personHeatmaps = "";
-
-  PARTS.forEach(p => {
-    if (p.count < 20) return;
-    const grid = Array.from({length: 7}, () => new Array(24).fill(0));
-    for (let i = 0; i < N; i++) {
-      if (MSGS[i].s !== p.id) continue;
-      const d = new Date(MSGS[i].t);
-      grid[d.getDay()][d.getHours()]++;
-    }
-
-    const maxCell = Math.max(1, ...grid.flat());
-
-    let cells = "";
-    for (let day = 0; day < 7; day++) {
-      for (let hr = 0; hr < 24; hr++) {
-        const count = grid[day][hr];
-        const intensity = count / maxCell;
-        let bg = "var(--bg-2)";
-        if (intensity > 0) {
-          const alpha = (0.15 + intensity * 0.85).toFixed(2);
-          bg = `rgba(59, 130, 246, ${alpha})`;
-        }
-        cells += `<div class="sleep-cell" style="background:${bg}" title="${DAY_LABELS[day]} ${HOUR_LABELS[hr]}: ${count} msgs"></div>`;
-      }
-    }
-
-    const hourTotals = new Array(24).fill(0);
-    grid.forEach(row => row.forEach((c, h) => hourTotals[h] += c));
-    let sleepStart = 0, minWindow = Infinity;
-    for (let start = 0; start < 24; start++) {
-      let sum = 0;
-      for (let j = 0; j < 6; j++) sum += hourTotals[(start + j) % 24];
-      if (sum < minWindow) { minWindow = sum; sleepStart = start; }
-    }
-    const fmtH = (h) => (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? "am" : "pm");
-    const sleepStr = fmtH(sleepStart) + " – " + fmtH((sleepStart + 6) % 24);
-
-    personHeatmaps += `<div class="sleep-person">
-      <div class="sleep-header">
-        ${pfpHtml(p.id, "width:32px;height:32px;font-size:12px")}
-        <div>
-          <div class="sleep-name">${esc(nameOf(p.id))}</div>
-          <div class="sleep-sub">💤 Quietest: ${sleepStr}</div>
-        </div>
-      </div>
-      <div class="sleep-grid-wrap">
-        <div class="sleep-hour-labels">
-          ${HOUR_LABELS.filter((_, i) => i % 3 === 0).map(l => `<span>${l}</span>`).join("")}
-        </div>
-        <div class="sleep-day-labels">
-          ${DAY_LABELS.map(d => `<span>${d}</span>`).join("")}
-        </div>
-        <div class="sleep-grid">${cells}</div>
-      </div>
-    </div>`;
-  });
-
-  v.innerHTML = `<div class="page"><div class="page-head">
-    <div class="page-title">🌙 Sleep Schedule</div>
-    <div class="page-sub">When does each person actually use the group chat? 7-day × 24-hour activity heatmap reveals everyone's true schedule.</div></div>
-  <div class="page-body">
-    <div class="sleep-grid-container">${personHeatmaps}</div>
-  </div></div>`;
-}
-
-/* ===========================================================================
-   EMOJI DNA — per-person emoji fingerprint & evolution over time
-   ======================================================================== */
-function renderEmojiStory() {
-  const v = document.getElementById("view-emoji-story");
-
-  // Compute per-person emoji usage + per-year top emojis
-  const personEmojis = {};
-  const personYearEmojis = {};
-  const emojiRe = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
-
-  for (let i = 0; i < N; i++) {
-    const m = MSGS[i];
-    if (!m.x) continue;
-    const emojis = m.x.match(emojiRe);
-    if (!emojis) continue;
-    const yr = new Date(m.t).getFullYear();
-    if (!personEmojis[m.s]) personEmojis[m.s] = {};
-    if (!personYearEmojis[m.s]) personYearEmojis[m.s] = {};
-    if (!personYearEmojis[m.s][yr]) personYearEmojis[m.s][yr] = {};
-    emojis.forEach(e => {
-      personEmojis[m.s][e] = (personEmojis[m.s][e] || 0) + 1;
-      personYearEmojis[m.s][yr][e] = (personYearEmojis[m.s][yr][e] || 0) + 1;
-    });
-  }
-
-  let cards = "";
-  PARTS.forEach(p => {
-    const emojis = personEmojis[p.id];
-    if (!emojis || Object.keys(emojis).length === 0) return;
-
-    // Top 12 emojis overall
-    const topAll = Object.entries(emojis).sort((a, b) => b[1] - a[1]).slice(0, 12);
-    const totalE = Object.values(emojis).reduce((a, b) => a + b, 0);
-
-    // DNA strand — top emoji per year
-    const yearData = personYearEmojis[p.id] || {};
-    const years = Object.keys(yearData).sort();
-    let dnaStrand = "";
-    years.forEach(yr => {
-      const top = Object.entries(yearData[yr]).sort((a, b) => b[1] - a[1])[0];
-      if (top) {
-        dnaStrand += `<div class="dna-node">
-          <div class="dna-emoji">${top[0]}</div>
-          <div class="dna-year">${yr}</div>
-          <div class="dna-count">${fmtNum(top[1])}×</div>
-        </div>`;
-      }
-    });
-
-    const topChips = topAll.map(([e, c]) =>
-      `<span class="dna-chip">${e} <b>${fmtNum(c)}</b></span>`
-    ).join("");
-
-    cards += `<div class="dna-card">
-      <div class="dna-header">
-        ${pfpHtml(p.id, "width:36px;height:36px;font-size:13px")}
-        <div>
-          <div class="dna-name">${esc(nameOf(p.id))}</div>
-          <div class="dna-total">${fmtNum(totalE)} emojis · ${Object.keys(emojis).length} unique</div>
-        </div>
-      </div>
-      <div class="dna-strand">${dnaStrand}</div>
-      <div class="dna-chips">${topChips}</div>
-    </div>`;
-  });
-
-  v.innerHTML = `<div class="page"><div class="page-head">
-    <div class="page-title">🎭 Emoji DNA</div>
-    <div class="page-sub">Everyone's emoji fingerprint — their most-used emojis and how their emoji personality evolved year by year.</div></div>
-  <div class="page-body"><div class="dna-grid">${cards}</div></div></div>`;
-}
-
-/* ===========================================================================
    REPLY CHAINS — longest back-and-forth exchanges between two people
    ======================================================================== */
 function renderChains() {
@@ -4183,108 +3620,6 @@ function renderChains() {
   });
 }
 
-/* ===========================================================================
-   FIRST & LAST MESSAGES — who opened and closed each day
-   ======================================================================== */
-function renderFirsts() {
-  const v = document.getElementById("view-firsts");
-
-  // Build day-by-day first and last messages
-  const days = [];
-  let curDay = null, firstIdx = 0, lastIdx = 0;
-
-  for (let i = 0; i < N; i++) {
-    const dk = dayKey(MSGS[i].t);
-    if (dk !== curDay) {
-      if (curDay !== null) {
-        days.push({ day: curDay, firstIdx, lastIdx });
-      }
-      curDay = dk;
-      firstIdx = i;
-    }
-    lastIdx = i;
-  }
-  if (curDay !== null) days.push({ day: curDay, firstIdx, lastIdx });
-
-  // Count who starts / ends the most
-  const starterCounts = {}, enderCounts = {};
-  days.forEach(d => {
-    const s = MSGS[d.firstIdx].s;
-    const e = MSGS[d.lastIdx].s;
-    starterCounts[s] = (starterCounts[s] || 0) + 1;
-    enderCounts[e] = (enderCounts[e] || 0) + 1;
-  });
-
-  // Leaderboards
-  const topStarters = Object.entries(starterCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const topEnders = Object.entries(enderCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-  let starterRows = topStarters.map(([id, c], k) =>
-    `<div class="firsts-row">
-      <span class="firsts-rank">${k + 1}</span>
-      ${pfpHtml(id, "width:26px;height:26px;font-size:10px")}
-      <span class="firsts-name">${esc(nameOf(id))}</span>
-      <span class="firsts-count">${fmtNum(c)} days</span>
-    </div>`
-  ).join("");
-
-  let enderRows = topEnders.map(([id, c], k) =>
-    `<div class="firsts-row">
-      <span class="firsts-rank">${k + 1}</span>
-      ${pfpHtml(id, "width:26px;height:26px;font-size:10px")}
-      <span class="firsts-name">${esc(nameOf(id))}</span>
-      <span class="firsts-count">${fmtNum(c)} days</span>
-    </div>`
-  ).join("");
-
-  // Recent 30 days with first/last messages
-  const recentDays = days.slice(-30).reverse();
-  let recentRows = "";
-  recentDays.forEach(d => {
-    const fm = MSGS[d.firstIdx];
-    const lm = MSGS[d.lastIdx];
-    const fSnip = (fm.x || "").trim().slice(0, 50) || "[media]";
-    const lSnip = (lm.x || "").trim().slice(0, 50) || "[media]";
-    recentRows += `<div class="firsts-day">
-      <div class="firsts-date">${esc(DAY.format(new Date(d.day)))}</div>
-      <div class="firsts-msg firsts-opener" data-idx="${d.firstIdx}">
-        <span class="firsts-label">🌅</span>
-        ${pfpHtml(fm.s, "width:22px;height:22px;font-size:9px")}
-        <span class="firsts-who" style="color:${colorOf(fm.s)}">${esc(nameOf(fm.s))}</span>
-        <span class="firsts-text">${esc(fSnip)}${fSnip.length >= 50 ? "…" : ""}</span>
-      </div>
-      <div class="firsts-msg firsts-closer" data-idx="${d.lastIdx}">
-        <span class="firsts-label">🌙</span>
-        ${pfpHtml(lm.s, "width:22px;height:22px;font-size:9px")}
-        <span class="firsts-who" style="color:${colorOf(lm.s)}">${esc(nameOf(lm.s))}</span>
-        <span class="firsts-text">${esc(lSnip)}${lSnip.length >= 50 ? "…" : ""}</span>
-      </div>
-    </div>`;
-  });
-
-  v.innerHTML = `<div class="page"><div class="page-head">
-    <div class="page-title">🌅 First & Last Messages</div>
-    <div class="page-sub">Who opens the day and who closes it? ${fmtNum(days.length)} days of group chat history.</div></div>
-  <div class="page-body">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;">
-      <div>
-        <div class="section-h">🌅 Most Days Opened</div>
-        <div class="firsts-leaderboard">${starterRows}</div>
-      </div>
-      <div>
-        <div class="section-h">🌙 Most Days Closed</div>
-        <div class="firsts-leaderboard">${enderRows}</div>
-      </div>
-    </div>
-    <div class="section-h">Recent 30 Days</div>
-    <div class="firsts-timeline">${recentRows}</div>
-  </div></div>`;
-
-  v.querySelectorAll(".firsts-msg").forEach(row => {
-    row.style.cursor = "pointer";
-    row.onclick = () => jumpTo(parseInt(row.dataset.idx));
-  });
-}
 
 /* ---- Boot (all module state is declared by now) -------------------------- */
 activateConversation(pickInitialConvId(), false);

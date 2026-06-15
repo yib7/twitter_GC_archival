@@ -6,7 +6,7 @@
   <meta name="description" content="Offline archive viewer for Twitter/X group DM conversations — search, browse, and explore your group chat history with full media support." />
   <meta name="theme-color" content="#05070d" />
   <title>Group Chat Archive</title>
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="src/styles.css" />
 </head>
 <body>
   <div id="boot" class="boot">
@@ -49,16 +49,11 @@
           <div class="nav-label">Analytics</div>
           <button class="nav-item" data-view="stats"><span class="nav-ico">▤</span> Stats</button>
           <button class="nav-item" data-view="threads"><span class="nav-ico">🧵</span> Threads</button>
-          <button class="nav-item" data-view="moods"><span class="nav-ico">💫</span> Moods</button>
-          <button class="nav-item" data-view="sleep"><span class="nav-ico">🌙</span> Sleep</button>
-          <button class="nav-item" data-view="emoji-story"><span class="nav-ico">🎭</span> Emoji DNA</button>
           <button class="nav-item" data-view="chains"><span class="nav-ico">⛓</span> Chains</button>
-          <button class="nav-item" data-view="firsts"><span class="nav-ico">🌅</span> Firsts</button>
         </div>
         <div class="nav-section">
           <div class="nav-label">Fun & Games</div>
           <button class="nav-item" data-view="battles"><span class="nav-ico">⚔</span> Battles</button>
-          <button class="nav-item" data-view="quiz"><span class="nav-ico">🧠</span> Quiz</button>
           <button class="nav-item" id="nav-random"><span class="nav-ico">🎲</span> Random Quote</button>
         </div>
         <div class="nav-section">
@@ -80,13 +75,8 @@
       <div id="view-capsule" class="view" hidden></div>
       <div id="view-wrapped" class="view" hidden></div>
       <div id="view-threads" class="view" hidden></div>
-      <div id="view-quiz" class="view" hidden></div>
-      <div id="view-moods" class="view" hidden></div>
       <div id="view-battles" class="view" hidden></div>
-      <div id="view-sleep" class="view" hidden></div>
-      <div id="view-emoji-story" class="view" hidden></div>
       <div id="view-chains" class="view" hidden></div>
-      <div id="view-firsts" class="view" hidden></div>
       <div id="view-stats" class="view" hidden></div>
       <div id="view-people" class="view" hidden></div>
       <div id="view-settings" class="view" hidden></div>
@@ -101,6 +91,6 @@
   <script src="names.local.js" onerror="void 0"></script>
   <script src="lib/fuse.min.js"></script>
   <script src="lib/chart.min.js"></script>
-  <script src="app.js"></script>
+  <script src="src/app.js"></script>
 </body>
 </html>
