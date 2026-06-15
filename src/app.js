@@ -82,34 +82,6 @@ function activateConversation(id, rerender) {
   }
 }
 
-let DB = null;
-const req = indexedDB.open("GroupChatArchiveDB", 1);
-req.onupgradeneeded = (e) => { e.target.result.createObjectStore("scraped", { keyPath: "i" }); };
-req.onsuccess = (e) => { DB = e.target.result; loadLocalData(); };
-req.onerror = () => { console.warn("IndexedDB unavailable — scraped data features disabled"); };
-
-function loadLocalData() {
-  const tx = DB.transaction("scraped", "readonly");
-  const store = tx.objectStore("scraped");
-  store.getAll().onsuccess = (e) => {
-    const locals = e.target.result;
-    if (locals.length > 0) {
-      const existing = new Set(MSGS.map(m => m.i));
-      let added = 0;
-      locals.forEach(m => {
-        if (!existing.has(m.i)) { MSGS.push(m); existing.add(m.i); added++; }
-      });
-      if (added > 0) {
-        MSGS.sort((a,b) => a.t - b.t);
-        rebuildIndexes();
-        STATS = null; WORDS = null; MILES = null;  // invalidate derived caches after merge
-        if (fuseIndex) fuseIndex = new Fuse(LOWER, { threshold: 0.3, ignoreLocation: true });
-        if (curView === "search") runSearch();
-      }
-    }
-  };
-}
-
 /* ---- Constants ----------------------------------------------------------- */
 const REACT = { funny: "😂", like: "❤️", agree: "👍", disagree: "👎", excited: "🔥", surprised: "😮", sad: "😢", emoji: "💬" };
 const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
@@ -2312,58 +2284,7 @@ function renderSettings() {
           </div></div>
       </div>
 
-      <div class="set-group">
-        <div class="set-row"><div><div class="set-label">Add Data (Offline)</div><div class="set-desc">Drag and drop exported .js or .json files here to merge them instantly.</div></div></div>
-        <div id="dropzone" class="dropzone">Drop files here</div>
-      </div>
-
     </div></div>`;
-
-  const dz = v.querySelector("#dropzone");
-  dz.ondragover = (e) => { e.preventDefault(); dz.classList.add("hover"); };
-  dz.ondragleave = () => dz.classList.remove("hover");
-  dz.ondrop = (e) => {
-    e.preventDefault(); dz.classList.remove("hover");
-    for (const file of e.dataTransfer.files) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        try {
-          const txt = ev.target.result.replace(/^window\.YTD\.[^=]*=\s*/, "").replace(/;\s*$/, "");
-          const data = JSON.parse(txt);
-          let toAdd = [];
-          if (Array.isArray(data)) {
-            data.forEach(d => {
-              const c = d.dmConversation; if (!c) return;
-              c.messages.forEach(m => {
-                if (m.messageCreate) {
-                  const mc = m.messageCreate;
-                  let rec = { i: mc.id, s: mc.senderId, t: Date.parse(mc.createdAt), x: mc.text || "" };
-                  if (mc.urls && mc.urls.length) rec.u = mc.urls.map((u) => ({ s: u.url, e: u.expanded, d: u.display }));
-                  if (mc.reactions && mc.reactions.length) rec.r = mc.reactions.map((r) => ({ k: r.reactionKey, s: r.senderId }));
-                  toAdd.push(rec);
-                }
-              });
-            });
-          } else if (data.records) {
-             data.records.forEach(r => {
-                if (!r.id || (!r.text && !r.mediaFile)) return;
-                let s = r.senderId || "x:unknown";
-                const t = r.createdAt ? Date.parse(r.createdAt) : (r.capturedAt || 0);
-                const rec = { i: r.id, s, t, x: r.text || "", src: "xchat" };
-                toAdd.push(rec);
-             });
-          }
-          if (toAdd.length > 0 && DB) {
-             const tx = DB.transaction("scraped", "readwrite");
-             const store = tx.objectStore("scraped");
-             toAdd.forEach(m => store.put(m));
-             tx.oncomplete = () => { loadLocalData(); toast(`Merged ${toAdd.length} messages`); };
-          }
-        } catch(err) { toast("Error parsing file"); }
-      };
-      reader.readAsText(file);
-    }
-  };
 
   // accents
   const ac = v.querySelector("#set-accents");

@@ -70,7 +70,7 @@ your data**) and unzip it. The group chat archive needs all three of these:
 
 *(1:1 DM files are ignored — this tool is group-chats only.)*
 
-### Option A — Setup wizard (recommended)
+### Setup wizard
 
 The wizard writes config, copies your files and media, runs the build, restores
 the group photo, and walks you through naming everyone — all from the browser. It
@@ -95,20 +95,8 @@ Everything the wizard writes lands in one git-ignored folder, **`personal_data/`
 `source/`, copied `media/`, and `pfps/`). After setup, daily use is just
 double-clicking `index.html`.
 
-### Option B — manual build
-
-```bash
-# drop direct-messages-group.js + direct-messages-group-headers.js
-# + direct_messages_group_media/ into exports/
-node scripts/build.js
-```
-
-`build.js` parses the group export, emits an index of **every group**
-conversation it finds (deduped by message id, media resolved by filename), and
-writes `data.js`. Re-run it any time you add a newer export — history is merged,
-never lost. (If `personal_data/config.json` exists, the build follows it — using
-the headers file it records to complete the participant roster — and writes
-`personal_data/data.js` instead.)
+> **Adding a newer export later?** Just re-run the wizard. The build is
+> merge-aware, so your history accumulates and is never lost.
 
 ### Naming participants
 
@@ -119,15 +107,6 @@ profile picture, and mark "This is me" — all saved to `localStorage` (works fr
 `file://`, no server). For a permanent local mapping you can also hand-edit
 `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` / `LOCAL_ME` /
 `LOCAL_GC`).
-
----
-
-## Live capture (optional)
-
-X migrated DMs to the encrypted **XChat** UI, and encrypted messages aren't in
-data exports. A Tampermonkey userscript (documented in
-[`docs/SCRAPER.md`](docs/SCRAPER.md)) can capture new messages live;
-`build.js` merges scraped JSON dropped into `exports/`.
 
 ---
 
@@ -163,14 +142,13 @@ src/app.js          all UI logic (vanilla JS, no framework)
 src/styles.css      black + blue theme
 src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
-scripts/build.js    exports/config -> data.js  (multi-group, merge-aware)
+scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
 scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
 lib/                Fuse.js + Chart.js (vendored, MIT)
 data.sample.js      committed synthetic demo data
 sample_media/       committed placeholder media
-docs/               architecture + scraper notes
-exports/            (git-ignored) drop your raw X exports here
+docs/               architecture notes
 personal_data/      (git-ignored) wizard output: config.json, data.js, local.js,
                     source/, media/, pfps/ — all your real, private data in one place
 ```

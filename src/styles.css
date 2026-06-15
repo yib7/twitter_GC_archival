@@ -449,10 +449,6 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .btn.ghost:hover { background: var(--bg-3); }
 .btn.sm { padding: 6px 12px; font-size: 12.5px; }
 
-/* drag and drop zone */
-.dropzone { border: 2px dashed var(--line); border-radius: 12px; padding: 30px; text-align: center; color: var(--text-dim); cursor: pointer; transition: 0.2s; background: var(--bg-2); margin-top: 10px; }
-.dropzone.hover { border-color: var(--accent); background: var(--accent-glow); color: var(--accent); }
-
 /* saved searches list */
 .saved-list { display: flex; flex-direction: column; gap: 7px; }
 .saved-item { display: flex; align-items: center; gap: 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }

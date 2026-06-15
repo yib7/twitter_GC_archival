@@ -37,12 +37,11 @@ personal_data/
   pfps/         gc.<ext> + <participantId>.<ext> profile images
 ```
 
-`config.json` is the wizard↔build contract. When it exists, `build.js` uses its
-`sourceJs` + `mediaDir` (instead of scanning root/`exports/`) and writes
-`personal_data/data.js`; otherwise the original root/`exports/` discovery runs and
-writes the root `data.js`. Media paths are emitted **relative to the project
-root**, so they resolve identically whether `data.js` sits at the root or under
-`personal_data/`.
+`config.json` is the wizard↔build contract and the **only** way the build is
+driven: `build.js` reads its `sourceJs` + `headersJs` + `mediaDir` and writes
+`personal_data/data.js`. With no `config.json`, `build.js` exits and tells the
+user to run the wizard. Media paths are emitted **relative to the project root**,
+so they resolve regardless of where `data.js` sits.
 
 Server endpoints:
 
@@ -57,7 +56,7 @@ Server endpoints:
 
 | File | Role |
 |------|------|
-| `scripts/build.js` | Node script. Parses the group export file (`direct-messages-group.js`), folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, merges optional XChat scrapes, and writes `data.js`. When `config.headersJs` is set, also folds `direct-messages-group-headers.js` — metadata only, so it adds no messages but completes each conversation's participant roster (senders/joiners with no surviving message) and join/leave/name events. Honors `personal_data/config.json` (explicit source + media → `personal_data/data.js`) when present, else falls back to root/`exports/` discovery. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only — 1:1 DMs (id shape `a-b`) are skipped. |
+| `scripts/build.js` | Node script. Wizard-driven (requires `personal_data/config.json`; exits otherwise). Parses the group export file (`direct-messages-group.js`), folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, and writes `personal_data/data.js`. When `config.headersJs` is set, also folds `direct-messages-group-headers.js` — metadata only, so it adds no messages but completes each conversation's participant roster (senders/joiners with no surviving message) and join/leave/name events. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only — 1:1 DMs (id shape `a-b`) are skipped. |
 | `scripts/make_sample.js` | Node script. Deterministic synthetic-data generator → `data.sample.js` (3 group chats, ~130 messages, tagged `__sample`) plus placeholder SVG media/avatars. Zero real data. |
 | `setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard (served). Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Loads `data.sample.js` first, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/app.js`. |
@@ -132,6 +131,5 @@ Stats, Threads, Chains, Battles, People, Settings — plus Random Quote and the
 ⌘K command palette.
 
 ### Local data
-A small IndexedDB store (`GroupChatArchiveDB`) holds scraped messages merged in
-at runtime; everything else (theme, names, bookmarks, saved searches) lives in
-`localStorage` under `gca.*` keys.
+All viewer state (theme, names, profile pictures, bookmarks, saved searches)
+lives in `localStorage` under `gca.*` keys.

@@ -1,23 +1,21 @@
 /*
- * build.js — builds/updates data.js by MERGING all available exports.
+ * build.js — builds personal_data/data.js from the setup wizard's config.
  *
- * Multi-conversation: parses BOTH Twitter/X export files —
- *   - direct-messages.js        (1:1 DM conversations, full content)
- *   - direct-messages-group.js  (group DM conversations, full content)
- * — and emits an index of EVERY conversation it finds, instead of a single
- * hard-coded one. When the setup wizard provides it (config.headersJs), the
- * group `-headers` file (direct-messages-group-headers.js) is folded in too:
- * it carries no message bodies, so it never adds empty messages, but it
- * completes the participant roster (people who never sent a surviving message)
- * plus any join/leave/name events. The 1:1 `-headers` file is ignored.
+ * Wizard-driven only: it reads personal_data/config.json (written by setup.html
+ * / scripts/server.js) for the exact source file(s) + media folder, parses the
+ * group export (direct-messages-group.js), folds EVERY group dmConversation into
+ * a per-conversation index, and writes personal_data/data.js.
  *
- *  - Preserves previously-built history (reads the existing data.js as a baseline).
- *  - Reads exports in the project root PLUS any dropped into ./exports/.
- *  - Dedupes messages by id, re-sorts chronologically, and resolves local media
- *    from ./direct_messages_media/ and ./direct_messages_group_media/
- *    (and any media folder under ./exports/).
+ *  - When config.headersJs is set, the group `-headers` file
+ *    (direct-messages-group-headers.js) is folded in too: it has no message
+ *    bodies, so it never adds empty messages, but it completes the participant
+ *    roster (people who never sent a surviving message) plus join/leave/name events.
+ *  - Merge-aware: reads the previous data.js as a baseline, so re-running the
+ *    wizard with a newer export accumulates history instead of losing it.
+ *  - Dedupes messages by id, re-sorts chronologically, resolves local media by
+ *    the {messageId}-… filename convention. Group chats only — 1:1 DMs are skipped.
  *
- * Run it any time you add a new export:   node build.js
+ * Not meant to be run by hand — use the setup wizard (setup.html).
  */
 
 const fs = require("fs");
@@ -27,17 +25,20 @@ const here = path.join(__dirname, "..");   // project root (this script lives in
 const PERSONAL = path.join(here, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
 
-// When the setup wizard has written personal_data/config.json, the build is
-// driven by it (explicit source .js + media folder) and writes into
-// personal_data/data.js. Otherwise we fall back to the original root/exports
-// discovery and write the root data.js — so the manual flow still works.
+// The build is driven entirely by personal_data/config.json (written by the
+// setup wizard). No config → nothing to build; point the user at the wizard.
 function loadConfig() {
   if (!fs.existsSync(CONFIG)) return null;
   try { return JSON.parse(fs.readFileSync(CONFIG, "utf8")); }
   catch (e) { return null; }
 }
 const config = loadConfig();
-const OUT = config ? path.join(PERSONAL, "data.js") : path.join(here, "data.js");
+if (!config) {
+  console.error("No personal_data/config.json found — run the setup wizard first:");
+  console.error("  node scripts/server.js   then open   http://localhost:8765/setup.html");
+  process.exit(1);
+}
+const OUT = path.join(PERSONAL, "data.js");
 const resolveHere = (p) => (path.isAbsolute(p) ? p : path.join(here, p));
 const log = (...a) => console.log(...a);
 const toMs = (iso) => (iso ? Date.parse(iso) : 0);
@@ -49,80 +50,32 @@ const kindOf = (p) => { const e = p.split(".").pop().toLowerCase(); return IMG.h
 // a 1:1 DM id looks like "{userA}-{userB}"; a group id is a single numeric id
 const isGroupId = (id) => !/^\d+-\d+$/.test(String(id));
 
-/* ---- file discovery ------------------------------------------------------ */
-function walk(dir, cb) {
-  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, e.name);
-    if (e.isDirectory()) walk(full, cb); else cb(full);
-  }
-}
-// match direct-messages-group.js (+ dated copies) only — this build is
-// group-chats only; the 1:1 direct-messages.js and *-headers.js are ignored.
-const isExportFile = (name) =>
-  /^direct-messages-group(-.*)?\.js$/i.test(name) && !/headers/i.test(name);
-
+/* ---- config-driven sources ----------------------------------------------- */
 function findExports() {
-  // Config-driven: use exactly the source files the wizard pointed us at.
-  if (config && Array.isArray(config.sourceJs) && config.sourceJs.length) {
-    return config.sourceJs.map(resolveHere).filter((f) => fs.existsSync(f));
-  }
-  const out = [];
-  for (const f of fs.readdirSync(here)) if (isExportFile(f)) out.push(path.join(here, f));
-  const exDir = path.join(here, "exports");
-  if (fs.existsSync(exDir)) walk(exDir, (f) => { if (isExportFile(path.basename(f))) out.push(f); });
-  return out;
+  // exactly the source file(s) the wizard pointed us at
+  return (Array.isArray(config.sourceJs) ? config.sourceJs : [])
+    .map(resolveHere).filter((f) => fs.existsSync(f));
 }
 function findMediaDirs() {
-  // Config-driven: the wizard copies media into personal_data/media/ and stores
-  // that path. Media paths are emitted relative to the project root, so the app
-  // (served from the root) resolves them regardless of where data.js lives.
-  if (config && config.mediaDir) {
-    const d = resolveHere(config.mediaDir);
-    return fs.existsSync(d) ? [d] : [];
-  }
-  const dirs = [];
-  const main = path.join(here, "direct_messages_group_media");
-  if (fs.existsSync(main)) dirs.push(main);
-  const exDir = path.join(here, "exports");
-  if (fs.existsSync(exDir)) {
-    (function walkDirs(dir) {
-      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (e.isDirectory()) {
-          const full = path.join(dir, e.name);
-          if (e.name === "direct_messages_group_media") dirs.push(full);
-          walkDirs(full);
-        }
-      }
-    })(exDir);
-  }
-  return dirs;
+  // the wizard copies media into personal_data/media/ and stores that path.
+  // Media paths are emitted relative to the project root, so the app (served
+  // from the root) resolves them regardless of where data.js lives.
+  if (!config.mediaDir) return [];
+  const d = resolveHere(config.mediaDir);
+  return fs.existsSync(d) ? [d] : [];
 }
 function buildMediaIndex(dirs) {
-  const idx = {}, files = {};   // idx: messageId->path (official) ; files: basename->path (scraped)
+  const idx = {};   // messageId -> root-relative path
   for (const d of dirs) {
     const rel = path.relative(here, d).split(path.sep).join("/");
     for (const f of fs.readdirSync(d)) {
-      if (!files[f]) files[f] = rel + "/" + f;
       const dash = f.indexOf("-");
       if (dash <= 0) continue;
       const id = f.slice(0, dash);
       if (!idx[id]) idx[id] = rel + "/" + f;
     }
   }
-  return { idx, files };
-}
-
-// live XChat scrapes (exports/gc-scrape-*.json) + optional sender map
-function findScrapes() {
-  const out = [];
-  const exDir = path.join(here, "exports");
-  if (fs.existsSync(exDir)) walk(exDir, (f) => { if (/\.json$/i.test(f) && /scrape/i.test(path.basename(f))) out.push(f); });
-  return out;
-}
-function loadSenderMap() {
-  const f = path.join(here, "exports", "sender-map.json");
-  if (!fs.existsSync(f)) return {};
-  try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) { return {}; }
+  return idx;
 }
 
 /* ---- normalization ------------------------------------------------------- */
@@ -146,7 +99,7 @@ function loadPrev() {
   try {
     const s = fs.readFileSync(OUT, "utf8").replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, "");
     return JSON.parse(s);
-  } catch (e) { log("(existing data.js unreadable — rebuilding from exports only)"); return null; }
+  } catch (e) { log("(existing data.js unreadable — rebuilding from source only)"); return null; }
 }
 
 /* ---- per-conversation accumulator ---------------------------------------- */
@@ -236,36 +189,10 @@ for (const file of headerFiles) {
   });
 }
 
-// media index (shared by official + scraped resolution)
+// media index
 const mediaDirs = findMediaDirs();
 log("Media folders:", mediaDirs.map((d) => path.relative(here, d)).join(", ") || "(none)");
-const { idx: mediaIdx, files: mediaFiles } = buildMediaIndex(mediaDirs);
-
-// 2b) merge live XChat scrapes — these belong to the largest group conversation
-const senderMap = loadSenderMap();
-const scrapeFiles = findScrapes();
-if (scrapeFiles.length) {
-  log("Scrape files:", scrapeFiles.length, scrapeFiles.map((f) => path.relative(here, f)).join(", "));
-  // pick the biggest group conversation as the scrape target
-  let target = null, best = -1;
-  for (const c of convos.values()) if (c.type === "group" && c.msgMap.size > best) { best = c.msgMap.size; target = c; }
-  let scrapedNew = 0;
-  for (const file of scrapeFiles) {
-    let payload; try { payload = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { log("  ! scrape parse error:", path.relative(here, file)); continue; }
-    const c = target || getConvo(payload.conversationId || "scraped");
-    for (const r of (payload.records || [])) {
-      if (!r.id || (!r.text && !r.mediaFile)) continue;
-      let s = r.senderId || "x:unknown";
-      if (senderMap[s]) s = senderMap[s];
-      const t = r.createdAt ? Date.parse(r.createdAt) : (r.capturedAt || 0);
-      const rec = { i: r.id, s, t, x: r.text || "", src: "xchat" };
-      if (r.mediaFile && mediaFiles[r.mediaFile]) { rec.m = mediaFiles[r.mediaFile]; rec.k = kindOf(r.mediaFile); }
-      if (!c.msgMap.has(r.id)) scrapedNew++;
-      c.msgMap.set(r.id, rec);
-    }
-  }
-  log("Scraped messages merged:", scrapedNew, "new.");
-}
+const mediaIdx = buildMediaIndex(mediaDirs);
 
 // 3) resolve local media + assemble final conversation index
 const conversations = [];

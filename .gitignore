@@ -33,7 +33,6 @@ THE_GC_V2.zip
 *.zip
 
 # Working areas
-exports/
 trash/
 node_modules/
 
@@ -42,10 +41,6 @@ PLAN.md
 
 # Session report (not part of the published app)
 SCHEDULED_TASK_RESULTS.md
-
-# Scraper capture artifacts
-gc-scrape-*.json
-sender-map.json
 
 # OS / editor noise
 .DS_Store
