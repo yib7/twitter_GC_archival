@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter } = require("./server-core.js");
+const { dialogFilter, pfpFileName } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
@@ -197,12 +197,20 @@ function apiIdentity(body, res) {
   const names = body.names && typeof body.names === "object" ? body.names : {};
   const pfpPaths = {};
 
-  // participant pfps (data URLs → files)
+  // Reserve filenames already on disk (from a previous save) so a fresh upload
+  // with the same name doesn't clobber them.
+  const taken = new Set();
+  if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) { const bn = String(cfg.pfps[id]).split("/").pop(); if (bn) taken.add(bn); }
+
+  // participant pfps (data URLs → files). Named people get <name>_pfp.<ext>;
+  // unnamed people keep their opaque id, so the file is easy to relocate later.
   const pfps = body.pfps && typeof body.pfps === "object" ? body.pfps : {};
   for (const id of Object.keys(pfps)) {
     const d = decodeDataUrl(pfps[id]);
     if (!d) continue;
-    const fname = "pfps/" + id + "." + d.ext;
+    const base = pfpFileName(names[id], id, d.ext, taken);
+    taken.add(base);
+    const fname = "pfps/" + base;
     fs.writeFileSync(path.join(PERSONAL, fname), d.buf);
     pfpPaths[id] = "personal_data/" + fname;
   }
@@ -220,7 +228,10 @@ function apiIdentity(body, res) {
     let photo = (gcOut[cid] && gcOut[cid].photo) || "";
     const d = decodeDataUrl(entry.photo);
     if (d) {
-      const fname = "pfps/gc-" + String(cid).replace(/[^a-zA-Z0-9_-]/g, "_") + "." + d.ext;
+      // Named group → <groupname>_pfp.<ext>; unnamed → gc-<cid>.<ext> fallback.
+      const base = pfpFileName(name, "gc-" + cid, d.ext, taken);
+      taken.add(base);
+      const fname = "pfps/" + base;
       fs.writeFileSync(path.join(PERSONAL, fname), d.buf);
       photo = "personal_data/" + fname;
     } else if (typeof entry.photo === "string" && entry.photo && !entry.photo.startsWith("data:")) {
