@@ -19,8 +19,9 @@ synthetic demo data](docs/screenshot.png)
 ## Features
 
 - **Fuzzy search** (Fuse.js) with filters: `has:media`, `has:links`,
-  `from:name`, `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`, sorting,
-  list/grid views, saved searches, and CSV/JSON export.
+  `from:name`, `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`,
+  `-exclusions`, sorting, list/grid views, saved searches, and one-tap export
+  of the filtered results to a text file.
 - **Multiple group chats** — a conversation picker switches between every
   group in your export. Every view is scoped to the selected group.
 - **Virtual timeline** — scrolls 100K+ messages smoothly, with jump-to-date
@@ -197,6 +198,7 @@ src/app.js          all UI logic (vanilla JS, no framework)
 src/styles.css      black + blue theme
 src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
+src/keepalive.js    launcher heartbeat (auto-closes the server on browser close)
 scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
 scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
