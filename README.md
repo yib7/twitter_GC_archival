@@ -93,7 +93,9 @@ node scripts/server.js                 # -> http://localhost:8765
 
 1. **Source** — click **Browse…** to pick your `direct-messages-group.js`, your
    `direct-message-group-headers.js`, and your media folder (all three required;
-   native file dialogs on Windows), then **Build**.
+   native file dialogs on Windows), then **Build**. Once built, the source files
+   **lock** so you can't accidentally rebuild with mismatched files — use *Start
+   over* to change them.
 2. **Group** *(optional)* — set the group name + photo (becomes the sidebar mark).
    With several group chats, a **group selector** lets you set each one's name and
    photo independently. You can also **remove an entire group chat** here (a dead

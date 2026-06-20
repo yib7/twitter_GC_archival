@@ -274,6 +274,20 @@ function apiIdentity(body, res) {
   sendJSON(res, 200, { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length });
 }
 
+/* ---- endpoint: has a build already happened? ----------------------------- */
+// Lets the wizard render its locked state on load (source files can't be changed
+// once built — only Start over clears it) and prefill the group list.
+function apiStatus(res) {
+  const data = readBuiltData();
+  const cfg = loadConfig();
+  const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
+  sendJSON(res, 200, {
+    built: !!data,
+    groups,
+    ignoredGroups: Array.isArray(cfg.ignoredGroups) ? cfg.ignoredGroups : [],
+  });
+}
+
 /* ---- endpoint: wipe personal_data/ to start setup over -------------------- */
 // Deletes the wizard's output so the user can rebuild from a clean slate. Every
 // path is checked through isInsidePersonal() first, so it can NEVER touch a file
@@ -350,6 +364,7 @@ http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req), res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req), res);
+    if (req.method === "GET" && url === "/api/status") return apiStatus(res);
     if (req.method === "POST" && url === "/api/reset") return apiReset(res);
   } catch (e) {
     return sendJSON(res, e.statusCode || 500, { error: String(e && e.message || e) });

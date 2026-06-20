@@ -205,6 +205,31 @@ $("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value =
 $("#headers-browse").onclick = () => pick("file", (p) => { $("#src-headers").value = p; }, "headers");
 $("#media-browse").onclick = () => pick("folder", (p) => { $("#src-media").value = p; });
 
+/* ---- source lock + status ------------------------------------------------ */
+// Once an archive is built, lock the source files so the user can't corrupt the
+// archive by adding mismatched files — only "Start over" clears it.
+function lockSource(locked) {
+  ["#src-group", "#src-headers", "#src-media", "#group-browse", "#headers-browse", "#media-browse", "#btn-build"]
+    .forEach((s) => { const el = $(s); if (el) el.disabled = locked; });
+  const banner = $("#src-locked"); if (banner) banner.hidden = !locked;
+}
+async function loadStatus() {
+  if (!SERVED) return;
+  try {
+    const r = await fetch("/api/status");
+    const j = await r.json();
+    if (j && j.built) {
+      built = true;
+      groups = j.groups || [];
+      state.group = groups[0] ? String(groups[0].id) : "";
+      (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; });
+      renderGroupChoosers();
+      refreshGroupStep();
+      lockSource(true);
+    }
+  } catch (e) { /* no server / fresh setup — leave unlocked */ }
+}
+
 $("#btn-build").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
   const groupJs = $("#src-group").value.trim();
@@ -228,6 +253,7 @@ $("#btn-build").onclick = async () => {
       `✓ Built <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)` +
       (j.mediaCopied ? `, copied <b>${j.mediaCopied.toLocaleString()}</b> media files` : "") +
       `.<ul>${groupList}</ul>`, "ok");
+    lockSource(true);
     go(2);
   } catch (e) {
     flash($("#src-result"), "✗ " + e.message + " — is the server running? (node scripts/server.js)", "err");
@@ -401,4 +427,5 @@ $("#reset-go").onclick = async () => {
 };
 
 go(1);
+loadStatus();
 })();
