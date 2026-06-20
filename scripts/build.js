@@ -47,6 +47,7 @@ const OUT = path.join(PERSONAL, "data.js");
 const resolveHere = (p) => (path.isAbsolute(p) ? p : path.join(here, p));
 const log = (...a) => console.log(...a);
 const ignoredUsers = (Array.isArray(config.ignoredUsers) ? config.ignoredUsers : []).map(String);
+const ignoredGroups = (Array.isArray(config.ignoredGroups) ? config.ignoredGroups : []).map(String);
 
 /* ---- config-driven sources ----------------------------------------------- */
 function findExports() {
@@ -116,7 +117,7 @@ log("Media folders:", mediaDirs.map((d) => path.relative(here, d)).join(", ") ||
 const mediaIndex = buildMediaIndex(mediaDirs);
 
 const { conversations, totalMsgs, totalMedia, prevCount } =
-  assembleConversations({ prev, exportDatas, headerDatas, mediaIndex, ignoredUsers });
+  assembleConversations({ prev, exportDatas, headerDatas, mediaIndex, ignoredUsers, ignoredGroups });
 
 if (prev) log("Baseline from data.js:", prevCount, "messages.");
 
@@ -125,6 +126,7 @@ fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({
   generatedAt: new Date().toISOString(),
   ignoredUsers,
+  ignoredGroups,
   conversations,
 }) + ";\n");
 

@@ -96,7 +96,9 @@ node scripts/server.js                 # -> http://localhost:8765
    native file dialogs on Windows), then **Build**.
 2. **Group** *(optional)* — set the group name + photo (becomes the sidebar mark).
    With several group chats, a **group selector** lets you set each one's name and
-   photo independently.
+   photo independently. You can also **remove an entire group chat** here (a dead
+   group, a stranger group) with the *Remove this group chat* toggle — it's
+   excluded from the archive, just like removing a person.
 3. **People** *(optional)* — scoped to **one group at a time** (switch with the
    same group selector), so you only name the people in the chat you care about.
    Each participant card shows sample messages and a few pieces of media they
@@ -154,6 +156,11 @@ the wizard's People step (it writes `window.LOCAL_IGNORED_USERS` to
 drop them too). You can also set `ignoredUsers: ["user-id"]` in
 `personal_data/config.json` by hand before a build, or `window.LOCAL_IGNORED_USERS`
 in a gitignored local override.
+
+Whole group chats can be removed the same way — the **Remove this group chat**
+toggle on the Group step writes `window.LOCAL_IGNORED_GROUPS` and
+`config.ignoredGroups`, so the conversation is dropped from the build and hidden
+in the viewer.
 
 ---
 

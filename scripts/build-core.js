@@ -52,6 +52,7 @@ function makeConvo(id) {
  * @param {Array[]}  opts.headerDatas    parsed arrays from -headers.js files (metadata only).
  * @param {object}   opts.mediaIndex     { messageId -> root-relative media path }.
  * @param {string[]} opts.ignoredUsers   user ids to drop from messages + roster.
+ * @param {string[]} opts.ignoredGroups  conversation ids to drop entirely.
  * @returns {{conversations: object[], totalMsgs: number, totalMedia: number, prevCount: number}}
  */
 function assembleConversations(opts) {
@@ -61,6 +62,9 @@ function assembleConversations(opts) {
   const headerDatas = opts.headerDatas || [];
   const mediaIndex = opts.mediaIndex || {};
   const IGNORED = new Set((Array.isArray(opts.ignoredUsers) ? opts.ignoredUsers : []).map(String));
+  // whole group chats the user removed in the wizard — excluded entirely (their
+  // messages aren't assembled and their media is never referenced in the output)
+  const IGNORED_GROUPS = new Set((Array.isArray(opts.ignoredGroups) ? opts.ignoredGroups : []).map(String));
 
   const convos = new Map();
   const getConvo = (id) => {
@@ -123,6 +127,7 @@ function assembleConversations(opts) {
   const conversations = [];
   let totalMsgs = 0, totalMedia = 0;
   for (const c of convos.values()) {
+    if (IGNORED_GROUPS.has(String(c.id))) continue;   // removed group chat — skip wholesale
     let withMedia = 0;
     const msgVals = [...c.msgMap.values()].filter((m) => !IGNORED.has(String(m.s)));
     for (const rec of msgVals) {

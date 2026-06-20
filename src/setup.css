@@ -92,6 +92,11 @@
 .su-remove { font-size: 11px; padding: 3px 8px; color: #fca5a5; }
 .su-person.removed { opacity: 0.5; }
 .su-person.removed .su-av { filter: grayscale(1); }
+.su-removegroup { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; color: #fca5a5; cursor: pointer; }
+.su-removegroup input { width: auto; accent-color: #ef4444; }
+.setup-pane.group-removed #gc-name,
+.setup-pane.group-removed #gc-preview,
+.setup-pane.group-removed #gc-pick { opacity: 0.5; }
 .su-name { width: 100%; }
 .su-meta { color: var(--text-dim); font-size: 12px; margin: 6px 0; }
 .su-me { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }

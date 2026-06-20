@@ -33,8 +33,9 @@ let GENERIC = {};          // per-conversation generic names: id -> "User N"
 function pickInitialConvId() {
   let saved = null;
   try { saved = localStorage.getItem("gca.conv"); } catch (e) {}
-  if (saved && CONVOS.some(c => c.id === saved)) return saved;
-  return CONVOS[0] ? CONVOS[0].id : null;
+  const vis = visibleConvos();
+  if (saved && vis.some(c => c.id === saved)) return saved;
+  return vis[0] ? vis[0].id : null;
 }
 
 function rebuildIndexes() {
@@ -112,6 +113,7 @@ function initDateFormatters() {
 // may set window.LOCAL_NAMES / window.LOCAL_PFPS to override locally.
 const LOCAL_NAMES = (typeof window !== "undefined" && window.LOCAL_NAMES) || {};
 const LOCAL_IGNORED_USERS = (typeof window !== "undefined" && Array.isArray(window.LOCAL_IGNORED_USERS)) ? window.LOCAL_IGNORED_USERS.map(String) : [];
+const LOCAL_IGNORED_GROUPS = (typeof window !== "undefined" && Array.isArray(window.LOCAL_IGNORED_GROUPS)) ? window.LOCAL_IGNORED_GROUPS.map(String) : [];
 // Optional gitignored overrides written by the setup wizard (personal_data/local.js):
 //   window.LOCAL_ME  = "<id>"               — which participant is "you"
 //   window.LOCAL_GC  = { name, photo }       — the real group name + photo path
@@ -119,7 +121,7 @@ const LOCAL_ME = (typeof window !== "undefined" && window.LOCAL_ME) || null;
 const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
 const DEFAULTS = {
   names: {}, pfps: {}, gcName: "", gcPhoto: "",
-  colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], timezone: "UTC"
+  colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC"
 };
 let settings = loadSettings();
 migratePfpsKey();
@@ -134,6 +136,7 @@ function loadSettings() {
     if (!s.me && LOCAL_ME) s.me = LOCAL_ME;   // honor the wizard's "this is you"
     s.pins = Array.isArray(saved.pins) ? saved.pins.slice() : [];   // own array, never share DEFAULTS.pins
     s.ignoredUsers = Array.isArray(saved.ignoredUsers) ? saved.ignoredUsers.map(String) : [];
+    s.ignoredGroups = Array.isArray(saved.ignoredGroups) ? saved.ignoredGroups.map(String) : [];
     if (!Array.isArray(s.saved)) s.saved = [];
     return s;
   } catch (e) { 
@@ -182,6 +185,22 @@ function ignoredUserIds() {
     .concat(LOCAL_IGNORED_USERS)
     .concat(Array.isArray(settings.ignoredUsers) ? settings.ignoredUsers : []);
   return new Set(ids.map(String));
+}
+
+// Whole group chats the user removed (wizard build, LOCAL override, or in-app).
+function ignoredGroupIds() {
+  const ids = []
+    .concat(Array.isArray(DATA.ignoredGroups) ? DATA.ignoredGroups : [])
+    .concat(LOCAL_IGNORED_GROUPS)
+    .concat(Array.isArray(settings.ignoredGroups) ? settings.ignoredGroups : []);
+  return new Set(ids.map(String));
+}
+// Conversations the user can see/switch to (removed groups hidden). If every
+// group is hidden, fall back to all of them so the app never blanks out.
+function visibleConvos() {
+  const hidden = ignoredGroupIds();
+  const vis = CONVOS.filter((c) => !hidden.has(String(c.id)));
+  return vis.length ? vis : CONVOS;
 }
 
 /* ---- Helpers ------------------------------------------------------------- */
@@ -2454,11 +2473,12 @@ function updateBrand() {
 function renderConvPicker() {
   const host = document.getElementById("conv-picker");
   if (!host) return;
-  if (CONVOS.length <= 1) { host.innerHTML = ""; host.hidden = true; return; }
+  const convos = visibleConvos();
+  if (convos.length <= 1) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
   const opt = (c) => `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`;
-  const body = CONVOS.map(opt).join("");
-  host.innerHTML = `<label class="conv-pick-label">Group chat (${CONVOS.length})</label>
+  const body = convos.map(opt).join("");
+  host.innerHTML = `<label class="conv-pick-label">Group chat (${convos.length})</label>
     <select id="conv-select" class="conv-select">${body}</select>`;
   host.querySelector("#conv-select").onchange = (e) => activateConversation(e.target.value, true);
 }

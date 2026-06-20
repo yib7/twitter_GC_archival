@@ -248,9 +248,16 @@ function apiIdentity(body, res) {
     ? body.ignoredUsers.map(String)
     : (Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : []);
 
+  // whole group chats the user removed (LOCAL_IGNORED_GROUPS hides them in the
+  // app now; cfg.ignoredGroups drops them from a future merge-aware build).
+  const ignoredGroups = Array.isArray(body.ignoredGroups)
+    ? body.ignoredGroups.map(String)
+    : (Array.isArray(cfg.ignoredGroups) ? cfg.ignoredGroups : []);
+
   // persist into config (so a later rebuild keeps identity) …
   cfg.me = me; cfg.gc = gcOut; cfg.names = names; cfg.pfps = pfpPaths;
   cfg.ignoredUsers = ignoredUsers;
+  cfg.ignoredGroups = ignoredGroups;
   delete cfg.gcName; delete cfg.gcPhoto;   // migrated to per-group cfg.gc
   saveConfig(cfg);
 
@@ -261,7 +268,8 @@ function apiIdentity(body, res) {
     "window.LOCAL_PFPS = " + JSON.stringify(pfpPaths, null, 2) + ";\n" +
     "window.LOCAL_ME = " + JSON.stringify(me) + ";\n" +
     "window.LOCAL_GC = " + JSON.stringify(gcOut, null, 2) + ";\n" +
-    "window.LOCAL_IGNORED_USERS = " + JSON.stringify(ignoredUsers, null, 2) + ";\n";
+    "window.LOCAL_IGNORED_USERS = " + JSON.stringify(ignoredUsers, null, 2) + ";\n" +
+    "window.LOCAL_IGNORED_GROUPS = " + JSON.stringify(ignoredGroups, null, 2) + ";\n";
   fs.writeFileSync(path.join(PERSONAL, "local.js"), out);
   sendJSON(res, 200, { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length });
 }

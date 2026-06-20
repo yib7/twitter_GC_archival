@@ -104,7 +104,7 @@ function viewMedia(src, kind) {
 //  - `names`/`pfps` stay keyed by user id (shared across groups: same person,
 //    same name everywhere).
 //  - `ignored` holds the ids of participants the user deleted.
-const state = { me: null, names: {}, pfps: {}, ignored: {}, gc: {}, group: "" };
+const state = { me: null, names: {}, pfps: {}, ignored: {}, ignoredGroups: {}, gc: {}, group: "" };
 let PARTS = [];
 let groups = [];          // [{ id, title, count }] from the build
 let loadedGroup = null;   // which group's roster is currently rendered in #people
@@ -119,8 +119,10 @@ function gcEntry() {
 
 // Fill both group <select>s and reveal them only when there's more than one group.
 function renderGroupChoosers() {
-  const opts = groups.map((g) =>
-    `<option value="${escapeHtml(String(g.id))}">${escapeHtml(g.title || "Group " + String(g.id).slice(-4))} · ${Number(g.count).toLocaleString()}</option>`).join("");
+  const opts = groups.map((g) => {
+    const removed = state.ignoredGroups[String(g.id)] ? " — removed" : "";
+    return `<option value="${escapeHtml(String(g.id))}">${escapeHtml(g.title || "Group " + String(g.id).slice(-4))} · ${Number(g.count).toLocaleString()}${removed}</option>`;
+  }).join("");
   ["gc-group", "people-group"].forEach((id) => { const sel = $("#" + id); if (sel) { sel.innerHTML = opts; sel.value = state.group; } });
   const many = groups.length > 1;
   ["gc-grouprow", "people-grouprow"].forEach((id) => { const row = $("#" + id); if (row) row.hidden = !many; });
@@ -139,7 +141,11 @@ function selectGroup(id) {
 // Reflect the selected group's saved name + photo in step 2's fields.
 function refreshGroupStep() {
   const e = gcEntry();
-  const nameEl = $("#gc-name"); if (nameEl) nameEl.value = e.name || "";
+  const removed = !!state.ignoredGroups[state.group];
+  const nameEl = $("#gc-name"); if (nameEl) { nameEl.value = e.name || ""; nameEl.disabled = removed; }
+  const pick = $("#gc-pick"); if (pick) pick.disabled = removed;
+  const rm = $("#gc-remove"); if (rm) rm.checked = removed;
+  const pane = $('.setup-pane[data-pane="2"]'); if (pane) pane.classList.toggle("group-removed", removed);
   const pv = $("#gc-preview");
   if (pv) {
     if (e.photo) { pv.textContent = ""; pv.style.backgroundImage = `url('${e.photo}')`; }
@@ -232,6 +238,12 @@ $("#btn-build").onclick = async () => {
 $("#gc-group").onchange = (e) => selectGroup(e.target.value);
 $("#people-group").onchange = (e) => selectGroup(e.target.value);
 $("#gc-name").oninput = (e) => { gcEntry().name = e.target.value; };
+$("#gc-remove").onchange = (e) => {
+  const id = state.group;
+  if (e.target.checked) state.ignoredGroups[id] = true; else delete state.ignoredGroups[id];
+  renderGroupChoosers();   // refresh the "— removed" option labels
+  refreshGroupStep();
+};
 $("#gc-pick").onclick = () => $("#gc-photo").click();
 $("#gc-photo").onchange = async (e) => {
   const f = e.target.files && e.target.files[0]; if (!f) return;
@@ -245,6 +257,11 @@ $("#gc-photo").onchange = async (e) => {
 /* ---- step 3: people ------------------------------------------------------ */
 async function loadParts() {
   const host = $("#people");
+  if (state.ignoredGroups[state.group]) {
+    PARTS = []; loadedGroup = null;
+    host.innerHTML = `<div class="setup-result">This group chat is marked for removal, so there's no one to name here. Un-check &ldquo;Remove this group chat&rdquo; on the previous step to keep it.</div>`;
+    return;
+  }
   if (loadedGroup === state.group && PARTS.length) return;
   host.innerHTML = `<div class="setup-result">Loading participants…</div>`;
   try {
@@ -338,7 +355,7 @@ $("#btn-save").onclick = async () => {
   try {
     const r = await fetch("/api/identity", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ me: state.me, gc: state.gc, names, pfps, ignoredUsers }),
+      body: JSON.stringify({ me: state.me, gc: state.gc, names, pfps, ignoredUsers, ignoredGroups: Object.keys(state.ignoredGroups) }),
     });
     const j = await r.json();
     if (!r.ok) { flash($("#finish-result"), "✗ " + (j.error || "Save failed"), "err"); return; }
