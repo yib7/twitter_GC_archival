@@ -47,8 +47,11 @@ node_modules/
 test-results/
 playwright-report/
 
-# Internal planning brief (references real ids / private data)
+# Internal planning brief (references real ids / private data). Bare pattern, so
+# it matches PLAN.md at any depth — but the autopilot cycle plan is data-agnostic
+# and is the tracked resume artifact, so negate that one specifically.
 PLAN.md
+!.autopilot/PLAN.md
 
 # Brainstorming / design specs (work-in-progress notes, reference private data)
 docs/superpowers/
