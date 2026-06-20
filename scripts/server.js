@@ -18,9 +18,9 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { execFileSync } = require("child_process");
+const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName, isInsidePersonal } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
@@ -370,7 +370,18 @@ http.createServer(async (req, res) => {
     return sendJSON(res, e.statusCode || 500, { error: String(e && e.message || e) });
   }
   serveStatic(req, res);
-}).listen(PORT, HOST, () => console.log(
-  "Group Chat Archive running at  http://" + HOST + ":" + PORT +
-  "\nFirst-run setup:               http://" + HOST + ":" + PORT + "/setup.html" +
-  "\nPress Ctrl+C to stop."));
+}).listen(PORT, HOST, () => {
+  const setupUrl = "http://" + HOST + ":" + PORT + "/setup.html";
+  console.log(
+    "Group Chat Archive running at  http://" + HOST + ":" + PORT +
+    "\nFirst-run setup:               " + setupUrl +
+    "\nPress Ctrl+C to stop.");
+  // `--open` (used by the double-click start-setup launchers) pops the wizard in
+  // the default browser. A failed open must never crash the server.
+  if (process.argv.includes("--open")) {
+    try {
+      const { cmd, args } = openerCommand(process.platform, setupUrl);
+      spawn(cmd, args, { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+    } catch (e) { /* ignore — the URL is printed above */ }
+  }
+});

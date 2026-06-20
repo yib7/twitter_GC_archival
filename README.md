@@ -84,11 +84,18 @@ your data**) and unzip it. The group chat archive needs all three of these:
 
 The wizard writes config, copies your files and media, runs the build, restores
 the group photo, and walks you through naming everyone — all from the browser. It
-needs the local server (writing files needs Node):
+needs the local server (writing files needs Node).
+
+**Easiest — no terminal:** double-click **`start-setup.cmd`** (Windows) or
+**`start-setup.command`** (macOS/Linux). It starts the server and opens the wizard
+in your browser automatically. (Needs [Node.js](https://nodejs.org); on macOS/Linux
+run `chmod +x start-setup.command` once.)
+
+Prefer the terminal? Start it yourself:
 
 ```bash
-node scripts/server.js                 # -> http://localhost:8765
-# then open  http://localhost:8765/setup.html
+node scripts/server.js --open          # starts the server + opens the wizard
+# without --open, open http://localhost:8765/setup.html yourself
 ```
 
 1. **Source** — click **Browse…** to pick your `direct-messages-group.js`, your

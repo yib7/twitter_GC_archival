@@ -61,4 +61,12 @@ function pfpFileName(name, id, ext, taken) {
   return file;
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal };
+// The command + args to open `url` in the platform's default browser, used by the
+// `--open` launcher flag so a double-clicked start-setup script pops the wizard.
+function openerCommand(platform, url) {
+  if (platform === "win32") return { cmd: "cmd", args: ["/c", "start", "", url] };
+  if (platform === "darwin") return { cmd: "open", args: [url] };
+  return { cmd: "xdg-open", args: [url] };
+}
+
+module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand };

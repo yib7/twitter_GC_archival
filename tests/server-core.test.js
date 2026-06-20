@@ -1,7 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal } = require("../scripts/server-core.js");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand } = require("../scripts/server-core.js");
 
 // X names the *headers* file with singular "message"
 // (direct-message-group-headers.js) but the *messages* file with plural
@@ -52,4 +52,10 @@ test("isInsidePersonal only allows deletes strictly inside the personal_data roo
   assert.equal(isInsidePersonal(path.join(root, ".."), root), false);        // parent
   assert.equal(isInsidePersonal(path.join(root, "..", "other"), root), false); // sibling escape
   assert.equal(isInsidePersonal("/etc/passwd", root), false);                // absolute outside
+});
+
+test("openerCommand picks the platform's default-browser opener", () => {
+  assert.deepEqual(openerCommand("win32", "http://x/setup.html"), { cmd: "cmd", args: ["/c", "start", "", "http://x/setup.html"] });
+  assert.deepEqual(openerCommand("darwin", "http://x/setup.html"), { cmd: "open", args: ["http://x/setup.html"] });
+  assert.deepEqual(openerCommand("linux", "http://x/setup.html"), { cmd: "xdg-open", args: ["http://x/setup.html"] });
 });
