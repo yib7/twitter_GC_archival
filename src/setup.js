@@ -205,7 +205,7 @@ $("#btn-build").onclick = async () => {
   const headersJs = $("#src-headers").value.trim();
   const mediaDir = $("#src-media").value.trim();
   if (!groupJs) { flash($("#src-result"), "Choose your direct-messages-group.js file.", "err"); return; }
-  if (!headersJs) { flash($("#src-result"), "Choose your direct-messages-group-headers.js file.", "err"); return; }
+  if (!headersJs) { flash($("#src-result"), "Choose your direct-message-group-headers.js file.", "err"); return; }
   if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder — it's required.", "err"); return; }
   flash($("#src-result"), "Building… (copying media can take a moment)", "");
   try {

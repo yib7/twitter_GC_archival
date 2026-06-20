@@ -74,7 +74,7 @@ Request your archive from X (**Settings -> Your account -> Download an archive o
 your data**) and unzip it. The group chat archive needs all three of these:
 
 - `direct-messages-group.js` — group chat conversations (full message content)
-- `direct-messages-group-headers.js` — group metadata (completes the participant
+- `direct-message-group-headers.js` — group metadata (completes the participant
   roster and join/leave/name events)
 - `direct_messages_group_media/` — group chat media (photos & videos)
 
@@ -92,7 +92,7 @@ node scripts/server.js                 # -> http://localhost:8765
 ```
 
 1. **Source** — click **Browse…** to pick your `direct-messages-group.js`, your
-   `direct-messages-group-headers.js`, and your media folder (all three required;
+   `direct-message-group-headers.js`, and your media folder (all three required;
    native file dialogs on Windows), then **Build**.
 2. **Group** *(optional)* — set the group name + photo (becomes the sidebar mark).
    With several group chats, a **group selector** lets you set each one's name and

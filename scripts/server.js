@@ -20,6 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
+const { dialogFilter } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 const PERSONAL = path.join(ROOT, "personal_data");
@@ -113,10 +114,8 @@ function nativePick(kind, which) {
     ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Title='" + title + "';$d.Filter='All files (*.*)|*.*';$d.Multiselect=$false;if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write([System.IO.Path]::GetDirectoryName($d.FileName))};$o.Dispose()";
   } else {
     const headers = which === "headers";
-    const title = headers ? "Select direct-messages-group-headers.js" : "Select direct-messages-group.js";
-    const filter = headers
-      ? "Group headers (direct-messages-group-headers*.js)|direct-messages-group-headers*.js|JavaScript (*.js)|*.js|All files (*.*)|*.*"
-      : "Group messages (direct-messages-group*.js)|direct-messages-group*.js|JavaScript (*.js)|*.js|All files (*.*)|*.*";
+    const title = headers ? "Select direct-message-group-headers.js" : "Select direct-messages-group.js";
+    const filter = dialogFilter(which);
     ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Filter='" + filter + "';$d.Multiselect=$false;$d.Title='" + title + "';if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write($d.FileName)};$o.Dispose()";
   }
   try {
@@ -142,7 +141,7 @@ function apiSource(body, res) {
   const headersJs = body.headersJs ? String(body.headersJs).trim() : "";
   const mediaDirIn = body.mediaDir ? String(body.mediaDir).trim() : "";
   if (!groupJs) return sendJSON(res, 400, { error: "Choose your direct-messages-group.js file." });
-  if (!headersJs) return sendJSON(res, 400, { error: "Choose your direct-messages-group-headers.js file." });
+  if (!headersJs) return sendJSON(res, 400, { error: "Choose your direct-message-group-headers.js file." });
   if (!mediaDirIn) return sendJSON(res, 400, { error: "Choose your direct_messages_group_media folder." });
 
   const absOf = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, p));

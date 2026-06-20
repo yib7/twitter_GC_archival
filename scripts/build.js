@@ -7,7 +7,7 @@
  * a per-conversation index, and writes personal_data/data.js.
  *
  *  - When config.headersJs is set, the group `-headers` file
- *    (direct-messages-group-headers.js) is folded in too: it has no message
+ *    (direct-message-group-headers.js) is folded in too: it has no message
  *    bodies, so it never adds empty messages, but it completes the participant
  *    roster (people who never sent a surviving message) plus join/leave/name events.
  *  - Merge-aware: reads the previous data.js as a baseline, so re-running the
