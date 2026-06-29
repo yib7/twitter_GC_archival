@@ -194,6 +194,9 @@ Built with [Fuse.js](https://www.fusejs.io/) (Apache-2.0) and
 [Chart.js](https://www.chartjs.org/) (MIT), both vendored under `lib/`. Full
 attribution is in [CREDITS.md](CREDITS.md).
 
+For how the raw export, the build step, and the viewer fit together, see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ---
 
 ## Privacy
