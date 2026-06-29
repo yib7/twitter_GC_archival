@@ -63,7 +63,7 @@ Server endpoints:
 | `src/app.js` | The entire UI. See "Runtime model" below. |
 | `src/styles.css` | Black + blue theme, CSS variables for accent/density/intensity. |
 | `scripts/server.js` | Static file server with HTTP range support (for video) **plus** the setup-wizard API (`/api/source`, `/api/parts`, `/api/identity`). Not required for daily use, the app runs from `file://`. |
-| `lib/` | Vendored Fuse.js (Apache-2.0) + Chart.js (MIT). |
+| `lib/` | Vendored Fuse.js (Apache-2.0) + Chart.js (MIT), and `lib/fonts/` Plus Jakarta Sans (OFL-1.1) so the UI font loads offline with no Google Fonts request. |
 
 ## Data schema (`window.CHAT_DATA`)
 

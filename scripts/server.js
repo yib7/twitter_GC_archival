@@ -60,7 +60,7 @@ const TYPES = {
   ".html": "text/html", ".js": "text/javascript", ".css": "text/css",
   ".json": "application/json", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".png": "image/png", ".gif": "image/gif", ".mp4": "video/mp4", ".webm": "video/webm",
-  ".svg": "image/svg+xml",
+  ".svg": "image/svg+xml", ".woff2": "font/woff2",
 };
 
 /* ---- small helpers ------------------------------------------------------- */
