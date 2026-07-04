@@ -859,11 +859,20 @@ function parseQuery(raw) {
   return phrases.concat(terms);
 }
 let excludeNeedles = [];
+// Transient operator overlay (P2-2): from:/sender:/before:/after: tokens are
+// re-parsed from the query text on every run into these, instead of mutating
+// the persistent F.people/F.from/F.to filter-panel state. They combine with
+// (narrow further than) whatever the manual filter panel has set, and never
+// survive past the run that produced them — clearing the query drops them.
+let opPeople = null, opFrom = null, opTo = null;
 function testMsgNoNeedle(i) {
   const m = MSGS[i];
   if (F.people.size && !F.people.has(m.s)) return false;
   if (F.from != null && m.t < F.from) return false;
   if (F.to != null && m.t > F.to) return false;
+  if (opPeople && !opPeople.has(m.s)) return false;
+  if (opFrom != null && m.t < opFrom) return false;
+  if (opTo != null && m.t > opTo) return false;
   if (F.media && !m.m) return false;
   if (F.links && !m.u) return false;
   if (F.reacts && !m.r) return false;
@@ -879,8 +888,9 @@ let fuseIndex = null;
 function runSearch() {
   let q = sEls.input.value || "";
 
-  // Reset only exclusions (re-parsed each time from query text)
+  // Reset exclusions and the operator overlay — both re-parsed each run.
   excludeNeedles = [];
+  opPeople = null; opFrom = null; opTo = null;
 
   // 1. Parse has:media, has:links, has:reacts from query text (additive to pill state)
   q = q.replace(/\bhas:(media|links|reacts|reactions)\b/ig, (match, p1) => {
@@ -891,25 +901,33 @@ function runSearch() {
     return "";
   });
 
-  // 2. Parse from:name or sender:name (additive to existing people filter)
-  q = q.replace(/\b(from|sender):(\w+|"[^"]+")/ig, (match, op, val) => {
+  // 2. Parse from:name or sender:name into a transient overlay (never F.people).
+  // The name value must be followed by whitespace to take effect. Unlike the
+  // fixed-length date operators below, a name is an open-ended prefix while
+  // being typed (e.g. "from:bo" mid-keystroke toward "from:bob") — treating
+  // end-of-string as a boundary here would fire on every partial keystroke,
+  // which is exactly the P2-2 pollution bug. Requiring an explicit trailing
+  // space is what the checkpoint's "from:bo" (no effect) vs "from:bob "
+  // (takes effect) example exercises.
+  q = q.replace(/\b(from|sender):(\w+|"[^"]+")(?=\s)/ig, (match, op, val) => {
     const name = val.replace(/"/g, "").toLowerCase().trim();
     const matches = PARTS.filter(p => nameOf(p.id).toLowerCase().includes(name));
-    matches.forEach(p => F.people.add(p.id));
+    if (!opPeople) opPeople = new Set();
+    matches.forEach(p => opPeople.add(p.id));
     return "";
   });
 
-  // 3. Parse before:YYYY-MM-DD and after:YYYY-MM-DD
-  q = q.replace(/\bbefore:(\d{4}-\d{2}-\d{2})\b/ig, (match, dateStr) => {
-    F.to = zonedDateBound(dateStr, true);
-    sEls.to.value = dateStr;
-    sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to));
+  // 3. Parse before:YYYY-MM-DD and after:YYYY-MM-DD into the transient overlay.
+  // Reuses zonedDateBound (SP4) so the operator respects the configured
+  // timezone the same way the manual From/To pills do. The manual pills'
+  // value/active-state are left untouched — operators must not alter the
+  // persistent filter-panel display.
+  q = q.replace(/\bbefore:(\d{4}-\d{2}-\d{2})(?=\s|$)/ig, (match, dateStr) => {
+    opTo = zonedDateBound(dateStr, true);
     return "";
   });
-  q = q.replace(/\bafter:(\d{4}-\d{2}-\d{2})\b/ig, (match, dateStr) => {
-    F.from = zonedDateBound(dateStr, false);
-    sEls.from.value = dateStr;
-    sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to));
+  q = q.replace(/\bafter:(\d{4}-\d{2}-\d{2})(?=\s|$)/ig, (match, dateStr) => {
+    opFrom = zonedDateBound(dateStr, false);
     return "";
   });
 
@@ -919,7 +937,8 @@ function runSearch() {
     return "";
   });
 
-  // Toggle active class on pills
+  // Toggle active class on pills (manual/persistent state only — the overlay
+  // never touches these, so typing operators can't alter the filter panel).
   sEls.media.classList.toggle("active", F.media);
   sEls.links.classList.toggle("active", F.links);
   sEls.reacts.classList.toggle("active", F.reacts);
@@ -960,7 +979,7 @@ function runSearch() {
   sEls.list.innerHTML = "";
   if (resObserver) resObserver.disconnect();
 
-  const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts;
+  const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts || opPeople || opFrom || opTo;
   const sortLbl = { relevance: F.needles.length && F.fuzzy && window.Fuse ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
   sEls.meta.textContent = hasFilter
     ? fmtNum(out.length) + (out.length === 1 ? " message" : " messages") + " found" + (F.grid ? " · showing media only" : "") + " · sorted by " + sortLbl
@@ -994,8 +1013,13 @@ function appendResultsPage() {
 }
 function galleryCell(i) {
   const m = MSGS[i], c = el("div", "gcell");
+  // P2-4: kindOf() can return "file" for unknown extensions (e.g. .pdf) — that
+  // is neither "img" nor "vid", so it must not fall into the video branch
+  // (which renders an empty, broken <video>). Reuse renderMedia's file-chip
+  // markup instead of forking a third pattern.
   if (m.k === "img") { const img = el("img"); img.loading = "lazy"; img.src = m.m; c.appendChild(img); }
-  else { const v = document.createElement("video"); v.src = m.m; v.preload = "metadata"; c.appendChild(v); c.appendChild(el("div", "play", "▶")); }
+  else if (m.k === "vid") { const v = document.createElement("video"); v.src = m.m; v.preload = "metadata"; c.appendChild(v); c.appendChild(el("div", "play", "▶")); }
+  else { const chip = renderMedia(m, i); chip.classList.add("gallery-cell"); c.appendChild(chip); }
   c.title = nameOf(m.s) + " · " + DT.format(m.t);
   c.onclick = () => openLightbox(i);
   return c;
