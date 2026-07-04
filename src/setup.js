@@ -423,7 +423,7 @@ $("#btn-save").onclick = async () => {
   }
 };
 
-function escapeHtml(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
 /* ---- reset / start over -------------------------------------------------- */
 // Wipe personal_data/ (server-side) so the user can redo setup from scratch.

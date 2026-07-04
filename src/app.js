@@ -221,7 +221,7 @@ function visibleConvos() {
 
 /* ---- Helpers ------------------------------------------------------------- */
 function el(tag, cls, html) { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; }
-function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 function reEsc(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 function highlightDOM(element, needles) {
   if (!needles || !needles.length) return;
@@ -357,8 +357,9 @@ const PFPS = Object.assign({}, (typeof window !== "undefined" && window.LOCAL_PF
 function applyPfp(av, id) {
   av.dataset.id = id;
   av.classList.add("av-clickable");
-  if (PFPS[id]) {
-    av.style.backgroundImage = `url('${PFPS[id]}')`;
+  const photo = sanitizePhoto(PFPS[id]);
+  if (photo) {
+    av.style.backgroundImage = `url('${photo}')`;
     av.style.backgroundSize = "cover";
     av.style.backgroundPosition = "center";
     av.style.backgroundRepeat = "no-repeat";
@@ -370,8 +371,9 @@ function applyPfp(av, id) {
 }
 
 function pfpHtml(id, styleStr) {
-  if (PFPS[id]) {
-    return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background-image:url('${PFPS[id]}');background-size:cover;background-position:center;background-repeat:no-repeat;"></span>`;
+  const photo = sanitizePhoto(PFPS[id]);
+  if (photo) {
+    return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background-image:url('${esc(photo)}');background-size:cover;background-position:center;background-repeat:no-repeat;"></span>`;
   }
   return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background:${colorOf(id)}">${esc(initials(nameOf(id)))}</span>`;
 }
@@ -2313,6 +2315,20 @@ function buildExportPayload() {
   });
 }
 
+// P1-3: pfp/gc photo values reach the DOM as raw style="...url('...')" string
+// interpolation (pfpHtml) or as a CSSOM background-image (applyPfp/updateBrand).
+// Values written by the app itself (base64 data URLs, wizard-saved slug paths)
+// are always one of these two shapes; Import Settings assigns settings.pfps/
+// settings.gc verbatim from an arbitrary JSON file, so validate the shape
+// before a value is trusted anywhere. Anything else collapses to "" (falsy),
+// which every call site already treats as "no photo" (initials fallback).
+const PHOTO_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]*$/i;
+const PHOTO_PATH_RE = /^(?:personal_data|sample_media)\/[A-Za-z0-9._/-]+$/;
+function sanitizePhoto(v) {
+  if (typeof v !== "string") return "";
+  return (PHOTO_RE.test(v) || PHOTO_PATH_RE.test(v)) ? v : "";
+}
+
 function renderSettings() {
   const v = document.getElementById("view-settings");
   v.innerHTML = `<div class="page"><div class="page-head"><div class="page-title">Settings</div>
@@ -2404,7 +2420,7 @@ function renderSettings() {
   visibleConvos().forEach((c) => {
     const entry = (settings.gc && settings.gc[c.id]) || {};
     const lgc = LOCAL_GC ? (LOCAL_GC[c.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
-    const effPhoto = entry.photo || (lgc && lgc.photo) || settings.gcPhoto || "";
+    const effPhoto = sanitizePhoto(entry.photo || (lgc && lgc.photo) || settings.gcPhoto || "");
     const row = el("div", "gc-item");
     const av = el("div", "gc-av");
     if (effPhoto) av.style.backgroundImage = `url('${effPhoto}')`; else av.textContent = "💬";
@@ -2486,8 +2502,23 @@ function renderSettings() {
           settings = Object.assign({}, DEFAULTS, imported);
           settings.names = Object.assign({}, imported.names || {});
           settings.colors = Object.assign({}, imported.colors || {});
-          settings.pfps = (imported.pfps && typeof imported.pfps === "object") ? imported.pfps : {};
-          settings.gc = (imported.gc && typeof imported.gc === "object") ? imported.gc : {};
+          // Untrusted file: validate every photo value's shape before it can ever
+          // reach a style="...url('...')" sink (P1-3). Anything that isn't a
+          // data: URL or a personal_data/sample_media-relative path is dropped.
+          const importedPfps = (imported.pfps && typeof imported.pfps === "object") ? imported.pfps : {};
+          settings.pfps = {};
+          for (const uid in importedPfps) {
+            const p = sanitizePhoto(importedPfps[uid]);
+            if (p) settings.pfps[uid] = p;
+          }
+          const importedGc = (imported.gc && typeof imported.gc === "object") ? imported.gc : {};
+          settings.gc = {};
+          for (const cid in importedGc) {
+            const entry = importedGc[cid] && typeof importedGc[cid] === "object" ? Object.assign({}, importedGc[cid]) : {};
+            const p = sanitizePhoto(entry.photo);
+            if (p) entry.photo = p; else delete entry.photo;
+            settings.gc[cid] = entry;
+          }
           settings.ignoredUsers = Array.isArray(imported.ignoredUsers) ? imported.ignoredUsers.map(String) : [];
           settings.ignoredGroups = Array.isArray(imported.ignoredGroups) ? imported.ignoredGroups.map(String) : [];
           settings.saved = Array.isArray(imported.saved) ? imported.saved : [];
@@ -2570,7 +2601,7 @@ function updateBrand() {
   const title = gcName || (CONV && CONV.title) || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(CONV));
   // Restore the real group photo on the sidebar brand mark when present.
   const mark = document.querySelector(".brand-mark");
-  const gcPhoto = (sgc && sgc.photo) || (lgc && lgc.photo) || settings.gcPhoto;
+  const gcPhoto = sanitizePhoto((sgc && sgc.photo) || (lgc && lgc.photo) || settings.gcPhoto);
   if (mark) {
     if (gcPhoto) {
       mark.textContent = "";
