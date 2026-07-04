@@ -30,12 +30,22 @@ let ID2IDX = new Map();
 let PARTS = [];            // participants of the active conversation
 let GENERIC = {};          // per-conversation generic names: id -> "User N"
 
+// A conversation whose every sender is ignored filters down to N === 0 and
+// would blank/crash the app if picked as active (P1-4) — prefer one that
+// actually has visible messages; only fall back to saved/first if none do.
+function hasVisibleMessages(c) {
+  const ignored = ignoredUserIds();
+  return (c.msgs || []).some((m) => !ignored.has(String(m.s)));
+}
+
 function pickInitialConvId() {
   let saved = null;
   try { saved = localStorage.getItem("gca.conv"); } catch (e) {}
   const vis = visibleConvos();
-  if (saved && vis.some(c => c.id === saved)) return saved;
-  return vis[0] ? vis[0].id : null;
+  const nonEmpty = vis.filter(hasVisibleMessages);
+  const pool = nonEmpty.length ? nonEmpty : vis;
+  if (saved && pool.some(c => c.id === saved)) return saved;
+  return pool[0] ? pool[0].id : null;
 }
 
 function rebuildIndexes() {
@@ -1055,6 +1065,12 @@ function ensureTimelineShell() {
 
 function openTimeline(anchor) {
   ensureTimelineShell();
+  // Every sender ignored (P1-4): no chunks to build, and renderChunk() would
+  // dereference MSGS[start]/MSGS[N-1] on an empty array. Show a panel instead.
+  if (!N) {
+    tlEls.list.innerHTML = '<div class="empty"><div class="big">≡</div><div>No messages in this group — every sender is ignored.</div></div>';
+    return;
+  }
   if (numChunks === 0 || numChunks !== Math.ceil(N / CHUNK_SIZE)) {
     numChunks = Math.ceil(N / CHUNK_SIZE);
     chunkHeights = new Array(numChunks).fill(2500);
@@ -1149,6 +1165,9 @@ function jumpTo(i) { setView("timeline"); openTimeline(i); }
    ======================================================================== */
 function computeStats() {
   if (STATS) return STATS;
+  // Every sender in this conversation is ignored (P1-4) — MSGS[0]/MSGS[N-1]
+  // below would throw. Nothing to compute; renderStats() shows an empty panel.
+  if (!N) return (STATS = { empty: true });
   const perPerson = {}, months = {}, days = {}, emojis = {}, hourCount = new Array(24).fill(0);
   const weekdayCount = new Array(7).fill(0);
   
@@ -1768,6 +1787,8 @@ function updateTrendChart(word) {
 let MILES = null;
 function computeMilestones() {
   if (MILES) return MILES;
+  // Same empty-conversation guard as computeStats() — MSGS[N-1]/MSGS[0] would throw.
+  if (!N) return (MILES = { empty: true });
   const dayCount = new Map();   // dayKey -> msg count
   const hourCount = new Array(24).fill(0);
   let totalWords = 0, totalReacts = 0;
@@ -1812,6 +1833,10 @@ function computeMilestones() {
 function renderStats() {
   const v = document.getElementById("view-stats");
   const s = computeStats();
+  if (s.empty) {
+    v.innerHTML = '<div class="page"><div class="empty"><div class="big">▤</div><div>No messages in this group — every sender is ignored.</div></div></div>';
+    return;
+  }
   const days = Math.max(1, Math.round((s.last - s.first) / 86400000));
   const maxPP = Math.max(...PARTS.map((p) => p.count));
 
@@ -2788,6 +2813,12 @@ let galEls = {};
 
 function renderGallery() {
   const v = document.getElementById("view-gallery");
+  // Every sender ignored (P1-4): nothing to gallery — show a panel, not an
+  // empty grid that looks broken.
+  if (!N) {
+    v.innerHTML = '<div class="empty"><div class="big">🖼</div><div>No messages in this group — every sender is ignored.</div></div>';
+    return;
+  }
   if (!v.innerHTML) {
     v.innerHTML = `<div class="toolbar">
         <div class="result-meta">Media Gallery — All Photos & Videos</div>
