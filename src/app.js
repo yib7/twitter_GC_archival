@@ -109,11 +109,87 @@ const DENSITY = {
 };
 const PAGE = 60;
 let DT, DAY, dShort;
+// ZP: the ONE cached parts-formatter used by zonedParts() for every message.
+// Rebuilt (not per-call) whenever the timezone changes — 134k msgs each call a
+// formatToParts, so constructing a formatter per call is not acceptable.
+let ZP = null, ZP_LOCAL = false;
 function initDateFormatters() {
-  const opts = settings && settings.timezone === 'local' ? {} : { timeZone: (settings && settings.timezone) || 'UTC' };
+  const isLocal = !!(settings && settings.timezone === 'local');
+  const opts = isLocal ? {} : { timeZone: (settings && settings.timezone) || 'UTC' };
   DT = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }));
   DAY = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
   dShort = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric" }));
+  // 'local' uses native Date accessors (no formatter); every other zone shares
+  // this single formatter. hour12:false so hour comes back 0-23.
+  ZP_LOCAL = isLocal;
+  ZP = isLocal ? null : new Intl.DateTimeFormat("en-US", Object.assign({}, opts, {
+    weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }));
+}
+
+// Zoned calendar parts for an epoch (ms), in the CONFIGURED timezone. This is the
+// single source of truth for every analytics bucket, so a message's bucket always
+// agrees with its DT/DAY/dShort label (same zone, same instant).
+//   -> { y, mo (0-11), d, h (0-23), mi, se, dow (0=Sun), key "YYYY-MM-DD" }
+const ZP_DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+function zonedParts(t) {
+  if (ZP_LOCAL) {
+    const dt = new Date(t);
+    const y = dt.getFullYear(), mo = dt.getMonth(), day = dt.getDate();
+    return { y, mo, d: day, h: dt.getHours(), mi: dt.getMinutes(), se: dt.getSeconds(), dow: dt.getDay(),
+      key: y + "-" + String(mo + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0") };
+  }
+  const p = {};
+  for (const part of ZP.formatToParts(t)) p[part.type] = part.value;
+  // Intl returns "24" for midnight under hour12:false in some engines; normalize.
+  let h = +p.hour; if (h === 24) h = 0;
+  return { y: +p.year, mo: +p.month - 1, d: +p.day, h, mi: +p.minute, se: +p.second, dow: ZP_DOW[p.weekday],
+    key: p.year + "-" + p.month + "-" + p.day };
+}
+
+// Interpret a "YYYY-MM-DD" string as the start-of-day (or end-of-day when `end`)
+// instant in the CONFIGURED zone, returning epoch ms. Used by the date-range
+// search filters so `before:`/`after:` mean the same wall-clock day the labels do.
+function zonedDateBound(dateStr, end) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
+  if (!m) return NaN;
+  const y = +m[1], mo = +m[2] - 1, d = +m[3];
+  if (ZP_LOCAL) {
+    // 'local' keeps the historical new Date("YYYY-MM-DDThh:mm") behavior.
+    return new Date(dateStr + (end ? "T23:59:59.999" : "T00:00:00")).getTime();
+  }
+  // The wall-clock instant we want, expressed as if it were UTC.
+  const targetWall = end ? Date.UTC(y, mo, d, 23, 59, 59, 999) : Date.UTC(y, mo, d, 0, 0, 0, 0);
+  // Two-pass offset solve: from a UTC-equals-wall guess, measure the wall-clock the
+  // zone actually shows at that guess, then shift by the difference. The 2nd pass
+  // re-measures so a DST change straddling the guess is corrected. At a nonexistent
+  // (spring-forward) or ambiguous (fall-back) local time the passes converge on the
+  // post-transition instant — the standard resolution.
+  let guess = targetWall;
+  for (let pass = 0; pass < 2; pass++) {
+    const zp = zonedParts(guess);
+    const guessWall = Date.UTC(zp.y, zp.mo, zp.d, zp.h, zp.mi, zp.se, end ? 999 : 0);
+    const delta = targetWall - guessWall;
+    if (delta === 0) break;
+    guess += delta;
+  }
+  return guess;
+}
+
+// An epoch that falls on the given "YYYY-MM-DD" day IN the configured zone, so
+// DT/DAY/dShort format it back to that exact day. Uses local noon (not midnight)
+// so a spring-forward-at-midnight zone can't nudge the label to the prior day.
+function dayKeyBoundInstant(k) {
+  if (ZP_LOCAL) return new Date(k + "T12:00:00").getTime();
+  // Start-of-day in the zone + 12h stays on the same calendar day everywhere.
+  return zonedDateBound(k, false) + 12 * 3600000;
+}
+// Subtract n days from a "YYYY-MM-DD" key via UTC arithmetic (calendar-correct,
+// independent of any zone offset).
+function isoDayKeyMinus(k, n) {
+  const t = Date.parse(k + "T00:00:00Z") - n * 86400000;
+  return new Date(t).toISOString().slice(0, 10);
 }
 
 /* ---- Settings ------------------------------------------------------------ */
@@ -274,7 +350,9 @@ function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("
 function hexA(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; const f = Math.abs(p) / 100; r = Math.round((t - r) * f + r); g = Math.round((t - g) * f + g); b = Math.round((t - b) * f + b); return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
 function hashId(id) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
-function dayKey(t) { return new Date(t).toDateString(); }
+// Day bucket for an epoch, in the configured zone ("YYYY-MM-DD"). Callers group
+// by equality; the human-readable busiest-day label formats via zone-aware DAY.
+function dayKey(t) { return zonedParts(t).key; }
 function fmtNum(n) { return n.toLocaleString("en-US"); }
 
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
@@ -339,9 +417,10 @@ function indexForTime(t) {
   }
   return ans;
 }
-// First message index on/after the given local date string (YYYY-MM-DD).
+// First message index on/after the given date string (YYYY-MM-DD), interpreted
+// as start-of-day in the configured zone so it matches the on-screen day labels.
 function indexForDate(dateStr) {
-  const t = new Date(dateStr + "T00:00:00").getTime();
+  const t = zonedDateBound(dateStr, false);
   if (isNaN(t)) return -1;
   let lo = 0, hi = N - 1, ans = N - 1;
   while (lo <= hi) {
@@ -739,8 +818,8 @@ function ensureSearch() {
   sEls.media.onclick = () => { F.media = !F.media; sEls.media.classList.toggle("active", F.media); runSearch(); };
   sEls.links.onclick = () => { F.links = !F.links; sEls.links.classList.toggle("active", F.links); runSearch(); };
   sEls.reacts.onclick = () => { F.reacts = !F.reacts; sEls.reacts.classList.toggle("active", F.reacts); runSearch(); };
-  sEls.from.onchange = () => { F.from = sEls.from.value ? new Date(sEls.from.value + "T00:00:00").getTime() : null; sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
-  sEls.to.onchange = () => { F.to = sEls.to.value ? new Date(sEls.to.value + "T23:59:59.999").getTime() : null; sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
+  sEls.from.onchange = () => { F.from = sEls.from.value ? zonedDateBound(sEls.from.value, false) : null; sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
+  sEls.to.onchange = () => { F.to = sEls.to.value ? zonedDateBound(sEls.to.value, true) : null; sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
 
   // people popover
   sEls.people.onclick = (e) => { e.stopPropagation(); togglePeoplePopover(); };
@@ -822,13 +901,13 @@ function runSearch() {
 
   // 3. Parse before:YYYY-MM-DD and after:YYYY-MM-DD
   q = q.replace(/\bbefore:(\d{4}-\d{2}-\d{2})\b/ig, (match, dateStr) => {
-    F.to = new Date(dateStr + "T23:59:59.999").getTime();
+    F.to = zonedDateBound(dateStr, true);
     sEls.to.value = dateStr;
     sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to));
     return "";
   });
   q = q.replace(/\bafter:(\d{4}-\d{2}-\d{2})\b/ig, (match, dateStr) => {
-    F.from = new Date(dateStr + "T00:00:00").getTime();
+    F.from = zonedDateBound(dateStr, false);
     sEls.from.value = dateStr;
     sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to));
     return "";
@@ -1018,8 +1097,8 @@ function applySaved(s) {
   const f = s.f || {};
   F.people = new Set(f.people || []); updatePeopleBadge();
   sEls.from.value = f.from || ""; sEls.to.value = f.to || "";
-  F.from = f.from ? new Date(f.from + "T00:00:00").getTime() : null;
-  F.to = f.to ? new Date(f.to + "T23:59:59.999").getTime() : null;
+  F.from = f.from ? zonedDateBound(f.from, false) : null;
+  F.to = f.to ? zonedDateBound(f.to, true) : null;
   sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to));
   F.media = !!f.media; F.links = !!f.links; F.reacts = !!f.reacts;
   sEls.media.classList.toggle("active", F.media);
@@ -1276,10 +1355,12 @@ function computeStats() {
   for (let i = 0; i < N; i++) {
     const m = MSGS[i];
     perPerson[m.s] = (perPerson[m.s] || 0) + 1;
-    const d = new Date(m.t);
-    const ym = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    // Every date/hour bucket below reads the message's parts in the configured
+    // zone, so they agree with the DT/DAY labels the same message renders with.
+    const zp = zonedParts(m.t);
+    const ym = zp.key.slice(0, 7);   // "YYYY-MM"
     months[ym] = (months[ym] || 0) + 1;
-    const dk = ym + "-" + String(d.getDate()).padStart(2, "0");
+    const dk = zp.key;               // "YYYY-MM-DD"
     days[dk] = (days[dk] || 0) + 1;
 
     // Day Starter & Killer Tracking
@@ -1298,15 +1379,15 @@ function computeStats() {
     }
     lastMsgTime[m.s] = m.t;
     
-    hourCount[d.getHours()]++;
-    weekdayCount[d.getDay()]++;
+    hourCount[zp.h]++;
+    weekdayCount[zp.dow]++;
 
     // Slacker & Weekend checks
-    const dayOfWeek = d.getDay();
+    const dayOfWeek = zp.dow;
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       weekendCount[m.s] = (weekendCount[m.s] || 0) + 1;
     }
-    const hr = d.getHours();
+    const hr = zp.h;
     if (dayOfWeek >= 1 && dayOfWeek <= 5 && hr >= 9 && hr < 17) {
       slackerCount[m.s] = (slackerCount[m.s] || 0) + 1;
     }
@@ -1320,11 +1401,11 @@ function computeStats() {
     if (hr >= 3 && hr < 5) vampiricOwlCount[m.s] = (vampiricOwlCount[m.s] || 0) + 1;
 
     // Specific times
-    const min = d.getMinutes();
+    const min = zp.mi;
     if ((hr === 4 || hr === 16) && min === 20) fourTwentyCount[m.s] = (fourTwentyCount[m.s] || 0) + 1;
     if (hr === 0 && min === 0) midnightSniperCount[m.s] = (midnightSniperCount[m.s] || 0) + 1;
 
-    const md = String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+    const md = zp.key.slice(5);   // "MM-DD"
     if (holidayMap[md]) holidayCount[m.s] = (holidayCount[m.s] || 0) + 1;
 
     // Media check
@@ -1746,8 +1827,8 @@ function computeKeywordTrend(word) {
 
   for (let i = 0; i < N; i++) {
     if (LOWER[i].includes(wordLower)) {
-       const d = new Date(MSGS[i].t);
-       const ym = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+       // Same zoned "YYYY-MM" keys as STATS.monthArr so the trend chart aligns.
+       const ym = zonedParts(MSGS[i].t).key.slice(0, 7);
        if (monthCounts[ym] !== undefined) {
           monthCounts[ym]++;
        } else {
@@ -1794,9 +1875,9 @@ function computeMilestones() {
   let totalWords = 0, totalReacts = 0;
   for (let i = 0; i < N; i++) {
     const m = MSGS[i];
-    const dk = dayKey(m.t);
-    dayCount.set(dk, (dayCount.get(dk) || 0) + 1);
-    hourCount[new Date(m.t).getHours()]++;
+    const zp = zonedParts(m.t);
+    dayCount.set(zp.key, (dayCount.get(zp.key) || 0) + 1);
+    hourCount[zp.h]++;
     const t = (m.x || "").trim();
     if (t) totalWords += t.split(/\s+/).length;
     if (m.r) totalReacts += m.r.length;
@@ -1804,24 +1885,29 @@ function computeMilestones() {
   // Busiest single day
   let busiestDay = "", busiestCount = 0;
   dayCount.forEach((c, dk) => { if (c > busiestCount) { busiestCount = c; busiestDay = dk; } });
-  // Longest streak of consecutive active days
-  const dayTimes = [...dayCount.keys()].map((k) => new Date(k).getTime()).sort((a, b) => a - b);
-  let streak = dayTimes.length ? 1 : 0, best = streak, bestEndTime = dayTimes[0] || 0;
-  for (let i = 1; i < dayTimes.length; i++) {
-    const gap = Math.round((dayTimes[i] - dayTimes[i - 1]) / 86400000);
-    if (gap === 1) { streak++; if (streak > best) { best = streak; bestEndTime = dayTimes[i]; } }
+  // Longest streak of consecutive active days. Day keys are "YYYY-MM-DD" in the
+  // configured zone; parse them at UTC midnight (uniform 86400000 spacing, so the
+  // consecutive-day gap check is exact and DST-proof) for the streak math, then
+  // format the winning ends via keyLabel() so the shown dates match the buckets.
+  const keyTime = (k) => Date.parse(k + "T00:00:00Z");
+  const keyLabel = (fmt, k) => fmt.format(dayKeyBoundInstant(k));
+  const dayKeysSorted = [...dayCount.keys()].sort();
+  let streak = dayKeysSorted.length ? 1 : 0, best = streak;
+  let bestEndKey = dayKeysSorted[0] || "";
+  for (let i = 1; i < dayKeysSorted.length; i++) {
+    const gap = Math.round((keyTime(dayKeysSorted[i]) - keyTime(dayKeysSorted[i - 1])) / 86400000);
+    if (gap === 1) { streak++; if (streak > best) { best = streak; bestEndKey = dayKeysSorted[i]; } }
     else streak = 1;
   }
-
-  const bestStartTime = bestEndTime - (best - 1) * 86400000;
-  const streakRange = best > 1 ? dShort.format(bestStartTime) + " → " + dShort.format(bestEndTime) : "—";
+  const bestStartKey = bestEndKey ? isoDayKeyMinus(bestEndKey, best - 1) : "";
+  const streakRange = best > 1 ? keyLabel(dShort, bestStartKey) + " → " + keyLabel(dShort, bestEndKey) : "—";
   // Peak hour
   let peakHour = 0; for (let h = 1; h < 24; h++) if (hourCount[h] > hourCount[peakHour]) peakHour = h;
   const fmtH = (h) => (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? "am" : "pm");
   const ageMs = MSGS[N - 1].t - MSGS[0].t;
   MILES = {
     streak: fmtNum(best) + (best === 1 ? " day" : " days"), streakRange,
-    busiestDay: busiestDay ? DAY.format(new Date(busiestDay)) : "—", busiestCount,
+    busiestDay: busiestDay ? keyLabel(DAY, busiestDay) : "—", busiestCount,
     totalWords, bookPages: Math.round(totalWords / 250), totalReacts,
     ageYears: (ageMs / (365.25 * 86400000)).toFixed(1) + " yrs",
     firstDay: dShort.format(MSGS[0].t),
@@ -2258,8 +2344,8 @@ function personCard(p) {
   main.appendChild(row);
 
   main.appendChild(el("div", "person-meta",
-    fmtNum(p.count) + " messages · " + DT.format(p.first).split(",")[0] + ", " + new Date(p.first).getFullYear() +
-    " → " + DT.format(p.last).split(",")[0] + ", " + new Date(p.last).getFullYear() +
+    fmtNum(p.count) + " messages · " + DT.format(p.first).split(",")[0] + ", " + zonedParts(p.first).y +
+    " → " + DT.format(p.last).split(",")[0] + ", " + zonedParts(p.last).y +
     ' &nbsp; <span class="person-id">id ' + esc(p.id) + "</span>"));
 
   if (p.samples.length) {
@@ -2439,7 +2525,16 @@ function renderSettings() {
   font.oninput = () => { settings.fontSize = +font.value; font.closest(".set-row").querySelector(".set-desc").textContent = settings.fontSize + "px"; saveSettings(); applyTheme(); };
   v.querySelector("#set-av").onchange = (e) => { settings.avatars = e.target.checked; saveSettings(); applyTheme(); };
   v.querySelector("#set-ts").onchange = (e) => { settings.timestamps = e.target.checked; saveSettings(); applyTheme(); };
-  v.querySelector("#set-tz").onchange = (e) => { settings.timezone = e.target.value; saveSettings(); initDateFormatters(); STATS = null; WORDS = null; MILES = null; toast("Timezone updated"); };
+  v.querySelector("#set-tz").onchange = (e) => {
+    settings.timezone = e.target.value; saveSettings(); initDateFormatters();
+    // Every zone-dependent derived cache must be dropped: stats, word/keyword
+    // months, milestones, Hall of Fame years, threads, and each Wrapped year.
+    STATS = null; WORDS = null; MILES = null; HOF = null; threadsCache = null;
+    for (const k in wrappedCache) delete wrappedCache[k];
+    buildSidebarSparkline();
+    if (curView && curView !== "settings") setView(curView);
+    toast("Timezone updated");
+  };
 
   const gcl = v.querySelector("#set-gcs");
   visibleConvos().forEach((c) => {
@@ -2642,7 +2737,7 @@ function updateBrand() {
   document.getElementById("brand-title").textContent = title || "Group Chat";
   document.getElementById("brand-sub").textContent = fmtNum(N) + " messages";
   document.getElementById("sidebar-foot").innerHTML =
-    (N ? new Date(MSGS[0].t).getFullYear() + "–" + new Date(MSGS[N - 1].t).getFullYear() : "") +
+    (N ? zonedParts(MSGS[0].t).y + "–" + zonedParts(MSGS[N - 1].t).y : "") +
     " · " + PARTS.length + " people<br>" + fmtNum(MSGS.filter((m) => m.m).length) + " photos & videos";
 }
 
@@ -2763,17 +2858,19 @@ function renderCapsule() {
     <div class="page-body scroll" id="capsule-body" style="height: calc(100vh - 120px); overflow-y: auto;"></div></div>`;
   const body = v.querySelector("#capsule-body");
   
-  const today = new Date();
-  const tMonth = today.getMonth();
-  const tDate = today.getDate();
-  const tYear = today.getFullYear();
-  
+  // "Today" and each message are compared in the configured zone, so "on this
+  // day" means the same calendar day the timestamps are labelled with.
+  const todayZ = zonedParts(Date.now());
+  const tMonth = todayZ.mo;
+  const tDate = todayZ.d;
+  const tYear = todayZ.y;
+
   const matchesByYear = {};
-  
+
   for (let i = 0; i < N; i++) {
-    const d = new Date(MSGS[i].t);
-    if (d.getMonth() === tMonth && d.getDate() === tDate) {
-      const yr = d.getFullYear();
+    const z = zonedParts(MSGS[i].t);
+    if (z.mo === tMonth && z.d === tDate) {
+      const yr = z.y;
       if (yr === tYear) continue;
       if (!matchesByYear[yr]) matchesByYear[yr] = [];
       matchesByYear[yr].push(i);
@@ -2889,8 +2986,7 @@ function buildSidebarSparkline() {
   if (!foot) return;
   const months = {};
   for (let i = 0; i < N; i++) {
-    const d = new Date(MSGS[i].t);
-    const ym = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    const ym = zonedParts(MSGS[i].t).key.slice(0, 7);   // "YYYY-MM" in the configured zone
     months[ym] = (months[ym] || 0) + 1;
   }
   const vals = Object.keys(months).sort().map((k) => months[k]);
@@ -2924,7 +3020,7 @@ function computeHOF() {
     if (rc > 0) arr.push({ i, rc, t: m.t, media: !!m.m });
   }
   arr.sort((a, b) => b.rc - a.rc || b.t - a.t);
-  const years = [...new Set(arr.map((x) => new Date(x.t).getFullYear()))].sort((a, b) => b - a);
+  const years = [...new Set(arr.map((x) => zonedParts(x.t).y))].sort((a, b) => b - a);
   HOF = { arr, years };
   return HOF;
 }
@@ -2932,7 +3028,7 @@ function renderHallOfFame() {
   const v = document.getElementById("view-hof");
   const h = computeHOF();
   if (!hofYear || (hofYear !== "all" && h.years.indexOf(+hofYear) < 0)) hofYear = "all";
-  const inYear = (x) => hofYear === "all" || new Date(x.t).getFullYear() === +hofYear;
+  const inYear = (x) => hofYear === "all" || zonedParts(x.t).y === +hofYear;
   const items = h.arr.filter(inYear);
 
   const yearChips = ['<button class="pill hof-yr' + (hofYear === "all" ? " active" : "") + '" data-yr="all">All time</button>']
@@ -3013,7 +3109,7 @@ const wrappedCache = {};
 function wrappedYears() {
   if (wrappedCache.__years) return wrappedCache.__years;
   const set = new Set();
-  for (let i = 0; i < N; i++) set.add(new Date(MSGS[i].t).getFullYear());
+  for (let i = 0; i < N; i++) set.add(zonedParts(MSGS[i].t).y);
   wrappedCache.__years = [...set].sort((a, b) => a - b);
   return wrappedCache.__years;
 }
@@ -3024,10 +3120,11 @@ function computeWrapped(year) {
   let topMsg = { i: -1, rc: -1 };
   for (let i = 0; i < N; i++) {
     const m = MSGS[i];
-    if (new Date(m.t).getFullYear() !== year) continue;
+    const zp = zonedParts(m.t);
+    if (zp.y !== year) continue;
     total++;
     perPerson[m.s] = (perPerson[m.s] || 0) + 1;
-    const dk = dayKey(m.t); dayCount[dk] = (dayCount[dk] || 0) + 1;
+    dayCount[zp.key] = (dayCount[zp.key] || 0) + 1;
     if (m.m) media++;
     const rc = m.r ? m.r.length : 0;
     reacts += rc;
@@ -3060,7 +3157,7 @@ function wrappedSlides(w) {
     const [id, c] = w.people[0];
     slides.push({ kind: "person", id, big: fmtNum(c), label: "messages from " + nameOf(id), sub: nameOf(id) + " was the most active this year", podium: w.people.slice(0, 3) });
   }
-  if (w.busyDay) slides.push({ kind: "stat", emoji: "🔥", big: fmtNum(w.busyN), label: "messages in a single day", sub: "the busiest day was " + DAY.format(new Date(w.busyDay)) });
+  if (w.busyDay) slides.push({ kind: "stat", emoji: "🔥", big: fmtNum(w.busyN), label: "messages in a single day", sub: "the busiest day was " + DAY.format(dayKeyBoundInstant(w.busyDay)) });
   if (w.topWords.length) slides.push({ kind: "words", emoji: "🗣️", big: '"' + w.topWords[0][0] + '"', label: "the word of the year", sub: "used " + fmtNum(w.topWords[0][1]) + " times", list: w.topWords });
   if (w.topEmoji) slides.push({ kind: "stat", emoji: w.topEmoji[0], big: w.topEmoji[0], label: "the emoji of the year", sub: "sent " + fmtNum(w.topEmoji[1]) + " times", giant: true });
   slides.push({ kind: "stat", emoji: "📷", big: fmtNum(w.media), label: "photos & videos shared", sub: fmtNum(w.reacts) + " reactions given all year" });
@@ -3534,19 +3631,20 @@ function openCommandPalette() {
    "ON THIS DAY" TOAST — show a preview on app load
    ======================================================================== */
 function showOnThisDayToast() {
-  const today = new Date();
-  const tMonth = today.getMonth(), tDate = today.getDate(), tYear = today.getFullYear();
+  // Same-zone "on this day" match as the Capsule view (configured timezone).
+  const todayZ = zonedParts(Date.now());
+  const tMonth = todayZ.mo, tDate = todayZ.d, tYear = todayZ.y;
   const samples = [];
   for (let i = 0; i < N && samples.length < 20; i++) {
-    const d = new Date(MSGS[i].t);
-    if (d.getMonth() === tMonth && d.getDate() === tDate && d.getFullYear() !== tYear) {
+    const z = zonedParts(MSGS[i].t);
+    if (z.mo === tMonth && z.d === tDate && z.y !== tYear) {
       samples.push(i);
     }
   }
   if (samples.length === 0) return;
   const pick = samples[Math.floor(Math.random() * samples.length)];
   const m = MSGS[pick];
-  const yr = new Date(m.t).getFullYear();
+  const yr = zonedParts(m.t).y;
   const ago = tYear - yr;
   const snippet = (m.x || "").trim().slice(0, 60) || "[media]";
   const otdToast = el("div", "otd-toast");
@@ -3607,7 +3705,7 @@ function renderThreads() {
   let filtered = threads;
   if (threadFilter !== "all") {
     filtered = threads.filter(t => {
-      const yr = new Date(t.startT).getFullYear();
+      const yr = zonedParts(t.startT).y;
       return String(yr) === threadFilter;
     });
   }
@@ -3618,7 +3716,7 @@ function renderThreads() {
   else if (threadSort === "oldest") filtered.sort((a, b) => a.startT - b.startT);
   else if (threadSort === "liveliest") filtered.sort((a, b) => b.people.length - a.people.length);
 
-  const years = [...new Set(threads.map(t => new Date(t.startT).getFullYear()))].sort((a, b) => b - a);
+  const years = [...new Set(threads.map(t => zonedParts(t.startT).y))].sort((a, b) => b - a);
   const yearChips = ['<button class="pill thr-yr' + (threadFilter === "all" ? " active" : "") + '" data-yr="all">All</button>']
     .concat(years.map(y => '<button class="pill thr-yr' + (threadFilter === String(y) ? " active" : "") + '" data-yr="' + y + '">' + y + '</button>')).join("");
 
