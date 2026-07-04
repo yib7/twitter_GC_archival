@@ -188,6 +188,17 @@ test("isServablePath allows exactly personal_data/data.js and personal_data/loca
   assert.equal(isServablePath("/personal_data/local.js"), true);
 });
 
+// Legacy root overrides: index.html loads these two (onerror-guarded) as the
+// pre-wizard manual-flow twins of personal_data/data.js and
+// personal_data/local.js — same data class, same user, same localhost.
+// docs/ARCHITECTURE.md documents both as supported. They must be allowed so a
+// user upgrading from v1.0.1 who kept root overrides doesn't silently lose
+// them over the server.
+test("isServablePath allows the legacy root overrides data.js and names.local.js", () => {
+  assert.equal(isServablePath("/data.js"), true);
+  assert.equal(isServablePath("/names.local.js"), true);
+});
+
 test("isServablePath allows anything under personal_data/media/ and personal_data/pfps/", () => {
   assert.equal(isServablePath("/personal_data/media/clip.mp4"), true);
   assert.equal(isServablePath("/personal_data/pfps/alice_pfp.png"), true);
@@ -218,7 +229,6 @@ test("isServablePath denies repo internals — .git, scripts, tests, docs, node_
 test("isServablePath denies an unlisted top-level file", () => {
   assert.equal(isServablePath("/package.json"), false);
   assert.equal(isServablePath("/README.md"), false);
-  assert.equal(isServablePath("/names.local.js"), false);
 });
 
 // Traversal forms: isServablePath is a pre-filter on the URL path string, not
@@ -233,4 +243,22 @@ test("isServablePath denies traversal forms even under an allowed prefix", () =>
   assert.equal(isServablePath("/personal_data/media/../source/x.js"), false);
   assert.equal(isServablePath("/../scripts/server.js"), false);
   assert.equal(isServablePath("/personal_data/pfps/../config.json"), false);
+});
+
+// Regression: a decoded literal "?" or "#" inside the pathname must not let
+// ".." segments smuggle through. serveStatic strips the query string from
+// the RAW url before decodeURIComponent() runs, so "%3F"/"%23" in the raw URL
+// survive that split and decode into a literal "?"/"#" INSIDE the pathname
+// isServablePath receives. The old implementation ran its ".." scan on
+// `p.split(/[?#]/)[0]`, which truncated the scan right there — dropping every
+// ".." segment that came after the "?"/"#" — while the allow-check below and
+// serveStatic's downstream path.resolve both still see the FULL string, so
+// the traversal resolves. isServablePath's contract is "already decoded,
+// already query-stripped"; there is no legitimate "?"/"#" left to protect, so
+// a decoded "?"/"#" is itself a smuggling attempt and the ".." scan must run
+// on the whole string.
+test("isServablePath denies decoded ?/# traversal-smuggling payloads", () => {
+  assert.equal(isServablePath("/src/x?/../../personal_data/config.json"), false);
+  assert.equal(isServablePath("/src/x#/../../.git/HEAD"), false);
+  assert.equal(isServablePath("/personal_data/pfps/x?/../../config.json"), false);
 });

@@ -79,15 +79,22 @@ function mergeNames(prev, posted) {
 // tests/**, docs/**, node_modules/**, and any other file under ROOT stay
 // unreachable over HTTP even though the traversal guard would otherwise let
 // same-directory reads through. `urlPath` is the decoded, query-stripped
-// pathname (e.g. "/src/app.js") — a string, not a filesystem path — so a
-// literal ".." segment anywhere is rejected outright rather than resolved;
-// serveStatic's existing path.resolve + relative() traversal guard still runs
-// beneath this call, unchanged, as defense in depth.
-const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico", "/data.sample.js", "/personal_data/data.js", "/personal_data/local.js"]);
+// pathname (e.g. "/src/app.js") — a string, not a filesystem path. Per that
+// contract there is no legitimate "?"/"#" left in it, so the ".." scan runs
+// on the WHOLE string rather than truncating at the first "?"/"#": serveStatic
+// strips the query from the RAW url before decoding, so an encoded "%3F"/"%23"
+// survives that split and decodes into a literal "?"/"#" inside the pathname —
+// scanning only up to it would drop every ".." segment that follows while the
+// allow-check and serveStatic's downstream path.resolve still see the full
+// string. A literal ".." segment anywhere (split on "/" or "\") is rejected
+// outright rather than resolved; serveStatic's existing path.resolve +
+// relative() traversal guard still runs beneath this call, unchanged, as
+// defense in depth.
+const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico", "/data.sample.js", "/data.js", "/names.local.js", "/personal_data/data.js", "/personal_data/local.js"]);
 const SERVABLE_PREFIXES = ["/src/", "/lib/", "/sample_media/", "/personal_data/media/", "/personal_data/pfps/"];
 function isServablePath(urlPath) {
   const p = String(urlPath == null ? "" : urlPath);
-  if (p.split(/[?#]/)[0].split(/[\\/]/).includes("..")) return false;
+  if (p.split(/[\\/]/).includes("..")) return false;
   if (SERVABLE_EXACT.has(p)) return true;
   return SERVABLE_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
