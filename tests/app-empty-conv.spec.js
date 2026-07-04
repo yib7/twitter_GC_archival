@@ -80,5 +80,10 @@ test("boot card only appears when every conversation is empty", async ({ page })
   await page.goto("/");
 
   await expect(page.locator("#boot")).toContainText("No messages found");
+  // P2-3: the boot card must name real script paths and lead with the setup
+  // wizard, not the stale root-level "node build.js" / "node make_sample.js".
+  await expect(page.locator("#boot")).toContainText("npm start");
+  await expect(page.locator("#boot")).toContainText("node scripts/build.js");
+  await expect(page.locator("#boot")).toContainText("node scripts/make_sample.js");
   expect(errors).toEqual([]);
 });

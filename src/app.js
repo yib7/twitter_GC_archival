@@ -1288,7 +1288,7 @@ function computeStats() {
   const holidayCount = {};
   const maxGapCount = {};
   const monologuerCount = {};
-  let consecutiveCount = 0;
+  let consecutiveCount = 1; // the first message is itself a run of length 1
   
   const zeroReactCount = {};
   const selfReactCount = {};
@@ -1994,7 +1994,7 @@ function renderStats() {
           { win: s.mediaWinner, title: "Media Hog", desc: fmtNum(s.mediaWinner.val) + " files shared" },
           { win: s.yapperWinner, title: "The Yapper", desc: s.yapperWinner.val.toFixed(1) + " words / msg" },
           { win: s.cavemanWinner, title: "The Caveman", desc: s.cavemanWinner.val.toFixed(1) + " words / msg" },
-          { win: s.swearWinner, title: "The Sailor", desc: fmtNum(s.swearWinner.val) + " swear words" },
+          { win: s.swearWinner, title: "The Sailor", desc: fmtNum(s.swearWinner.val) + " msgs w/ swearing" },
           { win: s.capsWinner, title: "The Shouter", desc: fmtNum(s.capsWinner.val) + " ALL CAPS msgs" },
           { win: s.questionWinner, title: "The Inquisitor", desc: fmtNum(s.questionWinner.val) + " questions asked" },
           { win: s.narcissistWinner, title: "The Narcissist", desc: fmtNum(s.narcissistWinner.val) + ' "I/me/my"' },
@@ -2011,7 +2011,7 @@ function renderStats() {
           { win: s.flashWinner, title: "The Flash", desc: s.flashWinner.val > 3600000 ? (s.flashWinner.val/3600000).toFixed(1) + "h avg reply" : s.flashWinner.val > 60000 ? (s.flashWinner.val/60000).toFixed(1) + "m avg reply" : Math.round(s.flashWinner.val/1000) + "s avg reply" },
           { win: s.scholarWinner, title: "The Scholar", desc: fmtNum(s.scholarWinner.val) + " unique words" },
           { win: s.novelistWinner, title: "The Novelist", desc: fmtNum(s.novelistWinner.val) + " chars (longest msg)" },
-          { win: s.keysmashWinner, title: "The Keysmasher", desc: fmtNum(s.keysmashWinner.val) + " gibberish words" },
+          { win: s.keysmashWinner, title: "The Keysmasher", desc: fmtNum(s.keysmashWinner.val) + " gibberish msgs" },
           { win: s.earlyBirdWinner, title: "The Early Bird", desc: fmtNum(s.earlyBirdWinner.val) + " msgs (5AM-8AM)" },
           { win: s.vampiricOwlWinner, title: "Vampiric Owl", desc: fmtNum(s.vampiricOwlWinner.val) + " msgs (3AM-5AM)" },
           { win: s.deserterWinner, title: "The Deserter", desc: s.deserterWinner.val > 86400000 ? (s.deserterWinner.val/86400000).toFixed(1) + " days without sending" : (s.deserterWinner.val/3600000).toFixed(1) + " hrs without sending" },
@@ -4007,7 +4007,7 @@ function renderChains() {
 /* ---- Boot (all module state is declared by now) -------------------------- */
 activateConversation(pickInitialConvId(), false);
 if (!N) {
-  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">Run <code>node build.js</code> first to generate data.js (or node make_sample.js for the demo)</div></div>';
+  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">Run <code>npm start</code> to set up your export (or <code>node scripts/build.js</code> / <code>node scripts/make_sample.js</code> for the demo)</div></div>';
 } else if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
 } else {
