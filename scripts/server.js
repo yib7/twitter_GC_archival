@@ -20,12 +20,15 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
-const PERSONAL = path.join(ROOT, "personal_data");
+// GCA_PERSONAL mirrors build.js's env override: point identity storage at a
+// throwaway directory so tests can exercise real save/reload persistence
+// without ever touching the real personal_data/. Unset in normal use.
+const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(ROOT, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
-const PORT = 8765;
+const PORT = process.env.GCA_PORT ? Number(process.env.GCA_PORT) : 8765;
 const HOST = "127.0.0.1";
 
 // When launched via the double-click launcher (`--open`), shut the server down
@@ -183,18 +186,22 @@ function apiSource(body, res) {
   // personal_data/ (the export is just as private as the messages).
   const srcDir = path.join(PERSONAL, "source");
   fs.mkdirSync(srcDir, { recursive: true });
+  // Store absolute destinations (not "personal_data/…"-relative-to-ROOT) so this
+  // works whether PERSONAL is the real ROOT/personal_data or a GCA_PERSONAL
+  // override (tests) — build.js's own path resolution already accepts absolute
+  // paths as-is, so no change needed there.
   const copyInto = (abs) => {
-    const destRel = "personal_data/source/" + path.basename(abs);
-    const dest = path.join(ROOT, destRel);
+    const dest = path.join(srcDir, path.basename(abs));
     if (path.resolve(abs) !== path.resolve(dest)) fs.copyFileSync(abs, dest);
-    return destRel;
+    return dest;
   };
   cfg.sourceJs = [copyInto(groupAbs)];   // message bodies (build parses these)
   cfg.headersJs = copyInto(headersAbs);  // metadata only (roster + events)
 
   // media is required → always copied
-  const mediaCopied = copyMediaFlat(mediaAbs, path.join(PERSONAL, "media"));
-  cfg.mediaDir = "personal_data/media";
+  const mediaDestDir = path.join(PERSONAL, "media");
+  const mediaCopied = copyMediaFlat(mediaAbs, mediaDestDir);
+  cfg.mediaDir = mediaDestDir;
   saveConfig(cfg);
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
@@ -221,7 +228,10 @@ function apiParts(res, group) {
 function apiIdentity(body, res) {
   fs.mkdirSync(path.join(PERSONAL, "pfps"), { recursive: true });
   const cfg = loadConfig();
-  const names = body.names && typeof body.names === "object" ? body.names : {};
+  // Carry forward names from a previous save (like pfps/me/gc already do) —
+  // otherwise reopening the wizard and saving with names untyped/unloaded
+  // wipes out every name assigned in an earlier run.
+  const names = mergeNames(cfg.names, body.names);
   const pfpPaths = {};
 
   // Reserve filenames already on disk (from a previous save) so a fresh upload
@@ -303,7 +313,9 @@ function apiIdentity(body, res) {
 
 /* ---- endpoint: has a build already happened? ----------------------------- */
 // Lets the wizard render its locked state on load (source files can't be changed
-// once built — only Start over clears it) and prefill the group list.
+// once built — only Start over clears it) and prefill the group list, plus any
+// identity already saved (names/me/pfps) so reopening the wizard shows it
+// instead of appearing to have never been filled in.
 function apiStatus(res) {
   const data = readBuiltData();
   const cfg = loadConfig();
@@ -312,6 +324,9 @@ function apiStatus(res) {
     built: !!data,
     groups,
     ignoredGroups: Array.isArray(cfg.ignoredGroups) ? cfg.ignoredGroups : [],
+    me: cfg.me ?? null,
+    names: cfg.names || {},
+    pfps: cfg.pfps || {},
   });
 }
 
@@ -341,8 +356,15 @@ function serveStatic(req, res) {
   try { p = decodeURIComponent(req.url.split("?")[0]); }
   catch (e) { res.writeHead(400); return res.end("bad path"); }
   if (p === "/") p = "/index.html";
-  const file = path.resolve(ROOT, "." + p.replace(/\\/g, "/"));
-  const outside = path.relative(ROOT, file);
+  // /personal_data/... is served from PERSONAL (which GCA_PERSONAL can redirect
+  // to a throwaway dir for tests) rather than literally ROOT/personal_data, so
+  // local.js/media/pfps resolve to wherever this run's identity actually lives.
+  // Everything else is served from ROOT, unchanged.
+  const isPersonal = p === "/personal_data" || p.startsWith("/personal_data/");
+  const base = isPersonal ? PERSONAL : ROOT;
+  const rel = isPersonal ? p.slice("/personal_data".length) || "/" : p;
+  const file = path.resolve(base, "." + rel.replace(/\\/g, "/"));
+  const outside = path.relative(base, file);
   if (outside === "" || outside.startsWith("..") || path.isAbsolute(outside)) {
     res.writeHead(403);
     return res.end("forbidden");

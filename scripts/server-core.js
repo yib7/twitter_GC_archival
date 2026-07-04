@@ -61,6 +61,18 @@ function pfpFileName(name, id, ext, taken) {
   return file;
 }
 
+// Merge posted names over previously saved ones so a partial save (or a save
+// with no names typed at all) never wipes out names assigned in an earlier
+// wizard run — the same carry-forward behavior pfps/me/gc already get.
+// Returns a fresh object; `prev`/`posted` are never mutated. Non-plain-object
+// arguments (null, undefined, strings, arrays, ...) are treated as {}.
+function asNamesMap(v) {
+  return v && typeof v === "object" && !Array.isArray(v) ? v : {};
+}
+function mergeNames(prev, posted) {
+  return Object.assign({}, asNamesMap(prev), asNamesMap(posted));
+}
+
 // The command + args to open `url` in the platform's default browser, used by the
 // `--open` launcher flag so a double-clicked start-setup script pops the wizard.
 function openerCommand(platform, url) {
@@ -99,4 +111,4 @@ function makeLiveness(idleMs, clock) {
   };
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness };
+module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames };

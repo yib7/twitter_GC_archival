@@ -1,7 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness } = require("../scripts/server-core.js");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames } = require("../scripts/server-core.js");
 
 // A controllable clock so elapsed time can be simulated deterministically.
 function fakeClock(start) {
@@ -109,4 +109,56 @@ test("liveness does not exit during or right after a long native picker", () => 
   assert.equal(live.shouldExit(), false, "idle clock restarts from when the picker closed");
   clock.advance(2000);                         // 7s after the picker closed, still no heartbeat
   assert.equal(live.shouldExit(), true, "normal idle timeout resumes after the picker");
+});
+
+// Regression: apiIdentity used to set cfg.names = body.names verbatim, so
+// reopening the wizard and saving with no names typed (or naming only one
+// group's roster) wiped out every previously saved name. Names must carry
+// forward exactly like pfps/me/gc already do.
+test("mergeNames carries prev forward when posted is empty", () => {
+  assert.deepEqual(mergeNames({ "1": "Alice" }, {}), { "1": "Alice" });
+});
+
+test("mergeNames lets posted values override the same id", () => {
+  assert.deepEqual(mergeNames({ "1": "Alice" }, { "1": "Alicia" }), { "1": "Alicia" });
+});
+
+test("mergeNames keeps ids only in prev and adds ids only in posted", () => {
+  assert.deepEqual(mergeNames({ "1": "Alice" }, { "2": "Bob" }), { "1": "Alice", "2": "Bob" });
+});
+
+test("mergeNames treats a missing/undefined prev as empty", () => {
+  assert.deepEqual(mergeNames(undefined, { "1": "Alice" }), { "1": "Alice" });
+});
+
+test("mergeNames treats null/non-object posted as empty (prev survives)", () => {
+  assert.deepEqual(mergeNames({ "1": "Alice" }, null), { "1": "Alice" });
+  assert.deepEqual(mergeNames({ "1": "Alice" }, "not an object"), { "1": "Alice" });
+  assert.deepEqual(mergeNames({ "1": "Alice" }, undefined), { "1": "Alice" });
+});
+
+test("mergeNames treats null/non-object prev as empty (posted survives)", () => {
+  assert.deepEqual(mergeNames(null, { "1": "Alice" }), { "1": "Alice" });
+  assert.deepEqual(mergeNames("not an object", { "1": "Alice" }), { "1": "Alice" });
+});
+
+// Arrays pass typeof === "object" but aren't a valid names map — merging one
+// in verbatim would spray numeric-index keys ("0", "1", ...) into local.js.
+test("mergeNames treats an array (prev or posted) as empty, not as index-keyed data", () => {
+  assert.deepEqual(mergeNames({ "1": "Alice" }, ["x", "y"]), { "1": "Alice" });
+  assert.deepEqual(mergeNames(["x", "y"], { "1": "Alice" }), { "1": "Alice" });
+});
+
+test("mergeNames never mutates its inputs", () => {
+  const prev = { "1": "Alice" };
+  const posted = { "1": "Alicia", "2": "Bob" };
+  mergeNames(prev, posted);
+  assert.deepEqual(prev, { "1": "Alice" });
+  assert.deepEqual(posted, { "1": "Alicia", "2": "Bob" });
+});
+
+test("mergeNames returns a fresh object, not a reference to prev or posted", () => {
+  const prev = { "1": "Alice" };
+  const out = mergeNames(prev, {});
+  assert.notEqual(out, prev);
 });

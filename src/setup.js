@@ -105,11 +105,21 @@ function viewMedia(src, kind) {
 //    same name everywhere).
 //  - `ignored` holds the ids of participants the user deleted.
 const state = { me: null, names: {}, pfps: {}, ignored: {}, ignoredGroups: {}, gc: {}, group: "" };
+// Display-only pfp paths ("personal_data/pfps/foo_pfp.jpg", relative to the
+// project root — same shape as window.LOCAL_PFPS in app.js) loaded from a
+// previous save, used ONLY to paint an avatar background on reopen. Kept
+// separate from state.pfps, which holds fresh data-URLs that get decoded and
+// written to disk server-side — a path string there would be posted back as
+// if it were image data.
+let savedPfpPaths = {};
 let PARTS = [];
 let groups = [];          // [{ id, title, count }] from the build
 let loadedGroup = null;   // which group's roster is currently rendered in #people
 let built = false;
 let step = 1;
+// Resolves once loadStatus() has applied (or given up on) a prior save, so
+// the People step never renders a roster before knowing what's already saved.
+let statusReady = null;
 
 // The per-group name+photo entry for the group currently being set up.
 function gcEntry() {
@@ -213,21 +223,28 @@ function lockSource(locked) {
     .forEach((s) => { const el = $(s); if (el) el.disabled = locked; });
   const banner = $("#src-locked"); if (banner) banner.hidden = !locked;
 }
-async function loadStatus() {
-  if (!SERVED) return;
-  try {
-    const r = await fetch("/api/status");
-    const j = await r.json();
-    if (j && j.built) {
-      built = true;
-      groups = j.groups || [];
-      state.group = groups[0] ? String(groups[0].id) : "";
-      (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; });
-      renderGroupChoosers();
-      refreshGroupStep();
-      lockSource(true);
-    }
-  } catch (e) { /* no server / fresh setup — leave unlocked */ }
+function loadStatus() {
+  statusReady = (async () => {
+    if (!SERVED) return;
+    try {
+      const r = await fetch("/api/status");
+      const j = await r.json();
+      // Prefill previously saved identity regardless of `built` — a reopened
+      // wizard should show prior names/me/photos even before this run's build.
+      state.me = j && j.me != null ? String(j.me) : null;
+      state.names = Object.assign({}, j && j.names || {});
+      savedPfpPaths = Object.assign({}, j && j.pfps || {});
+      if (j && j.built) {
+        built = true;
+        groups = j.groups || [];
+        state.group = groups[0] ? String(groups[0].id) : "";
+        (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; });
+        renderGroupChoosers();
+        refreshGroupStep();
+        lockSource(true);
+      }
+    } catch (e) { /* no server / fresh setup — leave unlocked */ }
+  })();
 }
 
 $("#btn-build").onclick = async () => {
@@ -290,6 +307,7 @@ async function loadParts() {
   }
   if (loadedGroup === state.group && PARTS.length) return;
   host.innerHTML = `<div class="setup-result">Loading participants…</div>`;
+  if (statusReady) await statusReady;   // don't render cards before saved identity is known
   try {
     const r = await fetch("/api/parts?group=" + encodeURIComponent(state.group));
     const j = await r.json();
@@ -305,12 +323,21 @@ async function loadParts() {
 
 function personCard(p) {
   const card = document.createElement("div"); card.className = "su-person";
+  const savedName = state.names[p.id];
+  // Display-only: paint the avatar from a path saved in an earlier run (already
+  // "personal_data/pfps/…", same as window.LOCAL_PFPS in app.js — served as-is,
+  // relative to setup.html at the project root). Never written into state.pfps —
+  // that map holds fresh data-URLs to be decoded and saved server-side, and a
+  // path string there would be posted back as if it were image data.
+  const savedPfp = savedPfpPaths[p.id];
 
   const left = document.createElement("div"); left.className = "su-left";
   const av = document.createElement("div"); av.className = "su-av";
-  av.style.background = colorOf(p.id); av.textContent = initials("User " + String(p.id).slice(-4));
+  av.style.background = colorOf(p.id);
+  if (savedPfp) { av.style.backgroundImage = `url('${savedPfp}')`; av.style.backgroundSize = "cover"; av.style.backgroundPosition = "center"; }
+  else av.textContent = initials(savedName || "User " + String(p.id).slice(-4));
   const file = document.createElement("input"); file.type = "file"; file.accept = "image/*"; file.style.display = "none";
-  const pick = document.createElement("button"); pick.className = "btn ghost su-pick"; pick.textContent = "Add photo";
+  const pick = document.createElement("button"); pick.className = "btn ghost su-pick"; pick.textContent = savedPfp ? "Change photo" : "Add photo";
   pick.onclick = () => file.click();
   file.onchange = async () => {
     const f = file.files && file.files[0]; if (!f) return;
@@ -327,6 +354,7 @@ function personCard(p) {
   const main = document.createElement("div"); main.className = "su-main";
   const name = document.createElement("input");
   name.className = "setup-input su-name"; name.type = "text"; name.placeholder = "User " + String(p.id).slice(-4);
+  if (savedName) name.value = savedName;
   name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { delete state.names[p.id]; if (!state.pfps[p.id]) av.textContent = initials("User " + String(p.id).slice(-4)); } };
   main.appendChild(name);
 
@@ -336,6 +364,7 @@ function personCard(p) {
 
   const me = document.createElement("label"); me.className = "su-me";
   const radio = document.createElement("input"); radio.type = "radio"; radio.name = "su-me"; radio.value = p.id;
+  if (state.me != null && String(state.me) === String(p.id)) radio.checked = true;
   radio.onchange = () => { if (radio.checked) state.me = p.id; };
   me.appendChild(radio); me.appendChild(document.createTextNode(" This is YOU"));
   main.appendChild(me);
