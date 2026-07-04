@@ -96,6 +96,7 @@ function activateConversation(id, rerender) {
 
 /* ---- Constants ----------------------------------------------------------- */
 const REACT = { funny: "😂", like: "❤️", agree: "👍", disagree: "👎", excited: "🔥", surprised: "😮", sad: "😢", emoji: "💬" };
+// kept in sync with src/setup.js:PALETTE — update both.
 const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
 const ACCENTS = ["#3b82f6", "#2563eb", "#1d4ed8", "#0ea5e9", "#38bdf8", "#06b6d4", "#0891b2", "#6366f1", "#818cf8", "#60a5fa"];
 const INTENSITY = {
@@ -349,6 +350,7 @@ function highlightDOM(element, needles) {
 function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function hexA(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; const f = Math.abs(p) / 100; r = Math.round((t - r) * f + r); g = Math.round((t - g) * f + g); b = Math.round((t - b) * f + b); return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
+// kept in sync with src/setup.js:hashId — update both.
 function hashId(id) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
 // Day bucket for an epoch, in the configured zone ("YYYY-MM-DD"). Callers group
 // by equality; the human-readable busiest-day label formats via zone-aware DAY.
@@ -356,6 +358,8 @@ function dayKey(t) { return zonedParts(t).key; }
 function fmtNum(n) { return n.toLocaleString("en-US"); }
 
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
+// kept in sync with src/setup.js:colorOf — update both (app.js additionally
+// lets a user-picked settings.colors override fall back to the same palette).
 function colorOf(id) { return settings.colors[id] || PALETTE[hashId(id) % PALETTE.length]; }
 
 /* ---- Bookmarks / Pinned messages ----------------------------------------- */
@@ -430,6 +434,7 @@ function indexForDate(dateStr) {
   }
   return ans;
 }
+// kept in sync with src/setup.js:initials — update both.
 function initials(name) {
   const p = name.trim().split(/\s+/).filter(Boolean);
   if (!p.length) return "?";
@@ -473,6 +478,7 @@ let STATS = null, WORDS = null;
 // Messages containing a Twitter/X link are useless for telling people apart, so
 // they're excluded from the naming samples entirely (not only when they *start*
 // with a URL). A few shared-media paths are collected as extra memory jogs.
+// kept in sync with scripts/build-core.js:X_LINK — update both.
 const X_LINK = /(?:https?:\/\/)?(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
 function computeParticipants() {
   const map = new Map();
@@ -1830,12 +1836,15 @@ function computeStats() {
 }
 function computeWords() {
   if (WORDS) return WORDS;
-  const stop = new Set("the a an and or but to of in on at for with is are was were be been being am i you he she it we they them me my your our this that these those have has had do does did not no so if as up out get got go gonna just like dont didnt cant wont im youre theyre thats whats here there all any some more most then than too very can could would should will shall may might must about into over under again only also even still much many lol lmao lmaooo yeah yea nah ok okay haha hahaha bro man dude what when who whom how why which whose oh uh um yo idk imo tbh".split(/\s+/));
+  // STOPWORDS is declared further down (search "SHARED STOPWORDS") — safe to
+  // reference here since this function only runs after the whole module has
+  // parsed, not at declaration time. Kept as one Set so the word cloud and the
+  // wrapped top-word stat can never drift out of sync with each other.
   const counts = {};
   for (let i = 0; i < N; i++) {
     const x = MSGS[i].x; if (!x) continue;
     const toks = x.toLowerCase().replace(/https?:\/\/\S+/g, " ").replace(/[^a-z0-9']+/g, " ").split(" ");
-    for (const t of toks) { if (t.length < 3 || t.length > 18) continue; if (stop.has(t)) continue; counts[t] = (counts[t] || 0) + 1; }
+    for (const t of toks) { if (t.length < 3 || t.length > 18) continue; if (STOPWORDS.has(t)) continue; counts[t] = (counts[t] || 0) + 1; }
   }
   WORDS = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 42);
   return WORDS;
@@ -2988,6 +2997,8 @@ function appendGalleryPage() {
 /* ===========================================================================
    SHARED STOPWORDS (word cloud, wrapped top word)
    ======================================================================== */
+// Used by computeWords() (word cloud, above) and the per-year top-word scan
+// below — one Set so both stay in sync; do not reintroduce a second copy.
 const STOPWORDS = new Set("the a an and or but to of in on at for with is are was were be been being am i you he she it we they them me my your our this that these those have has had do does did not no so if as up out get got go gonna just like dont didnt cant wont im youre theyre thats whats here there all any some more most then than too very can could would should will shall may might must about into over under again only also even still much many lol lmao lmaooo yeah yea nah ok okay haha hahaha bro man dude what when who whom how why which whose oh uh um yo idk imo tbh".split(/\s+/));
 
 /* ===========================================================================

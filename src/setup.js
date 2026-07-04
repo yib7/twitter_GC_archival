@@ -2,6 +2,9 @@
 (function () {
 "use strict";
 
+// PALETTE/hashId/colorOf/initials: kept in sync with src/app.js (PALETTE,
+// hashId, colorOf, initials) so a person's avatar color/initials match
+// between the wizard and the viewer — update both.
 const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
 function hashId(id) { id = String(id); let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
 const colorOf = (id) => PALETTE[hashId(id) % PALETTE.length];

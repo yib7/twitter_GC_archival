@@ -1,7 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames } = require("../scripts/server-core.js");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath } = require("../scripts/server-core.js");
 
 // A controllable clock so elapsed time can be simulated deterministically.
 function fakeClock(start) {
@@ -161,4 +161,76 @@ test("mergeNames returns a fresh object, not a reference to prev or posted", () 
   const prev = { "1": "Alice" };
   const out = mergeNames(prev, {});
   assert.notEqual(out, prev);
+});
+
+// isServablePath: the allowlist serveStatic consults BEFORE touching the
+// filesystem. Real personal messages/config/media/source and repo internals
+// (.git, scripts, tests, docs, node_modules) must never be reachable over
+// HTTP even though they live under ROOT alongside the app assets.
+test("isServablePath allows the app shell and its fixed top-level assets", () => {
+  assert.equal(isServablePath("/"), true);
+  assert.equal(isServablePath("/index.html"), true);
+  assert.equal(isServablePath("/setup.html"), true);
+  assert.equal(isServablePath("/favicon.ico"), true);
+  assert.equal(isServablePath("/data.sample.js"), true);
+});
+
+test("isServablePath allows anything under /src/, /lib/, /sample_media/", () => {
+  assert.equal(isServablePath("/src/app.js"), true);
+  assert.equal(isServablePath("/src/styles.css"), true);
+  assert.equal(isServablePath("/lib/fuse.min.js"), true);
+  assert.equal(isServablePath("/lib/fonts/plus-jakarta-sans-latin.woff2"), true);
+  assert.equal(isServablePath("/sample_media/avatar-1.svg"), true);
+});
+
+test("isServablePath allows exactly personal_data/data.js and personal_data/local.js", () => {
+  assert.equal(isServablePath("/personal_data/data.js"), true);
+  assert.equal(isServablePath("/personal_data/local.js"), true);
+});
+
+test("isServablePath allows anything under personal_data/media/ and personal_data/pfps/", () => {
+  assert.equal(isServablePath("/personal_data/media/clip.mp4"), true);
+  assert.equal(isServablePath("/personal_data/pfps/alice_pfp.png"), true);
+  assert.equal(isServablePath("/personal_data/pfps/nested/deeper.png"), true);
+});
+
+test("isServablePath denies personal_data/config.json and personal_data/source/**", () => {
+  assert.equal(isServablePath("/personal_data/config.json"), false);
+  assert.equal(isServablePath("/personal_data/source/direct-messages-group.js"), false);
+  assert.equal(isServablePath("/personal_data/source/nested/file.js"), false);
+});
+
+test("isServablePath denies personal_data itself and unknown personal_data children", () => {
+  assert.equal(isServablePath("/personal_data"), false);
+  assert.equal(isServablePath("/personal_data/"), false);
+  assert.equal(isServablePath("/personal_data/whatever.txt"), false);
+});
+
+test("isServablePath denies repo internals — .git, scripts, tests, docs, node_modules", () => {
+  assert.equal(isServablePath("/.git/HEAD"), false);
+  assert.equal(isServablePath("/scripts/server.js"), false);
+  assert.equal(isServablePath("/scripts/server-core.js"), false);
+  assert.equal(isServablePath("/tests/smoke.spec.js"), false);
+  assert.equal(isServablePath("/docs/superpowers/specs/whatever.md"), false);
+  assert.equal(isServablePath("/node_modules/eslint/package.json"), false);
+});
+
+test("isServablePath denies an unlisted top-level file", () => {
+  assert.equal(isServablePath("/package.json"), false);
+  assert.equal(isServablePath("/README.md"), false);
+  assert.equal(isServablePath("/names.local.js"), false);
+});
+
+// Traversal forms: isServablePath is a pre-filter on the URL path string, not
+// a filesystem check — but "../" segments anywhere must not smuggle a denied
+// path through a prefix match (e.g. "/src/../personal_data/config.json" must
+// not read as "under /src/"). isServablePath receives the already-decoded
+// pathname (serveStatic decodeURIComponent()s before calling it), so raw
+// %-encoded forms aren't its concern; serveStatic's existing path.resolve +
+// relative() guard still runs beneath this, unchanged, as defense in depth.
+test("isServablePath denies traversal forms even under an allowed prefix", () => {
+  assert.equal(isServablePath("/src/../personal_data/config.json"), false);
+  assert.equal(isServablePath("/personal_data/media/../source/x.js"), false);
+  assert.equal(isServablePath("/../scripts/server.js"), false);
+  assert.equal(isServablePath("/personal_data/pfps/../config.json"), false);
 });

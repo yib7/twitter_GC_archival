@@ -157,6 +157,7 @@ function assembleConversations(opts) {
 }
 
 /* ---- wizard participant roster ------------------------------------------- */
+// kept in sync with src/app.js:X_LINK — update both.
 const X_LINK = /(?:https?:\/\/)?(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
 
 /**

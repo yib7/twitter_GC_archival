@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -346,7 +346,7 @@ function apiReset(res) {
   sendJSON(res, 200, { ok: true, removed });
 }
 
-/* ---- static file serving (unchanged behavior) ---------------------------- */
+/* ---- static file serving (allowlisted; see isServablePath) --------------- */
 function serveStatic(req, res) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405, { "Allow": "GET, HEAD" });
@@ -356,6 +356,12 @@ function serveStatic(req, res) {
   try { p = decodeURIComponent(req.url.split("?")[0]); }
   catch (e) { res.writeHead(400); return res.end("bad path"); }
   if (p === "/") p = "/index.html";
+  // Allowlist gate BEFORE any fs access: only app assets + the identity files
+  // the wizard writes may be served, so personal_data/config.json, .../source/,
+  // .git/, scripts/, tests/, docs/, node_modules/ etc. never leave localhost
+  // even though they live under ROOT alongside the app. See isServablePath's
+  // own comment for the exact allow/deny shape.
+  if (!isServablePath(p)) { res.writeHead(404); return res.end("not found"); }
   // /personal_data/... is served from PERSONAL (which GCA_PERSONAL can redirect
   // to a throwaway dir for tests) rather than literally ROOT/personal_data, so
   // local.js/media/pfps resolve to wherever this run's identity actually lives.

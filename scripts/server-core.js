@@ -73,6 +73,25 @@ function mergeNames(prev, posted) {
   return Object.assign({}, asNamesMap(prev), asNamesMap(posted));
 }
 
+// Allowlist gate for serveStatic: true only for URL paths the app actually
+// needs served. Everything else 404s BEFORE any filesystem access, so
+// personal_data/config.json, personal_data/source/**, .git/**, scripts/**,
+// tests/**, docs/**, node_modules/**, and any other file under ROOT stay
+// unreachable over HTTP even though the traversal guard would otherwise let
+// same-directory reads through. `urlPath` is the decoded, query-stripped
+// pathname (e.g. "/src/app.js") — a string, not a filesystem path — so a
+// literal ".." segment anywhere is rejected outright rather than resolved;
+// serveStatic's existing path.resolve + relative() traversal guard still runs
+// beneath this call, unchanged, as defense in depth.
+const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico", "/data.sample.js", "/personal_data/data.js", "/personal_data/local.js"]);
+const SERVABLE_PREFIXES = ["/src/", "/lib/", "/sample_media/", "/personal_data/media/", "/personal_data/pfps/"];
+function isServablePath(urlPath) {
+  const p = String(urlPath == null ? "" : urlPath);
+  if (p.split(/[?#]/)[0].split(/[\\/]/).includes("..")) return false;
+  if (SERVABLE_EXACT.has(p)) return true;
+  return SERVABLE_PREFIXES.some((prefix) => p.startsWith(prefix));
+}
+
 // The command + args to open `url` in the platform's default browser, used by the
 // `--open` launcher flag so a double-clicked start-setup script pops the wizard.
 function openerCommand(platform, url) {
@@ -111,4 +130,4 @@ function makeLiveness(idleMs, clock) {
   };
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames };
+module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath };

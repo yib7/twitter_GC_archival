@@ -62,8 +62,11 @@ test("setup page renders source step", async ({ page }) => {
 });
 
 test("server rejects bad paths and malformed api bodies", async ({ request }) => {
+  // The decoded path is "/../README.md" — isServablePath's "no .. segments"
+  // rule now rejects it (404) before the traversal guard beneath it would
+  // otherwise get a chance to (403); either way it must never be served.
   const traversal = await request.get("/%2e%2e%2fREADME.md");
-  expect(traversal.status()).toBe(403);
+  expect(traversal.status()).toBe(404);
 
   const badJson = await request.post("/api/source", {
     data: "not json",
@@ -73,4 +76,15 @@ test("server rejects bad paths and malformed api bodies", async ({ request }) =>
 
   const missingSource = await request.post("/api/source", { data: {} });
   expect(missingSource.status()).toBe(400);
+});
+
+test("server enforces the static-path allowlist", async ({ request }) => {
+  // Real personal data / repo internals must 404 even though they live under
+  // ROOT alongside the app — the allowlist runs before any fs access.
+  expect((await request.get("/personal_data/config.json")).status()).toBe(404);
+  expect((await request.get("/scripts/server.js")).status()).toBe(404);
+  expect((await request.get("/.git/HEAD")).status()).toBe(404);
+  // App assets stay reachable.
+  expect((await request.get("/src/app.js")).status()).toBe(200);
+  expect((await request.get("/data.sample.js")).status()).toBe(200);
 });
