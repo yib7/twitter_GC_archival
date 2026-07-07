@@ -63,6 +63,9 @@ docs/superpowers/
 # Ship checklist (internal planning doc)
 final.md
 
+# Internal model-usage planning note (references the project's private roadmap)
+fable_5_plan.md
+
 # OS / editor noise
 .DS_Store
 Thumbs.db
