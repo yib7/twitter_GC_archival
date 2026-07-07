@@ -16,7 +16,10 @@ const path = require("path");
 // dir via env vars — instead of using the shared webServer from
 // playwright.config.js. The temp dir is created under the OS temp dir and
 // removed afterward; the real project's personal_data/ is never touched.
-const PORT = 8799;
+// Random high port instead of a fixed one: a fixed port let an orphaned server
+// from an interrupted earlier run keep listening, so waitForServer polled the
+// STALE server (pointed at a dead temp dir) and every assertion here failed.
+const PORT = 8700 + Math.floor(Math.random() * 900);
 const BASE = "http://127.0.0.1:" + PORT;
 let tmpDir;
 let exportDir;
@@ -59,6 +62,11 @@ test.beforeAll(async () => {
     stdio: "pipe",
   });
   await waitForServer(BASE + "/api/ping", 10000);
+  // If our spawn lost the port to another process, waitForServer above just
+  // polled that impostor. Only our own live child counts.
+  if (serverProc.exitCode !== null) {
+    throw new Error("test server exited (code " + serverProc.exitCode + ") — port " + PORT + " likely in use");
+  }
 });
 
 test.afterAll(async () => {
