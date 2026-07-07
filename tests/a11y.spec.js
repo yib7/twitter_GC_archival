@@ -54,6 +54,38 @@ test("the lightbox is a focus-managed dialog", async ({ page }) => {
   await expect(lb).toHaveCount(0);
 });
 
+test("the lightbox traps Tab focus within the dialog", async ({ page }) => {
+  await page.goto("/");
+  await page.locator(".media img").first().click();
+  const lb = page.locator(".lightbox");
+  await expect(lb).toHaveAttribute("aria-modal", "true");
+
+  // Every focusable in the dialog, in DOM order. trapTab() should keep focus
+  // cycling among these and never let it escape to the page behind the modal.
+  const focusables = await page.evaluate(() => {
+    const box = document.querySelector(".lightbox");
+    const sel = 'a[href], button:not([disabled]), input, [tabindex]:not([tabindex="-1"])';
+    return [...box.querySelectorAll(sel)].map((n) => n.className);
+  });
+  expect(focusables.length).toBeGreaterThan(1);
+
+  const inDialog = () => page.evaluate(() => document.querySelector(".lightbox").contains(document.activeElement));
+
+  // Tabbing forward through and past the last element wraps back inside.
+  for (let i = 0; i < focusables.length + 2; i++) {
+    await page.keyboard.press("Tab");
+    expect(await inDialog()).toBe(true);
+  }
+  // Shift+Tab from the first element wraps to the last, still inside.
+  for (let i = 0; i < focusables.length + 2; i++) {
+    await page.keyboard.press("Shift+Tab");
+    expect(await inDialog()).toBe(true);
+  }
+
+  await page.keyboard.press("Escape");
+  await expect(lb).toHaveCount(0);
+});
+
 test("the command palette traps focus and restores it on close", async ({ page }) => {
   await page.goto("/");
   await page.locator('.nav-item[data-view="timeline"]').focus();

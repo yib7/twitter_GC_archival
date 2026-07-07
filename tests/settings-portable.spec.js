@@ -48,6 +48,8 @@ test("export folds the wizard's local.js identity into one portable file", async
 test("import applies names + group info to a clean profile", async ({ page }) => {
   // Clean profile: no wizard identity this time.
   await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
+  // Import shows a "this replaces your customizations" confirm — accept it.
+  page.on("dialog", (d) => d.accept());
   await page.goto("/");
   await expect(page.locator(".bubble").first()).toBeVisible();
   await expect(page.locator("#brand-title")).toHaveText("Raw One");
@@ -67,4 +69,23 @@ test("import applies names + group info to a clean profile", async ({ page }) =>
   expect(gc).toContain("Imported GC");
   const s = await page.evaluate(() => localStorage.getItem("gca.settings"));
   expect(s).toContain("Imported Bob");
+});
+
+test("dismissing the import confirm leaves existing settings untouched", async ({ page }) => {
+  await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
+  // Dismiss (cancel) the confirm — the import must be a no-op.
+  page.on("dialog", (d) => d.dismiss());
+  await page.goto("/");
+  await expect(page.locator("#brand-title")).toHaveText("Raw One");
+
+  await page.locator('[data-view="settings"]').click();
+  const doc = { accent: "#3b82f6", names: { u1: "Imported Bob" }, gc: { G1: { name: "Imported GC", photo: "" } } };
+  await page.locator("#set-import-file").setInputFiles({
+    name: "settings.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(doc)),
+  });
+
+  // Nothing changed: brand title and stored settings keep their pre-import values.
+  await expect(page.locator("#brand-title")).toHaveText("Raw One");
+  const s = await page.evaluate(() => localStorage.getItem("gca.settings"));
+  expect(s || "").not.toContain("Imported Bob");
 });

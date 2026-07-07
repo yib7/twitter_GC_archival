@@ -35,6 +35,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("a crafted pfp value in an imported settings file cannot inject markup", async ({ page }) => {
+  // Import shows a "this replaces your customizations" confirm — accept it.
+  page.on("dialog", (d) => d.accept());
   await page.goto("/");
   await expect(page.locator(".bubble").first()).toBeVisible();
 
