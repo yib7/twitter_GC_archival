@@ -410,6 +410,17 @@ function restoreFocus() {
   if (modalOpener && modalOpener.focus && document.contains(modalOpener)) { try { modalOpener.focus(); } catch (e) {} }
   modalOpener = null;
 }
+// Close the topmost open overlay, most-recently-layered first. Returns true if
+// one was dismissed, so Escape handling stays predictable when modals stack
+// (e.g. a lightbox opened from inside a profile modal).
+function closeAllModals() {
+  const order = [".cmdk", ".ctx-modal", ".kb-modal", ".lightbox", ".profile-modal"];
+  for (const sel of order) {
+    const nodes = document.querySelectorAll(sel);
+    if (nodes.length) { nodes.forEach((n) => n.remove()); restoreFocus(); return true; }
+  }
+  return false;
+}
 
 /* ---- Time → index (binary search; MSGS is sorted ascending by t) --------- */
 function indexForTime(t) {
@@ -1285,7 +1296,7 @@ function computeStats() {
   const emojiCount = {};      // user -> emoji count
   const mediaCount = {};      // user -> media count
   const reactsCount = {};     // user -> reactions received count
-  const responseStats = {};   // user -> { sum: 0, count: 0 }
+  const responseStats = {};   // user -> { avg: 0, count: 0 } (Welford online mean)
   const replyPairStats = {};  // "userA→userB" -> count (userB replied to userA)
 
   // NEW Exhaustive Stats
@@ -1594,9 +1605,11 @@ function computeStats() {
       if (m.s !== prev.s) {
         const diff = m.t - prev.t;
         if (diff > 0 && diff < 1800000) { // < 30 minutes
-          if (!responseStats[m.s]) responseStats[m.s] = { sum: 0, count: 0 };
-          responseStats[m.s].sum += diff;
-          responseStats[m.s].count++;
+          if (!responseStats[m.s]) responseStats[m.s] = { avg: 0, count: 0 };
+          // Welford online mean: avoids an unbounded running sum that could lose
+          // precision on extremely dense archives.
+          const r = responseStats[m.s];
+          r.count++; r.avg += (diff - r.avg) / r.count;
 
           // Interaction pair: prev.s -> m.s
           const pairKey = prev.s + "→" + m.s;
@@ -1777,7 +1790,7 @@ function computeStats() {
     reactionGenerosity[id] = { given: reactorCount[id] || 0, received: reactsCount[id] || 0 };
 
     if (responseStats[id] && responseStats[id].count > 0) {
-      const avgLat = responseStats[id].sum / responseStats[id].count;
+      const avgLat = responseStats[id].avg;
       if (avgLat > ghosterWinner.val) ghosterWinner = { id, val: avgLat };
       if (avgLat < flashWinner.val) flashWinner = { id, val: avgLat };
     }
@@ -1967,7 +1980,7 @@ function renderStats() {
   PARTS.forEach(p => {
     const stat = s.responseStats[p.id];
     if (stat && stat.count > 0) {
-      const avgMs = stat.sum / stat.count;
+      const avgMs = stat.avg;
       let displayTime;
       if (avgMs < 60000) {
         displayTime = Math.round(avgMs / 1000) + "s";
@@ -2314,7 +2327,10 @@ function renderStats() {
   if (tInput && tBtn) {
     tBtn.onclick = () => updateTrendChart(tInput.value);
     tInput.onkeydown = (e) => { if (e.key === "Enter") updateTrendChart(tInput.value); };
-    trendChart = null; // reset for new view render
+    // Destroy any prior Chart.js instance so re-rendering stats (same
+    // conversation) can't leak a detached chart bound to the old canvas.
+    if (trendChart) { try { trendChart.destroy(); } catch (e) {} }
+    trendChart = null;
     updateTrendChart("lol"); // default word
   }
 }
@@ -2652,6 +2668,12 @@ function renderSettings() {
       try {
         const imported = JSON.parse(ev.target.result);
         if (imported && (imported.names || imported.colors || imported.accent || imported.gc)) {
+          // This replaces the current names, colors, saved searches and pins with
+          // no undo, so confirm before clobbering existing customizations.
+          if (!confirm("Import settings? This replaces your current names, colors, saved searches and pins.")) {
+            importFile.value = "";
+            return;
+          }
           settings = Object.assign({}, DEFAULTS, imported);
           settings.names = Object.assign({}, imported.names || {});
           settings.colors = Object.assign({}, imported.colors || {});
@@ -2810,13 +2832,7 @@ function init() {
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); openCommandPalette(); return; }
     if (e.key === "Escape") {
-      const cmdk = document.querySelector(".cmdk"); if (cmdk) { cmdk.remove(); restoreFocus(); return; }
-      const ctx = document.querySelector(".ctx-modal"); if (ctx) { ctx.remove(); restoreFocus(); return; }
-      const kb = document.querySelector(".kb-modal");
-      if (kb) { kb.remove(); restoreFocus(); return; }
-      const prof = document.querySelector(".profile-modal"); if (prof) { prof.remove(); restoreFocus(); return; }
-      const lbs = document.querySelectorAll(".lightbox");
-      if (lbs.length) { lbs.forEach((l) => l.remove()); restoreFocus(); }
+      if (closeAllModals()) return;
       closePopovers();
     }
     if (curView === "wrapped" && !document.querySelector(".cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal") && document.activeElement.tagName !== "INPUT") {
@@ -2904,7 +2920,9 @@ function renderCapsule() {
     const z = zonedParts(MSGS[i].t);
     if (z.mo === tMonth && z.d === tDate) {
       const yr = z.y;
-      if (yr === tYear) continue;
+      // Only past years qualify (>= guards against a future year ever rendering
+      // "0 years ago" if this filter is loosened later).
+      if (yr >= tYear) continue;
       if (!matchesByYear[yr]) matchesByYear[yr] = [];
       matchesByYear[yr].push(i);
     }
@@ -2961,8 +2979,10 @@ function renderGallery() {
     for (let i = 0; i < N; i++) {
       if (MSGS[i].m) items.push(i);
     }
+    // MSGS is oldest-first; reverse in place so the gallery shows newest media
+    // first (matches the lazy-loaded page order below).
     galleryState.items = items.reverse();
-    
+
     galleryObserver = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) appendGalleryPage();
     }, { root: galEls.scroll, rootMargin: "600px" });
@@ -3352,7 +3372,7 @@ function openProfileModal(id) {
   addBadge(s.scholarWinner, "📚", "The Scholar");
   addBadge(s.crowdPleaserWinner, "👏", "Crowd Pleaser");
 
-  let badgesHtml = badges.map(b => `<div class="profile-badge"><i>${b.icon}</i> ${b.text}</div>`).join("");
+  let badgesHtml = badges.map(b => `<div class="profile-badge"><i>${b.icon}</i> ${esc(b.text)}</div>`).join("");
   
   modal.innerHTML = `
     <div class="profile-card">
