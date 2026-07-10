@@ -1321,75 +1321,47 @@ function computeStats() {
 
   // Wave 2 Stats
   const uniqueWords = {};
-  const periodCount = {};
-  const ellipsisCount = {};
-  const singleCharCount = {};
   const maxMsgLen = {};
-  const lowerMsgCount = {};
   const keysmashCount = {};
-  
+
   const earlyBirdCount = {};
   const vampiricOwlCount = {};
-  const holidayCount = {};
   const maxGapCount = {};
   const monologuerCount = {};
   let consecutiveCount = 1; // the first message is itself a run of length 1
-  
+
   const zeroReactCount = {};
-  const selfReactCount = {};
   const laughReactCount = {};
   const hateReactCount = {};
-  
+
   const tiktokCount = {};
   const youtubeCount = {};
   const twitterCount = {};
   const instaCount = {};
-  
-  const hashtagCount = {};
-  const mentionCount = {};
 
   // Wave 3 Stats
-  const hesitatorCount = {};
-  const apologistCount = {};
   const gratitudeCount = {};
-  const agreeableCount = {};
-  const disagreerCount = {};
-  const selfCorrectorCount = {};
   const laughVoidCount = {};
   const exclaimerCount = {};
-  const numberCruncherCount = {};
-  const fourTwentyCount = {};
   const midnightSniperCount = {};
-  const birthdayCount = {};
 
   // Wave 4 Stats
   const optimistCount = {};
   const pessimistCount = {};
-  const confusedCount = {};
   const zoomerCount = {};
   const gamerCount = {};
   const financeBroCount = {};
-  const paragrapherCount = {};
-  const screamerCount = {};
-  const multiQuestionerCount = {};
 
-  const holidayMap = { "12-25": 1, "12-31": 1, "01-01": 1, "10-31": 1, "02-14": 1 };
   const lastMsgTime = {};
 
   const profanityRegex = /\b(fuck|shit|bitch|damn|asshole|cunt|dick|pussy|cock|bastard|slut|whore)\b/i;
   const narcissistRegex = /\b(i|me|my|mine)\b/gi;
   const comedianRegex = /\b(lol|lmao|lmfao|rofl|💀|😭)\b/gi;
-  const hesitatorRegex = /\b(um|uh|hmm|like)\b/gi;
-  const apologistRegex = /\b(sorry|my bad|apologies|whoops)\b/gi;
   const gratitudeRegex = /\b(thanks|thank you|ty|thx)\b/gi;
-  const agreeableRegex = /\b(yeah|yes|yep|agreed|yea)\b/gi;
-  const disagreerRegex = /\b(no|nope|nah|disagree)\b/gi;
-  const birthdayRegex = /\b(happy birthday|hbd)\b/gi;
   const laughVoidRegex = /^(lol|lmao|lmfao|rofl|💀|😭|\s)+$/i;
-  
+
   const optimistRegex = /\b(good|great|awesome|amazing|love|best)\b/gi;
   const pessimistRegex = /\b(bad|terrible|awful|hate|worst)\b/gi;
-  const confusedRegex = /\b(what|huh|why|how|confused)\b/gi;
   const zoomerRegex = /\b(fr|ngl|bet|cap|no cap|sus|bruh|based|cringe|rizz|gyatt)\b/gi;
   const gamerRegex = /\b(gg|wp|lag|nerf|buff|noob|bot|fps)\b/gi;
   const financeBroRegex = /\b(crypto|btc|eth|stocks|stonks|moon|bull|bear)\b/gi;
@@ -1447,11 +1419,7 @@ function computeStats() {
 
     // Specific times
     const min = zp.mi;
-    if ((hr === 4 || hr === 16) && min === 20) fourTwentyCount[m.s] = (fourTwentyCount[m.s] || 0) + 1;
     if (hr === 0 && min === 0) midnightSniperCount[m.s] = (midnightSniperCount[m.s] || 0) + 1;
-
-    const md = zp.key.slice(5);   // "MM-DD"
-    if (holidayMap[md]) holidayCount[m.s] = (holidayCount[m.s] || 0) + 1;
 
     // Media check
     if (m.m) {
@@ -1463,7 +1431,6 @@ function computeStats() {
       reactsCount[m.s] = (reactsCount[m.s] || 0) + m.r.length;
       m.r.forEach(r => {
          reactorCount[r.s] = (reactorCount[r.s] || 0) + 1;
-         if (r.s === m.s) selfReactCount[m.s] = (selfReactCount[m.s] || 0) + 1;
          if (r.k === "😂" || r.k === "😭") laughReactCount[r.s] = (laughReactCount[r.s] || 0) + 1;
          if (r.k === "👎" || r.k === "😡" || r.k === "🤡" || r.k === "🤬") hateReactCount[r.s] = (hateReactCount[r.s] || 0) + 1;
       });
@@ -1495,24 +1462,10 @@ function computeStats() {
          wMatch.forEach(w => uniqueWords[m.s].add(w.toLowerCase()));
        }
        
-       if (txt.length === 1) singleCharCount[m.s] = (singleCharCount[m.s] || 0) + 1;
        if (txt.length > (maxMsgLen[m.s] || 0)) maxMsgLen[m.s] = txt.length;
-       if (txt === txt.toLowerCase() && /[a-z]/.test(txt)) lowerMsgCount[m.s] = (lowerMsgCount[m.s] || 0) + 1;
-       
-       const pdMatch = txt.match(/\./g);
-       if (pdMatch) periodCount[m.s] = (periodCount[m.s] || 0) + pdMatch.length;
-       
-       const elMatch = txt.match(/\.\.\./g);
-       if (elMatch) ellipsisCount[m.s] = (ellipsisCount[m.s] || 0) + elMatch.length;
-       
+
        if (/\b[a-z]{6,}\b/.test(txt) && !/[aeiouy]/.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
        else if (/asdf|fdsa|ghjk|hjkl/i.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
-
-       const hashMatch = txt.match(/#\w+/g);
-       if (hashMatch) hashtagCount[m.s] = (hashtagCount[m.s] || 0) + hashMatch.length;
-
-       const mentMatch = txt.match(/@\w+/g);
-       if (mentMatch) mentionCount[m.s] = (mentionCount[m.s] || 0) + mentMatch.length;
 
        if (profanityRegex.test(txt)) swearCount[m.s] = (swearCount[m.s] || 0) + 1;
        if (txt.toUpperCase() === txt && /[A-Z]/.test(txt) && txt.length > 5) capsCount[m.s] = (capsCount[m.s] || 0) + 1;
@@ -1523,34 +1476,15 @@ function computeStats() {
        const exMatch = txt.match(/!/g);
        if (exMatch) exclaimerCount[m.s] = (exclaimerCount[m.s] || 0) + exMatch.length;
 
-       const numMatch = txt.match(/\d/g);
-       if (numMatch) numberCruncherCount[m.s] = (numberCruncherCount[m.s] || 0) + numMatch.length;
-
        const narcMatch = txt.match(narcissistRegex);
        if (narcMatch) narcissistCount[m.s] = (narcissistCount[m.s] || 0) + narcMatch.length;
 
        const comMatch = txt.match(comedianRegex);
        if (comMatch) comedianCount[m.s] = (comedianCount[m.s] || 0) + comMatch.length;
 
-       const hesMatch = txt.match(hesitatorRegex);
-       if (hesMatch) hesitatorCount[m.s] = (hesitatorCount[m.s] || 0) + hesMatch.length;
-
-       const apMatch = txt.match(apologistRegex);
-       if (apMatch) apologistCount[m.s] = (apologistCount[m.s] || 0) + apMatch.length;
-
        const grMatch = txt.match(gratitudeRegex);
        if (grMatch) gratitudeCount[m.s] = (gratitudeCount[m.s] || 0) + grMatch.length;
 
-       const agMatch = txt.match(agreeableRegex);
-       if (agMatch) agreeableCount[m.s] = (agreeableCount[m.s] || 0) + agMatch.length;
-
-       const disMatch = txt.match(disagreerRegex);
-       if (disMatch) disagreerCount[m.s] = (disagreerCount[m.s] || 0) + disMatch.length;
-
-       const bdayMatch = txt.match(birthdayRegex);
-       if (bdayMatch) birthdayCount[m.s] = (birthdayCount[m.s] || 0) + bdayMatch.length;
-
-       if (/^\*[a-z]+/i.test(txt)) selfCorrectorCount[m.s] = (selfCorrectorCount[m.s] || 0) + 1;
        if (laughVoidRegex.test(txt)) laughVoidCount[m.s] = (laughVoidCount[m.s] || 0) + 1;
 
        // Wave 4 text checks
@@ -1560,9 +1494,6 @@ function computeStats() {
        const pessMatch = txt.match(pessimistRegex);
        if (pessMatch) pessimistCount[m.s] = (pessimistCount[m.s] || 0) + pessMatch.length;
 
-       const confMatch = txt.match(confusedRegex);
-       if (confMatch) confusedCount[m.s] = (confusedCount[m.s] || 0) + confMatch.length;
-
        const zoomMatch = txt.match(zoomerRegex);
        if (zoomMatch) zoomerCount[m.s] = (zoomerCount[m.s] || 0) + zoomMatch.length;
 
@@ -1571,15 +1502,6 @@ function computeStats() {
 
        const finMatch = txt.match(financeBroRegex);
        if (finMatch) financeBroCount[m.s] = (financeBroCount[m.s] || 0) + finMatch.length;
-
-       const nlMatch = txt.match(/\n.*\n/g);
-       if (nlMatch) paragrapherCount[m.s] = (paragrapherCount[m.s] || 0) + nlMatch.length;
-
-       const screamMatch = txt.match(/!{3,}/g);
-       if (screamMatch) screamerCount[m.s] = (screamerCount[m.s] || 0) + screamMatch.length;
-
-       const mqMatch = txt.match(/\?{3,}/g);
-       if (mqMatch) multiQuestionerCount[m.s] = (multiQuestionerCount[m.s] || 0) + mqMatch.length;
 
        // Emoji check
        const ems = m.x.match(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu);
@@ -1651,51 +1573,30 @@ function computeStats() {
   let flashWinner = { id: null, val: 999999999 }; // Lowest latency
   let lurkerWinner = { id: null, val: 999999999 }; // Lowest msgs
   let scholarWinner = { id: null, val: -1 };
-  let policeWinner = { id: null, val: -1 };
-  let ellipsisWinner = { id: null, val: -1 };
-  let singleCharWinner = { id: null, val: -1 };
   let novelistWinner = { id: null, val: -1 };
-  let minimalistWinner = { id: null, val: -1 };
   let keysmashWinner = { id: null, val: -1 };
   let earlyBirdWinner = { id: null, val: -1 };
   let vampiricOwlWinner = { id: null, val: -1 };
-  let holidayWinner = { id: null, val: -1 };
   let deserterWinner = { id: null, val: -1 };
   let monologuerWinner = { id: null, val: -1 };
   let crowdPleaserWinner = { id: null, val: -1 };
   let ignoredWinner = { id: null, val: -1 };
-  let selfLoverWinner = { id: null, val: -1 };
   let laughTrackWinner = { id: null, val: -1 };
   let haterWinner = { id: null, val: -1 };
   let tiktokWinner = { id: null, val: -1 };
   let youtubeWinner = { id: null, val: -1 };
   let twitterWinner = { id: null, val: -1 };
-  let instaWinner = { id: null, val: -1 };
-  let hashtagWinner = { id: null, val: -1 };
-  let mentionWinner = { id: null, val: -1 };
 
-  let hesitatorWinner = { id: null, val: -1 };
-  let apologistWinner = { id: null, val: -1 };
   let gratitudeWinner = { id: null, val: -1 };
-  let agreeableWinner = { id: null, val: -1 };
-  let disagreerWinner = { id: null, val: -1 };
-  let selfCorrectorWinner = { id: null, val: -1 };
   let laughVoidWinner = { id: null, val: -1 };
   let exclaimerWinner = { id: null, val: -1 };
-  let numberCruncherWinner = { id: null, val: -1 };
-  let fourTwentyWinner = { id: null, val: -1 };
   let midnightSniperWinner = { id: null, val: -1 };
-  let birthdayWinner = { id: null, val: -1 };
 
   let optimistWinner = { id: null, val: -1 };
   let pessimistWinner = { id: null, val: -1 };
-  let confusedWinner = { id: null, val: -1 };
   let zoomerWinner = { id: null, val: -1 };
   let gamerWinner = { id: null, val: -1 };
   let financeBroWinner = { id: null, val: -1 };
-  let paragrapherWinner = { id: null, val: -1 };
-  let screamerWinner = { id: null, val: -1 };
-  let multiQuestionerWinner = { id: null, val: -1 };
 
   const yapperStats = {};
   const doubleTextStats = {};
@@ -1728,19 +1629,12 @@ function computeStats() {
     const uWords = uniqueWords[id] ? uniqueWords[id].size : 0;
     scholarStats[id] = uWords;
     if (uWords > scholarWinner.val) scholarWinner = { id, val: uWords };
-    
-    if ((periodCount[id]||0) > policeWinner.val) policeWinner = { id, val: periodCount[id]||0 };
-    if ((ellipsisCount[id]||0) > ellipsisWinner.val) ellipsisWinner = { id, val: ellipsisCount[id]||0 };
-    if ((singleCharCount[id]||0) > singleCharWinner.val) singleCharWinner = { id, val: singleCharCount[id]||0 };
+
     if ((maxMsgLen[id]||0) > novelistWinner.val) novelistWinner = { id, val: maxMsgLen[id]||0 };
-    
-    const pctLower = p.count ? ((lowerMsgCount[id]||0)/p.count)*100 : 0;
-    if (pctLower > minimalistWinner.val) minimalistWinner = { id, val: pctLower };
-    
+
     if ((keysmashCount[id]||0) > keysmashWinner.val) keysmashWinner = { id, val: keysmashCount[id]||0 };
     if ((earlyBirdCount[id]||0) > earlyBirdWinner.val) earlyBirdWinner = { id, val: earlyBirdCount[id]||0 };
     if ((vampiricOwlCount[id]||0) > vampiricOwlWinner.val) vampiricOwlWinner = { id, val: vampiricOwlCount[id]||0 };
-    if ((holidayCount[id]||0) > holidayWinner.val) holidayWinner = { id, val: holidayCount[id]||0 };
     if ((maxGapCount[id]||0) > deserterWinner.val) deserterWinner = { id, val: maxGapCount[id]||0 };
     if ((monologuerCount[id]||0) > monologuerWinner.val) monologuerWinner = { id, val: monologuerCount[id]||0 };
 
@@ -1750,38 +1644,22 @@ function computeStats() {
     const pctIgnored = p.count ? ((zeroReactCount[id]||0)/p.count)*100 : 0;
     if (pctIgnored > ignoredWinner.val) ignoredWinner = { id, val: pctIgnored };
 
-    if ((selfReactCount[id]||0) > selfLoverWinner.val) selfLoverWinner = { id, val: selfReactCount[id]||0 };
     if ((laughReactCount[id]||0) > laughTrackWinner.val) laughTrackWinner = { id, val: laughReactCount[id]||0 };
     if ((hateReactCount[id]||0) > haterWinner.val) haterWinner = { id, val: hateReactCount[id]||0 };
     if ((tiktokCount[id]||0) > tiktokWinner.val) tiktokWinner = { id, val: tiktokCount[id]||0 };
     if ((youtubeCount[id]||0) > youtubeWinner.val) youtubeWinner = { id, val: youtubeCount[id]||0 };
     if ((twitterCount[id]||0) > twitterWinner.val) twitterWinner = { id, val: twitterCount[id]||0 };
-    if ((instaCount[id]||0) > instaWinner.val) instaWinner = { id, val: instaCount[id]||0 };
-    if ((hashtagCount[id]||0) > hashtagWinner.val) hashtagWinner = { id, val: hashtagCount[id]||0 };
-    if ((mentionCount[id]||0) > mentionWinner.val) mentionWinner = { id, val: mentionCount[id]||0 };
 
-    if ((hesitatorCount[id]||0) > hesitatorWinner.val) hesitatorWinner = { id, val: hesitatorCount[id]||0 };
-    if ((apologistCount[id]||0) > apologistWinner.val) apologistWinner = { id, val: apologistCount[id]||0 };
     if ((gratitudeCount[id]||0) > gratitudeWinner.val) gratitudeWinner = { id, val: gratitudeCount[id]||0 };
-    if ((agreeableCount[id]||0) > agreeableWinner.val) agreeableWinner = { id, val: agreeableCount[id]||0 };
-    if ((disagreerCount[id]||0) > disagreerWinner.val) disagreerWinner = { id, val: disagreerCount[id]||0 };
-    if ((selfCorrectorCount[id]||0) > selfCorrectorWinner.val) selfCorrectorWinner = { id, val: selfCorrectorCount[id]||0 };
     if ((laughVoidCount[id]||0) > laughVoidWinner.val) laughVoidWinner = { id, val: laughVoidCount[id]||0 };
     if ((exclaimerCount[id]||0) > exclaimerWinner.val) exclaimerWinner = { id, val: exclaimerCount[id]||0 };
-    if ((numberCruncherCount[id]||0) > numberCruncherWinner.val) numberCruncherWinner = { id, val: numberCruncherCount[id]||0 };
-    if ((fourTwentyCount[id]||0) > fourTwentyWinner.val) fourTwentyWinner = { id, val: fourTwentyCount[id]||0 };
     if ((midnightSniperCount[id]||0) > midnightSniperWinner.val) midnightSniperWinner = { id, val: midnightSniperCount[id]||0 };
-    if ((birthdayCount[id]||0) > birthdayWinner.val) birthdayWinner = { id, val: birthdayCount[id]||0 };
 
     if ((optimistCount[id]||0) > optimistWinner.val) optimistWinner = { id, val: optimistCount[id]||0 };
     if ((pessimistCount[id]||0) > pessimistWinner.val) pessimistWinner = { id, val: pessimistCount[id]||0 };
-    if ((confusedCount[id]||0) > confusedWinner.val) confusedWinner = { id, val: confusedCount[id]||0 };
     if ((zoomerCount[id]||0) > zoomerWinner.val) zoomerWinner = { id, val: zoomerCount[id]||0 };
     if ((gamerCount[id]||0) > gamerWinner.val) gamerWinner = { id, val: gamerCount[id]||0 };
     if ((financeBroCount[id]||0) > financeBroWinner.val) financeBroWinner = { id, val: financeBroCount[id]||0 };
-    if ((paragrapherCount[id]||0) > paragrapherWinner.val) paragrapherWinner = { id, val: paragrapherCount[id]||0 };
-    if ((screamerCount[id]||0) > screamerWinner.val) screamerWinner = { id, val: screamerCount[id]||0 };
-    if ((multiQuestionerCount[id]||0) > multiQuestionerWinner.val) multiQuestionerWinner = { id, val: multiQuestionerCount[id]||0 };
 
     platformStats[id] = { tt: tiktokCount[id]||0, yt: youtubeCount[id]||0, tw: twitterCount[id]||0, ig: instaCount[id]||0 };
 
@@ -1832,18 +1710,13 @@ function computeStats() {
     comedianWinner, reactorWinner, linkWinner, starterWinner,
     killerWinner, doubleTextWinner, weekendWinner, slackerWinner,
     yapperWinner, cavemanWinner, ghosterWinner, flashWinner, lurkerWinner,
-    scholarWinner, policeWinner, ellipsisWinner, singleCharWinner,
-    novelistWinner, minimalistWinner, keysmashWinner, earlyBirdWinner,
-    vampiricOwlWinner, holidayWinner, deserterWinner, monologuerWinner,
-    crowdPleaserWinner, ignoredWinner, selfLoverWinner, laughTrackWinner,
-    haterWinner, tiktokWinner, youtubeWinner, twitterWinner, instaWinner,
-    hashtagWinner, mentionWinner,
-    hesitatorWinner, apologistWinner, gratitudeWinner, agreeableWinner,
-    disagreerWinner, selfCorrectorWinner, laughVoidWinner, exclaimerWinner,
-    numberCruncherWinner, fourTwentyWinner, midnightSniperWinner, birthdayWinner,
-    optimistWinner, pessimistWinner, confusedWinner, zoomerWinner,
-    gamerWinner, financeBroWinner, paragrapherWinner, screamerWinner,
-    multiQuestionerWinner,
+    scholarWinner, novelistWinner, keysmashWinner, earlyBirdWinner,
+    vampiricOwlWinner, deserterWinner, monologuerWinner,
+    crowdPleaserWinner, ignoredWinner, laughTrackWinner,
+    haterWinner, tiktokWinner, youtubeWinner, twitterWinner,
+    gratitudeWinner, laughVoidWinner, exclaimerWinner, midnightSniperWinner,
+    optimistWinner, pessimistWinner, zoomerWinner,
+    gamerWinner, financeBroWinner,
     yapperStats, doubleTextStats, reactionGenerosity,
     scholarStats, platformStats,
     responseStats,
