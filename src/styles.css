@@ -676,6 +676,22 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .act-pin.on { color: var(--accent) !important; }
 .act-pin:hover { color: var(--accent) !important; }
 
+/* Pinned view: per-conversation group headers (every chat's pins are shown) */
+.pins-conv-head {
+  display: flex; align-items: center; gap: 12px;
+  color: var(--text-faint); font-size: 12px; font-weight: 600;
+  letter-spacing: .4px; text-transform: uppercase;
+  margin: 18px auto 6px; max-width: 920px;
+}
+.pins-conv-head::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.pins-conv-head:first-child { margin-top: 0; }
+.pins-conv-cur {
+  color: var(--accent); font-weight: 500;
+  text-transform: none; letter-spacing: 0;
+}
+/* pins that resolve to no visible chat (removed group / ignored sender) */
+.pins-hidden-note { color: var(--text-faint); font-size: 12px; padding: 12px 2px 0; }
+
 /* lightbox bookmark toggle (sits left of the download link) */
 .lb-pin {
   position: absolute; top: 16px; right: 132px; z-index: 5;

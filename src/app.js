@@ -1182,6 +1182,12 @@ function ensureTimelineShell() {
     </div>
   `;
   tlEls = { scroll: v.querySelector("#tl-scroll"), list: v.querySelector("#tl-list") };
+  // The shell was just rebuilt with an EMPTY #tl-list, so the chunk bookkeeping
+  // must restart too. numChunks survives resetDerived(); if the next active
+  // conversation has the SAME chunk count as the last one, openTimeline() would
+  // otherwise skip rebuilding the chunk divs and leave the timeline blank
+  // (P2-5 follow-on: cross-conversation pin jumps land on this path).
+  numChunks = 0; chunkHeights = []; chunkRendered = [];
 
   virtObs = new IntersectionObserver((entries) => {
     entries.forEach(e => {
@@ -3346,40 +3352,146 @@ function openProfileModal(id) {
    ======================================================================== */
 function renderPins() {
   const v = document.getElementById("view-pins");
-  const ids = settings.pins.slice();
-  // Resolve to current indices (skip any pins whose message isn't loaded)
-  const idxs = ids.map((id) => ID2IDX.has(id) ? ID2IDX.get(id) : -1).filter((x) => x >= 0);
-  // newest pinned first (by pin order reversed) keeps most-recent action on top
-  idxs.reverse();
+  // newest pin action first keeps the most-recent bookmark on top of its group
+  const ids = settings.pins.slice().reverse();
 
+  // settings.pins is ONE global list, and message ids are globally unique
+  // (real builds keep the original X message id — scripts/build-core.js
+  // rawToRec; the sample generator shares one counter — scripts/make_sample.js),
+  // so resolve pins across ALL visible conversations, not only through the
+  // active conversation's ID2IDX (P2-5: other chats' bookmarks used to be
+  // silently dropped from this view and its export).
+  const ignored = ignoredUserIds();
+  const wanted = new Set(ids);
+  const byConv = new Map();   // convId -> Map(msgId -> msg)
+  visibleConvos().forEach((c) => {
+    const hits = new Map();
+    (c.msgs || []).forEach((m) => { if (wanted.has(m.i) && !ignored.has(String(m.s))) hits.set(m.i, m); });
+    if (hits.size) byConv.set(c.id, hits);
+  });
+
+  // Active conversation's group first, the rest in picker order.
+  const withPins = visibleConvos().filter((c) => byConv.has(c.id));
+  const ordered = withPins.filter((c) => CONV && c.id === CONV.id)
+    .concat(withPins.filter((c) => !(CONV && c.id === CONV.id)));
+  let total = 0; byConv.forEach((hits) => { total += hits.size; });
+  // pins whose message resolves nowhere (removed group / ignored sender) —
+  // still stored, just not showable; said out loud instead of silently dropped
+  const hidden = ids.length - total;
+  const hiddenNote = () => el("div", "pins-hidden-note",
+    fmtNum(hidden) + " bookmark" + (hidden === 1 ? "" : "s") + " not shown — from removed group chats or ignored people.");
+
+  const sub = total
+    ? fmtNum(total) + " bookmarked message" + (total === 1 ? "" : "s")
+      + (ordered.length > 1 ? " across " + ordered.length + " chats" : "")
+      + " · saved in this browser"
+    : "Bookmark any message with the ★ button to keep it here.";
   v.innerHTML = `<div class="page"><div class="page-head">
       <div class="page-title">Pinned</div>
-      <div class="page-sub">${idxs.length ? fmtNum(idxs.length) + ' bookmarked message' + (idxs.length === 1 ? '' : 's') + ' · saved in this browser' : 'Bookmark any message with the ★ button to keep it here.'}</div>
+      <div class="page-sub">${sub}</div>
     </div>
     <div class="page-body">
-      ${idxs.length ? '<div class="toolbar" style="padding:0 0 12px;"><button class="pill" id="pins-export">↓ Export</button> <button class="pill danger" id="pins-clear">✕ Clear all</button></div>' : ''}
+      ${total ? '<div class="toolbar" style="padding:0 0 12px;"><button class="pill" id="pins-export">↓ Export</button> <button class="pill danger" id="pins-clear">✕ Clear all</button></div>' : ''}
       <div class="list" id="pins-list"></div>
     </div></div>`;
 
   const list = v.querySelector("#pins-list");
-  if (!idxs.length) {
+  if (!total) {
     list.appendChild(el("div", "empty", '<div class="big">★</div><div>No bookmarks yet.</div><div class="hint">Hover any message and tap the ☆ to pin it here.</div>'));
+    if (hidden > 0) list.appendChild(hiddenNote());
     return;
   }
   const frag = document.createDocumentFragment();
-  idxs.forEach((i) => frag.appendChild(renderMsg(i, { clickable: true })));
+  ordered.forEach((c) => {
+    const hits = byConv.get(c.id);
+    const isActive = CONV && c.id === CONV.id;
+    frag.appendChild(el("div", "pins-conv-head",
+      esc(convLabel(c)) + (isActive ? ' <span class="pins-conv-cur">this chat</span>' : "")));
+    ids.forEach((id) => {
+      if (!hits.has(id)) return;
+      if (isActive && ID2IDX.has(id)) frag.appendChild(renderMsg(ID2IDX.get(id), { clickable: true }));
+      else frag.appendChild(renderForeignPin(c, hits.get(id)));
+    });
+  });
+  if (hidden > 0) frag.appendChild(hiddenNote());
   list.appendChild(frag);
 
   const exp = v.querySelector("#pins-export");
   if (exp) exp.onclick = () => {
-    const lines = idxs.map((i) => { const m = MSGS[i]; return DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]"); });
+    const lines = [];
+    ordered.forEach((c) => {
+      const hits = byConv.get(c.id);
+      lines.push("== " + convLabel(c) + " ==");
+      ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]")); });
+      lines.push("");
+    });
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href = url; a.download = "pinned-messages-" + new Date().toISOString().slice(0,10) + ".txt"; a.click();
-    URL.revokeObjectURL(url); toast("Exported " + fmtNum(idxs.length) + " bookmarks");
+    URL.revokeObjectURL(url); toast("Exported " + fmtNum(total) + " bookmarks");
   };
   const clr = v.querySelector("#pins-clear");
   if (clr) clr.onclick = () => { if (!confirm("Remove all bookmarks?")) return; settings.pins = []; saveSettings(); renderPins(); toast("Cleared bookmarks"); };
+}
+
+// A pinned message from a conversation that is NOT active. renderMsg() can't be
+// reused here: it renders by index into the active MSGS and wires index-based
+// actions (context peek, lightbox, quote card). This mirrors its card markup
+// with the actions that make sense cross-chat; activating the row switches to
+// that conversation and jumps to the message.
+function renderForeignPin(conv, m) {
+  const wrap = el("div", "msg clickable");
+  const av = el("div", "av"); applyPfp(av, m.s); wrap.appendChild(av);
+  const body = el("div", "msg-body");
+  const head = el("div", "msg-head");
+  const nm = el("span", "msg-name"); nm.textContent = nameOf(m.s); nm.style.color = colorOf(m.s);
+  const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
+  head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
+
+  const go = () => {
+    activateConversation(conv.id, true);
+    const idx = ID2IDX.get(m.i);
+    jumpTo(idx == null ? 0 : idx);
+  };
+
+  const acts = el("div", "msg-acts");
+  const pinned = isPinned(m.i);
+  const actPin = el("button", "act-pin" + (pinned ? " on" : ""), pinned ? "★" : "☆");
+  actPin.dataset.mid = m.i; actPin.title = pinned ? "Remove bookmark" : "Bookmark";
+  actPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); };
+  const actJump = el("button", "", "Jump"); actJump.onclick = (e) => { e.stopPropagation(); go(); };
+  acts.appendChild(actPin); acts.appendChild(actJump);
+  body.appendChild(acts);
+
+  const txt = (m.x || "").trim();
+  if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.innerHTML = renderText(m.x, m.u); body.appendChild(bubbleEl); }
+  if (m.m) {
+    // no cross-conversation lightbox — media clicks just travel to the message
+    const d = el("div", "media");
+    if (m.k === "img") {
+      const img = el("img"); img.loading = "lazy"; img.src = m.m;
+      img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
+      d.appendChild(img);
+    } else if (m.k === "vid") {
+      const vd = document.createElement("video"); vd.src = m.m; vd.controls = true; vd.preload = "none";
+      vd.setAttribute("aria-label", "Video from " + nameOf(m.s) + " · " + DT.format(m.t));
+      vd.addEventListener("click", (e) => e.stopPropagation());
+      d.appendChild(vd);
+    } else {
+      const a = el("a", "urlchip"); a.href = m.m; a.target = "_blank"; a.textContent = "📎 media file";
+      a.addEventListener("click", (e) => e.stopPropagation());
+      d.appendChild(a);
+    }
+    body.appendChild(d);
+  }
+  if (m.r) body.appendChild(renderReacts(m.r));
+  wrap.appendChild(body);
+
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "button");
+  wrap.addEventListener("click", go);
+  wrap.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  return wrap;
 }
 
 /* ===========================================================================
