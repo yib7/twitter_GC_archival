@@ -68,6 +68,10 @@ function resetDerived() {
   tlBuilt = false; if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
   galleryState = { items: [], page: 0 }; galEls = {};
   if (galleryObserver) { try { galleryObserver.disconnect(); } catch (e) {} galleryObserver = null; }
+  // P1-1: renderGallery() only rebuilds when the view is empty — clear it here
+  // (unlike timeline/search, gallery has no *Built flag). Guarded: boot calls
+  // this before the DOM is ready.
+  const gv = document.getElementById("view-gallery"); if (gv) gv.innerHTML = "";
   hofYear = "all"; wrappedYear = null; wrappedSlide = 0;
   battleP1 = null; battleP2 = null;
   for (const k in wrappedCache) delete wrappedCache[k];
