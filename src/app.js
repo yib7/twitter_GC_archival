@@ -76,6 +76,11 @@ function resetDerived() {
   battleP1 = null; battleP2 = null;
   for (const k in wrappedCache) delete wrappedCache[k];
   if (trendChart) { try { trendChart.destroy(); } catch (e) {} trendChart = null; }
+  // P2-2: same lifecycle as trendChart for the three per-render stats charts —
+  // without this, every conversation switch leaks instances holding the old
+  // (now detached) canvases.
+  statCharts.forEach((c) => { try { c.destroy(); } catch (e) {} });
+  statCharts = [];
 }
 
 function activateConversation(id, rerender) {
@@ -1287,6 +1292,35 @@ function jumpTo(i) { setView("timeline"); openTimeline(i); }
 /* ===========================================================================
    STATS VIEW
    ======================================================================== */
+// P1-2: computeStats() runs these against every message of a 134k+ archive;
+// they used to be re-declared (recompiled) on every call. Compiled once here.
+// Hoisting a `g`-flag regex to shared scope is only safe because every g-regex
+// below is used solely via String.prototype.match(), which resets lastIndex —
+// none is used with regex.test()/.exec(), which would carry lastIndex state
+// between messages and calls.
+const RE_PROFANITY = /\b(fuck|shit|bitch|damn|asshole|cunt|dick|pussy|cock|bastard|slut|whore)\b/i;
+const RE_NARCISSIST = /\b(i|me|my|mine)\b/gi;
+const RE_COMEDIAN = /\b(lol|lmao|lmfao|rofl|💀|😭)\b/gi;
+const RE_GRATITUDE = /\b(thanks|thank you|ty|thx)\b/gi;
+const RE_LAUGH_VOID = /^(lol|lmao|lmfao|rofl|💀|😭|\s)+$/i;
+const RE_OPTIMIST = /\b(good|great|awesome|amazing|love|best)\b/gi;
+const RE_PESSIMIST = /\b(bad|terrible|awful|hate|worst)\b/gi;
+const RE_ZOOMER = /\b(fr|ngl|bet|cap|no cap|sus|bruh|based|cringe|rizz|gyatt)\b/gi;
+const RE_GAMER = /\b(gg|wp|lag|nerf|buff|noob|bot|fps)\b/gi;
+const RE_FINANCE_BRO = /\b(crypto|btc|eth|stocks|stonks|moon|bull|bear)\b/gi;
+const RE_TIKTOK = /tiktok\.com/i;
+const RE_YOUTUBE = /youtube\.com|youtu\.be/i;
+const RE_TWITTER_URL = /twitter\.com|x\.com/i;
+const RE_INSTAGRAM = /instagram\.com/i;
+const RE_WORD = /\b\w+\b/g;
+const RE_KEYSMASH_RUN = /\b[a-z]{6,}\b/;
+const RE_VOWEL = /[aeiouy]/;
+const RE_KEYSMASH_SEQ = /asdf|fdsa|ghjk|hjkl/i;
+const RE_ANY_UPPER = /[A-Z]/;
+const RE_QUESTION = /\?/g;
+const RE_EXCLAIM = /!/g;
+const RE_EMOJI = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+
 function computeStats() {
   if (STATS) return STATS;
   // Every sender in this conversation is ignored (P1-4) — MSGS[0]/MSGS[N-1]
@@ -1354,18 +1388,6 @@ function computeStats() {
 
   const lastMsgTime = {};
 
-  const profanityRegex = /\b(fuck|shit|bitch|damn|asshole|cunt|dick|pussy|cock|bastard|slut|whore)\b/i;
-  const narcissistRegex = /\b(i|me|my|mine)\b/gi;
-  const comedianRegex = /\b(lol|lmao|lmfao|rofl|💀|😭)\b/gi;
-  const gratitudeRegex = /\b(thanks|thank you|ty|thx)\b/gi;
-  const laughVoidRegex = /^(lol|lmao|lmfao|rofl|💀|😭|\s)+$/i;
-
-  const optimistRegex = /\b(good|great|awesome|amazing|love|best)\b/gi;
-  const pessimistRegex = /\b(bad|terrible|awful|hate|worst)\b/gi;
-  const zoomerRegex = /\b(fr|ngl|bet|cap|no cap|sus|bruh|based|cringe|rizz|gyatt)\b/gi;
-  const gamerRegex = /\b(gg|wp|lag|nerf|buff|noob|bot|fps)\b/gi;
-  const financeBroRegex = /\b(crypto|btc|eth|stocks|stonks|moon|bull|bear)\b/gi;
-  
   let prevDay = null;
   let prevMsgUser = null;
 
@@ -1443,10 +1465,10 @@ function computeStats() {
       linkCount[m.s] = (linkCount[m.s] || 0) + m.u.length;
       m.u.forEach(u => {
         const url = u.e || u.s || "";
-        if (/tiktok\.com/i.test(url)) tiktokCount[m.s] = (tiktokCount[m.s] || 0) + 1;
-        if (/youtube\.com|youtu\.be/i.test(url)) youtubeCount[m.s] = (youtubeCount[m.s] || 0) + 1;
-        if (/twitter\.com|x\.com/i.test(url)) twitterCount[m.s] = (twitterCount[m.s] || 0) + 1;
-        if (/instagram\.com/i.test(url)) instaCount[m.s] = (instaCount[m.s] || 0) + 1;
+        if (RE_TIKTOK.test(url)) tiktokCount[m.s] = (tiktokCount[m.s] || 0) + 1;
+        if (RE_YOUTUBE.test(url)) youtubeCount[m.s] = (youtubeCount[m.s] || 0) + 1;
+        if (RE_TWITTER_URL.test(url)) twitterCount[m.s] = (twitterCount[m.s] || 0) + 1;
+        if (RE_INSTAGRAM.test(url)) instaCount[m.s] = (instaCount[m.s] || 0) + 1;
       });
     }
 
@@ -1454,7 +1476,7 @@ function computeStats() {
     if (m.x) {
        const txt = m.x;
        // Words
-       const wMatch = txt.match(/\b\w+\b/g);
+       const wMatch = txt.match(RE_WORD);
        if (wMatch && wMatch.length > 0) {
          wordsTotal[m.s] = (wordsTotal[m.s] || 0) + wMatch.length;
          msgWithWords[m.s] = (msgWithWords[m.s] || 0) + 1;
@@ -1464,47 +1486,47 @@ function computeStats() {
        
        if (txt.length > (maxMsgLen[m.s] || 0)) maxMsgLen[m.s] = txt.length;
 
-       if (/\b[a-z]{6,}\b/.test(txt) && !/[aeiouy]/.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
-       else if (/asdf|fdsa|ghjk|hjkl/i.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
+       if (RE_KEYSMASH_RUN.test(txt) && !RE_VOWEL.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
+       else if (RE_KEYSMASH_SEQ.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
 
-       if (profanityRegex.test(txt)) swearCount[m.s] = (swearCount[m.s] || 0) + 1;
-       if (txt.toUpperCase() === txt && /[A-Z]/.test(txt) && txt.length > 5) capsCount[m.s] = (capsCount[m.s] || 0) + 1;
-       
-       const qMatch = txt.match(/\?/g);
+       if (RE_PROFANITY.test(txt)) swearCount[m.s] = (swearCount[m.s] || 0) + 1;
+       if (txt.toUpperCase() === txt && RE_ANY_UPPER.test(txt) && txt.length > 5) capsCount[m.s] = (capsCount[m.s] || 0) + 1;
+
+       const qMatch = txt.match(RE_QUESTION);
        if (qMatch) questionCount[m.s] = (questionCount[m.s] || 0) + qMatch.length;
 
-       const exMatch = txt.match(/!/g);
+       const exMatch = txt.match(RE_EXCLAIM);
        if (exMatch) exclaimerCount[m.s] = (exclaimerCount[m.s] || 0) + exMatch.length;
 
-       const narcMatch = txt.match(narcissistRegex);
+       const narcMatch = txt.match(RE_NARCISSIST);
        if (narcMatch) narcissistCount[m.s] = (narcissistCount[m.s] || 0) + narcMatch.length;
 
-       const comMatch = txt.match(comedianRegex);
+       const comMatch = txt.match(RE_COMEDIAN);
        if (comMatch) comedianCount[m.s] = (comedianCount[m.s] || 0) + comMatch.length;
 
-       const grMatch = txt.match(gratitudeRegex);
+       const grMatch = txt.match(RE_GRATITUDE);
        if (grMatch) gratitudeCount[m.s] = (gratitudeCount[m.s] || 0) + grMatch.length;
 
-       if (laughVoidRegex.test(txt)) laughVoidCount[m.s] = (laughVoidCount[m.s] || 0) + 1;
+       if (RE_LAUGH_VOID.test(txt)) laughVoidCount[m.s] = (laughVoidCount[m.s] || 0) + 1;
 
        // Wave 4 text checks
-       const optMatch = txt.match(optimistRegex);
+       const optMatch = txt.match(RE_OPTIMIST);
        if (optMatch) optimistCount[m.s] = (optimistCount[m.s] || 0) + optMatch.length;
 
-       const pessMatch = txt.match(pessimistRegex);
+       const pessMatch = txt.match(RE_PESSIMIST);
        if (pessMatch) pessimistCount[m.s] = (pessimistCount[m.s] || 0) + pessMatch.length;
 
-       const zoomMatch = txt.match(zoomerRegex);
+       const zoomMatch = txt.match(RE_ZOOMER);
        if (zoomMatch) zoomerCount[m.s] = (zoomerCount[m.s] || 0) + zoomMatch.length;
 
-       const gamMatch = txt.match(gamerRegex);
+       const gamMatch = txt.match(RE_GAMER);
        if (gamMatch) gamerCount[m.s] = (gamerCount[m.s] || 0) + gamMatch.length;
 
-       const finMatch = txt.match(financeBroRegex);
+       const finMatch = txt.match(RE_FINANCE_BRO);
        if (finMatch) financeBroCount[m.s] = (financeBroCount[m.s] || 0) + finMatch.length;
 
        // Emoji check
-       const ems = m.x.match(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu);
+       const ems = m.x.match(RE_EMOJI);
        if (ems) {
          ems.forEach(e => {
            emojis[e] = (emojis[e] || 0) + 1;
@@ -1740,6 +1762,10 @@ function computeWords() {
   return WORDS;
 }
 let trendChart = null;
+// P2-2: the months/hours/weekdays Chart.js instances of the current Stats
+// render. Tracked (like trendChart) so renderStats()/resetDerived() can
+// destroy them before their canvases are detached.
+let statCharts = [];
 function computeKeywordTrend(word) {
   const wordLower = word.toLowerCase();
   const monthCounts = {};
@@ -1841,6 +1867,10 @@ function computeMilestones() {
 
 function renderStats() {
   const v = document.getElementById("view-stats");
+  // P2-2: the innerHTML writes below detach the previous render's canvases —
+  // destroy their charts first or every re-render leaks three instances.
+  statCharts.forEach((c) => { try { c.destroy(); } catch (e) {} });
+  statCharts = [];
   const s = computeStats();
   if (s.empty) {
     v.innerHTML = '<div class="page"><div class="empty"><div class="big">▤</div><div>No messages in this group — every sender is ignored.</div></div></div>';
@@ -2171,32 +2201,32 @@ function renderStats() {
     Chart.defaults.color = 'rgba(255,255,255,0.6)';
     Chart.defaults.borderColor = 'rgba(255,255,255,0.1)';
     const ctxM = document.getElementById("chart-months").getContext("2d");
-    new Chart(ctxM, {
+    statCharts.push(new Chart(ctxM, {
       type: 'bar',
       data: {
         labels: s.monthArr.map(m => m[0]),
         datasets: [{ label: 'Messages', data: s.monthArr.map(m => m[1]), backgroundColor: settings.accent, borderRadius: 4 }]
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    });
+    }));
     const ctxH = document.getElementById("chart-hours").getContext("2d");
-    new Chart(ctxH, {
+    statCharts.push(new Chart(ctxH, {
       type: 'line',
       data: {
         labels: Array.from({length: 24}, (_, i) => i + ":00"),
         datasets: [{ label: 'Messages', data: s.hourCount, borderColor: settings.accent, backgroundColor: hexA(settings.accent, 0.2), fill: true, tension: 0.4 }]
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    });
+    }));
     const ctxW = document.getElementById("chart-weekdays").getContext("2d");
-    new Chart(ctxW, {
+    statCharts.push(new Chart(ctxW, {
       type: 'bar',
       data: {
         labels: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
         datasets: [{ label: 'Messages', data: s.weekdayCount, backgroundColor: settings.accent, borderRadius: 4 }]
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    });
+    }));
   }
 
   const tInput = v.querySelector("#trend-input");
@@ -3227,30 +3257,12 @@ document.addEventListener("click", (e) => {
 function openProfileModal(id) {
   const existing = document.querySelector(".profile-modal");
   if (existing) existing.remove();
-  
-  if (!STATS) computeStats();
-  const s = STATS;
-  
+
   const p = PARTS.find(x => x.id === id);
   if (!p) return;
 
   const modal = el("div", "profile-modal");
-  
-  const badges = [];
-  const addBadge = (winStat, icon, text) => { if (winStat && winStat.id === id) badges.push({ icon, text }); };
-  addBadge(s.owlWinner, "🦉", "Late Night Owl");
-  addBadge(s.reactsWinner, "⭐", "Reaction Magnet");
-  addBadge(s.emojiWinner, "😂", "Emoji Enthusiast");
-  addBadge(s.mediaWinner, "📷", "Media Hog");
-  addBadge(s.yapperWinner, "🗣️", "The Yapper");
-  addBadge(s.swearWinner, "🤬", "The Sailor");
-  addBadge(s.starterWinner, "🚀", "Thread Starter");
-  addBadge(s.killerWinner, "💀", "Thread Killer");
-  addBadge(s.scholarWinner, "📚", "The Scholar");
-  addBadge(s.crowdPleaserWinner, "👏", "Crowd Pleaser");
 
-  let badgesHtml = badges.map(b => `<div class="profile-badge"><i>${b.icon}</i> ${esc(b.text)}</div>`).join("");
-  
   modal.innerHTML = `
     <div class="profile-card">
       <div class="profile-cover">
@@ -3260,27 +3272,25 @@ function openProfileModal(id) {
       <div class="profile-info">
         <h2 class="profile-name">${esc(nameOf(id))}</h2>
         <div style="color:var(--text-dim); font-size:13px; font-family:ui-monospace,monospace;">id ${esc(id)}</div>
-        
+
         <div class="profile-stat-row">
           <div class="profile-stat-item">
             <div class="profile-stat-val">${fmtNum(p.count)}</div>
             <div class="profile-stat-lbl">Messages</div>
           </div>
           <div class="profile-stat-item">
-            <div class="profile-stat-val">${s.yapperStats[id] ? s.yapperStats[id].toFixed(1) : "0"}</div>
+            <div class="profile-stat-val" data-stat="wpm">…</div>
             <div class="profile-stat-lbl">Words/Msg</div>
           </div>
           <div class="profile-stat-item">
-            <div class="profile-stat-val">${s.scholarStats[id] ? fmtNum(s.scholarStats[id]) : "0"}</div>
+            <div class="profile-stat-val" data-stat="vocab">…</div>
             <div class="profile-stat-lbl">Vocab Size</div>
           </div>
         </div>
-        
-        ${badgesHtml ? `<div class="profile-badges">${badgesHtml}</div>` : ""}
       </div>
     </div>
   `;
-  
+
   const closeProfile = () => { modal.remove(); restoreFocus(); };
   modal.addEventListener("click", (e) => { if (e.target === modal) closeProfile(); });
   modal.querySelector(".profile-card-close").onclick = closeProfile;
@@ -3290,6 +3300,39 @@ function openProfileModal(id) {
 
   document.body.appendChild(modal);
   applyDialog(modal, "Profile — " + nameOf(id), { initial: ".profile-card-close" });
+
+  // P1-2: the stats-derived fields (words/msg, vocab, badges). On a cold STATS
+  // cache computeStats() sweeps every message — synchronously that freezes the
+  // tab on 134k-message archives before the modal can even paint. Warm cache:
+  // fill in the same tick (no placeholder flash). Cold: paint the shell now,
+  // run the sweep on the next macrotask. Same STATS object either way, so the
+  // modal ends up identical and the Stats view reuses the memoized result.
+  const fillStats = () => {
+    if (!modal.isConnected) return; // closed before the sweep finished
+    const s = computeStats();
+    if (s.empty) return;
+    modal.querySelector('[data-stat="wpm"]').textContent = s.yapperStats[id] ? s.yapperStats[id].toFixed(1) : "0";
+    modal.querySelector('[data-stat="vocab"]').textContent = s.scholarStats[id] ? fmtNum(s.scholarStats[id]) : "0";
+
+    const badges = [];
+    const addBadge = (winStat, icon, text) => { if (winStat && winStat.id === id) badges.push({ icon, text }); };
+    addBadge(s.owlWinner, "🦉", "Late Night Owl");
+    addBadge(s.reactsWinner, "⭐", "Reaction Magnet");
+    addBadge(s.emojiWinner, "😂", "Emoji Enthusiast");
+    addBadge(s.mediaWinner, "📷", "Media Hog");
+    addBadge(s.yapperWinner, "🗣️", "The Yapper");
+    addBadge(s.swearWinner, "🤬", "The Sailor");
+    addBadge(s.starterWinner, "🚀", "Thread Starter");
+    addBadge(s.killerWinner, "💀", "Thread Killer");
+    addBadge(s.scholarWinner, "📚", "The Scholar");
+    addBadge(s.crowdPleaserWinner, "👏", "Crowd Pleaser");
+    if (badges.length) {
+      const wrap = el("div", "profile-badges");
+      wrap.innerHTML = badges.map(b => `<div class="profile-badge"><i>${b.icon}</i> ${esc(b.text)}</div>`).join("");
+      modal.querySelector(".profile-info").appendChild(wrap);
+    }
+  };
+  if (STATS) fillStats(); else setTimeout(fillStats, 0);
 }
 
 /* ===========================================================================
