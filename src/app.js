@@ -356,6 +356,58 @@ function highlightDOM(element, needles) {
     }
   });
 }
+// P2-6: range-based variant of highlightDOM for fuzzy matches. `ranges` are
+// inclusive [start, end] pairs (Fuse match indices) into the message's plain
+// text; we walk the rendered text nodes tracking the absolute offset and wrap
+// the intersecting slices in <mark>. Same XSS discipline as highlightDOM:
+// only text nodes are split/rewrapped via textContent — raw message text
+// never goes through innerHTML.
+function highlightRangesDOM(element, ranges) {
+  if (!ranges || !ranges.length) return;
+  // Sort and merge overlapping/adjacent ranges so marks don't nest or abut.
+  const sorted = ranges.map((r) => [r[0], r[1]]).sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const r of sorted) {
+    const last = merged[merged.length - 1];
+    if (last && r[0] <= last[1] + 1) last[1] = Math.max(last[1], r[1]);
+    else merged.push(r);
+  }
+
+  const walk = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null, false);
+  const nodes = [];
+  let node;
+  while ((node = walk.nextNode())) {
+    if (node.parentNode && node.parentNode.tagName === "MARK") continue;
+    nodes.push(node);
+  }
+
+  let offset = 0;
+  nodes.forEach((textNode) => {
+    const text = textNode.nodeValue;
+    const start = offset, end = offset + text.length;
+    offset = end;
+    const parent = textNode.parentNode;
+    if (!parent) return;
+    // Clip the merged ranges (inclusive ends) to this node's local coordinates.
+    const local = [];
+    for (const [s, e] of merged) {
+      const ls = Math.max(s, start) - start, le = Math.min(e + 1, end) - start;
+      if (le > ls) local.push([ls, le]);
+    }
+    if (!local.length) return;
+    const frag = document.createDocumentFragment();
+    let pos = 0;
+    for (const [ls, le] of local) {
+      if (ls > pos) frag.appendChild(document.createTextNode(text.slice(pos, ls)));
+      const mark = document.createElement("mark");
+      mark.textContent = text.slice(ls, le);
+      frag.appendChild(mark);
+      pos = le;
+    }
+    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)));
+    parent.replaceChild(frag, textNode);
+  });
+}
 function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function hexA(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; const f = Math.abs(p) / 100; r = Math.round((t - r) * f + r); g = Math.round((t - g) * f + g); b = Math.round((t - b) * f + b); return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
@@ -599,7 +651,17 @@ function renderMsg(i, opts) {
     const bubbleEl = el("div", "bubble");
     bubbleEl.innerHTML = renderText(m.x, m.u);
     if (isConsecutive) bubbleEl.dataset.time = DT.format(m.t);
-    highlightDOM(bubbleEl, opts.needles);
+    // P2-6: fuzzy match ranges (when present) index into LOWER[i], which maps
+    // 1:1 onto the rendered text only when (a) lowercasing preserved length
+    // (true for ASCII/most text, NOT e.g. "İ" which lowercases to 2 code
+    // units) and (b) renderText didn't swap a t.co short link for its expanded
+    // label. Both are cheap to verify here; when either fails, fall back to
+    // literal-needle highlighting rather than misplace marks.
+    if (opts.ranges && opts.ranges.length && LOWER[i].length === m.x.length && bubbleEl.textContent === m.x) {
+      highlightRangesDOM(bubbleEl, opts.ranges);
+    } else {
+      highlightDOM(bubbleEl, opts.needles);
+    }
     body.appendChild(bubbleEl);
   }
   if (m.m) body.appendChild(renderMedia(m, i));
@@ -913,8 +975,15 @@ function testMsgNoNeedle(i) {
   return true;
 }
 let fuseIndex = null;
+// P2-6: per-run fuzzy match ranges, keyed by message INDEX (not list order) so
+// they survive sorting and the paged/virtualized results list — a message
+// rendered on page 5 still finds its own ranges at render time. Null whenever
+// the run wasn't fuzzy (exact mode / empty query), which routes rendering to
+// the literal-needle highlighter.
+let fuzzyRanges = null;
 function runSearch() {
   let q = sEls.input.value || "";
+  fuzzyRanges = null;
 
   // Reset exclusions and the operator overlay — both re-parsed each run.
   excludeNeedles = [];
@@ -985,8 +1054,23 @@ function runSearch() {
     const useFuzzy = F.fuzzy && window.Fuse;
     let baseIdx = [];
     if (useFuzzy) {
-      if (!fuseIndex) fuseIndex = new Fuse(LOWER, { threshold: 0.3, ignoreLocation: true });
-      baseIdx = fuseIndex.search(F.needles.join(" ")).map(r => r.refIndex);
+      // includeMatches (P2-6): Fuse reports the char ranges it actually
+      // matched, so typo'd queries can still highlight the near-miss word.
+      // The index is only ever built/searched when there IS a query
+      // (F.needles.length > 0 gates this branch), so the extra match
+      // bookkeeping never runs for the empty-query "show all" path.
+      if (!fuseIndex) fuseIndex = new Fuse(LOWER, { threshold: 0.3, ignoreLocation: true, includeMatches: true });
+      fuzzyRanges = new Map();
+      for (const r of fuseIndex.search(F.needles.join(" "))) {
+        baseIdx.push(r.refIndex);
+        const ranges = [];
+        (r.matches || []).forEach((mt) => (mt.indices || []).forEach(([s, e]) => {
+          // Fuse indices include every scored fragment, down to single chars —
+          // highlighting those degrades into confetti. Keep fragments >= 2 chars.
+          if (e - s + 1 >= 2) ranges.push([s, e]);
+        }));
+        if (ranges.length) fuzzyRanges.set(r.refIndex, ranges);
+      }
     } else {
       for (let i = N - 1; i >= 0; i--) {
         const L = LOWER[i];
@@ -1032,7 +1116,7 @@ function appendResultsPage() {
   const frag = document.createDocumentFragment();
   for (const i of slice) {
     if (F.grid) { if (MSGS[i].m) frag.appendChild(galleryCell(i)); }
-    else frag.appendChild(renderMsg(i, { clickable: true, needles: F.needles }));
+    else frag.appendChild(renderMsg(i, { clickable: true, needles: F.needles, ranges: fuzzyRanges ? fuzzyRanges.get(i) : null }));
   }
   sEls.list.appendChild(frag);
   resState.page++;
