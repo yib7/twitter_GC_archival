@@ -1110,7 +1110,8 @@ function exportResults() {
   if (!resState.idx.length) { toast("No results to export"); return; }
   const lines = resState.idx.map(i => {
     const m = MSGS[i];
-    return DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]");
+    // one record per line — flatten multi-line bodies so the .txt stays parseable
+    return DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " ");
   });
   const blob = new Blob([lines.join("\n")], { type: "text/plain" });
   const url = URL.createObjectURL(blob);
@@ -2139,7 +2140,7 @@ function renderStats() {
         </div>
       </div>
 
-      <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(s.busy[0])} (${fmtNum(s.busy[1])} msgs)</div>
+      <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(s.busy[0] ? DAY.format(dayKeyBoundInstant(s.busy[0])) : "—")} (${fmtNum(s.busy[1])} msgs)</div>
       <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months"></canvas></div></div>
 
       <div class="section">
@@ -3422,7 +3423,8 @@ function renderPins() {
     ordered.forEach((c) => {
       const hits = byConv.get(c.id);
       lines.push("== " + convLabel(c) + " ==");
-      ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]")); });
+      // one record per line — flatten multi-line bodies so the .txt stays parseable
+      ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " ")); });
       lines.push("");
     });
     const blob = new Blob([lines.join("\n")], { type: "text/plain" });
@@ -3575,42 +3577,66 @@ function exportQuoteCard(i) {
   const bodyTop = headY + 64;
   const H = Math.max(bodyTop + shown.length * lineH + 64, PAD + AV + 96);
 
-  canvas.width = W * dpr; canvas.height = H * dpr; ctx.scale(dpr, dpr);
+  // Draw the whole card and save it. `pfpImg` is a decoded <img> holding the
+  // person's data: URL profile photo, or null for the initials-disc fallback.
+  const draw = (pfpImg) => {
+    canvas.width = W * dpr; canvas.height = H * dpr; ctx.scale(dpr, dpr);
 
-  // Card background + accent edge
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = accent; ctx.fillRect(0, 0, 6, H);
+    // Card background + accent edge
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = accent; ctx.fillRect(0, 0, 6, H);
 
-  // Avatar (color disc with initials)
-  const ax = PAD + AV / 2, ay = headY + AV / 2;
-  ctx.beginPath(); ctx.arc(ax, ay, AV / 2, 0, Math.PI * 2);
-  ctx.fillStyle = pColor; ctx.fill();
-  ctx.fillStyle = "#fff"; ctx.font = '700 26px ' + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  ctx.fillText(initials(nameOf(m.s)), ax, ay + 1);
+    // Avatar: profile photo clipped to the circle, else color disc + initials
+    const ax = PAD + AV / 2, ay = headY + AV / 2;
+    ctx.beginPath(); ctx.arc(ax, ay, AV / 2, 0, Math.PI * 2);
+    if (pfpImg) {
+      ctx.save(); ctx.clip();
+      ctx.drawImage(pfpImg, ax - AV / 2, ay - AV / 2, AV, AV);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = pColor; ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.font = '700 26px ' + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(initials(nameOf(m.s)), ax, ay + 1);
+    }
 
-  // Name + timestamp
-  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = pColor; ctx.font = '700 27px ' + FONT;
-  ctx.fillText(nameOf(m.s), contentX, headY + 26);
-  ctx.fillStyle = dim; ctx.font = '400 17px ' + FONT;
-  ctx.fillText(DT.format(m.t), contentX, headY + 50);
+    // Name + timestamp
+    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = pColor; ctx.font = '700 27px ' + FONT;
+    ctx.fillText(nameOf(m.s), contentX, headY + 26);
+    ctx.fillStyle = dim; ctx.font = '400 17px ' + FONT;
+    ctx.fillText(DT.format(m.t), contentX, headY + 50);
 
-  // Body
-  ctx.fillStyle = txtCol; ctx.font = '400 26px ' + FONT;
-  shown.forEach((ln, k) => ctx.fillText(ln, contentX, bodyTop + 26 + k * lineH));
+    // Body
+    ctx.fillStyle = txtCol; ctx.font = '400 26px ' + FONT;
+    shown.forEach((ln, k) => ctx.fillText(ln, contentX, bodyTop + 26 + k * lineH));
 
-  // Footer watermark
-  ctx.fillStyle = dim; ctx.font = '500 15px ' + FONT;
-  const brand = (document.getElementById("brand-title") || {}).textContent || "Group Chat Archive";
-  ctx.fillText("— " + brand, contentX, H - 26);
+    // Footer watermark
+    ctx.fillStyle = dim; ctx.font = '500 15px ' + FONT;
+    const brand = (document.getElementById("brand-title") || {}).textContent || "Group Chat Archive";
+    ctx.fillText("— " + brand, contentX, H - 26);
 
-  canvas.toBlob((blob) => {
-    if (!blob) { toast("Could not render image"); return; }
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = "quote-" + m.i + ".png"; a.click();
-    URL.revokeObjectURL(url); toast("Saved quote image");
-  }, "image/png");
+    canvas.toBlob((blob) => {
+      if (!blob) { toast("Could not render image"); return; }
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = "quote-" + m.i + ".png"; a.click();
+      URL.revokeObjectURL(url); toast("Saved quote image");
+    }, "image/png");
+  };
+
+  // P2-9: use the person's real profile photo when it's an uploaded data: URL.
+  // File-path pfps (personal_data/, sample_media/) are skipped on purpose —
+  // under file:// they would taint the canvas and break toBlob(). Image decode
+  // is async; a failed load falls back to the initials disc instead of hanging.
+  const photo = sanitizePhoto(PFPS[m.s]);
+  if (photo.startsWith("data:")) {
+    const img = new Image();
+    img.onload = () => draw(img);
+    img.onerror = () => draw(null);
+    img.src = photo;
+  } else {
+    draw(null);
+  }
 }
 
 /* ===========================================================================
@@ -4016,11 +4042,16 @@ function renderChains() {
   while (i < N - 1) {
     const a = MSGS[i].s;
     let j = i + 1;
-    // Find next message by different person within 10 min
+    // Find next message by different person within 10 min. A >10-min gap
+    // restarts the outer scan at the gap message (P2-10: falling through here
+    // left `a` stale, so `b` could be the same person and a bogus self-chain
+    // "started" across the gap).
+    let gapBroke = false;
     while (j < N && (MSGS[j].s === a || MSGS[j].t - MSGS[j-1].t > 600000)) {
-      if (MSGS[j].t - MSGS[j-1].t > 600000) { i = j; break; }
+      if (MSGS[j].t - MSGS[j-1].t > 600000) { i = j; gapBroke = true; break; }
       j++;
     }
+    if (gapBroke) continue;
     if (j >= N) break;
     const b = MSGS[j].s;
     // Now track A↔B exchange

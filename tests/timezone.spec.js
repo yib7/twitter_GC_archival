@@ -54,9 +54,11 @@ test("UTC setting: boundary message buckets to 2024-01-01 and label agrees", asy
   const boundaryMsg = page.locator(".msg", { hasText: "boundary message" });
   await expect(boundaryMsg.locator(".msg-time")).toContainText("Jan 1, 2024");
 
-  // Stats bucket: the two boundary-day messages make 2024-01-01 the busiest day.
+  // Stats bucket: the two boundary-day messages make 2024-01-01 the busiest
+  // day. Since P2-4 the header shows the DAY-formatted label of that bucket
+  // key, so the formatted date proves the bucket is zone-correct.
   await page.locator('.nav-item[data-view="stats"]').click();
-  await expect(page.locator("#view-stats .section-h", { hasText: "busiest day" })).toContainText("2024-01-01");
+  await expect(page.locator("#view-stats .section-h", { hasText: "busiest day" })).toContainText("January 1, 2024");
   // Milestone busiest-day LABEL (DAY.format of the day key) must agree with the
   // bucket — this exercises the dayKey -> zone-correct-instant round trip.
   await expect(page.locator("#view-stats .mile", { hasText: "Busiest single day" })).toContainText("January 1, 2024");
@@ -77,7 +79,8 @@ test("America/New_York setting: boundary message buckets to 2023-12-31 and label
   await expect(boundaryMsg.locator(".msg-time")).toContainText("Dec 31, 2023");
 
   await page.locator('.nav-item[data-view="stats"]').click();
-  await expect(page.locator("#view-stats .section-h", { hasText: "busiest day" })).toContainText("2023-12-31");
+  // Formatted busiest-day header (P2-4) must reflect the NY-zone bucket.
+  await expect(page.locator("#view-stats .section-h", { hasText: "busiest day" })).toContainText("December 31, 2023");
   await expect(page.locator("#view-stats .mile", { hasText: "Busiest single day" })).toContainText("December 31, 2023");
 
   // Wrapped: the boundary is counted in 2023, NOT 2024. In NY the two messages
