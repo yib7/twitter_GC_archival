@@ -885,12 +885,14 @@ function parseQuery(raw) {
   return phrases.concat(terms);
 }
 let excludeNeedles = [];
-// Transient operator overlay (P2-2): from:/sender:/before:/after: tokens are
-// re-parsed from the query text on every run into these, instead of mutating
-// the persistent F.people/F.from/F.to filter-panel state. They combine with
-// (narrow further than) whatever the manual filter panel has set, and never
-// survive past the run that produced them — clearing the query drops them.
+// Transient operator overlay (P2-2, P2-3): from:/sender:/before:/after: and
+// has:media/links/reacts tokens are re-parsed from the query text on every run
+// into these, instead of mutating the persistent F.people/F.from/F.to/F.media/
+// F.links/F.reacts filter-panel state. They combine with (narrow further than)
+// whatever the manual filter panel has set, and never survive past the run
+// that produced them — clearing the query drops them.
 let opPeople = null, opFrom = null, opTo = null;
+let opMedia = false, opLinks = false, opReacts = false;
 function testMsgNoNeedle(i) {
   const m = MSGS[i];
   if (F.people.size && !F.people.has(m.s)) return false;
@@ -899,9 +901,9 @@ function testMsgNoNeedle(i) {
   if (opPeople && !opPeople.has(m.s)) return false;
   if (opFrom != null && m.t < opFrom) return false;
   if (opTo != null && m.t > opTo) return false;
-  if (F.media && !m.m) return false;
-  if (F.links && !m.u) return false;
-  if (F.reacts && !m.r) return false;
+  if ((F.media || opMedia) && !m.m) return false;
+  if ((F.links || opLinks) && !m.u) return false;
+  if ((F.reacts || opReacts) && !m.r) return false;
   if (excludeNeedles.length > 0) {
     const text = LOWER[i];
     for (const term of excludeNeedles) {
@@ -917,13 +919,17 @@ function runSearch() {
   // Reset exclusions and the operator overlay — both re-parsed each run.
   excludeNeedles = [];
   opPeople = null; opFrom = null; opTo = null;
+  opMedia = false; opLinks = false; opReacts = false;
 
-  // 1. Parse has:media, has:links, has:reacts from query text (additive to pill state)
+  // 1. Parse has:media, has:links, has:reacts into the transient overlay
+  // (P2-3). Never writes the persistent F.media/F.links/F.reacts pill state —
+  // testMsgNoNeedle OR-combines each overlay flag with its manual pill, so
+  // the operator narrows this run only and vanishes when the token is deleted.
   q = q.replace(/\bhas:(media|links|reacts|reactions)\b/ig, (match, p1) => {
     const type = p1.toLowerCase();
-    if (type === "media") F.media = true;
-    if (type === "links") F.links = true;
-    if (type === "reacts" || type === "reactions") F.reacts = true;
+    if (type === "media") opMedia = true;
+    if (type === "links") opLinks = true;
+    if (type === "reacts" || type === "reactions") opReacts = true;
     return "";
   });
 
@@ -1005,7 +1011,7 @@ function runSearch() {
   sEls.list.innerHTML = "";
   if (resObserver) resObserver.disconnect();
 
-  const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts || opPeople || opFrom || opTo;
+  const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts || opPeople || opFrom || opTo || opMedia || opLinks || opReacts;
   const sortLbl = { relevance: F.needles.length && F.fuzzy && window.Fuse ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
   sEls.meta.textContent = hasFilter
     ? fmtNum(out.length) + (out.length === 1 ? " message" : " messages") + " found" + (F.grid ? " · showing media only" : "") + " · sorted by " + sortLbl

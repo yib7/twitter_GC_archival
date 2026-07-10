@@ -8,6 +8,11 @@ const { test, expect } = require("@playwright/test");
 //
 // P2-4: a `file`-kind media message (kindOf() for unknown extensions, e.g. a
 // .pdf) must render as a file chip in the gallery grid, not a broken <video>.
+//
+// P2-3: has:media/has:links/has:reacts must be transient per-run overlays too,
+// not writes into the persistent F.media/F.links/F.reacts pill state. Typing
+// `has:media` must never latch the Media pill ON, and clearing the query must
+// fully restore the unfiltered view. Overlay and manual pills AND-combine.
 test.use({ timezoneId: "UTC" });
 
 const DATA = {
@@ -29,13 +34,33 @@ const DATA = {
   ],
 };
 
-async function boot(page) {
+// Dedicated fixture for the has: operator tests: one plain message, one
+// media-only, one links-only, and one with media AND links so the pill+operator
+// combination can be told apart from either filter alone. (Kept separate from
+// DATA so the P2-2 tests' expected counts stay untouched.)
+const HAS_DATA = {
+  __sample: true,
+  conversations: [
+    {
+      id: "H", type: "group", title: "Ops", participants: ["u1", "u2"], count: 4,
+      msgs: [
+        { i: "h1", s: "u1", t: Date.parse("2024-02-01T10:00:00Z"), x: "plain chatter" },
+        { i: "h2", s: "u2", t: Date.parse("2024-02-02T10:00:00Z"), x: "a photo", m: "sample_media/photo-1.svg", k: "image" },
+        { i: "h3", s: "u1", t: Date.parse("2024-02-03T10:00:00Z"), x: "see https://t.co/x1", u: [{ s: "https://t.co/x1", e: "https://example.com", d: "example.com" }] },
+        { i: "h4", s: "u2", t: Date.parse("2024-02-04T10:00:00Z"), x: "photo with link https://t.co/x2", m: "sample_media/photo-2.svg", k: "image", u: [{ s: "https://t.co/x2", e: "https://example.com/2", d: "example.com/2" }] },
+      ],
+      events: [],
+    },
+  ],
+};
+
+async function boot(page, data = DATA) {
   await page.addInitScript(() => {
     localStorage.setItem("gca.onboarded", "1");
     localStorage.removeItem("gca.lastView");
   });
   await page.route("**/data.sample.js", (route) =>
-    route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(DATA) + ";" }));
+    route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(data) + ";" }));
   await page.route("**/data.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
   await page.route("**/local.js", (route) =>
     route.fulfill({ contentType: "text/javascript", body: 'window.LOCAL_NAMES = {"u1": "bob", "u2": "bella"};' }));
@@ -143,6 +168,56 @@ test("before:/after: respect the configured timezone via zonedDateBound", async 
   await page.locator("#s-clear").click();
   await page.waitForTimeout(250);
   await expect(page.locator("#s-meta")).toContainText("Showing all 4 messages");
+});
+
+test("has:media is transient: narrows to media without latching the Media pill, and clears fully", async ({ page }) => {
+  await boot(page, HAS_DATA);
+
+  await expect(page.locator("#s-meta")).toContainText("Showing all 4 messages");
+  await expect(page.locator("#f-media")).not.toHaveClass(/active/);
+
+  await page.locator("#s-input").fill("has:media");
+  await page.waitForTimeout(250); // clear the 150ms debounce
+  // Narrows to the two media messages (h2, h4)...
+  await expect(page.locator("#s-meta")).toContainText("2 messages found");
+  // ...but the operator is a per-run overlay: it must NOT latch the manual
+  // Media pill, which reflects only the persistent filter-panel state.
+  await expect(page.locator("#f-media")).not.toHaveClass(/active/);
+  // Clear-all stays reachable while the token sits in the raw input (the
+  // raw-input fallback in updateClearAllBtn covers operator-only queries).
+  await expect(page.locator("#f-clear-all")).toBeVisible();
+
+  await page.locator("#s-clear").click();
+  await page.waitForTimeout(250);
+  // Full result set returns: no residual filtering, pill still off.
+  await expect(page.locator("#s-meta")).toContainText("Showing all 4 messages");
+  await expect(page.locator("#f-media")).not.toHaveClass(/active/);
+  await expect(page.locator("#f-clear-all")).toBeHidden();
+});
+
+test("manual Media pill AND-combines with has:links, without latching the Links pill", async ({ page }) => {
+  await boot(page, HAS_DATA);
+
+  // Manual pill ON: media-only (h2, h4).
+  await page.locator("#f-media").click();
+  await expect(page.locator("#f-media")).toHaveClass(/active/);
+  await expect(page.locator("#s-meta")).toContainText("2 messages found");
+
+  // Add the has:links operator: both filters narrow (AND), leaving only the
+  // message that has media AND links (h4).
+  await page.locator("#s-input").fill("has:links");
+  await page.waitForTimeout(250);
+  await expect(page.locator("#s-meta")).toContainText("1 message found");
+  await expect(page.locator("#s-list .msg", { hasText: "photo with link" })).toBeVisible();
+  // Manual pill stays on; the Links pill must not latch from the query.
+  await expect(page.locator("#f-media")).toHaveClass(/active/);
+  await expect(page.locator("#f-links")).not.toHaveClass(/active/);
+
+  // Dropping the token restores pill-only filtering with no links residue.
+  await page.locator("#s-clear").click();
+  await page.waitForTimeout(250);
+  await expect(page.locator("#s-meta")).toContainText("2 messages found");
+  await expect(page.locator("#f-links")).not.toHaveClass(/active/);
 });
 
 test("file-kind media renders a file chip in the gallery grid, not a broken video", async ({ page }) => {
