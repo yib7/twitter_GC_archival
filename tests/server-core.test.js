@@ -1,7 +1,8 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath } = require("../scripts/server-core.js");
+const fs = require("node:fs");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES } = require("../scripts/server-core.js");
 
 // A controllable clock so elapsed time can be simulated deterministically.
 function fakeClock(start) {
@@ -299,4 +300,21 @@ test("isServablePath rejects paths containing NUL / control characters", () => {
   assert.equal(isServablePath("/src/\tx"), false);   // tab (0x09) is a control char too
   // A normal path with no control chars is still allowed.
   assert.equal(isServablePath("/src/app.js"), true);
+});
+
+// The optional real-data overrides get an empty 200 when missing (so the served
+// console stays clean) instead of a 404. Guard the two invariants that make that
+// safe and correct: every optional path must be allowlisted (so it reaches the
+// serveStatic stat check where the empty-200 lives), and the set must match the
+// exact `<script src=... onerror>` probe list in index.html — a drift there would
+// silently reintroduce a 404 console error or leave a probe un-cleaned.
+test("OPTIONAL_OVERRIDES are all allowlisted and match index.html's script probes", () => {
+  for (const p of OPTIONAL_OVERRIDES) {
+    assert.equal(SERVABLE_EXACT.has(p), true, `${p} must be in SERVABLE_EXACT to reach the empty-200 path`);
+  }
+  const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+  // Every <script src="X" onerror=...> in index.html is an optional probe; collect them.
+  const probes = [...html.matchAll(/<script\s+src="([^"]+)"\s+onerror=/g)].map((m) => "/" + m[1]);
+  assert.ok(probes.length > 0, "expected to find optional <script onerror> probes in index.html");
+  assert.deepEqual(new Set(probes), OPTIONAL_OVERRIDES, "index.html optional probes and OPTIONAL_OVERRIDES have drifted");
 });

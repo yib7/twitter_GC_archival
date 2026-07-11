@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -385,7 +385,13 @@ function serveStatic(req, res) {
     return res.end("forbidden");
   }
   fs.stat(file, (err, st) => {
-    if (err || !st.isFile()) { res.writeHead(404); return res.end("not found"); }
+    if (err || !st.isFile()) {
+      // A missing optional real-data override (data.js / local.js probes) gets an
+      // empty 200 instead of a 404 so the served console stays clean; the app keeps
+      // the bundled sample. Everything else that is missing is a genuine 404.
+      if (OPTIONAL_OVERRIDES.has(p)) { res.writeHead(200, { "Content-Type": "application/javascript" }); return res.end(""); }
+      res.writeHead(404); return res.end("not found");
+    }
     const type = TYPES[path.extname(file).toLowerCase()] || "application/octet-stream";
     const range = req.headers.range;
     if (range && /^bytes=/.test(range)) {
