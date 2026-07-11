@@ -241,6 +241,7 @@ function apiIdentity(body, res) {
 
   // participant pfps (data URLs → files). Named people get <name>_pfp.<ext>;
   // unnamed people keep their opaque id, so the file is easy to relocate later.
+  const pfpsDir = path.join(PERSONAL, "pfps");
   const pfps = body.pfps && typeof body.pfps === "object" ? body.pfps : {};
   for (const id of Object.keys(pfps)) {
     const d = decodeDataUrl(pfps[id]);
@@ -248,7 +249,11 @@ function apiIdentity(body, res) {
     const base = pfpFileName(names[id], id, d.ext, taken);
     taken.add(base);
     const fname = "pfps/" + base;
-    fs.writeFileSync(path.join(PERSONAL, fname), d.buf);
+    // Defense in depth: pfpFileName already sanitizes the (untrusted) id, but
+    // never write unless the resolved path is strictly inside personal_data/pfps/.
+    const dest = path.join(PERSONAL, fname);
+    if (!isInsidePersonal(dest, pfpsDir)) continue;
+    fs.writeFileSync(dest, d.buf);
     pfpPaths[id] = "personal_data/" + fname;
   }
   // carry forward pfps saved in a previous run that weren't re-uploaded
@@ -269,8 +274,12 @@ function apiIdentity(body, res) {
       const base = pfpFileName(name, "gc-" + cid, d.ext, taken);
       taken.add(base);
       const fname = "pfps/" + base;
-      fs.writeFileSync(path.join(PERSONAL, fname), d.buf);
-      photo = "personal_data/" + fname;
+      // Defense in depth: cid is untrusted; only write inside personal_data/pfps/.
+      const dest = path.join(PERSONAL, fname);
+      if (isInsidePersonal(dest, pfpsDir)) {
+        fs.writeFileSync(dest, d.buf);
+        photo = "personal_data/" + fname;
+      }
     } else if (typeof entry.photo === "string" && entry.photo && !entry.photo.startsWith("data:")) {
       photo = entry.photo;
     }

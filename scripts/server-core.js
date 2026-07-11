@@ -47,9 +47,14 @@ function sanitizeName(s) {
 // (`<id>.<ext>`). `taken` is a Set of filenames already chosen in this save, so
 // two people with the same name don't clobber each other — the later one gets a
 // short id suffix.
+// SECURITY: `id` is an attacker-controllable JSON key on the unauthenticated,
+// local POST /api/identity (body.pfps / body.gc). It is NEVER trusted as a path
+// — even the no-name fallback runs it through sanitizeName() so a crafted id
+// like "../../evil" can't smuggle "/" or ".." into the filename and escape
+// personal_data/pfps/. (apiIdentity also containment-checks the resolved path.)
 function pfpFileName(name, id, ext, taken) {
   const slug = sanitizeName(name);
-  if (!slug) return id + "." + ext;
+  if (!slug) return (sanitizeName(id) || "pfp") + "." + ext;
   const base = slug + "_pfp";
   let file = base + "." + ext;
   if (taken && taken.has(file)) {

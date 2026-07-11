@@ -52,6 +52,28 @@ test("pfpFileName suffixes on collision instead of overwriting", () => {
   assert.match(out, /^alice_pfp-\w+\.png$/);
 });
 
+// Security regression (path traversal → arbitrary file write): apiIdentity()
+// writes participant/group photos to personal_data/pfps/<pfpFileName(...)>, and
+// the id/cid fed into pfpFileName is an attacker-controllable JSON key on the
+// unauthenticated, local POST /api/identity. The no-name fallback used to return
+// `id + "." + ext` verbatim, so a crafted id like "../../evil" produced
+// "pfps/../../evil.png" — a write escaping personal_data/ entirely. The filename
+// must always be a single safe segment (no "/", "\", or ".."), and the resolved
+// path must stay inside pfps/ (apiIdentity's isInsidePersonal guard, asserted here).
+test("pfpFileName neutralizes a crafted id so it cannot escape pfps/", () => {
+  const pfpsRoot = path.join(__dirname, "..", "personal_data", "pfps");
+  const hostile = ["../../evil", "..\\..\\evil", "../../../../Users/x/startup/z", "/etc/passwd", "a/b/c", "..", "."];
+  for (const badId of hostile) {
+    const base = pfpFileName("", badId, "png", new Set());   // empty name → id fallback
+    assert.ok(!/[\\/]/.test(base), `no path separators in ${JSON.stringify(base)} (from id ${JSON.stringify(badId)})`);
+    assert.ok(!base.split(/[\\/]/).includes(".."), `no ".." segment in ${JSON.stringify(base)}`);
+    const dest = path.join(pfpsRoot, base);
+    assert.equal(isInsidePersonal(dest, pfpsRoot), true, `${JSON.stringify(badId)} → ${dest} must stay inside pfps/`);
+  }
+  // A normal numeric id is unchanged (opaque-id fallback still works).
+  assert.equal(pfpFileName("", "123", "png", new Set()), "123.png");
+});
+
 test("isInsidePersonal only allows deletes strictly inside the personal_data root", () => {
   const root = path.join(__dirname, "..", "personal_data");
   assert.equal(isInsidePersonal(path.join(root, "config.json"), root), true);

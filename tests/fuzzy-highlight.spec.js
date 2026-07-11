@@ -91,3 +91,52 @@ test("fuzzy query with no plausible match renders no results", async ({ page }) 
   await expect(page.locator("#s-list .msg")).toHaveCount(0);
   await expect(page.locator("#s-list .empty")).toBeVisible();
 });
+
+// SECURITY (XSS): the fuzzy-highlight DOM path (highlightRangesDOM) walks the
+// rendered text nodes and re-wraps matched slices via createTextNode /
+// mark.textContent — raw message text must NEVER be re-parsed as HTML. A message
+// that both carries an HTML payload AND is a near-miss fuzzy match exercises that
+// path with hostile content: the payload must render as inert, escaped text.
+test("fuzzy highlighting never re-parses a matched message's HTML payload", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e));
+
+  const XDATA = {
+    __sample: true,
+    conversations: [{
+      id: "G", type: "group", title: "Ops", participants: ["u1"], count: 1,
+      msgs: [
+        { i: "m1", s: "u1", t: Date.parse("2024-03-01T10:00:00Z"),
+          x: "the refrigerator <img src=x onerror=window.__pwned=1> hums" },
+      ],
+      events: [],
+    }],
+  };
+  await page.addInitScript(() => {
+    localStorage.setItem("gca.onboarded", "1");
+    localStorage.removeItem("gca.lastView");
+  });
+  await page.route("**/data.sample.js", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(XDATA) + ";" }));
+  await page.route("**/data.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
+  await page.route("**/local.js", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: "window.LOCAL_NAMES = {};" }));
+  await page.goto("/");
+  await expect(page.locator(".msg").first()).toBeVisible();
+  await page.locator('.nav-item[data-view="search"]').click();
+
+  // 1-char typo → fuzzy match on "refrigerator", which shares the message with
+  // the payload, forcing the range-highlighter to run over hostile text.
+  await page.locator("#s-input").fill("refrigirator");
+  await page.waitForTimeout(250);
+
+  const hit = page.locator("#s-list .msg", { hasText: "refrigerator" });
+  await expect(hit).toBeVisible();
+  await expect(hit.locator(".bubble mark").first()).toBeVisible();   // highlight still works
+
+  // The payload rendered as inert, escaped text — no element, no execution.
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+  expect(await page.locator(".bubble img[src='x']").count()).toBe(0);
+  await expect(hit.locator(".bubble")).toContainText("onerror=window.__pwned=1");
+  expect(errors).toEqual([]);
+});
