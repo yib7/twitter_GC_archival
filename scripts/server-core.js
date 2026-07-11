@@ -99,6 +99,13 @@ const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico
 const SERVABLE_PREFIXES = ["/src/", "/lib/", "/sample_media/", "/personal_data/media/", "/personal_data/pfps/"];
 function isServablePath(urlPath) {
   const p = String(urlPath == null ? "" : urlPath);
+  // A decoded NUL (or any control char) is never a legitimate served path.
+  // Reject it here so serveStatic 404s before fs.stat(), which throws
+  // synchronously on a NUL-byte path (ERR_INVALID_ARG_VALUE). serveStatic runs
+  // outside the request handler's try/catch, so that throw would otherwise
+  // surface as an unhandledRejection and crash the whole local server. (A
+  // codepoint scan, not a regex, to stay clear of eslint's no-control-regex.)
+  for (let i = 0; i < p.length; i++) { if (p.charCodeAt(i) < 32) return false; }
   if (p.split(/[\\/]/).includes("..")) return false;
   if (SERVABLE_EXACT.has(p)) return true;
   return SERVABLE_PREFIXES.some((prefix) => p.startsWith(prefix));

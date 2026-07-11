@@ -284,3 +284,19 @@ test("isServablePath denies decoded ?/# traversal-smuggling payloads", () => {
   assert.equal(isServablePath("/src/x#/../../.git/HEAD"), false);
   assert.equal(isServablePath("/personal_data/pfps/x?/../../config.json"), false);
 });
+
+// Security regression (DoS): a decoded NUL byte inside an allowlisted-prefix
+// path ("/src/app.js\x00.png") used to satisfy isServablePath, reach fs.stat()
+// in serveStatic, and throw ERR_INVALID_ARG_VALUE *synchronously*. serveStatic
+// is called outside the request handler's try/catch, so that throw became an
+// unhandledRejection and crashed the whole local server. Control characters are
+// never legitimate in a served path, so isServablePath rejects them up front.
+test("isServablePath rejects paths containing NUL / control characters", () => {
+  assert.equal(isServablePath("/src/app.js\x00.png"), false);
+  assert.equal(isServablePath("/src/app.js\x00"), false);
+  assert.equal(isServablePath("/index.html\x00"), false);
+  assert.equal(isServablePath("/personal_data/pfps/a\x1f.png"), false);
+  assert.equal(isServablePath("/src/\tx"), false);   // tab (0x09) is a control char too
+  // A normal path with no control chars is still allowed.
+  assert.equal(isServablePath("/src/app.js"), true);
+});
