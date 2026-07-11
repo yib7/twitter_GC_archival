@@ -38,4 +38,5 @@ from Google Fonts. The OFL permits this bundling and redistribution.
 
 Everything else in this repository (the viewer, the build and setup scripts, the
 synthetic sample data, and the placeholder SVG media) is original work released
-under the MIT License in [LICENSE](LICENSE).
+under the MIT License in [LICENSE](LICENSE). The three bundled licenses above
+(Apache-2.0, MIT, and OFL-1.1) are permissive and compatible with that release.
