@@ -13,7 +13,7 @@ test("served app loads with no 404s or console errors (optional overrides are em
   page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
   page.on("pageerror", (e) => consoleErrors.push("pageerror: " + e.message));
 
-  await page.addInitScript(() => { try { localStorage.setItem("gca.onboarded", "1"); } catch (e) {} });
+  await page.addInitScript(() => { try { localStorage.setItem("gca.onboarded", "1"); } catch (e) { /* ignore */ } });
   await page.goto("/", { waitUntil: "networkidle" });
   await expect(page.locator(".msg").first()).toBeVisible();
 
