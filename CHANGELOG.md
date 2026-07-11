@@ -2,6 +2,47 @@
 
 All notable changes to this project are recorded here.
 
+## v1.1.0 (2026-07-11)
+
+### Added
+
+- Fuzzy search now highlights the matched text in each result, including close
+  and typo matches.
+
+### Fixed
+
+- The media Gallery now updates when you switch group chats, instead of keeping
+  the first chat's media.
+- The Pinned view now gathers bookmarks from every group chat, grouped by
+  conversation, instead of showing only the active chat's.
+- The `has:media`, `has:links`, and `has:reactions` search operators no longer
+  stick to the filter panel after you clear the search box, the same as
+  `from:`, `before:`, and `after:`.
+- The busiest-day stat shows a formatted date instead of a raw key.
+- Plain-text (.txt) exports keep each message on a single line, even when the
+  message itself spans several lines.
+- The shareable quote-card image uses the person's profile photo when one is
+  available.
+- Reply-chain detection no longer starts a spurious chain across a long time
+  gap.
+- Importing settings now asks for confirmation before it replaces your saved
+  names, colors, searches, and pins.
+- Opening Stats or a profile is faster on large archives, and revisiting Stats
+  no longer leaks chart memory.
+- Served with `npm start`, the app no longer logs harmless not-found errors for
+  optional data files in the browser console.
+
+### Security
+
+- The setup server can no longer be tricked into writing a file outside
+  `personal_data/` through a crafted request.
+- The setup server no longer crashes on a malformed request path that contains
+  control characters.
+
+### Changed
+
+- Refreshed dev dependencies: ESLint 10.7.0.
+
 ## v1.0.2 (2026-07-04)
 
 ### Security
@@ -76,6 +117,7 @@ First public release.
 - Synthetic demo data (`data.sample.js`) so the repository runs with no real
   data committed.
 
+[v1.1.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.1.0
 [v1.0.2]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.2
 [v1.0.1]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.1
 [v1.0.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.0
