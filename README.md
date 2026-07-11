@@ -13,7 +13,7 @@ internet. Have several group chats? A picker switches between them.
 > `data.sample.js`. Point it at your own export to see your real history (kept
 > local and `.gitignore`d).
 
-![Group Chat Archive search view with the black and blue theme, running on the synthetic demo data](docs/screenshot.png)
+![Group Chat Archive search view on the black and blue theme: a fuzzy search for the misspelled "hilarous" highlights the matching text in several "that's hilarious" messages from the synthetic Demo Squad chat](docs/screenshot.png)
 
 A quick tour through search, the timeline, the media gallery, Hall of Fame, the
 Wrapped recap, and the stats dashboard (synthetic demo data):
@@ -24,9 +24,10 @@ Wrapped recap, and the stats dashboard (synthetic demo data):
 
 ## Features
 
-- Fuzzy search (Fuse.js) with filters: `has:media`, `has:links`, `from:name`,
-  `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`, sorting, list/grid
-  views, saved searches, and CSV/JSON export.
+- Fuzzy search (Fuse.js) that highlights the matched text in each result,
+  including close typo matches, with filters: `has:media`, `has:links`,
+  `from:name`, `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`, sorting,
+  list/grid views, saved searches, and CSV/JSON export.
 - Multiple group chats: a conversation picker switches between every group in
   your export. Every view is scoped to the selected group.
 - A virtual timeline that scrolls 100K+ messages smoothly, with jump-to-date in
@@ -37,14 +38,18 @@ Wrapped recap, and the stats dashboard (synthetic demo data):
 - Stats covering per-person activity, word clouds, milestones, busiest hours,
   and superlatives.
 - Threads, Chains, and Battles for playful analytics and head-to-head.
-- Bookmarks, a Cmd/Ctrl-K command palette, a Time Capsule ("on this day"),
-  Random Quote, context-peek, and quote-card PNG export.
+- A Pinned view that collects bookmarked messages from every group chat, a
+  Cmd/Ctrl-K command palette, a Time Capsule ("on this day"), Random Quote,
+  context-peek, and quote-card PNG export.
 - Theming: black and blue, customizable accent, density, and theme shuffle. All
   preferences are saved to `localStorage`.
 
 Everything runs from `file://`, so you can just double-click `index.html`. The
 included `scripts/server.js` is needed only for the first-run setup wizard
-(`setup.html`) or if your browser blocks local video over `file://`.
+(`setup.html`) or if your browser blocks local video over `file://`. Opening
+from `file://` prints a few harmless not-found lines in the browser console as
+it probes for optional local data files; `npm start` serves the app and avoids
+them.
 
 Run smoke checks after installing dev dependencies:
 
