@@ -6,16 +6,22 @@ build step for the front-end.
 
 ## The pipeline
 
-```
- raw X export                    build.js                 the viewer
- ────────────────   ───────────────────────────────   ──────────────────
- direct-messages-group.js  ─►  parse + merge + media ─► data.js  ─► index.html
- direct_messages_group_media/  resolve + dedupe          (CHAT_DATA)   src/app.js
-                                                                       src/styles.css
+```mermaid
+flowchart LR
+  X["raw X export<br/>direct-messages-group.js<br/>direct-messages-group-headers.js<br/>direct_messages_group_media/"]
+  B["build.js<br/>parse · merge · resolve media · dedupe"]
+  D["personal_data/data.js<br/>window.CHAT_DATA"]
+  V["the viewer<br/>index.html · src/app.js · src/styles.css"]
+  MS["make_sample.js<br/>synthetic demo · no real data"]
+  S["data.sample.js<br/>+ sample_media/"]
+
+  X --> B --> D --> V
+  MS --> S --> V
 ```
 
 For a public/demo run with no real data, `make_sample.js` substitutes for the
-left half: it synthesizes `data.sample.js` + `sample_media/` in the same schema.
+raw export: it synthesizes `data.sample.js` + `sample_media/` in the same schema
+that the viewer reads.
 
 ### Setup wizard & `personal_data/`
 
