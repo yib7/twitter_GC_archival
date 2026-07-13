@@ -1,12 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="lightsout">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#05070d" />
+  <meta name="theme-color" content="#000000" />
   <title>Setup · Group Chat Archive</title>
   <link rel="stylesheet" href="src/styles.css" />
   <link rel="stylesheet" href="src/setup.css" />
+  <script>
+    /* Match the app: apply saved theme (gca.theme, default lightsout) before paint. */
+    (function () {
+      try {
+        var t = localStorage.getItem("gca.theme");
+        if (t === "light" || t === "dim" || t === "lightsout") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body class="setup-body">
   <div class="setup-shell">

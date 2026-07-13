@@ -107,12 +107,9 @@ function activateConversation(id, rerender) {
 const REACT = { funny: "😂", like: "❤️", agree: "👍", disagree: "👎", excited: "🔥", surprised: "😮", sad: "😢", emoji: "💬" };
 // kept in sync with src/setup.js:PALETTE — update both.
 const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
-const ACCENTS = ["#3b82f6", "#2563eb", "#1d4ed8", "#0ea5e9", "#38bdf8", "#06b6d4", "#0891b2", "#6366f1", "#818cf8", "#60a5fa"];
-const INTENSITY = {
-  black:    { bg: "#000000", bg1: "#070708", bg2: "#0f0f13", bg3: "#1b1b22", line: "#23232c" },
-  midnight: { bg: "#05070d", bg1: "#0a0e17", bg2: "#111726", bg3: "#1a2236", line: "#1e2740" },
-  navy:     { bg: "#0a1020", bg1: "#0f1830", bg2: "#172242", bg3: "#22305c", line: "#2a3a66" },
-};
+const ACCENTS = ["#1d9bf0", "#3b82f6", "#2563eb", "#1d4ed8", "#0ea5e9", "#38bdf8", "#06b6d4", "#0891b2", "#6366f1", "#818cf8", "#60a5fa"];
+// Dark-intensity presets removed: surfaces are owned by the html[data-theme]
+// blocks (Light / Dim / Lights out) in styles.css, selected via the theme module.
 const DENSITY = {
   comfortable: { gap: "14px", pad: "10px 14px" },
   compact:     { gap: "7px",  pad: "6px 11px" },
@@ -217,7 +214,7 @@ const LOCAL_ME = (typeof window !== "undefined" && window.LOCAL_ME) || null;
 const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
 const DEFAULTS = {
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
-  colors: {}, me: null, accent: "#3b82f6", intensity: "midnight", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC"
+  colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC"
 };
 let settings = loadSettings();
 migratePfpsKey();
@@ -574,19 +571,48 @@ function computeParticipants() {
 
 /* ---- Theme --------------------------------------------------------------- */
 function applyTheme() {
+  // Surfaces (bg/border/text) come from the html[data-theme] block in styles.css.
+  // applyTheme only layers the user's customizable accent + font-size + density.
   const r = document.documentElement.style;
   r.setProperty("--accent", settings.accent);
-  r.setProperty("--accent-soft", shade(settings.accent, -20));
-  r.setProperty("--accent-glow", hexA(settings.accent, 0.25));
-  const ic = INTENSITY[settings.intensity] || INTENSITY.midnight;
-  r.setProperty("--bg", ic.bg); r.setProperty("--bg-1", ic.bg1); r.setProperty("--bg-2", ic.bg2);
-  r.setProperty("--bg-3", ic.bg3); r.setProperty("--line", ic.line);
+  r.setProperty("--accent-hover", shade(settings.accent, -8));   // slightly darker (hover)
+  r.setProperty("--accent-deep", shade(settings.accent, -20));   // gradient deep end
+  r.setProperty("--accent-soft", shade(settings.accent, 25));    // lighter tint
+  r.setProperty("--accent-glow", hexA(settings.accent, 0.35));
   r.setProperty("--font-size", settings.fontSize + "px");
   const dc = DENSITY[settings.density] || DENSITY.comfortable;
   r.setProperty("--gap", dc.gap); r.setProperty("--bubble-pad", dc.pad);
   const app = document.getElementById("app");
   app.classList.toggle("no-avatars", !settings.avatars);
   app.classList.toggle("no-timestamps", !settings.timestamps);
+}
+
+/* ---- Theme modes (X: Light / Dim / Lights out) --------------------------- */
+// Persisted under its own gca.theme key (separate from gca.settings) and applied
+// as data-theme on <html>; the html[data-theme] block in styles.css owns every
+// surface. Drives both the floating .theme-switch and the Settings control.
+const THEME_KEY = "gca.theme";
+const THEMES = ["light", "dim", "lightsout"];
+function getTheme() {
+  try { const t = localStorage.getItem(THEME_KEY); if (THEMES.indexOf(t) !== -1) return t; } catch (e) { /* ignore */ }
+  return "lightsout";
+}
+function reflectTheme(t) {
+  document.querySelectorAll(".theme-switch button").forEach((b) => b.classList.toggle("on", b.dataset.set === t));
+  const seg = document.getElementById("set-theme");
+  if (seg) seg.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", b.dataset.v === t));
+}
+function setTheme(t) {
+  if (THEMES.indexOf(t) === -1) t = "lightsout";
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
+  reflectTheme(t);
+}
+function initTheme() {
+  setTheme(getTheme());
+  document.querySelectorAll(".theme-switch button").forEach((b) => {
+    b.addEventListener("click", () => setTheme(b.dataset.set));
+  });
 }
 
 /* ---- Text rendering (linkify + highlight) -------------------------------- */
@@ -2502,9 +2528,9 @@ function renderSettings() {
       <div class="set-group">
         <div class="set-row"><div><div class="set-label">Accent color</div><div class="set-desc">Stays black + blue; pick a shade or a custom color.</div></div>
           <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" value="${esc(settings.accent)}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">🎲 Shuffle</button></div></div>
-        <div class="set-row"><div><div class="set-label">Dark intensity</div><div class="set-desc">How black the background is.</div></div>
-          <div class="set-control"><div class="seg" id="set-intensity">
-            <button data-v="black">Pure black</button><button data-v="midnight">Midnight</button><button data-v="navy">Navy</button>
+        <div class="set-row"><div><div class="set-label">Theme</div><div class="set-desc">X's Light, Dim, or Lights out.</div></div>
+          <div class="set-control"><div class="seg" id="set-theme">
+            <button data-v="light">Light</button><button data-v="dim">Dim</button><button data-v="lightsout">Lights out</button>
           </div></div></div>
       </div>
 
@@ -2571,7 +2597,7 @@ function renderSettings() {
   v.querySelector("#set-accent-custom").oninput = (e) => { settings.accent = e.target.value; saveSettings(); applyTheme(); };
   v.querySelector("#set-shuffle").onclick = () => shuffleTheme();
 
-  segWire(v.querySelector("#set-intensity"), settings.intensity, (val) => { settings.intensity = val; saveSettings(); applyTheme(); });
+  segWire(v.querySelector("#set-theme"), getTheme(), (val) => setTheme(val));
   segWire(v.querySelector("#set-density"), settings.density, (val) => { settings.density = val; saveSettings(); applyTheme(); });
 
   const font = v.querySelector("#set-font");
@@ -2647,6 +2673,7 @@ function renderSettings() {
   v.querySelector("#set-reset").onclick = () => {
     if (!confirm("Reset all names, colors, theme and saved searches?")) return;
     settings = Object.assign({}, DEFAULTS, { names: {}, colors: {}, saved: [] });
+    setTheme("lightsout");   // theme lives under its own gca.theme key
     saveSettings(); applyTheme(); renderSettings(); toast("Customization reset");
   };
 
@@ -2815,6 +2842,7 @@ function renderConvPicker() {
 
 function init() {
   applyTheme();
+  initTheme();
   updateBrand();
   renderConvPicker();
 
@@ -3029,12 +3057,12 @@ const STOPWORDS = new Set("the a an and or but to of in on at for with is are wa
    THEME SHUFFLE (surprise me — stays black + blue)
    ======================================================================== */
 function shuffleTheme() {
-  const order = ["black", "midnight", "navy"];
   settings.accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)];
-  settings.intensity = order[Math.floor(Math.random() * order.length)];
+  const t = THEMES[Math.floor(Math.random() * THEMES.length)];
+  setTheme(t);
   saveSettings(); applyTheme();
   if (curView === "settings") renderSettings();
-  toast("🎨 New theme — " + settings.intensity + " · " + settings.accent);
+  toast("🎨 New theme — " + t + " · " + settings.accent);
 }
 
 /* ===========================================================================
@@ -3756,9 +3784,9 @@ function buildCommands() {
     const i = (ACCENTS.indexOf(settings.accent) + 1) % ACCENTS.length;
     settings.accent = ACCENTS[i]; saveSettings(); applyTheme(); toast("Accent: " + settings.accent);
   }});
-  cmds.push({ ico: "🌓", label: "Cycle dark intensity", hint: "Theme", run: () => {
-    const order = ["black", "midnight", "navy"]; const i = (order.indexOf(settings.intensity) + 1) % order.length;
-    settings.intensity = order[i]; saveSettings(); applyTheme(); toast("Intensity: " + settings.intensity);
+  cmds.push({ ico: "🌓", label: "Cycle theme (Light / Dim / Lights out)", hint: "Theme", run: () => {
+    const next = THEMES[(THEMES.indexOf(getTheme()) + 1) % THEMES.length];
+    setTheme(next); toast("Theme: " + next);
   }});
   cmds.push({ ico: "🎲", label: "Shuffle theme (surprise me)", hint: "Theme", run: () => shuffleTheme() });
   // People → jump to their first message

@@ -1,12 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="lightsout">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Offline archive viewer for Twitter/X group DM conversations — search, browse, and explore your group chat history with full media support." />
-  <meta name="theme-color" content="#05070d" />
+  <meta name="theme-color" content="#000000" />
   <title>Group Chat Archive</title>
   <link rel="stylesheet" href="src/styles.css" />
+  <script>
+    /* Apply the saved theme before first paint to avoid a flash-of-wrong-theme.
+       gca.theme is the single source of truth (default "lightsout"); app.js's
+       theme module reconciles the floating switch + Settings and persists here. */
+    (function () {
+      try {
+        var t = localStorage.getItem("gca.theme");
+        if (t === "light" || t === "dim" || t === "lightsout") {
+          document.documentElement.setAttribute("data-theme", t);
+        }
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <div id="boot" class="boot" aria-hidden="true">
@@ -81,6 +94,14 @@
       <div id="view-people" class="view" hidden></div>
       <div id="view-settings" class="view" hidden></div>
     </main>
+  </div>
+
+  <!-- Floating theme switch (Light / Dim / Lights out) — persisted to gca.theme.
+       app.js wires the buttons + reflects the active theme with .on -->
+  <div class="theme-switch" role="group" aria-label="Theme">
+    <button data-set="light" title="Light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button>
+    <button data-set="dim" title="Dim" aria-label="Dim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button>
+    <button data-set="lightsout" title="Lights out" aria-label="Lights out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z"/></svg></button>
   </div>
 
   <!-- Synthetic demo data ships with the repo. Real (gitignored) data loads
