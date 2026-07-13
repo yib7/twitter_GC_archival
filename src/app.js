@@ -419,6 +419,16 @@ function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id
 // kept in sync with src/setup.js:colorOf — update both (app.js additionally
 // lets a user-picked settings.colors override fall back to the same palette).
 function colorOf(id) { return settings.colors[id] || PALETTE[hashId(id) % PALETTE.length]; }
+// X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
+// A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
+// (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
+const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
+function hueOf(id) {
+  const c = settings.colors[id];
+  if (c) return { p: c, f: shade(c, -20) };
+  const h = HUES[hashId(id) % HUES.length];
+  return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" };
+}
 
 /* ---- Bookmarks / Pinned messages ----------------------------------------- */
 function isPinned(msgId) { return settings.pins.indexOf(msgId) >= 0; }
@@ -528,7 +538,10 @@ function applyPfp(av, id) {
     av.style.backgroundRepeat = "no-repeat";
     av.textContent = "";
   } else {
-    av.style.background = colorOf(id);
+    const { p, f } = hueOf(id);
+    av.style.backgroundImage = "";     // clear any prior photo; CSS .av gradient uses --p/--f
+    av.style.setProperty("--p", p);
+    av.style.setProperty("--f", f);
     av.textContent = initials(nameOf(id));
   }
 }
@@ -538,7 +551,8 @@ function pfpHtml(id, styleStr) {
   if (photo) {
     return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background-image:url('${esc(photo)}');background-size:cover;background-position:center;background-repeat:no-repeat;"></span>`;
   }
-  return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background:${colorOf(id)}">${esc(initials(nameOf(id)))}</span>`;
+  const hue = hueOf(id);
+  return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};--p:${hue.p};--f:${hue.f}">${esc(initials(nameOf(id)))}</span>`;
 }
 
 /* ---- Participants & derived stats (computed once) ------------------------ */
@@ -654,7 +668,7 @@ function renderMsg(i, opts) {
 
   const body = el("div", "msg-body");
   const head = el("div", "msg-head");
-  const nm = el("span", "msg-name"); nm.textContent = nameOf(id); nm.style.color = colorOf(id);
+  const nm = el("span", "msg-name"); nm.textContent = nameOf(id); nm.style.color = hueOf(id).p;
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
