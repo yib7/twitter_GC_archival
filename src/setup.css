@@ -1,11 +1,11 @@
 /* setup.css — first-run wizard. Reuses styles.css theme variables. */
 .setup-body {
-  min-height: 100vh; margin: 0; background: var(--bg); color: var(--text);
+  min-height: 100vh; margin: 0; background: var(--bg-page); color: var(--text);
   font-family: var(--font); display: grid; place-items: start center; padding: 40px 20px;
 }
 .setup-shell {
-  width: 100%; max-width: 680px; background: var(--bg-1); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: 30px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+  width: 100%; max-width: 680px; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 30px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
 }
 .setup-head { display: flex; align-items: center; gap: 14px; margin-bottom: 22px; }
 .setup-mark { width: 52px; height: 52px; flex: none; background-size: cover; background-position: center; }
@@ -18,8 +18,8 @@
 }
 .setup-steps li {
   flex: 1 1 0; min-width: 90px; text-align: center; font-size: 12.5px; font-weight: 700;
-  color: var(--text-faint); padding: 8px 4px; border-radius: 9px; background: var(--bg-2);
-  border: 1px solid var(--line);
+  color: var(--text-faint); padding: 8px 4px; border-radius: 9px; background: var(--bg-card);
+  border: 1px solid var(--border);
 }
 .setup-steps li.active { color: #fff; background: var(--accent); border-color: var(--accent); }
 .setup-steps li.done { color: var(--accent); border-color: var(--accent); }
@@ -31,15 +31,15 @@
 .setup-p { color: var(--text-dim); font-size: 14px; line-height: 1.55; margin: 0 0 16px; }
 .setup-p b { color: var(--text); }
 .setup-p code, .setup-p2 code {
-  font-family: ui-monospace, monospace; font-size: 0.92em; background: var(--bg-3);
+  font-family: ui-monospace, monospace; font-size: 0.92em; background: var(--bg-hover);
   padding: 1px 5px; border-radius: 4px;
 }
 
 .setup-label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.04em; color: var(--text-faint); margin: 14px 0 6px; }
 .setup-input {
-  width: 100%; box-sizing: border-box; background: var(--bg-2); color: var(--text);
-  border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font-size: 14px;
+  width: 100%; box-sizing: border-box; background: var(--bg-card); color: var(--text);
+  border: 1px solid var(--border); border-radius: 9px; padding: 10px 12px; font-size: 14px;
   font-family: var(--font); outline: 0;
 }
 .setup-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
@@ -57,13 +57,13 @@
 
 .setup-result {
   margin-top: 18px; padding: 12px 14px; border-radius: 10px; font-size: 13px;
-  background: var(--bg-2); border: 1px solid var(--line); line-height: 1.5;
+  background: var(--bg-card); border: 1px solid var(--border); line-height: 1.5;
 }
 .setup-result.ok { border-color: var(--accent); }
 .setup-result.err { border-color: #ef4444; color: #fca5a5; }
 .setup-result code {
   font-family: ui-monospace, monospace; font-size: 0.92em; color: var(--text);
-  background: var(--bg-3); padding: 1px 6px; border-radius: 4px;
+  background: var(--bg-hover); padding: 1px 6px; border-radius: 4px;
 }
 .setup-result ul { margin: 8px 0 0; padding-left: 18px; }
 
@@ -71,14 +71,14 @@
 .setup-file { display: none; }
 .setup-avpreview {
   width: 64px; height: 64px; border-radius: 14px; flex: none; display: grid; place-items: center;
-  font-size: 24px; background: var(--bg-3); background-size: cover; background-position: center;
-  border: 1px solid var(--line);
+  font-size: 24px; background: var(--bg-hover); background-size: cover; background-position: center;
+  border: 1px solid var(--border);
 }
 
 .setup-people { display: flex; flex-direction: column; gap: 14px; }
 .su-person {
   display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start;
-  background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 14px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
 }
 /* min-width:0 lets the 1fr column shrink so long sample lines truncate (with the
    ellipsis below) instead of blowing the card width out past its border. */
@@ -103,13 +103,13 @@
 .su-me input { accent-color: var(--accent); }
 .su-samples { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .su-sample {
-  background: var(--bg-1); border-radius: 7px; padding: 5px 10px; font-size: 12px; color: var(--text-dim);
+  background: var(--bg-panel); border-radius: 7px; padding: 5px 10px; font-size: 12px; color: var(--text-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .su-media { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
 .su-thumb {
   width: 50px; height: 50px; border-radius: 8px; object-fit: cover; cursor: pointer;
-  background: var(--bg-1); border: 1px solid var(--line);
+  background: var(--bg-panel); border: 1px solid var(--border);
 }
 
 /* "Is this image good?" preview — confirm a photo before it's committed. */
@@ -119,13 +119,13 @@
 }
 .su-modal.open { display: grid; }
 .su-modal-box {
-  width: 100%; max-width: 360px; background: var(--bg-1); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  width: 100%; max-width: 360px; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 20px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 .su-modal-title { font-size: 16px; font-weight: 800; margin-bottom: 14px; }
 .su-modal-frame {
   display: grid; place-items: center; min-height: 180px; overflow: hidden;
-  background: var(--bg-3); border: 1px solid var(--line); border-radius: 12px;
+  background: var(--bg-hover); border: 1px solid var(--border); border-radius: 12px;
 }
 .su-modal-frame img { max-width: 100%; max-height: 320px; display: block; border-radius: 12px; }
 .su-modal-msg { margin-top: 12px; font-size: 13px; color: #fca5a5; }
@@ -142,13 +142,13 @@
 }
 .su-lightbox-close {
   position: absolute; top: 16px; right: 20px; width: 40px; height: 40px; border-radius: 50%;
-  border: 1px solid var(--line); background: var(--bg-1); color: var(--text);
+  border: 1px solid var(--border); background: var(--bg-panel); color: var(--text);
   font-size: 22px; line-height: 1; cursor: pointer;
 }
 .su-lightbox-close:hover { border-color: var(--accent); }
 
 /* Start-over / reset — destructive, gated by a typed RESET confirmation. */
-.setup-danger { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); text-align: center; }
+.setup-danger { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); text-align: center; }
 .su-reset-link { background: none; border: 0; color: var(--text-dim); font-size: 12.5px; cursor: pointer; text-decoration: underline; }
 .su-reset-link:hover { color: #fca5a5; }
 .su-reset-modal {
@@ -157,8 +157,8 @@
 }
 .su-reset-modal[hidden] { display: none; }
 .su-reset-box {
-  width: 100%; max-width: 400px; background: var(--bg-1); border: 1px solid var(--line);
-  border-radius: var(--radius); padding: 22px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  width: 100%; max-width: 400px; background: var(--bg-panel); border: 1px solid var(--border);
+  border-radius: var(--radius-card); padding: 22px; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
 }
 .su-reset-title { font-size: 17px; font-weight: 800; margin-bottom: 12px; color: #fca5a5; }
 .su-reset-msg { font-size: 13.5px; line-height: 1.5; margin: 0 0 12px; color: var(--text-dim); }
