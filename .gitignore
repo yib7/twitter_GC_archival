@@ -66,6 +66,10 @@ final.md
 # Internal model-usage planning note (references the project's private roadmap)
 fable_5_plan.md
 
+# Internal audit report snapshots (superseded once findings are triaged into
+# .autopilot/DECISIONS.md and docs/superpowers/specs/)
+NEW_UPDATES.md
+
 # OS / editor noise
 .DS_Store
 Thumbs.db

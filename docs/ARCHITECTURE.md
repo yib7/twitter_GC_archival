@@ -69,6 +69,7 @@ Server endpoints:
 | `src/app.js` | The entire UI. See "Runtime model" below. |
 | `src/styles.css` | App styles + the X design-token theme system: `html[data-theme]` blocks for Light, Dim, and Lights out. Accent, font size, and density stay JS-driven CSS variables. |
 | `scripts/server.js` | Static file server with HTTP range support (for video) **plus** the setup-wizard API (`/api/source`, `/api/parts`, `/api/identity`). Not required for daily use, the app runs from `file://`. |
+| `src/keepalive.js` | Heartbeat pinged from `index.html`/`setup.html` while served over http(s): the double-click launcher starts the server with `--open`, and the server shuts itself down when the heartbeat goes quiet, so closing the browser also closes the stray command window. No-op over `file://`; harmless against a manually-started server. |
 | `lib/` | Vendored Fuse.js (Apache-2.0) + Chart.js (MIT). |
 
 ## Data schema (`window.CHAT_DATA`)
@@ -135,6 +136,16 @@ wizard or the People tab.
 Search, Timeline (virtualized), Gallery, Pinned, Hall of Fame, Wrapped, Capsule,
 Stats, Threads, Chains, Battles, People, Settings, plus Random Quote and the
 ⌘K command palette.
+
+### Mobile chrome (≤760px)
+Below 760px the sidebar is replaced by the mock's mobile experience: a fixed
+top app bar (brand mark + conversation picker + palette button), a 5-tab
+bottom bar (Search / Timeline / Gallery / Stats / More), and a bottom "More"
+sheet holding the remaining views. `initMobileChrome()` wires the tab bar,
+sheet, and top-bar conversation `<select>`; `reflectMobileNav()` mirrors the
+active view onto the tab bar (or lights "More" when the active view lives in
+the sheet). Desktop and non-DOM contexts are unaffected — the whole layer is
+`display:none` above the breakpoint.
 
 ### Local data
 All viewer state (theme, names, profile pictures, bookmarks, saved searches)
