@@ -162,7 +162,7 @@ function refreshGroupStep() {
   const pv = $("#gc-preview");
   if (pv) {
     if (e.photo) { pv.textContent = ""; pv.style.backgroundImage = `url('${e.photo}')`; }
-    else { pv.style.backgroundImage = ""; pv.textContent = "💬"; }
+    else { pv.style.backgroundImage = ""; pv.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg>'; }
   }
 }
 

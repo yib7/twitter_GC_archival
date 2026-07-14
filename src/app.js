@@ -1009,19 +1009,19 @@ function ensureSearch() {
     <div class="toolbar">
       <div class="search-row">
         <div class="search-box">
-          <span class="ico">⌕</span>
+          <span class="ico">${cmdIco("search")}</span>
           <input id="s-input" type="text" placeholder="Search ${fmtNum(N)} messages…  (use &quot;quotes&quot; for exact phrases)" autocomplete="off" spellcheck="false" />
           <button class="search-clear" id="s-clear" title="Clear" hidden>✕</button>
         </div>
       </div>
       <div class="filters">
         <div class="popwrap">
-          <button class="pill" id="f-people">◉ People <span class="badge" id="f-people-n" hidden>0</span></button>
+          <button class="pill" id="f-people">${cmdIco("people")} People <span class="badge" id="f-people-n" hidden>0</span></button>
         </div>
         <label class="pill" id="f-date"><span>From</span><input type="date" id="f-from" /><span>to</span><input type="date" id="f-to" /></label>
-        <button class="pill" id="f-media">📷 Media</button>
-        <button class="pill" id="f-links">🔗 Links</button>
-        <button class="pill" id="f-reacts">💬 Reactions</button>
+        <button class="pill" id="f-media">${cmdIco("camera")} Media</button>
+        <button class="pill" id="f-links">${cmdIco("link")} Links</button>
+        <button class="pill" id="f-reacts">${cmdIco("heart")} Reactions</button>
         <button class="pill danger" id="f-clear-all" hidden>✕ Clear all</button>
         <span class="spacer"></span>
         <label class="pill sortpill" id="f-sortwrap" title="Sort results">↕
@@ -1290,7 +1290,7 @@ function runSearch() {
 
   if (!out.length) {
     sEls.list.className = "list";
-    sEls.list.appendChild(el("div", "empty", '<div class="big">🔍</div><div>No messages match your search.</div><div class="hint">Try fewer words or clear a filter.</div>'));
+    sEls.list.appendChild(el("div", "empty", '<div class="big">' + cmdIco("search") + '</div><div>No messages match your search.</div><div class="hint">Try fewer words or clear a filter.</div>'));
     return;
   }
   appendResultsPage();
@@ -1412,7 +1412,7 @@ function toggleSavedPopover() {
     const item = el("div", "pop-item");
     item.style.justifyContent = "space-between";
     const left = el("span", "", "★ " + esc(s.name));
-    const del = el("button", "icon-btn", "🗑"); del.title = "Delete";
+    const del = el("button", "icon-btn", cmdIco("trash")); del.title = "Delete";
     del.onclick = (e) => { e.stopPropagation(); settings.saved.splice(idx, 1); saveSettings(); toggleSavedPopover(); };
     item.appendChild(left); item.appendChild(del);
     item.onclick = (e) => { if (e.target === del) return; applySaved(s); closePopovers(); };
@@ -2176,7 +2176,7 @@ function renderStats() {
   statCharts = [];
   const s = computeStats();
   if (s.empty) {
-    v.innerHTML = '<div class="page"><div class="empty"><div class="big">▤</div><div>No messages in this group — every sender is ignored.</div></div></div>';
+    v.innerHTML = '<div class="page"><div class="empty"><div class="big">' + cmdIco("stats") + '</div><div>No messages in this group — every sender is ignored.</div></div></div>';
     return;
   }
   const days = Math.max(1, Math.round((s.last - s.first) / 86400000));
@@ -2749,7 +2749,7 @@ function renderSettings() {
 
       <div class="set-group">
         <div class="set-row"><div><div class="set-label">Accent color</div><div class="set-desc">Pick a preset shade or a custom color.</div></div>
-          <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" value="${esc(settings.accent)}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">🎲 Shuffle</button></div></div>
+          <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" value="${esc(settings.accent)}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">${cmdIco("random")} Shuffle</button></div></div>
         <div class="set-row"><div><div class="set-label">Theme</div><div class="set-desc">X's Light, Dim, or Lights out.</div></div>
           <div class="set-control"><div class="seg" id="set-theme">
             <button data-v="light">Light</button><button data-v="dim">Dim</button><button data-v="lightsout">Lights out</button>
@@ -2844,7 +2844,7 @@ function renderSettings() {
     const effPhoto = sanitizePhoto(entry.photo || (lgc && lgc.photo) || settings.gcPhoto || "");
     const row = el("div", "gc-item");
     const av = el("div", "gc-av");
-    if (effPhoto) av.style.backgroundImage = `url('${effPhoto}')`; else av.textContent = "💬";
+    if (effPhoto) av.style.backgroundImage = `url('${effPhoto}')`; else av.innerHTML = cmdIco("bubble");
     const mid = el("div", "gc-mid");
     const name = document.createElement("input");
     name.type = "text"; name.className = "gc-name-input";
@@ -2888,7 +2888,7 @@ function renderSettings() {
     const item = el("div", "saved-item");
     item.innerHTML = `<span class="s-name">★ ${esc(s.name)}</span><span class="s-q">${esc(s.q || "(filters only)")}</span>`;
     const run = el("button", "btn sm ghost", "Run"); run.onclick = () => { setView("search"); applySaved(s); };
-    const del = el("button", "icon-btn", "🗑"); del.onclick = () => { settings.saved.splice(idx, 1); saveSettings(); renderSettings(); };
+    const del = el("button", "icon-btn", cmdIco("trash")); del.onclick = () => { settings.saved.splice(idx, 1); saveSettings(); renderSettings(); };
     item.appendChild(run); item.appendChild(del); sl.appendChild(item);
   });
 
@@ -3040,7 +3040,9 @@ function updateBrand() {
       mark.style.backgroundRepeat = "no-repeat";
     } else {
       mark.style.backgroundImage = "";
-      if (!mark.textContent) mark.textContent = "💬";
+      if (!mark.querySelector("svg")) {
+        mark.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg>';
+      }
     }
   }
   document.getElementById("brand-title").textContent = title || "Group Chat";
@@ -3083,8 +3085,8 @@ function init() {
     };
   }
 
-  // Decorative glyphs in nav items — hide from assistive tech so the label reads cleanly.
-  document.querySelectorAll(".nav-ico").forEach((s) => s.setAttribute("aria-hidden", "true"));
+  // Decorative icons in nav items — hide from assistive tech so the label reads cleanly.
+  document.querySelectorAll(".nav-item svg").forEach((s) => s.setAttribute("aria-hidden", "true"));
 
   initMobileChrome();
 
@@ -3126,7 +3128,7 @@ function maybeShowOnboarding() {
   const ov = el("div", "onboard");
   ov.innerHTML = `
     <div class="onboard-card">
-      <div class="onboard-title">Welcome to your Group Chat Archive 💬</div>
+      <div class="onboard-title">Welcome to your Group Chat Archive</div>
       <div class="onboard-body">
         ${IS_SAMPLE
           ? `You're looking at <b>synthetic demo data</b>. To load your own Twitter/X
@@ -3190,7 +3192,7 @@ function renderCapsule() {
   
   const years = Object.keys(matchesByYear).sort((a,b) => b - a);
   if (years.length === 0) {
-    body.innerHTML = `<div class="empty"><div class="big">🕰️</div><div>No messages found on this day in past years.</div></div>`;
+    body.innerHTML = `<div class="empty"><div class="big">${cmdIco("clock")}</div><div>No messages found on this day in past years.</div></div>`;
     return;
   }
   
@@ -3224,7 +3226,7 @@ function renderGallery() {
   // Every sender ignored (P1-4): nothing to gallery — show a panel, not an
   // empty grid that looks broken.
   if (!N) {
-    v.innerHTML = '<div class="empty"><div class="big">🖼</div><div>No messages in this group — every sender is ignored.</div></div>';
+    v.innerHTML = '<div class="empty"><div class="big">' + cmdIco("gallery") + '</div><div>No messages in this group — every sender is ignored.</div></div>';
     return;
   }
   if (!v.innerHTML) {
@@ -3290,7 +3292,7 @@ function shuffleTheme() {
   setTheme(t);
   saveSettings(); applyTheme();
   if (curView === "settings") renderSettings();
-  toast("🎨 New theme — " + t + " · " + settings.accent);
+  toast("New theme — " + t + " · " + settings.accent);
 }
 
 /* ===========================================================================
@@ -3350,7 +3352,7 @@ function renderHallOfFame() {
     .concat(h.years.map((y) => '<button class="pill hof-yr' + (hofYear === String(y) ? " active" : "") + '" data-yr="' + y + '">' + y + "</button>")).join("");
 
   v.innerHTML = `<div class="page"><div class="page-head">
-      <div class="page-title">🏆 Hall of Fame</div>
+      <div class="page-title">Hall of Fame</div>
       <div class="page-sub">The most-reacted messages of all time — the legendary moments, ranked by reaction count.</div></div>
     <div class="page-body">
       <div class="hof-years">${yearChips}</div>
@@ -3362,7 +3364,7 @@ function renderHallOfFame() {
   v.querySelectorAll(".hof-yr").forEach((b) => { b.onclick = () => { hofYear = b.dataset.yr; renderHallOfFame(); }; });
 
   if (!items.length) {
-    v.querySelector("#hof-list").appendChild(el("div", "empty", '<div class="big">🏆</div><div>No reacted messages in this period.</div>'));
+    v.querySelector("#hof-list").appendChild(el("div", "empty", '<div class="big">' + cmdIco("hof") + '</div><div>No reacted messages in this period.</div>'));
     return;
   }
 
@@ -3372,7 +3374,7 @@ function renderHallOfFame() {
   items.slice(0, 3).forEach((x, k) => {
     const m = MSGS[x.i];
     const card = el("div", "hof-card rank-" + (k + 1));
-    const snippet = (m.x || "").trim() || (m.m ? "📷 media" : "—");
+    const snippet = (m.x || "").trim() || (m.m ? "media" : "—");
     card.innerHTML = `<div class="hof-medal">${medals[k]}</div>
       ${pfpHtml(m.s, "width:34px;height:34px;font-size:13px")}
       <div class="hof-meta">
@@ -3399,7 +3401,7 @@ function renderHallOfFame() {
     frag.appendChild(node);
     shown++;
   }
-  if (shown === 0) list.appendChild(el("div", "empty", '<div class="big">💬</div><div>The most-reacted items here are all media — see below.</div>'));
+  if (shown === 0) list.appendChild(el("div", "empty", '<div class="big">' + cmdIco("gallery") + '</div><div>The most-reacted items here are all media — see below.</div>'));
   list.appendChild(frag);
 
   // Media grid
@@ -3469,17 +3471,17 @@ function wrappedSlides(w) {
   // renderer can emit data-count for the count-up; the data math is unchanged.
   const slides = [];
   slides.push({ kind: "intro", big: w.year, label: "Wrapped", sub: "A year in the group chat" });
-  slides.push({ kind: "stat", emoji: "💬", big: fmtNum(w.total), num: w.total, label: "messages sent in " + w.year, sub: "across " + fmtNum(w.activeDays) + " active days" });
+  slides.push({ kind: "stat", big: fmtNum(w.total), num: w.total, label: "messages sent in " + w.year, sub: "across " + fmtNum(w.activeDays) + " active days" });
   if (w.people.length) {
     const [id, c] = w.people[0];
     slides.push({ kind: "person", id, big: fmtNum(c), num: c, label: "messages from " + nameOf(id), sub: nameOf(id) + " was the most active this year", podium: w.people.slice(0, 3) });
   }
-  if (w.busyDay) slides.push({ kind: "stat", emoji: "🔥", big: fmtNum(w.busyN), num: w.busyN, label: "messages in a single day", sub: "the busiest day was " + DAY.format(dayKeyBoundInstant(w.busyDay)) });
-  if (w.topWords.length) slides.push({ kind: "words", emoji: "🗣️", big: '"' + w.topWords[0][0] + '"', label: "the word of the year", sub: "used " + fmtNum(w.topWords[0][1]) + " times", list: w.topWords });
+  if (w.busyDay) slides.push({ kind: "stat", big: fmtNum(w.busyN), num: w.busyN, label: "messages in a single day", sub: "the busiest day was " + DAY.format(dayKeyBoundInstant(w.busyDay)) });
+  if (w.topWords.length) slides.push({ kind: "words", big: '"' + w.topWords[0][0] + '"', label: "the word of the year", sub: "used " + fmtNum(w.topWords[0][1]) + " times", list: w.topWords });
   if (w.topEmoji) slides.push({ kind: "stat", emoji: w.topEmoji[0], big: w.topEmoji[0], label: "the emoji of the year", sub: "sent " + fmtNum(w.topEmoji[1]) + " times", giant: true });
-  slides.push({ kind: "stat", emoji: "📷", big: fmtNum(w.media), num: w.media, label: "photos & videos shared", sub: fmtNum(w.reacts) + " reactions given all year" });
+  slides.push({ kind: "stat", big: fmtNum(w.media), num: w.media, label: "photos & videos shared", sub: fmtNum(w.reacts) + " reactions given all year" });
   if (w.topMsg.i >= 0 && w.topMsg.rc > 0) slides.push({ kind: "star", i: w.topMsg.i, rc: w.topMsg.rc });
-  slides.push({ kind: "outro", big: "🎁", label: "That was " + w.year, sub: "Tap a different year above to relive another one" });
+  slides.push({ kind: "outro", label: "That was " + w.year, sub: "Tap a different year above to relive another one" });
   return slides;
 }
 // Wrapped nav pill icons (mock-wrapped .nav-btn chevrons + restart loop).
@@ -3495,12 +3497,12 @@ const WR_BG = { intro: "wr-bg-hero", outro: "wr-bg-hero", stat: "wr-bg-vol", per
 function renderWrapped() {
   const v = document.getElementById("view-wrapped");
   const years = wrappedYears();
-  if (!years.length) { v.innerHTML = '<div class="page"><div class="empty"><div class="big">🎁</div><div>No data to wrap.</div></div></div>'; return; }
+  if (!years.length) { v.innerHTML = '<div class="page"><div class="empty"><div class="big">' + cmdIco("wrapped") + '</div><div>No data to wrap.</div></div></div>'; return; }
   if (wrappedYear == null || years.indexOf(wrappedYear) < 0) wrappedYear = years[years.length - 1];
 
   const chips = years.map((y) => '<button class="pill wr-yr' + (y === wrappedYear ? " active" : "") + '" data-yr="' + y + '">' + y + "</button>").join("");
   v.innerHTML = `<div class="page"><div class="page-head">
-      <div class="page-title">🎁 Wrapped</div>
+      <div class="page-title">Wrapped</div>
       <div class="page-sub">Your group chat, recapped year by year. Use the arrows (or ← →) to flip through.</div></div>
     <div class="page-body">
       <div class="wr-years">${chips}</div>
@@ -3552,7 +3554,7 @@ function drawWrappedSlide() {
       <div class="wr-big wr-big-year st">${esc(String(s.big))}</div>
       <div class="wr-tag st">${esc(s.label)}</div>`;
   } else if (s.kind === "outro") {
-    inner = `<div class="wr-emoji giant st">${s.big}</div>
+    inner = `<div class="wr-emoji giant st">${cmdIco("wrapped")}</div>
       <div class="wr-tag st">${esc(s.label)}</div>
       <div class="wr-sub st">${esc(s.sub)}</div>`;
   } else if (s.kind === "person") {
@@ -3570,18 +3572,19 @@ function drawWrappedSlide() {
       <div class="wr-people">${rows}</div>`;
   } else if (s.kind === "words") {
     const chips = s.list.map(([word, c], k) => `<span class="wr-wordchip${k === 0 ? " top" : ""}">${esc(word)} <b>${fmtNum(c)}</b></span>`).join("");
-    inner = `<div class="wr-eyebrow st">${s.emoji} ${esc(s.label)}</div>
+    inner = `<div class="wr-eyebrow st">${esc(s.label)}</div>
       <div class="wr-big wr-big-word st">${esc(String(s.big))}</div>
       <div class="wr-sub st">${esc(s.sub)}</div>
       <div class="wr-wordchips st">${chips}</div>`;
   } else if (s.kind === "star") {
-    inner = `<div class="wr-emoji st">⭐</div>
+    inner = `<div class="wr-emoji st">${cmdIco("wrapped")}</div>
       <div class="wr-tag st">Most-reacted message of ${w.year}</div>
       <div class="wr-sub st">${fmtNum(s.rc)} reaction${s.rc === 1 ? "" : "s"}</div>
       <div class="wr-star st" id="wr-star"></div>`;
   } else {
-    // stat: emoji is secondary now (the number leads, per the mock)
-    inner = `<div class="wr-emoji${s.giant ? " giant" : ""} st">${s.emoji}</div>
+    // stat: the number leads (per the mock); a glyph shows only for the "emoji
+    // of the year" slide, where the emoji itself is the data being celebrated.
+    inner = `${s.emoji ? `<div class="wr-emoji${s.giant ? " giant" : ""} st">${s.emoji}</div>` : ""}
       ${s.big === s.emoji ? "" : big}
       <div class="wr-label st">${esc(s.label)}</div><div class="wr-sub st">${esc(s.sub)}</div>`;
   }
@@ -3812,7 +3815,7 @@ function renderPins() {
 
   const list = v.querySelector("#pins-list");
   if (!total) {
-    list.appendChild(el("div", "empty", '<div class="big">★</div><div>No bookmarks yet.</div><div class="hint">Hover any message and tap the ☆ to pin it here.</div>'));
+    list.appendChild(el("div", "empty", '<div class="big">' + cmdIco("pins") + '</div><div>No bookmarks yet.</div><div class="hint">Hover any message and tap the ☆ to pin it here.</div>'));
     if (hidden > 0) list.appendChild(hiddenNote());
     return;
   }
@@ -4066,39 +4069,73 @@ function jumpToDate(dateStr) {
 /* ===========================================================================
    COMMAND PALETTE (Ctrl/Cmd+K)
    ======================================================================== */
+// Line-icon set — symbols from the mockup's IC map (mock-cmdk.html) plus a few
+// extras, keyed by name and rendered via cmdIco(). Shared by the command palette,
+// the search filter bar, empty states, Wrapped and other chrome so the whole UI
+// carries the nav rail's tasteful iconography instead of emoji glyphs.
+const CMD_IC = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  timeline: '<path d="M4 6h16M4 12h16M4 18h11"/>',
+  gallery: '<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.6"/><path d="M21 15l-5-5L5 21"/>',
+  hof: '<circle cx="12" cy="9" r="5.5"/><path d="M9 13.5L7.5 21l4.5-2.5L16.5 21 15 13.5M12 6.5v2.5l1.8 1"/>',
+  pins: '<path d="M7 4h10l-1 7 3 3H5l3-3z"/><path d="M12 14v6"/>',
+  capsule: '<path d="M3.5 9a9 9 0 113 8.5M3.5 9V4.5M3.5 9H8M12 8v4.5l3 2"/>',
+  wrapped: '<path d="M12 3l2.1 4.3 4.7.7-3.4 3.3.8 4.7L12 18.7 7.8 16l.8-4.7L5.2 8l4.7-.7z"/>',
+  threads: '<circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="17" cy="12" r="2.5"/><path d="M8.5 6H13a2 2 0 012 2v2M8.5 18H13a2 2 0 002-2v-2"/>',
+  battles: '<path d="M12 3v18M6 8l-2 2 2 2M18 8l2 2-2 2M4.5 10H9M15 10h4.5"/>',
+  chains: '<circle cx="5" cy="12" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="12" cy="18" r="2"/><circle cx="19" cy="12" r="2"/><path d="M6.7 11l3.6-3.4M13.7 7.4L17.3 11M17.3 13l-3.6 3.6M10.3 16.6L6.7 13"/>',
+  stats: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+  people: '<circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 19c.6-3 2.6-4.5 5-4.5s4.4 1.5 5 4.5M15.5 18c.4-2 1.6-3 3-3s2.4 1 2.8 2.6"/>',
+  settings: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/>',
+  random: '<path d="M4 7h3.5l9 10H20M16.5 7H20M4 17h3.5l3-3.3"/><path d="M17.5 5.5L20 7l-2.5 1.5M17.5 15.5L20 17l-2.5 1.5"/>',
+  keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>',
+  accent: '<path d="M12 3s6 6.4 6 10.5a6 6 0 01-12 0C6 9.4 12 3 12 3z"/>',
+  theme: '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/>',
+  saved: '<path d="M6 4h12v16l-6-4-6 4z"/>',
+  calendar: '<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/>',
+  camera: '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  link: '<path d="M10 14a4 4 0 005.7 0l2.3-2.3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0L6 12.3a4 4 0 005.7 5.7l1-1"/>',
+  heart: '<path d="M12 20s-7-4.6-7-9.6A3.4 3.4 0 0112 7a3.4 3.4 0 017 3.4C19 15.4 12 20 12 20z"/>',
+  trash: '<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  bubble: '<path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/>',
+};
+function cmdIco(k) {
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (CMD_IC[k] || CMD_IC.search) + "</svg>";
+}
 function buildCommands() {
   const cmds = [];
   const views = [
-    ["search", "⌕", "Search messages", "Full-text across every message"],
-    ["timeline", "≡", "Open Timeline", "The full conversation"],
-    ["gallery", "🖼", "Media Gallery", "Photos & videos"],
-    ["hof", "🏆", "Hall of Fame (most reacted)", "Most-reacted moments"],
-    ["pins", "★", "Pinned messages", "Saved highlights"],
-    ["capsule", "⏳", "Time Capsule (on this day)", "On this day, across the years"],
-    ["wrapped", "🎁", "Wrapped (year in review)", "Year in review"],
-    ["threads", "🧵", "Conversation Threads", "Activity bursts"],
-    ["battles", "⚔", "Word Battles (head-to-head)", "Head-to-head word usage"],
-    ["chains", "⛓", "Reply Chains (longest exchanges)", "Longest exchanges"],
-    ["stats", "▤", "Stats & overview", "Every metric, at a glance"],
-    ["people", "◉", "People", "Names, colors, photos"],
-    ["settings", "⚙", "Settings", "Theme, density, data"],
+    ["search", "search", "Search messages", "Full-text across every message"],
+    ["timeline", "timeline", "Open Timeline", "The full conversation"],
+    ["gallery", "gallery", "Media Gallery", "Photos & videos"],
+    ["hof", "hof", "Hall of Fame (most reacted)", "Most-reacted moments"],
+    ["pins", "pins", "Pinned messages", "Saved highlights"],
+    ["capsule", "capsule", "Time Capsule (on this day)", "On this day, across the years"],
+    ["wrapped", "wrapped", "Wrapped (year in review)", "Year in review"],
+    ["threads", "threads", "Conversation Threads", "Activity bursts"],
+    ["battles", "battles", "Word Battles (head-to-head)", "Head-to-head word usage"],
+    ["chains", "chains", "Reply Chains (longest exchanges)", "Longest exchanges"],
+    ["stats", "stats", "Stats & overview", "Every metric, at a glance"],
+    ["people", "people", "People", "Names, colors, photos"],
+    ["settings", "settings", "Settings", "Theme, density, data"],
   ];
   views.forEach(([v, ico, label, sub]) => cmds.push({ ico, label, sub, hint: "View", run: () => setView(v) }));
-  cmds.push({ ico: "🎲", label: "Random quote", sub: "Jump somewhere unexpected", hint: "Action", run: () => jumpTo(Math.floor(Math.random() * N)) });
-  cmds.push({ ico: "⌨", label: "Keyboard shortcuts", sub: "Every key, at a glance", hint: "Help", run: () => toggleKeyboardHelp() });
-  cmds.push({ ico: "🎨", label: "Cycle accent color", sub: "Rotate through the accent palette", hint: "Theme", run: () => {
+  cmds.push({ ico: "random", label: "Random quote", sub: "Jump somewhere unexpected", hint: "Action", run: () => jumpTo(Math.floor(Math.random() * N)) });
+  cmds.push({ ico: "keyboard", label: "Keyboard shortcuts", sub: "Every key, at a glance", hint: "Help", run: () => toggleKeyboardHelp() });
+  cmds.push({ ico: "accent", label: "Cycle accent color", sub: "Rotate through the accent palette", hint: "Theme", run: () => {
     const i = (ACCENTS.indexOf(settings.accent) + 1) % ACCENTS.length;
     settings.accent = ACCENTS[i]; saveSettings(); applyTheme(); toast("Accent: " + settings.accent);
   }});
-  cmds.push({ ico: "🌓", label: "Cycle theme (Light / Dim / Lights out)", sub: "Switch to the next theme", hint: "Theme", run: () => {
+  cmds.push({ ico: "theme", label: "Cycle theme (Light / Dim / Lights out)", sub: "Switch to the next theme", hint: "Theme", run: () => {
     const next = THEMES[(THEMES.indexOf(getTheme()) + 1) % THEMES.length];
     setTheme(next); toast("Theme: " + next);
   }});
-  cmds.push({ ico: "🎲", label: "Shuffle theme (surprise me)", sub: "Random theme + accent combo", hint: "Theme", run: () => shuffleTheme() });
+  cmds.push({ ico: "random", label: "Shuffle theme (surprise me)", sub: "Random theme + accent combo", hint: "Theme", run: () => shuffleTheme() });
   // People → jump to their first message
-  PARTS.forEach((p) => cmds.push({ ico: "👤", pid: p.id, label: "Go to " + nameOf(p.id) + "'s first message", sub: "Jump to their first message", hint: "Person", run: () => jumpTo(indexForTime(p.first)) }));
+  PARTS.forEach((p) => cmds.push({ ico: "people", pid: p.id, label: "Go to " + nameOf(p.id) + "'s first message", sub: "Jump to their first message", hint: "Person", run: () => jumpTo(indexForTime(p.first)) }));
   // Saved searches
-  (settings.saved || []).forEach((s) => cmds.push({ ico: "★", label: "Search: " + s.name, sub: s.q || "Filters only", hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
+  (settings.saved || []).forEach((s) => cmds.push({ ico: "saved", label: "Search: " + s.name, sub: s.q || "Filters only", hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
   return cmds;
 }
 function openCommandPalette() {
@@ -4135,7 +4172,7 @@ function openCommandPalette() {
     if (iso) ds = iso[1];
     else if (us) ds = us[3] + "-" + String(us[1]).padStart(2, "0") + "-" + String(us[2]).padStart(2, "0");
     if (!ds) return null;
-    return { ico: "📅", label: "Jump to " + ds, sub: "Jump to this day in the timeline", hint: "Date", run: () => jumpToDate(ds) };
+    return { ico: "calendar", label: "Jump to " + ds, sub: "Jump to this day in the timeline", hint: "Date", run: () => jumpToDate(ds) };
   }
   // Hint → group header shown above each run of rows (cosmetic only — `filtered`
   // stays flat and index-aligned with the `.cmdk-row` NodeList).
@@ -4175,7 +4212,7 @@ function openCommandPalette() {
       const row = el("div", "cmdk-row" + (k === sel ? " sel" : ""));
       const lead = c.pid != null
         ? pfpHtml(c.pid, "")
-        : '<span class="cmdk-ico">' + c.ico + "</span>";
+        : '<span class="cmdk-ico">' + cmdIco(c.ico) + "</span>";
       row.innerHTML = lead +
         '<span class="cmdk-tx"><span class="cmdk-label">' + markLabel(c.label, q) + "</span>" +
         (c.sub ? '<span class="cmdk-sub">' + esc(c.sub) + "</span>" : "") +
@@ -4322,7 +4359,7 @@ function renderThreads() {
   ].map(([val, label]) => `<option value="${val}"${threadSort === val ? " selected" : ""}>${label}</option>`).join("");
 
   v.innerHTML = `<div class="page"><div class="page-head">
-      <div class="page-title">🧵 Conversation Threads</div>
+      <div class="page-title">Conversation Threads</div>
       <div class="page-sub">Activity bursts detected: ${fmtNum(threads.length)} threads with 8+ messages, separated by 1-hour gaps. Browse the conversations that brought the group alive.</div></div>
     <div class="page-body">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
@@ -4363,8 +4400,8 @@ function renderThreads() {
       <div class="thr-date">${esc(DT.format(t.startT))}</div>
       <div class="thr-stats">
         <span class="thr-stat"><b>${fmtNum(t.count)}</b> msgs</span>
-        <span class="thr-stat">⏱ ${durStr}</span>
-        <span class="thr-stat">👥 ${t.people.length}</span>
+        <span class="thr-stat">${cmdIco("clock")} ${durStr}</span>
+        <span class="thr-stat">${cmdIco("people")} ${t.people.length}</span>
       </div>
       <div class="thr-preview">${preview ? esc(preview) + (preview.length >= 80 ? "…" : "") : "<i>media thread</i>"}</div>
       <div class="thr-people">${avs}${extra}</div>`;
@@ -4388,7 +4425,7 @@ function renderBattles() {
   ).join("");
 
   v.innerHTML = `<div class="page"><div class="page-head">
-    <div class="page-title">⚔ Word Battles</div>
+    <div class="page-title">Word Battles</div>
     <div class="page-sub">Compare word usage head-to-head between two people. Who says "lmao" more? Who's the real "bruh" user?</div></div>
   <div class="page-body">
     <div class="battle-selectors">
@@ -4585,7 +4622,7 @@ function renderChains() {
         </div>
         <div class="chain-stats">
           <span><b>${c.length}</b> exchanges</span>
-          <span>⏱ ${durStr}</span>
+          <span>${cmdIco("clock")} ${durStr}</span>
           <span>${esc(DT.format(c.startT))}</span>
         </div>
         <div class="chain-preview">${preview}</div>
@@ -4594,9 +4631,9 @@ function renderChains() {
   });
 
   v.innerHTML = `<div class="page"><div class="page-head">
-    <div class="page-title">⛓ Reply Chains</div>
+    <div class="page-title">Reply Chains</div>
     <div class="page-sub">The longest back-and-forth exchanges in the chat. Found ${fmtNum(chains.length)} chains with 6+ volleys.</div></div>
-  <div class="page-body"><div class="chain-list">${rows || '<div class="empty"><div class="big">⛓</div><div>No long reply chains found.</div></div>'}</div></div></div>`;
+  <div class="page-body"><div class="chain-list">${rows || '<div class="empty"><div class="big">' + cmdIco("chains") + '</div><div>No long reply chains found.</div></div>'}</div></div></div>`;
 
   v.querySelectorAll(".chain-card").forEach(card => {
     card.style.cursor = "pointer";
