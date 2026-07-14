@@ -3981,43 +3981,61 @@ function jumpToDate(dateStr) {
 function buildCommands() {
   const cmds = [];
   const views = [
-    ["search", "⌕", "Search messages"], ["timeline", "≡", "Open Timeline"],
-    ["gallery", "🖼", "Media Gallery"], ["hof", "🏆", "Hall of Fame (most reacted)"],
-    ["pins", "★", "Pinned messages"], ["capsule", "⏳", "Time Capsule (on this day)"],
-    ["wrapped", "🎁", "Wrapped (year in review)"],
-    ["threads", "🧵", "Conversation Threads"],
-    ["battles", "⚔", "Word Battles (head-to-head)"],
-    ["chains", "⛓", "Reply Chains (longest exchanges)"],
-    ["stats", "▤", "Stats & overview"],
-    ["people", "◉", "People"], ["settings", "⚙", "Settings"],
+    ["search", "⌕", "Search messages", "Full-text across every message"],
+    ["timeline", "≡", "Open Timeline", "The full conversation"],
+    ["gallery", "🖼", "Media Gallery", "Photos & videos"],
+    ["hof", "🏆", "Hall of Fame (most reacted)", "Most-reacted moments"],
+    ["pins", "★", "Pinned messages", "Saved highlights"],
+    ["capsule", "⏳", "Time Capsule (on this day)", "On this day, across the years"],
+    ["wrapped", "🎁", "Wrapped (year in review)", "Year in review"],
+    ["threads", "🧵", "Conversation Threads", "Activity bursts"],
+    ["battles", "⚔", "Word Battles (head-to-head)", "Head-to-head word usage"],
+    ["chains", "⛓", "Reply Chains (longest exchanges)", "Longest exchanges"],
+    ["stats", "▤", "Stats & overview", "Every metric, at a glance"],
+    ["people", "◉", "People", "Names, colors, photos"],
+    ["settings", "⚙", "Settings", "Theme, density, data"],
   ];
-  views.forEach(([v, ico, label]) => cmds.push({ ico, label, hint: "View", run: () => setView(v) }));
-  cmds.push({ ico: "🎲", label: "Random quote", hint: "Action", run: () => jumpTo(Math.floor(Math.random() * N)) });
-  cmds.push({ ico: "⌨", label: "Keyboard shortcuts", hint: "Help", run: () => toggleKeyboardHelp() });
-  cmds.push({ ico: "🎨", label: "Cycle accent color", hint: "Theme", run: () => {
+  views.forEach(([v, ico, label, sub]) => cmds.push({ ico, label, sub, hint: "View", run: () => setView(v) }));
+  cmds.push({ ico: "🎲", label: "Random quote", sub: "Jump somewhere unexpected", hint: "Action", run: () => jumpTo(Math.floor(Math.random() * N)) });
+  cmds.push({ ico: "⌨", label: "Keyboard shortcuts", sub: "Every key, at a glance", hint: "Help", run: () => toggleKeyboardHelp() });
+  cmds.push({ ico: "🎨", label: "Cycle accent color", sub: "Rotate through the accent palette", hint: "Theme", run: () => {
     const i = (ACCENTS.indexOf(settings.accent) + 1) % ACCENTS.length;
     settings.accent = ACCENTS[i]; saveSettings(); applyTheme(); toast("Accent: " + settings.accent);
   }});
-  cmds.push({ ico: "🌓", label: "Cycle theme (Light / Dim / Lights out)", hint: "Theme", run: () => {
+  cmds.push({ ico: "🌓", label: "Cycle theme (Light / Dim / Lights out)", sub: "Switch to the next theme", hint: "Theme", run: () => {
     const next = THEMES[(THEMES.indexOf(getTheme()) + 1) % THEMES.length];
     setTheme(next); toast("Theme: " + next);
   }});
-  cmds.push({ ico: "🎲", label: "Shuffle theme (surprise me)", hint: "Theme", run: () => shuffleTheme() });
+  cmds.push({ ico: "🎲", label: "Shuffle theme (surprise me)", sub: "Random theme + accent combo", hint: "Theme", run: () => shuffleTheme() });
   // People → jump to their first message
-  PARTS.forEach((p) => cmds.push({ ico: "👤", label: "Go to " + nameOf(p.id) + "'s first message", hint: "Person", run: () => jumpTo(indexForTime(p.first)) }));
+  PARTS.forEach((p) => cmds.push({ ico: "👤", pid: p.id, label: "Go to " + nameOf(p.id) + "'s first message", sub: "Jump to their first message", hint: "Person", run: () => jumpTo(indexForTime(p.first)) }));
   // Saved searches
-  (settings.saved || []).forEach((s) => cmds.push({ ico: "★", label: "Search: " + s.name, hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
+  (settings.saved || []).forEach((s) => cmds.push({ ico: "★", label: "Search: " + s.name, sub: s.q || "Filters only", hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
   return cmds;
 }
 function openCommandPalette() {
   document.querySelectorAll(".cmdk").forEach((m) => m.remove());
   const all = buildCommands();
   const modal = el("div", "cmdk");
+  const searchSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
   modal.innerHTML = `<div class="cmdk-card">
-      <input class="cmdk-input" type="text" aria-label="Command, person, or date" placeholder="Type a command, person, or date (YYYY-MM-DD)…" spellcheck="false" autocomplete="off">
+      <div class="cmdk-inputrow">
+        ${searchSvg}
+        <input class="cmdk-input" type="text" aria-label="Command, person, or date" placeholder="Type a command, person, or date (YYYY-MM-DD)…" spellcheck="false" autocomplete="off">
+        <span class="cmdk-esc" aria-hidden="true">ESC</span>
+      </div>
       <div class="cmdk-list"></div>
-      <div class="cmdk-foot"><kbd>↑</kbd><kbd>↓</kbd> navigate · <kbd>↵</kbd> select · <kbd>Esc</kbd> close</div>
+      <div class="cmdk-foot">
+        <span class="cmdk-f"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span class="cmdk-f"><kbd>↵</kbd> select</span>
+        <span class="cmdk-f"><kbd>Esc</kbd> close</span>
+        <span class="cmdk-grow"></span>
+        <span class="cmdk-brandlet"></span>
+      </div>
     </div>`;
+  const brandEl = document.getElementById("brand-title");
+  modal.querySelector(".cmdk-brandlet").textContent =
+    ((brandEl && brandEl.textContent) || "").trim() || "Archive";
   const input = modal.querySelector(".cmdk-input");
   const listEl = modal.querySelector(".cmdk-list");
   let filtered = all, sel = 0;
@@ -4029,7 +4047,18 @@ function openCommandPalette() {
     if (iso) ds = iso[1];
     else if (us) ds = us[3] + "-" + String(us[1]).padStart(2, "0") + "-" + String(us[2]).padStart(2, "0");
     if (!ds) return null;
-    return { ico: "📅", label: "Jump to " + ds, hint: "Date", run: () => jumpToDate(ds) };
+    return { ico: "📅", label: "Jump to " + ds, sub: "Jump to this day in the timeline", hint: "Date", run: () => jumpToDate(ds) };
+  }
+  // Hint → group header shown above each run of rows (cosmetic only — `filtered`
+  // stays flat and index-aligned with the `.cmdk-row` NodeList).
+  const GROUP_OF = { Date: "Dates", View: "Views", Action: "Actions", Help: "Actions", Theme: "Theme", Person: "People", Saved: "Saved searches" };
+  // XSS-safe match highlight: split the RAW label at the first case-insensitive
+  // occurrence of the query and esc() each part — never regex over escaped HTML.
+  function markLabel(label, q) {
+    if (!q) return esc(label);
+    const i = label.toLowerCase().indexOf(q);
+    if (i < 0) return esc(label);
+    return esc(label.slice(0, i)) + "<mark>" + esc(label.slice(i, i + q.length)) + "</mark>" + esc(label.slice(i + q.length));
   }
   function refresh() {
     const q = input.value.trim().toLowerCase();
@@ -4042,10 +4071,31 @@ function openCommandPalette() {
   }
   function draw() {
     listEl.innerHTML = "";
-    if (!filtered.length) { listEl.appendChild(el("div", "cmdk-empty", "No matches")); return; }
+    const rawQ = input.value.trim();
+    const q = rawQ.toLowerCase();
+    if (!filtered.length) {
+      listEl.appendChild(el("div", "cmdk-empty",
+        '<div class="cmdk-empty-ic">' + searchSvg + "</div>" +
+        "<h3>No matches for “" + esc(rawQ) + "”</h3>" +
+        "<p>Try a person's name, a view, or a date like 2023-09-12.</p>"));
+      return;
+    }
+    let lastGroup = null;
     filtered.forEach((c, k) => {
+      const g = GROUP_OF[c.hint] || c.hint;
+      if (g !== lastGroup) { listEl.appendChild(el("div", "cmdk-group", esc(g))); lastGroup = g; }
       const row = el("div", "cmdk-row" + (k === sel ? " sel" : ""));
-      row.innerHTML = '<span class="cmdk-ico">' + c.ico + '</span><span class="cmdk-label">' + esc(c.label) + '</span><span class="cmdk-hint">' + esc(c.hint) + '</span>';
+      const lead = c.pid != null
+        ? pfpHtml(c.pid, "")
+        : '<span class="cmdk-ico">' + c.ico + "</span>";
+      row.innerHTML = lead +
+        '<span class="cmdk-tx"><span class="cmdk-label">' + markLabel(c.label, q) + "</span>" +
+        (c.sub ? '<span class="cmdk-sub">' + esc(c.sub) + "</span>" : "") +
+        '</span><span class="cmdk-hint">' + esc(c.hint) + "</span>";
+      // The whole row is the click target — don't let the global av-clickable
+      // handler stack a profile modal on top of the row's own action.
+      const av = row.querySelector(".av-clickable");
+      if (av) { av.classList.remove("av-clickable"); av.style.cursor = "pointer"; }
       row.onmouseenter = () => { sel = k; highlight(); };
       row.onclick = () => choose(k);
       listEl.appendChild(row);

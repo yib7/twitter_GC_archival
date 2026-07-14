@@ -872,14 +872,27 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .cmdk-card {
   background: var(--bg-panel); border: 1px solid var(--border-accent); border-radius: 16px;
   width: 92%; max-width: 640px; box-shadow: var(--el3), var(--glow-accent); overflow: hidden;
+  opacity: 0; transform: scale(0.965);
+  animation: cmdkIn 0.2s cubic-bezier(0.2, 0.7, 0.3, 1) 0.04s forwards;
 }
+@keyframes cmdkIn { to { opacity: 1; transform: scale(1); } }
+.cmdk-inputrow { display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--border); }
+.cmdk-inputrow > svg { width: 20px; height: 20px; color: var(--text-dim); flex: 0 0 auto; }
 .cmdk-input {
-  width: 100%; box-sizing: border-box; background: transparent; border: 0;
-  border-bottom: 1px solid var(--border); color: var(--text); font-family: var(--font);
-  font-size: 16.5px; font-weight: 500; padding: 17px 20px; outline: none;
+  flex: 1; min-width: 0; background: transparent; border: 0;
+  color: var(--text); font-family: var(--font);
+  font-size: 16.5px; font-weight: 500; padding: 17px 0; outline: none;
 }
 .cmdk-input::placeholder { color: var(--text-faint); }
-.cmdk-list { max-height: min(52vh, 440px); overflow-y: auto; overflow-x: hidden; padding: 8px; }
+.cmdk-esc {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-faint);
+  border: 1px solid var(--border-lift); border-radius: 5px; padding: 3px 7px; flex: 0 0 auto;
+}
+.cmdk-list { max-height: min(52vh, 440px); overflow-y: auto; overflow-x: hidden; padding: 8px 8px 10px; }
+.cmdk-group {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--text-faint); padding: 14px 12px 6px;
+}
 .cmdk-row {
   display: flex; align-items: center; gap: 13px; padding: 9px 12px; border-radius: var(--radius-sm);
   cursor: pointer; color: var(--text); scroll-margin: 8px;
@@ -891,21 +904,43 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   display: grid; place-items: center; font-size: 15px;
 }
 .cmdk-row.sel .cmdk-ico { border-color: var(--border-accent); }
-.cmdk-label { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-row .av { width: 32px; height: 32px; font-size: 11.5px; flex: 0 0 auto; }
+.cmdk-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cmdk-label { min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-label mark { background: none; color: var(--accent-soft); font-weight: 800; }
+.cmdk-sub { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdk-hint {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-faint); text-transform: uppercase;
   border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; flex: 0 0 auto;
 }
 .cmdk-row.sel .cmdk-hint { color: var(--accent-soft); border-color: var(--border-accent); }
 .cmdk-row.sel::after { content: "↵"; margin-left: 2px; color: var(--accent-soft); font-weight: 700; font-size: 13px; flex: 0 0 auto; }
-.cmdk-empty { padding: 34px 20px 40px; text-align: center; color: var(--text-dim); font-size: 14px; }
+.cmdk-empty { padding: 34px 20px 40px; text-align: center; }
+.cmdk-empty-ic {
+  width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px;
+  background: var(--accent-glow); display: grid; place-items: center;
+}
+.cmdk-empty-ic svg { width: 24px; height: 24px; color: var(--accent-soft); }
+.cmdk-empty h3 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: var(--text); }
+.cmdk-empty p { margin: 0; font-size: 13px; color: var(--text-dim); }
 .cmdk-foot {
+  display: flex; align-items: center; gap: 16px;
   padding: 11px 16px; border-top: 1px solid var(--border); background: var(--bg-inset);
   color: var(--text-faint); font-size: 11.5px;
+}
+.cmdk-foot .cmdk-f { display: flex; align-items: center; gap: 7px; white-space: nowrap; }
+.cmdk-foot .cmdk-grow { flex: 1; }
+.cmdk-foot .cmdk-brandlet {
+  font-size: 11.5px; font-weight: 600; color: var(--text-faint);
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .cmdk-foot kbd {
   background: var(--bg-card); border: 1px solid var(--border-lift); border-radius: 5px;
   padding: 2px 7px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin: 0 1px;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* animations are collapsed globally; pin the card's end state explicitly */
+  .cmdk-card { opacity: 1; transform: none; animation: none; }
 }
 
 /* ====================================================================== */
