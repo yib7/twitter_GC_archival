@@ -144,7 +144,7 @@ test("profile modal cold-open (avatar click before ever visiting Stats) renders 
   await page.locator('.nav-item[data-view="stats"]').click();
   const section = page.locator(".section", { hasText: "Superlatives & Fun Stats" });
   await expect(section).toBeVisible();
-  await expect(section.locator(".card .stat-lbl")).toHaveCount(27);
+  await expect(section.locator(".card .s-title")).toHaveCount(27);
 
   expect(errors).toEqual([]);
 });

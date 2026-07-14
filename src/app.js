@@ -415,6 +415,41 @@ function hashId(id) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31
 function dayKey(t) { return zonedParts(t).key; }
 function fmtNum(n) { return n.toLocaleString("en-US"); }
 
+/* Count-up stat numbers (mock-stats animate()): finds [data-count] (integers,
+   fmtNum separators) and [data-decimal] (toFixed(1)) descendants of rootEl and
+   eases each 0→target over ~1s (ease-out cubic), starts staggered 80ms + i*45ms
+   like the mock. data-suffix is appended verbatim. Markup seeds the FINAL value
+   (no-JS / print stays sensible); this zeroes it synchronously before the first
+   frame so there's no flash. prefers-reduced-motion → final value instantly,
+   no rAF. Safe if a node detaches mid-animation (isConnected guards). Shared:
+   Stats uses it now, Wrapped (SP3) reuses it. */
+function animateCounts(rootEl) {
+  if (!rootEl) return;
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  rootEl.querySelectorAll("[data-count],[data-decimal]").forEach((node, i) => {
+    const decimal = node.dataset.decimal != null;
+    const target = decimal ? parseFloat(node.dataset.decimal) : +node.dataset.count;
+    if (!isFinite(target)) return;
+    const suffix = node.dataset.suffix || "";
+    const fmt = (v) => (decimal ? v.toFixed(1) : fmtNum(Math.round(v))) + suffix;
+    if (reduce) { node.textContent = fmt(target); return; }
+    node.textContent = fmt(0);
+    const dur = 1000;
+    setTimeout(() => {
+      if (!node.isConnected) return;
+      const start = performance.now();
+      const step = (now) => {
+        if (!node.isConnected) return;
+        let p = Math.min(1, (now - start) / dur);
+        p = 1 - Math.pow(1 - p, 3);
+        node.textContent = fmt(target * p);
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }, 80 + i * 45);
+  });
+}
+
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
 // kept in sync with src/setup.js:colorOf — update both (app.js additionally
 // lets a user-picked settings.colors override fall back to the same palette).
@@ -2038,7 +2073,7 @@ function computeMilestones() {
   const fmtH = (h) => (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? "am" : "pm");
   const ageMs = MSGS[N - 1].t - MSGS[0].t;
   MILES = {
-    streak: fmtNum(best) + (best === 1 ? " day" : " days"), streakRange,
+    streak: fmtNum(best) + (best === 1 ? " day" : " days"), streakDays: best, streakRange,
     busiestDay: busiestDay ? keyLabel(DAY, busiestDay) : "—", busiestCount,
     totalWords, bookPages: Math.round(totalWords / 250), totalReacts,
     ageYears: (ageMs / (365.25 * 86400000)).toFixed(1) + " yrs",
@@ -2099,30 +2134,61 @@ function renderStats() {
     </div>`;
   });
 
+  // ---- Hero sparkline (mock-stats .spark): monthly message volume ----------
+  // monthArr is [["YYYY-MM", count], …] sorted ascending. Fewer than 2 months →
+  // no trend to draw, skip the block entirely. Fixed gradient id is safe: only
+  // one stats view exists per document and Chart.js paints to canvas, not SVG.
+  let sparkHtml = "";
+  if (s.monthArr.length >= 2) {
+    const counts = s.monthArr.map((m) => m[1]);
+    const max = Math.max(...counts);
+    const SW = 280, SH = 96;
+    const stepX = SW / (counts.length - 1);
+    const pts = counts.map((c, i) =>
+      (i * stepX).toFixed(1) + " " + (SH - (max > 0 ? (c / max) * 88 : 0) - 4).toFixed(1));
+    const lineD = pts.map((p, i) => (i ? "L" : "M") + p).join(" ");
+    const [lx, ly] = pts[pts.length - 1].split(" ");
+    sparkHtml = `<div class="spark">
+          <svg viewBox="0 0 ${SW} ${SH}" preserveAspectRatio="none" fill="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="hero-spark-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/>
+                <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <path d="${lineD} L${SW} ${SH} L0 ${SH} Z" fill="url(#hero-spark-grad)"/>
+            <path d="${lineD}" stroke="var(--accent-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="${lx}" cy="${ly}" r="3.5" fill="#fff"/>
+          </svg>
+          <div class="cap">messages / month · ${zonedParts(s.first).y} → ${zonedParts(s.last).y}</div>
+        </div>`;
+  }
+
   let html = `<div class="page"><div class="page-head"><div class="page-title">Stats & overview</div>
     <div class="page-sub">${esc(DAY.format(s.first))} → ${esc(DAY.format(s.last))}</div></div>
     <div class="page-body">
       <div class="hero">
         <div class="h-main">
           <div class="h-eyebrow">Overview</div>
-          <div class="h-num">${fmtNum(N)}</div>
+          <div class="h-num" data-count="${N}">${fmtNum(N)}</div>
           <div class="h-sub">messages · ${esc(DAY.format(s.first))} → ${esc(DAY.format(s.last))}</div>
           <div class="h-inline">
-            <div class="it"><span class="v">${PARTS.length}</span><span class="l">People</span></div>
-            <div class="it"><span class="v">${fmtNum(s.daysActive)}</span><span class="l">Active days</span></div>
-            <div class="it"><span class="v">${fmtNum(Math.round(N / s.daysActive))}</span><span class="l">Msgs / day</span></div>
-            <div class="it"><span class="v">${fmtNum(MSGS.filter((m) => m.m).length)}</span><span class="l">Media</span></div>
-            <div class="it"><span class="v">${fmtNum(days)}</span><span class="l">Days span</span></div>
+            <div class="it"><span class="v" data-count="${PARTS.length}">${PARTS.length}</span><span class="l">People</span></div>
+            <div class="it"><span class="v" data-count="${s.daysActive}">${fmtNum(s.daysActive)}</span><span class="l">Active days</span></div>
+            <div class="it"><span class="v" data-count="${Math.round(N / s.daysActive)}">${fmtNum(Math.round(N / s.daysActive))}</span><span class="l">Msgs / day</span></div>
+            <div class="it"><span class="v" data-count="${MSGS.filter((m) => m.m).length}">${fmtNum(MSGS.filter((m) => m.m).length)}</span><span class="l">Media</span></div>
+            <div class="it"><span class="v" data-count="${days}">${fmtNum(days)}</span><span class="l">Days span</span></div>
           </div>
         </div>
+        ${sparkHtml}
       </div>
 
       <div class="section"><div class="section-h">Milestones</div>
       <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
-        <div class="card mile"><div class="stat-num accent">${ms.streak}</div><div class="stat-lbl">Longest daily streak</div><div class="mile-sub">${esc(ms.streakRange)}</div></div>
-        <div class="card mile"><div class="stat-num">${fmtNum(ms.busiestCount)}</div><div class="stat-lbl">Busiest single day</div><div class="mile-sub">${esc(ms.busiestDay)}</div></div>
-        <div class="card mile"><div class="stat-num">${fmtNum(ms.totalWords)}</div><div class="stat-lbl">Total words sent</div><div class="mile-sub">≈ ${fmtNum(ms.bookPages)} paperback pages</div></div>
-        <div class="card mile"><div class="stat-num">${fmtNum(ms.totalReacts)}</div><div class="stat-lbl">Reactions given</div><div class="mile-sub">across the whole chat</div></div>
+        <div class="card mile"><div class="stat-num accent" data-count="${ms.streakDays}" data-suffix="${ms.streakDays === 1 ? " day" : " days"}">${ms.streak}</div><div class="stat-lbl">Longest daily streak</div><div class="mile-sub">${esc(ms.streakRange)}</div></div>
+        <div class="card mile"><div class="stat-num" data-count="${ms.busiestCount}">${fmtNum(ms.busiestCount)}</div><div class="stat-lbl">Busiest single day</div><div class="mile-sub">${esc(ms.busiestDay)}</div></div>
+        <div class="card mile"><div class="stat-num" data-count="${ms.totalWords}">${fmtNum(ms.totalWords)}</div><div class="stat-lbl">Total words sent</div><div class="mile-sub">≈ ${fmtNum(ms.bookPages)} paperback pages</div></div>
+        <div class="card mile"><div class="stat-num" data-count="${ms.totalReacts}">${fmtNum(ms.totalReacts)}</div><div class="stat-lbl">Reactions given</div><div class="mile-sub">across the whole chat</div></div>
         <div class="card mile"><div class="stat-num">${ms.ageYears}</div><div class="stat-lbl">Chat age</div><div class="mile-sub">since ${esc(ms.firstDay)}</div></div>
         <div class="card mile"><div class="stat-num">${esc(ms.peakHourLabel)}</div><div class="stat-lbl">Peak hour</div><div class="mile-sub">${fmtNum(ms.peakHourCount)} msgs all-time</div></div>
       </div></div>
@@ -2175,12 +2241,12 @@ function renderStats() {
           { win: s.gamerWinner, title: "The Gamer", desc: fmtNum(s.gamerWinner.val) + " gamer terms" },
           { win: s.financeBroWinner, title: "Finance Bro", desc: fmtNum(s.financeBroWinner.val) + " crypto/stock terms" },
         ].filter(x => x.win && x.win.id && x.win.val > 0).map(x => `
-          <div class="card" style="display:flex; align-items:center; gap:12px;">
+          <div class="card super" style="--p:${hueOf(x.win.id).p}">
             ${pfpHtml(x.win.id, "width:40px;height:40px;font-size:16px")}
-            <div>
-              <div style="font-weight:700;font-size:14px;color:${hueOf(x.win.id).p};">${esc(nameOf(x.win.id))}</div>
-              <div class="stat-lbl" style="margin-top:2px;">${esc(x.title)}</div>
-              <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(x.desc)}</div>
+            <div class="s-body">
+              <div class="s-name">${esc(nameOf(x.win.id))}</div>
+              <div class="s-title">${esc(x.title)}</div>
+              <div class="s-stat">${esc(x.desc)}</div>
             </div>
           </div>
         `).join("")}
@@ -2432,6 +2498,8 @@ function renderStats() {
     trendChart = null;
     updateTrendChart("lol"); // default word
   }
+
+  animateCounts(v); // count-up the hero + milestone numbers (mock-stats liveliness)
 }
 
 /* ===========================================================================

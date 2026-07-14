@@ -41,7 +41,7 @@ test("stats view renders the full superlatives grid on sample data", async ({ pa
   const section = page.locator(".section", { hasText: "Superlatives & Fun Stats" });
   await expect(section).toBeVisible();
 
-  const titles = section.locator(".card .stat-lbl");
+  const titles = section.locator(".card .s-title");
   await expect(titles).toHaveCount(EXPECTED_CARD_TITLES.length);
   await expect(titles).toHaveText(EXPECTED_CARD_TITLES);
 
