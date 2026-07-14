@@ -667,6 +667,88 @@ function initTheme() {
   });
 }
 
+/* ---- Mobile chrome (top bar + bottom tab bar + "More" sheet) -------------- */
+// ≤760px replaces the sidebar with the mock's mobile experience: a fixed top
+// app bar (brand mark + conv picker + palette button), a 5-tab bottom bar
+// (Search / Timeline / Gallery / Stats / More) and a bottom sheet holding the
+// remaining views. Everything is element-guarded so non-DOM contexts and the
+// desktop layout (where all of it is display:none) are unaffected.
+function mobileSheetOpen() {
+  const sheet = document.getElementById("more-sheet");
+  const scrim = document.getElementById("sheet-scrim");
+  if (!sheet || !scrim) return;
+  sheet.classList.add("on"); scrim.classList.add("on");
+}
+// Returns true if the sheet was open (so Escape handling can stop there).
+function mobileSheetClose() {
+  const sheet = document.getElementById("more-sheet");
+  if (!sheet || !sheet.classList.contains("on")) return false;
+  sheet.classList.remove("on");
+  const scrim = document.getElementById("sheet-scrim");
+  if (scrim) scrim.classList.remove("on");
+  return true;
+}
+// Mirror .nav-item.active onto the tab bar: the four tab views light their own
+// tab; any sheet view lights "More" plus its .sh-item.
+function reflectMobileNav(name) {
+  const tabs = document.querySelectorAll(".tabbar .tab[data-view]");
+  if (!tabs.length) return;
+  let tabbed = false;
+  tabs.forEach((t) => {
+    const on = t.dataset.view === name;
+    if (on) tabbed = true;
+    t.classList.toggle("active", on);
+  });
+  let inSheet = false;
+  document.querySelectorAll(".sheet .sh-item").forEach((it) => {
+    const on = it.dataset.view === name;
+    if (on) inSheet = true;
+    it.classList.toggle("active", on);
+  });
+  const more = document.getElementById("tab-more");
+  if (more) more.classList.toggle("active", !tabbed && inSheet);
+}
+// Keep the top-bar picker in lockstep with the sidebar: name mirrors
+// #brand-title (so per-group renames flow through), count mirrors N, and the
+// invisible <select> overlay carries the same options as #conv-select. With a
+// single conversation the chevron hides and the select goes inert.
+function syncMobileConvPicker() {
+  const pick = document.getElementById("mpick");
+  const sel = document.getElementById("mobile-conv");
+  if (!pick || !sel) return;
+  const brand = document.getElementById("brand-title");
+  const nm = document.getElementById("mpick-nm");
+  const ct = document.getElementById("mpick-ct");
+  if (nm) nm.textContent = (brand && brand.textContent) || convLabel(CONV);
+  if (ct) ct.textContent = "· " + fmtNum(N);
+  const convos = visibleConvos();
+  sel.innerHTML = convos.map((c) =>
+    `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`
+  ).join("");
+  const single = convos.length <= 1;
+  pick.classList.toggle("single", single);
+  sel.disabled = single;
+}
+function initMobileChrome() {
+  document.querySelectorAll(".tabbar .tab[data-view]").forEach((t) => {
+    t.addEventListener("click", () => setView(t.dataset.view));
+  });
+  const more = document.getElementById("tab-more");
+  if (more) more.addEventListener("click", mobileSheetOpen);
+  const scrim = document.getElementById("sheet-scrim");
+  if (scrim) scrim.addEventListener("click", mobileSheetClose);
+  document.querySelectorAll(".sheet .sh-item[data-view]").forEach((it) => {
+    it.addEventListener("click", () => { mobileSheetClose(); setView(it.dataset.view); });
+  });
+  const rand = document.getElementById("sh-random");
+  if (rand) rand.addEventListener("click", () => { mobileSheetClose(); jumpTo(Math.floor(Math.random() * N)); });
+  const mic = document.getElementById("mic-jump");
+  if (mic) mic.addEventListener("click", () => openCommandPalette());
+  const sel = document.getElementById("mobile-conv");
+  if (sel) sel.addEventListener("change", (e) => activateConversation(e.target.value, true));
+  syncMobileConvPicker();
+}
+
 /* ---- Text rendering (linkify + highlight) -------------------------------- */
 function renderText(raw, urls) {
   const shorts = {}; (urls || []).forEach((u) => { if (u.s) shorts[u.s] = { e: u.e, d: u.d }; });
@@ -2914,6 +2996,7 @@ function setView(name) {
     b.classList.toggle("active", on);
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
+  reflectMobileNav(name);
   if (name === "search") { ensureSearch(); setTimeout(() => sEls.input && sEls.input.focus(), 0); }
   else if (name === "timeline") { if (!tlBuilt) openTimeline(0); }
   else if (name === "stats") renderStats();
@@ -2965,12 +3048,14 @@ function updateBrand() {
   document.getElementById("sidebar-foot").innerHTML =
     (N ? zonedParts(MSGS[0].t).y + "–" + zonedParts(MSGS[N - 1].t).y : "") +
     " · " + PARTS.length + " people<br>" + fmtNum(MSGS.filter((m) => m.m).length) + " photos & videos";
+  syncMobileConvPicker();   // mobile top bar mirrors the brand name + count
 }
 
 function renderConvPicker() {
   const host = document.getElementById("conv-picker");
   if (!host) return;
   const convos = visibleConvos();
+  syncMobileConvPicker();   // the mobile <select> carries the same options
   if (convos.length <= 1) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
   const opt = (c) => `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`;
@@ -3001,9 +3086,12 @@ function init() {
   // Decorative glyphs in nav items — hide from assistive tech so the label reads cleanly.
   document.querySelectorAll(".nav-ico").forEach((s) => s.setAttribute("aria-hidden", "true"));
 
+  initMobileChrome();
+
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); openCommandPalette(); return; }
     if (e.key === "Escape") {
+      if (mobileSheetClose()) return;   // the More sheet sits above the views
       if (closeAllModals()) return;
       closePopovers();
     }
