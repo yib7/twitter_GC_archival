@@ -3377,21 +3377,33 @@ function computeWrapped(year) {
   return wrappedCache[year];
 }
 function wrappedSlides(w) {
+  // `num` is presentation-only (raw value behind a formatted `big`) so the
+  // renderer can emit data-count for the count-up; the data math is unchanged.
   const slides = [];
   slides.push({ kind: "intro", big: w.year, label: "Wrapped", sub: "A year in the group chat" });
-  slides.push({ kind: "stat", emoji: "💬", big: fmtNum(w.total), label: "messages sent in " + w.year, sub: "across " + fmtNum(w.activeDays) + " active days" });
+  slides.push({ kind: "stat", emoji: "💬", big: fmtNum(w.total), num: w.total, label: "messages sent in " + w.year, sub: "across " + fmtNum(w.activeDays) + " active days" });
   if (w.people.length) {
     const [id, c] = w.people[0];
-    slides.push({ kind: "person", id, big: fmtNum(c), label: "messages from " + nameOf(id), sub: nameOf(id) + " was the most active this year", podium: w.people.slice(0, 3) });
+    slides.push({ kind: "person", id, big: fmtNum(c), num: c, label: "messages from " + nameOf(id), sub: nameOf(id) + " was the most active this year", podium: w.people.slice(0, 3) });
   }
-  if (w.busyDay) slides.push({ kind: "stat", emoji: "🔥", big: fmtNum(w.busyN), label: "messages in a single day", sub: "the busiest day was " + DAY.format(dayKeyBoundInstant(w.busyDay)) });
+  if (w.busyDay) slides.push({ kind: "stat", emoji: "🔥", big: fmtNum(w.busyN), num: w.busyN, label: "messages in a single day", sub: "the busiest day was " + DAY.format(dayKeyBoundInstant(w.busyDay)) });
   if (w.topWords.length) slides.push({ kind: "words", emoji: "🗣️", big: '"' + w.topWords[0][0] + '"', label: "the word of the year", sub: "used " + fmtNum(w.topWords[0][1]) + " times", list: w.topWords });
   if (w.topEmoji) slides.push({ kind: "stat", emoji: w.topEmoji[0], big: w.topEmoji[0], label: "the emoji of the year", sub: "sent " + fmtNum(w.topEmoji[1]) + " times", giant: true });
-  slides.push({ kind: "stat", emoji: "📷", big: fmtNum(w.media), label: "photos & videos shared", sub: fmtNum(w.reacts) + " reactions given all year" });
+  slides.push({ kind: "stat", emoji: "📷", big: fmtNum(w.media), num: w.media, label: "photos & videos shared", sub: fmtNum(w.reacts) + " reactions given all year" });
   if (w.topMsg.i >= 0 && w.topMsg.rc > 0) slides.push({ kind: "star", i: w.topMsg.i, rc: w.topMsg.rc });
   slides.push({ kind: "outro", big: "🎁", label: "That was " + w.year, sub: "Tap a different year above to relive another one" });
   return slides;
 }
+// Wrapped nav pill icons (mock-wrapped .nav-btn chevrons + restart loop).
+const WR_ICON = {
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+  restart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 108-8M4 4v4h4"/></svg>',
+};
+// slide kind → mock backdrop wash (intro/outro share the violet hero wash;
+// star gets an amber wash of its own — the mock has no star slide).
+const WR_BG = { intro: "wr-bg-hero", outro: "wr-bg-hero", stat: "wr-bg-vol", person: "wr-bg-people", words: "wr-bg-word", star: "wr-bg-star" };
+
 function renderWrapped() {
   const v = document.getElementById("view-wrapped");
   const years = wrappedYears();
@@ -3404,17 +3416,24 @@ function renderWrapped() {
       <div class="page-sub">Your group chat, recapped year by year. Use the arrows (or ← →) to flip through.</div></div>
     <div class="page-body">
       <div class="wr-years">${chips}</div>
-      <div class="wr-stage" id="wr-stage"></div>
+      <div class="wr-stage" id="wr-stage">
+        <div class="wr-progress"><div class="wr-segs" id="wr-segs"></div><div class="wr-ctx" id="wr-ctx"></div></div>
+        <div class="wr-slide" id="wr-slide"></div>
+      </div>
       <div class="wr-controls">
-        <button class="btn ghost" id="wr-prev">‹ Back</button>
+        <button class="nav-btn" id="wr-prev">${WR_ICON.back}Back</button>
         <div class="wr-dots" id="wr-dots"></div>
-        <button class="btn" id="wr-next">Next ›</button>
+        <button class="nav-btn primary" id="wr-next">Next${WR_ICON.next}</button>
       </div>
     </div></div>`;
 
   v.querySelectorAll(".wr-yr").forEach((b) => { b.onclick = () => { wrappedYear = +b.dataset.yr; wrappedSlide = 0; renderWrapped(); }; });
   v.querySelector("#wr-prev").onclick = () => wrappedGo(-1);
-  v.querySelector("#wr-next").onclick = () => wrappedGo(1);
+  // Next becomes "Restart" on the last slide → jump back to the intro.
+  v.querySelector("#wr-next").onclick = () => {
+    const n = wrappedSlides(computeWrapped(wrappedYear)).length;
+    if (wrappedSlide >= n - 1) { wrappedSlide = 0; drawWrappedSlide(); } else wrappedGo(1);
+  };
   drawWrappedSlide();
 }
 function wrappedGo(dir) {
@@ -3426,49 +3445,104 @@ function wrappedGo(dir) {
 function drawWrappedSlide() {
   const stage = document.getElementById("wr-stage");
   if (!stage) return;
+  const slideEl = stage.querySelector("#wr-slide");
+  if (!slideEl) return;
   const w = computeWrapped(wrappedYear);
   const slides = wrappedSlides(w);
   wrappedSlide = Math.max(0, Math.min(slides.length - 1, wrappedSlide));
   const s = slides[wrappedSlide];
 
+  // Numeric bigs carry data-count so animateCounts() (SP2 shared helper) counts
+  // them up; markup seeds the final value so no-JS/reduced-motion stays correct.
+  const big = s.num != null
+    ? `<div class="wr-big st" data-count="${s.num}">${esc(String(s.big))}</div>`
+    : `<div class="wr-big st">${esc(String(s.big))}</div>`;
+
   let inner;
-  if (s.kind === "intro" || s.kind === "outro") {
-    inner = `<div class="wr-hero ${s.kind}"><div class="wr-big">${esc(String(s.big))}</div>
-      <div class="wr-label">${esc(s.label)}</div><div class="wr-sub">${esc(s.sub)}</div></div>`;
+  if (s.kind === "intro") {
+    inner = `<div class="wr-eyebrow st">${esc(s.sub)}</div>
+      <div class="wr-big wr-big-year st">${esc(String(s.big))}</div>
+      <div class="wr-tag st">${esc(s.label)}</div>`;
+  } else if (s.kind === "outro") {
+    inner = `<div class="wr-emoji giant st">${s.big}</div>
+      <div class="wr-tag st">${esc(s.label)}</div>
+      <div class="wr-sub st">${esc(s.sub)}</div>`;
   } else if (s.kind === "person") {
-    const podium = s.podium.map(([id, c], k) => `<div class="wr-podium-row">
-        <span class="wr-rank">${k + 1}</span>${pfpHtml(id, "width:28px;height:28px;font-size:11px")}
-        <span class="wr-pname">${esc(nameOf(id))}</span><span class="wr-pcount">${fmtNum(c)}</span></div>`).join("");
-    inner = `<div class="wr-hero">${pfpHtml(s.id, "width:72px;height:72px;font-size:26px;margin:0 auto 14px")}
-      <div class="wr-big">${esc(String(s.big))}</div><div class="wr-label">${esc(s.label)}</div>
-      <div class="wr-sub">${esc(s.sub)}</div><div class="wr-podium">${podium}</div></div>`;
+    const max = (s.podium[0] && s.podium[0][1]) || 1;
+    const rows = s.podium.map(([id, c], k) => {
+      const hue = hueOf(id);
+      return `<div class="pl-row st"><span class="pl-rank">0${k + 1}</span>
+        ${pfpHtml(id, "width:46px;height:46px;font-size:16px")}
+        <div class="pl-main"><div class="pl-name" style="--p:${hue.p}">${esc(nameOf(id))}</div>
+          <div class="pl-track"><div class="pl-fill" data-w="${Math.round((c / max) * 100)}" style="--p:${hue.p};--f:${hue.f}"></div></div></div>
+        <div class="pl-val" data-count="${c}">${fmtNum(c)}</div></div>`;
+    }).join("");
+    inner = `<div class="wr-eyebrow st">Your loudest voices</div>${big}
+      <div class="wr-label st">${esc(s.label)}</div><div class="wr-sub st">${esc(s.sub)}</div>
+      <div class="wr-people">${rows}</div>`;
   } else if (s.kind === "words") {
     const chips = s.list.map(([word, c], k) => `<span class="wr-wordchip${k === 0 ? " top" : ""}">${esc(word)} <b>${fmtNum(c)}</b></span>`).join("");
-    inner = `<div class="wr-hero"><div class="wr-emoji">${s.emoji}</div><div class="wr-big">${esc(String(s.big))}</div>
-      <div class="wr-label">${esc(s.label)}</div><div class="wr-sub">${esc(s.sub)}</div>
-      <div class="wr-wordchips">${chips}</div></div>`;
+    inner = `<div class="wr-eyebrow st">${s.emoji} ${esc(s.label)}</div>
+      <div class="wr-big wr-big-word st">${esc(String(s.big))}</div>
+      <div class="wr-sub st">${esc(s.sub)}</div>
+      <div class="wr-wordchips st">${chips}</div>`;
   } else if (s.kind === "star") {
-    inner = `<div class="wr-hero"><div class="wr-emoji">⭐</div>
-      <div class="wr-label">Most-reacted message of ${w.year}</div>
-      <div class="wr-sub">${fmtNum(s.rc)} reaction${s.rc === 1 ? "" : "s"}</div>
-      <div class="wr-star" id="wr-star"></div></div>`;
-    stage.className = "wr-stage";
-    stage.innerHTML = inner;
-    const host = stage.querySelector("#wr-star");
-    if (host) host.appendChild(renderMsg(s.i, { clickable: true }));
-    paintWrappedDots(slides.length);
-    return;
+    inner = `<div class="wr-emoji st">⭐</div>
+      <div class="wr-tag st">Most-reacted message of ${w.year}</div>
+      <div class="wr-sub st">${fmtNum(s.rc)} reaction${s.rc === 1 ? "" : "s"}</div>
+      <div class="wr-star st" id="wr-star"></div>`;
   } else {
-    inner = `<div class="wr-hero"><div class="wr-emoji${s.giant ? " giant" : ""}">${s.emoji}</div>
-      <div class="wr-big">${esc(String(s.big))}</div><div class="wr-label">${esc(s.label)}</div>
-      <div class="wr-sub">${esc(s.sub)}</div></div>`;
+    // stat: emoji is secondary now (the number leads, per the mock)
+    inner = `<div class="wr-emoji${s.giant ? " giant" : ""} st">${s.emoji}</div>
+      ${s.big === s.emoji ? "" : big}
+      <div class="wr-label st">${esc(s.label)}</div><div class="wr-sub st">${esc(s.sub)}</div>`;
   }
-  // re-trigger entrance animation
-  stage.className = "wr-stage";
-  void stage.offsetWidth;
-  stage.innerHTML = inner;
-  stage.classList.add("wr-anim");
-  paintWrappedDots(slides.length);
+
+  // Swap backdrop + content, force reflow, then arm the staged entrance so the
+  // .st rise animation re-triggers on every slide change.
+  slideEl.className = "wr-slide " + (WR_BG[s.kind] || "wr-bg-vol");
+  slideEl.innerHTML = `<div class="wr-inner">${inner}</div>`;
+  void slideEl.offsetWidth;
+  slideEl.classList.add("wr-anim");
+  if (s.kind === "star") {
+    const host = slideEl.querySelector("#wr-star");
+    if (host) host.appendChild(renderMsg(s.i, { clickable: true }));
+  }
+  animateCounts(slideEl);
+  animateWrappedFills(slideEl);
+  paintWrappedChrome(slides.length);
+}
+// Grow the .pl-fill bars 0 → pct, staggered ~80ms (mock playSlide). Reduced
+// motion or a hidden document (rAF/transitions unreliable) → final width now.
+function animateWrappedFills(rootEl) {
+  const fills = rootEl.querySelectorAll(".pl-fill");
+  if (!fills.length) return;
+  const instant = matchMedia("(prefers-reduced-motion: reduce)").matches || document.hidden;
+  void rootEl.offsetWidth; // commit width:0 so the transition has a start frame
+  fills.forEach((f, i) => {
+    f.style.transitionDelay = instant ? "0s" : i * 0.08 + "s";
+    f.style.width = f.dataset.w + "%";
+  });
+}
+// Segmented progress + context label + dots + nav buttons (mock go()).
+function paintWrappedChrome(n) {
+  const segs = document.getElementById("wr-segs");
+  if (segs) {
+    segs.innerHTML = "";
+    for (let i = 0; i < n; i++) {
+      const sg = el("span", "wr-seg" + (i < wrappedSlide ? " done" : i === wrappedSlide ? " cur" : ""));
+      sg.innerHTML = "<i></i>";
+      sg.onclick = () => { wrappedSlide = i; drawWrappedSlide(); };
+      segs.appendChild(sg);
+    }
+  }
+  const ctx = document.getElementById("wr-ctx");
+  if (ctx) ctx.textContent = wrappedSlide + 1 + " / " + n + " · " + wrappedYear + " Wrapped";
+  const prev = document.getElementById("wr-prev");
+  if (prev) prev.disabled = wrappedSlide === 0;
+  const next = document.getElementById("wr-next");
+  if (next) next.innerHTML = wrappedSlide === n - 1 ? "Restart" + WR_ICON.restart : "Next" + WR_ICON.next;
+  paintWrappedDots(n);
 }
 function paintWrappedDots(n) {
   const dots = document.getElementById("wr-dots");

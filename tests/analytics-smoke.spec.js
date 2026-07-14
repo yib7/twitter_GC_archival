@@ -140,17 +140,18 @@ test("wrapped renders and navigating years changes the label and stats", async (
   await expect(page.locator(".wr-yr")).toHaveCount(2);
   await expect(page.locator("#wr-stage .wr-big")).toHaveText("2024");
 
-  // Slide 2 is the message-count stat for the year.
+  // Slide 2 is the message-count stat for the year. The visible text counts up
+  // (SP3 story mode), so assert on the raw data-count target instead.
   await page.locator("#wr-next").click();
   await expect(page.locator("#wr-stage .wr-label")).toContainText("messages sent in 2024");
-  const stat2024 = await page.locator("#wr-stage .wr-big").innerText();
+  const stat2024 = await page.locator("#wr-stage .wr-big").getAttribute("data-count");
 
   // Switch year: label resets to the intro of 2023, then the stat differs.
   await page.locator('.wr-yr[data-yr="2023"]').click();
   await expect(page.locator("#wr-stage .wr-big")).toHaveText("2023");
   await page.locator("#wr-next").click();
   await expect(page.locator("#wr-stage .wr-label")).toContainText("messages sent in 2023");
-  const stat2023 = await page.locator("#wr-stage .wr-big").innerText();
+  const stat2023 = await page.locator("#wr-stage .wr-big").getAttribute("data-count");
   expect(stat2023).not.toEqual(stat2024);
 });
 

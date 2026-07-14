@@ -963,50 +963,154 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   backdrop-filter: blur(3px);
 }
 
-/* ---- Wrapped (Year in Review) -------------------------------------------- */
+/* ---- Wrapped (Year in Review) — mock-wrapped story mode -------------------
+   Stage = bordered/glowing frame; #wr-slide swaps a per-kind backdrop wash
+   (mock .s-hero/.s-vol/.s-people/.s-word, raw hexes replaced with color-mix
+   over --bg-page so all three themes work) under a segmented progress strip.
+   Slide children tagged .st rise in staggered (mock rise keyframes). */
 .wr-years { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 18px; }
 .wr-yr.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .wr-stage {
-  position: relative; min-height: 380px; border-radius: 20px; overflow: hidden;
-  background:
-    radial-gradient(120% 90% at 50% -10%, var(--accent-glow), transparent 60%),
-    linear-gradient(160deg, var(--bg-card), var(--bg-panel));
-  border: 1px solid var(--border); display: grid; place-items: center; padding: 40px 28px;
+  position: relative; height: clamp(420px, 62vh, 680px); border-radius: 20px; overflow: hidden;
+  background: var(--bg-panel); border: 1px solid var(--border-accent);
+  box-shadow: var(--el3), var(--glow-accent);
 }
-.wr-hero { text-align: center; max-width: 560px; width: 100%; }
-.wr-emoji { font-size: 56px; line-height: 1; margin-bottom: 10px; }
+/* segmented progress (mock .progress): one flexible seg per slide + context */
+.wr-progress { position: absolute; top: 16px; left: 20px; right: 20px; z-index: 20; display: flex; align-items: center; gap: 12px; }
+.wr-segs { flex: 1; display: flex; gap: 6px; }
+.wr-seg {
+  flex: 1; height: 5px; border-radius: 3px; overflow: hidden; cursor: pointer;
+  background: color-mix(in srgb, var(--text) 18%, transparent);
+}
+.wr-seg i { display: block; height: 100%; width: 0; background: var(--text); border-radius: 3px; transition: width 0.3s ease; }
+.wr-seg.done i, .wr-seg.cur i { width: 100%; }
+.wr-ctx {
+  font-size: 12px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap;
+  color: color-mix(in srgb, var(--text) 85%, transparent); font-variant-numeric: tabular-nums;
+}
+/* slide + themed backdrops (mock washes; hexes → color-mix over --bg-page) */
+.wr-slide { position: absolute; inset: 0; display: flex; overflow-y: auto; text-align: center; padding: 56px 32px 32px; }
+.wr-slide::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(130% 130% at 50% 42%, transparent 52%, rgba(0, 0, 0, 0.6));
+}
+html[data-theme="light"] .wr-slide::after {
+  background: radial-gradient(130% 130% at 50% 42%, transparent 52%, rgba(0, 0, 0, 0.18));
+}
+.wr-bg-hero {
+  background:
+    radial-gradient(620px 420px at 26% 8%, color-mix(in srgb, var(--p-violet) 46%, transparent), transparent 60%),
+    radial-gradient(560px 460px at 88% 96%, color-mix(in srgb, var(--p-sky) 40%, transparent), transparent 62%),
+    linear-gradient(160deg, color-mix(in srgb, var(--p-violet) 14%, var(--bg-page)), var(--bg-page) 72%);
+}
+.wr-bg-vol {
+  background:
+    radial-gradient(680px 460px at 76% 6%, color-mix(in srgb, var(--accent) 44%, transparent), transparent 58%),
+    linear-gradient(160deg, color-mix(in srgb, var(--accent) 14%, var(--bg-page)), var(--bg-page) 74%);
+}
+.wr-bg-people {
+  background:
+    radial-gradient(640px 460px at 20% 8%, color-mix(in srgb, var(--p-emerald) 40%, transparent), transparent 60%),
+    linear-gradient(160deg, color-mix(in srgb, var(--p-emerald) 14%, var(--bg-page)), var(--bg-page) 74%);
+}
+.wr-bg-word {
+  background:
+    radial-gradient(680px 460px at 80% 10%, color-mix(in srgb, var(--accent-2) 44%, transparent), transparent 58%),
+    linear-gradient(160deg, color-mix(in srgb, var(--accent-2) 14%, var(--bg-page)), var(--bg-page) 74%);
+}
+.wr-bg-star {
+  background:
+    radial-gradient(640px 460px at 74% 8%, color-mix(in srgb, var(--p-amber) 42%, transparent), transparent 60%),
+    linear-gradient(160deg, color-mix(in srgb, var(--p-amber) 14%, var(--bg-page)), var(--bg-page) 74%);
+}
+.wr-inner { margin: auto; max-width: 680px; width: 100%; position: relative; z-index: 2; }
+/* staged entrance (mock .st / rise) — re-armed per slide via .wr-anim */
+.wr-slide .st { opacity: 0; transform: translateY(20px); }
+.wr-slide.wr-anim .st { animation: wrRise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.wr-slide.wr-anim .st:nth-child(1) { animation-delay: 0.12s; }
+.wr-slide.wr-anim .st:nth-child(2) { animation-delay: 0.22s; }
+.wr-slide.wr-anim .st:nth-child(3) { animation-delay: 0.32s; }
+.wr-slide.wr-anim .st:nth-child(4) { animation-delay: 0.42s; }
+.wr-slide.wr-anim .st:nth-child(5) { animation-delay: 0.52s; }
+@keyframes wrRise { to { opacity: 1; transform: translateY(0); } }
+/* typography */
+.wr-eyebrow {
+  font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--text) 72%, transparent);
+}
+.wr-emoji { font-size: 34px; line-height: 1.15; margin-bottom: 6px; }
 .wr-emoji.giant { font-size: 96px; }
 .wr-big {
-  font-size: clamp(40px, 9vw, 88px); font-weight: 800; line-height: 1.02; letter-spacing: -0.02em;
-  background: linear-gradient(120deg, var(--text), var(--accent)); -webkit-background-clip: text;
-  background-clip: text; color: transparent; word-break: break-word;
+  font-size: clamp(64px, 10vw, 116px); font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+  font-variant-numeric: tabular-nums; margin: 10px 0 2px; word-break: break-word;
+  background: linear-gradient(180deg, var(--text), var(--accent-soft) 62%, var(--accent-deep));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.wr-hero.intro .wr-big, .wr-hero.outro .wr-big { font-size: clamp(56px, 14vw, 120px); }
-.wr-label { font-size: 18px; font-weight: 600; margin-top: 10px; color: var(--text); }
-.wr-sub { font-size: 14px; color: var(--text-dim); margin-top: 6px; }
-.wr-podium { margin: 20px auto 0; max-width: 320px; display: flex; flex-direction: column; gap: 8px; }
-.wr-podium-row {
-  display: flex; align-items: center; gap: 10px; background: var(--bg-panel); border: 1px solid var(--border);
-  border-radius: 10px; padding: 8px 12px;
+.wr-big.wr-big-year {
+  font-size: clamp(80px, 14vw, 170px); letter-spacing: -0.05em; line-height: 0.85; margin: 8px 0 4px;
+  background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--p-violet) 70%, #fff) 60%, var(--p-violet));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 8px 60px color-mix(in srgb, var(--p-violet) 35%, transparent);
 }
-.wr-rank { font-weight: 800; color: var(--accent); width: 18px; }
-.wr-pname { flex: 1; text-align: left; font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wr-pcount { font-variant-numeric: tabular-nums; color: var(--text-dim); font-weight: 600; }
+.wr-big.wr-big-word {
+  font-size: clamp(48px, 9vw, 96px); letter-spacing: -0.02em;
+  background: none; -webkit-background-clip: border-box; background-clip: border-box;
+  color: var(--text); text-shadow: 0 8px 50px var(--accent-2-glow);
+}
+.wr-tag { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-top: 2px; }
+.wr-label { font-size: 20px; font-weight: 800; margin-top: 8px; color: var(--text); }
+.wr-sub { font-size: 14px; color: var(--text-dim); margin-top: 8px; }
+/* people slide (mock .people-list / .pl-row) */
+.wr-people { display: flex; flex-direction: column; gap: 14px; margin: 24px auto 0; max-width: 480px; text-align: left; }
+.pl-row { display: flex; align-items: center; gap: 14px; }
+.pl-rank { font-family: var(--font-mono); font-size: 14px; font-weight: 700; width: 22px; flex: 0 0 auto; color: color-mix(in srgb, var(--text) 55%, transparent); }
+.pl-main { flex: 1; min-width: 0; }
+.pl-name { font-size: 15px; font-weight: 700; color: var(--p, var(--text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-track { height: 12px; border-radius: 6px; margin-top: 7px; overflow: hidden; background: color-mix(in srgb, var(--text) 9%, transparent); }
+.pl-fill {
+  height: 100%; width: 0; border-radius: 6px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--p) 75%, #fff), var(--f));
+  transition: width 0.8s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.pl-val { font-size: 15px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; min-width: 62px; text-align: right; flex: 0 0 auto; }
+/* word chips + star message (kept) */
 .wr-wordchips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
 .wr-wordchip { background: var(--bg-panel); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 6px 13px; font-size: 13px; }
 .wr-wordchip.top { border-color: var(--accent); color: var(--text); }
 .wr-wordchip b { color: var(--accent); margin-left: 5px; }
 .wr-star { margin: 18px auto 0; max-width: 560px; text-align: left; }
 .wr-star .msg { background: var(--bg-panel); padding: 12px; border-radius: 12px; border: 1px solid var(--border); }
-.wr-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; }
+/* controls (mock .nav-btn pills + elongating dots) */
+.wr-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
+.nav-btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px;
+  border-radius: var(--radius-pill); font-size: 14px; font-weight: 700;
+  border: 1px solid var(--border-lift); background: var(--bg-card); color: var(--text);
+  transition: transform 0.16s, border-color 0.16s, box-shadow 0.16s, opacity 0.16s;
+}
+.nav-btn:hover { transform: translateY(-2px); border-color: var(--border-accent); }
+.nav-btn svg { width: 17px; height: 17px; }
+.nav-btn.primary {
+  background: linear-gradient(160deg, var(--accent), var(--accent-deep));
+  border-color: transparent; color: #fff; box-shadow: 0 8px 22px -8px var(--accent-glow);
+}
+.nav-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .wr-dots { display: flex; gap: 7px; flex-wrap: wrap; justify-content: center; flex: 1; }
-.wr-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bg-hover); cursor: pointer; transition: all 0.15s; }
-.wr-dot.on { background: var(--accent); transform: scale(1.3); }
-@keyframes wrIn { from { opacity: 0; transform: translateY(14px) scale(0.985); } to { opacity: 1; transform: none; } }
-.wr-stage.wr-anim .wr-hero { animation: wrIn 0.4s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.wr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-lift); cursor: pointer; transition: width 0.2s, background 0.2s, border-radius 0.2s; }
+.wr-dot.on { width: 22px; border-radius: 4px; background: var(--accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* the global reduce block collapses durations; also pin end states so
+     content never sits at opacity 0 / width 0 */
+  .wr-slide .st, .wr-slide.wr-anim .st { opacity: 1; transform: none; animation: none; }
+  .pl-fill, .wr-seg i { transition: none; }
+}
 
 @media (max-width: 768px) {
-  .wr-stage { min-height: 320px; padding: 28px 16px; }
+  .wr-stage { height: clamp(360px, 58vh, 560px); }
+  .wr-slide { padding: 48px 16px 24px; }
+  .wr-progress { left: 14px; right: 14px; }
+  .wr-ctx { display: none; }
   .wr-controls { flex-wrap: wrap; }
 }
 
