@@ -654,6 +654,33 @@ function renderText(raw, urls) {
   return out;
 }
 
+/* ---- Timeline liveliness helpers (mock-timeline.html parity) -------------- */
+// Sticky day pill: "Saturday, <b>May 23, 2020</b>" — weekday plain, date bold
+// (split on the first comma of the DAY format). Outer class stays `daysep`.
+function renderDaySep(t) {
+  const label = DAY.format(t);
+  const ci = label.indexOf(",");
+  const inner = ci > 0
+    ? esc(label.slice(0, ci + 1)) + " <b>" + esc(label.slice(ci + 1).trim()) + "</b>"
+    : "<b>" + esc(label) + "</b>";
+  return el("div", "daysep", '<span class="daypill">' + inner + "</span>");
+}
+
+// Rich link chip (mock .linkchip structure; class stays `urlchip`): icon box +
+// bold domain line + dim ellipsized label. Domain via new URL() in a try/catch;
+// non-URL hrefs (local media paths) fall back to the path's basename.
+const CHIP_LINK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 15l6-6M9.5 8.5l1.4-1.4a3.5 3.5 0 015 5l-1.4 1.4M14.5 15.5l-1.4 1.4a3.5 3.5 0 01-5-5l1.4-1.4"/></svg>';
+function urlChipEl(href, lbl) {
+  let dom;
+  try { dom = new URL(href).hostname.replace(/^www\./, ""); }
+  catch (err) { dom = String(href).split(/[?#]/)[0].split("/").pop() || String(href); }
+  const a = el("a", "urlchip");
+  a.href = href; a.target = "_blank";
+  a.innerHTML = '<span class="g">' + CHIP_LINK_ICON + '</span>' +
+    '<span class="lt"><span class="dom">' + esc(dom) + '</span><span class="lbl">' + esc(lbl) + "</span></span>";
+  return a;
+}
+
 /* ---- Message card -------------------------------------------------------- */
 function renderMsg(i, opts) {
   opts = opts || {};
@@ -729,7 +756,7 @@ function renderMedia(m, i) {
     v.addEventListener("click", (e) => e.stopPropagation());
     d.appendChild(v);
   } else {
-    const a = el("a", "urlchip"); a.href = m.m; a.target = "_blank"; a.textContent = "📎 media file"; d.appendChild(a);
+    d.appendChild(urlChipEl(m.m, "media file"));
   }
   return d;
 }
@@ -1301,11 +1328,25 @@ function ensureTimelineShell() {
   if (tlBuilt) return;
   tlBuilt = true;
   const v = document.getElementById("view-timeline");
+  // Toolbar (mock .toolbar): rebuilt with the shell on every conversation
+  // switch (tlBuilt is reset by resetDerived()), so the count stays fresh.
+  const kbd = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘K" : "Ctrl K";
   v.innerHTML = `
+    <div class="tl-toolbar">
+      <span class="tt">Timeline</span>
+      <span class="tc">${fmtNum(N)} message${N === 1 ? "" : "s"}</span>
+      <span class="spacer"></span>
+      <button class="tbtn" id="tl-jumpdate" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg>Jump to date</button>
+      <button class="tbtn" id="tl-search" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search<span class="kbd">${kbd}</span></button>
+    </div>
     <div class="scroll" id="tl-scroll" style="position:relative;">
       <div class="list" id="tl-list"></div>
     </div>
   `;
+  // Both route through the command palette: it accepts YYYY-MM-DD dates
+  // directly (dateCmd), so it doubles as the jump-to-date UI.
+  v.querySelector("#tl-jumpdate").onclick = () => openCommandPalette();
+  v.querySelector("#tl-search").onclick = () => openCommandPalette();
   tlEls = { scroll: v.querySelector("#tl-scroll"), list: v.querySelector("#tl-list") };
   // The shell was just rebuilt with an EMPTY #tl-list, so the chunk bookkeeping
   // must restart too. numChunks survives resetDerived(); if the next active
@@ -1394,7 +1435,7 @@ function renderChunk(idx, container) {
   items.forEach((it) => {
     const dk = dayKey(it.t);
     if (dk !== prevDay) {
-      frag.appendChild(el("div", "daysep", esc(DAY.format(it.t))));
+      frag.appendChild(renderDaySep(it.t));
       prevDay = dk;
       prevSenderId = null;
       prevTimestamp = 0;
@@ -1416,13 +1457,18 @@ function renderChunk(idx, container) {
   chunkRendered[idx] = true;
 }
 
+// System event chip (mock .sysevent .chip): dashed inset pill with a sparkle
+// icon and bold actor names. Outer class stays `sysline`; each fragment is
+// escaped individually so the <b> wrappers survive.
+const SYS_EVENT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/></svg>';
 function renderEvent(e) {
+  const bn = (id) => "<b>" + esc(nameOf(id)) + "</b>";
   let txt = "";
-  if (e.type === "name") txt = nameOf(e.s) + " named the group “" + e.name + "”";
-  else if (e.type === "join") txt = (e.s ? nameOf(e.s) + " added " : "Added ") + (e.ids || []).map(nameOf).join(", ");
-  else if (e.type === "leave") txt = (e.ids || []).map(nameOf).join(", ") + " left";
-  else if (e.type === "create") txt = (e.s ? nameOf(e.s) : "Someone") + " created the conversation";
-  return el("div", "sysline", "<span>" + esc(txt) + "</span>");
+  if (e.type === "name") txt = bn(e.s) + " named the group “" + esc(e.name) + "”";
+  else if (e.type === "join") txt = (e.s ? bn(e.s) + " added " : "Added ") + (e.ids || []).map(bn).join(", ");
+  else if (e.type === "leave") txt = (e.ids || []).map(bn).join(", ") + " left";
+  else if (e.type === "create") txt = (e.s ? bn(e.s) : "Someone") + " created the conversation";
+  return el("div", "sysline", '<span class="chip">' + SYS_EVENT_ICON + "<span>" + txt + "</span></span>");
 }
 function jumpTo(i) { setView("timeline"); openTimeline(i); }
 
@@ -3615,7 +3661,7 @@ function renderForeignPin(conv, m) {
       vd.addEventListener("click", (e) => e.stopPropagation());
       d.appendChild(vd);
     } else {
-      const a = el("a", "urlchip"); a.href = m.m; a.target = "_blank"; a.textContent = "📎 media file";
+      const a = urlChipEl(m.m, "media file");
       a.addEventListener("click", (e) => e.stopPropagation());
       d.appendChild(a);
     }
@@ -3651,7 +3697,7 @@ function openContextPeek(center) {
   let prevDay = null, prevSender = null, prevT = 0;
   for (let i = lo; i <= hi; i++) {
     const dk = dayKey(MSGS[i].t);
-    if (dk !== prevDay) { bodyEl.appendChild(el("div", "daysep", esc(DAY.format(MSGS[i].t)))); prevDay = dk; prevSender = null; prevT = 0; }
+    if (dk !== prevDay) { bodyEl.appendChild(renderDaySep(MSGS[i].t)); prevDay = dk; prevSender = null; prevT = 0; }
     const consecutive = (prevSender === MSGS[i].s) && (MSGS[i].t - prevT < 300000);
     const node = renderMsg(i, { context: true, consecutive });
     if (i === center) node.classList.add("ctx-center");
@@ -3901,13 +3947,26 @@ function showOnThisDayToast() {
   const yr = zonedParts(m.t).y;
   const ago = tYear - yr;
   const snippet = (m.x || "").trim().slice(0, 60) || "[media]";
+  // Mock .toast structure: header (clock icon + "On This Day" + "N years ago"),
+  // body (avatar + hue-colored name · quoted snippet), uppercase CTA row, and a
+  // ✕ that dismisses without navigating. Click anywhere else → Time Capsule.
+  const hue = hueOf(m.s);
   const otdToast = el("div", "otd-toast");
-  otdToast.innerHTML = `<div class="otd-header">📅 On This Day — ${ago} year${ago > 1 ? "s" : ""} ago</div>
-    <div class="otd-body"><span class="otd-name" style="color:${colorOf(m.s)}">${esc(nameOf(m.s))}</span>: ${esc(snippet)}${snippet.length >= 60 ? "…" : ""}</div>
-    <div class="otd-action">Tap to open Time Capsule</div>`;
-  otdToast.onclick = () => { otdToast.remove(); setView("capsule"); };
+  otdToast.innerHTML = `
+    <button class="otd-close" type="button" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    <div class="otd-head"><span class="otd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9a9 9 0 113 8.5M3.5 9V4.5M3.5 9H8M12 8v4.5l3 2"/></svg></span><span class="otd-title">On This Day</span><span class="otd-yr">${ago} year${ago > 1 ? "s" : ""} ago</span></div>
+    <div class="otd-body">${pfpHtml(m.s, "width:30px;height:30px;font-size:11px")}<div class="otd-q"><span class="otd-name" style="color:${hue.p}">${esc(nameOf(m.s))}</span> · “${esc(snippet)}${snippet.length >= 60 ? "…" : ""}”</div></div>
+    <div class="otd-cta">Open Time Capsule <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>`;
+  // The whole toast is one click target (→ Capsule); don't let the avatar's
+  // global av-clickable handler stack a profile modal on top of the navigation.
+  const tAv = otdToast.querySelector(".av");
+  if (tAv) { tAv.classList.remove("av-clickable"); tAv.style.cursor = "pointer"; }
+  let timer = 0;
+  const dismiss = () => { clearTimeout(timer); otdToast.classList.add("otd-exit"); setTimeout(() => otdToast.remove(), 220); };
+  otdToast.onclick = () => { clearTimeout(timer); otdToast.remove(); setView("capsule"); };
+  otdToast.querySelector(".otd-close").onclick = (e) => { e.stopPropagation(); dismiss(); };
   document.body.appendChild(otdToast);
-  setTimeout(() => { otdToast.classList.add("otd-exit"); setTimeout(() => otdToast.remove(), 400); }, 7000);
+  timer = setTimeout(dismiss, 7000);
 }
 
 /* ===========================================================================

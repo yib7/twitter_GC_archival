@@ -293,14 +293,40 @@ button, input, select, textarea { font-family: inherit; }
 .media img, .media video { display: block; width: 100%; height: auto; max-height: 440px; object-fit: cover; background: #000; }
 .media.gallery-cell { margin: 0; max-width: none; }
 
-/* url chips */
+/* url chips (mock .linkchip: icon box + bold domain + dim ellipsized label) */
 .urls { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
 .urlchip {
-  font-size: 12px; color: var(--accent-soft); background: var(--bg-inset); border: 1px solid var(--border-lift);
-  padding: 6px 11px; border-radius: var(--radius-sm); text-decoration: none; max-width: 320px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: border-color 0.15s;
+  display: inline-flex; align-items: center; gap: 9px; max-width: 320px;
+  background: var(--bg-inset); border: 1px solid var(--border-lift); border-radius: 10px;
+  padding: 8px 12px 8px 10px; text-decoration: none;
+  transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
 }
-.urlchip:hover { border-color: var(--border-accent); }
+.urlchip:hover { border-color: var(--border-accent); transform: translateY(-1px); box-shadow: var(--el2); }
+.urlchip .g {
+  width: 30px; height: 30px; flex: 0 0 auto; border-radius: 8px;
+  background: var(--bg-hover); display: grid; place-items: center;
+}
+.urlchip .g svg { width: 16px; height: 16px; color: var(--accent-soft); stroke-width: 1.75; }
+.urlchip .lt { min-width: 0; }
+.urlchip .lt .dom {
+  display: block; font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.urlchip .lt .lbl {
+  display: block; font-size: 11.5px; color: var(--text-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* own-message variant — the mock's .bubble.mine .linkchip is white-tint over
+   the accent gradient; here the chip sits on the page bg, so the same tints
+   are composited over the accent to keep the white text readable on every
+   theme (visually identical to the mock chip). */
+.msg.me .urlchip {
+  background: color-mix(in srgb, #fff 12%, var(--accent-deep));
+  border-color: color-mix(in srgb, #fff 22%, var(--accent-deep));
+}
+.msg.me .urlchip .g { background: color-mix(in srgb, #fff 16%, var(--accent-deep)); }
+.msg.me .urlchip .g svg, .msg.me .urlchip .lt .dom { color: #fff; }
+.msg.me .urlchip .lt .lbl { color: rgba(255,255,255,0.8); }
 
 /* reactions */
 .reacts { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 5px; }
@@ -364,17 +390,58 @@ button, input, select, textarea { font-family: inherit; }
   transform: translateY(0);
 }
 
-/* system events in timeline */
-.sysline { text-align: center; color: var(--text-dim); font-size: 12px; margin: 6px auto; max-width: 920px; }
-.sysline span { background: var(--bg-panel); border: 1px solid var(--border); padding: 4px 12px; border-radius: var(--radius-pill); }
-.daysep { display: flex; align-items: center; gap: 12px; color: var(--text-faint); font-size: 12px; margin: 10px auto; max-width: 920px; }
-.daysep::before, .daysep::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+/* system events in timeline (mock .sysevent .chip: dashed inset pill + icon) */
+.sysline { display: flex; justify-content: center; margin: 6px auto; max-width: 920px; width: 100%; }
+.sysline .chip {
+  display: inline-flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-dim);
+  background: var(--bg-inset); border: 1px dashed var(--border-lift);
+  padding: 7px 14px; border-radius: var(--radius-pill);
+}
+.sysline .chip svg { width: 14px; height: 14px; flex: 0 0 auto; color: var(--text-faint); stroke-width: 1.75; }
+.sysline .chip b { color: var(--text); font-weight: 700; }
+
+/* sticky day pill (mock .day .pill) — sticks within its own .tl-chunk only
+   (chunks are contain:layout paint); visual parity with the mock is the goal */
+.daysep {
+  position: sticky; top: 6px; z-index: 10; display: flex; justify-content: center;
+  margin: 10px auto; max-width: 920px; width: 100%; pointer-events: none;
+}
+.daysep .daypill {
+  pointer-events: auto; font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
+  color: var(--text-dim); background: var(--bg-hover); border: 1px solid var(--border-lift);
+  padding: 6px 15px; border-radius: var(--radius-pill); box-shadow: var(--el2);
+}
+.daysep .daypill b { color: var(--text); }
 
 /* load-more buttons (timeline) */
 .loadmore { display: none; }
 
 /* timeline virtual chunks */
 .tl-chunk { position: relative; width: 100%; contain: layout paint; display: flex; flex-direction: column; gap: var(--gap); }
+
+/* timeline toolbar (mock .toolbar — desktop only) */
+.tl-toolbar {
+  flex: 0 0 auto; height: 60px; display: flex; align-items: center; gap: 14px; padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-page) 82%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  z-index: 20;
+}
+.tl-toolbar .tt { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+.tl-toolbar .tc { font-size: 12.5px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.tbtn {
+  display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 13px;
+  border: 1px solid var(--border); background: var(--bg-card); color: var(--text-dim);
+  border-radius: var(--radius-pill); font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: var(--font); transition: border-color 0.16s, color 0.16s, background 0.16s;
+}
+.tbtn:hover { border-color: var(--border-lift); color: var(--text); }
+.tbtn svg { width: 16px; height: 16px; stroke-width: 1.75; }
+.tbtn .kbd {
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-faint);
+  border: 1px solid var(--border-lift); border-radius: 4px; padding: 1px 5px;
+}
+@media (max-width: 760px) { .tl-toolbar { display: none; } }
 
 /* empty / hints */
 .empty { text-align: center; color: var(--text-dim); padding: 80px 20px; }
@@ -709,7 +776,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* ---- Print Mode ---------------------------------------------------------- */
 @media print {
-  .sidebar, .toolbar, .msg-acts, .back-to-top, .sysline, .kb-modal { display: none !important; }
+  .sidebar, .toolbar, .tl-toolbar, .msg-acts, .back-to-top, .sysline, .kb-modal, .otd-toast { display: none !important; }
   .app { display: block !important; height: auto !important; }
   .main { overflow: visible !important; }
   .scroll { overflow: visible !important; padding: 0 !important; }
@@ -935,27 +1002,50 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 /* New: On This Day Toast, Conversation Threads, Quiz, Mood Ring          */
 /* ====================================================================== */
 
-/* ---- On This Day Toast --------------------------------------------------- */
+/* ---- On This Day Toast (mock .toast) -------------------------------------- */
 .otd-toast {
-  position: fixed; bottom: 28px; right: 28px; z-index: 130;
-  background: linear-gradient(135deg, var(--bg-card), color-mix(in srgb, var(--accent) 12%, var(--bg-card)));
-  border: 1px solid var(--accent); border-radius: 16px;
-  padding: 16px 20px; max-width: 380px; cursor: pointer;
-  box-shadow: var(--el2), 0 0 0 1px var(--accent-glow);
-  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  animation: otdIn 0.4s cubic-bezier(0.2, 0.7, 0.2, 1);
-  transition: opacity 0.4s, transform 0.4s;
+  position: fixed; right: 24px; bottom: 24px; z-index: 130;
+  width: 320px; max-width: calc(100vw - 48px);
+  background: var(--bg-card); border: 1px solid var(--border-accent);
+  border-radius: var(--radius-card); padding: 15px 16px 15px 15px; cursor: pointer;
+  box-shadow: var(--el3), var(--glow-accent);
+  transform: translateY(16px); opacity: 0;
+  animation: otdToastIn 0.26s cubic-bezier(0.2, 0.7, 0.3, 1) 0.5s forwards;
 }
-.otd-toast:hover { transform: translateY(-2px); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), 0 0 20px var(--accent-glow); }
-.otd-toast.otd-exit { opacity: 0; transform: translateY(20px); }
-@keyframes otdIn { from { opacity: 0; transform: translateY(30px) scale(0.96); } }
-.otd-header { font-weight: 700; font-size: 14px; color: var(--accent); margin-bottom: 8px; }
-.otd-body { font-size: 13px; color: var(--text); line-height: 1.5; }
+@keyframes otdToastIn { to { transform: translateY(0); opacity: 1; } }
+.otd-toast.otd-exit { animation: otdToastOut 0.2s ease forwards; }
+@keyframes otdToastOut { to { transform: translateY(16px); opacity: 0; } }
+.otd-head { display: flex; align-items: center; gap: 9px; margin-bottom: 9px; }
+.otd-ic {
+  width: 26px; height: 26px; border-radius: 7px; flex: 0 0 auto;
+  background: var(--accent-glow); display: grid; place-items: center;
+}
+.otd-ic svg { width: 15px; height: 15px; color: var(--accent-soft); stroke-width: 1.75; }
+.otd-title { font-size: 12.5px; font-weight: 700; color: var(--accent-soft); }
+.otd-yr { font-size: 11px; color: var(--text-faint); margin-left: auto; font-weight: 600; }
+.otd-close {
+  position: absolute; top: 11px; right: 11px; width: 24px; height: 24px;
+  border: 0; background: none; border-radius: 6px; display: grid; place-items: center;
+  color: var(--text-faint); cursor: pointer; padding: 0;
+}
+.otd-close:hover { background: var(--bg-hover); color: var(--text); }
+.otd-close svg { width: 14px; height: 14px; stroke-width: 1.75; }
+.otd-body { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--text); line-height: 1.4; }
+.otd-q { min-width: 0; }
 .otd-name { font-weight: 700; }
-.otd-action { margin-top: 8px; font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+.otd-cta {
+  margin-top: 12px; display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 700; color: var(--accent-soft);
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.otd-cta svg { width: 14px; height: 14px; stroke-width: 1.75; }
+/* reduced motion: skip the entrance delay/slide so the toast is fully visible */
+@media (prefers-reduced-motion: reduce) {
+  .otd-toast { opacity: 1; transform: none; }
+}
 
 @media (max-width: 768px) {
-  .otd-toast { bottom: 80px; right: 12px; left: 12px; max-width: none; }
+  .otd-toast { bottom: 80px; right: 12px; left: 12px; width: auto; max-width: none; }
 }
 
 /* ---- Conversation Threads ------------------------------------------------ */
