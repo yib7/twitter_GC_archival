@@ -787,34 +787,47 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* ---- Command palette (Ctrl/Cmd+K) ---------------------------------------- */
 .cmdk {
-  position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.55);
+  position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.6);
   display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh;
-  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); animation: kbIn 0.12s ease-out;
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: kbIn 0.12s ease-out;
 }
 .cmdk-card {
-  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 14px;
-  width: 92%; max-width: 600px; box-shadow: 0 24px 60px rgba(0,0,0,0.6); overflow: hidden;
+  background: var(--bg-panel); border: 1px solid var(--border-accent); border-radius: 16px;
+  width: 92%; max-width: 640px; box-shadow: var(--el3), var(--glow-accent); overflow: hidden;
 }
 .cmdk-input {
   width: 100%; box-sizing: border-box; background: transparent; border: 0;
   border-bottom: 1px solid var(--border); color: var(--text); font-family: var(--font);
-  font-size: 17px; padding: 18px 20px; outline: none;
+  font-size: 16.5px; font-weight: 500; padding: 17px 20px; outline: none;
 }
 .cmdk-input::placeholder { color: var(--text-faint); }
-.cmdk-list { max-height: 46vh; overflow-y: auto; padding: 6px; }
+.cmdk-list { max-height: min(52vh, 440px); overflow-y: auto; overflow-x: hidden; padding: 8px; }
 .cmdk-row {
-  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 9px;
-  cursor: pointer; color: var(--text);
+  display: flex; align-items: center; gap: 13px; padding: 9px 12px; border-radius: var(--radius-sm);
+  cursor: pointer; color: var(--text); scroll-margin: 8px;
 }
 .cmdk-row.sel { background: var(--bg-hover); }
-.cmdk-ico { width: 22px; text-align: center; font-size: 15px; flex: none; }
-.cmdk-label { flex: 1; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cmdk-hint { font-size: 11px; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; flex: none; }
-.cmdk-empty { padding: 22px; text-align: center; color: var(--text-dim); font-size: 14px; }
-.cmdk-foot { padding: 10px 16px; border-top: 1px solid var(--border); color: var(--text-faint); font-size: 11.5px; }
+.cmdk-ico {
+  width: 32px; height: 32px; flex: 0 0 auto; border-radius: 8px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  display: grid; place-items: center; font-size: 15px;
+}
+.cmdk-row.sel .cmdk-ico { border-color: var(--border-accent); }
+.cmdk-label { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmdk-hint {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-faint); text-transform: uppercase;
+  border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; flex: 0 0 auto;
+}
+.cmdk-row.sel .cmdk-hint { color: var(--accent-soft); border-color: var(--border-accent); }
+.cmdk-row.sel::after { content: "↵"; margin-left: 2px; color: var(--accent-soft); font-weight: 700; font-size: 13px; flex: 0 0 auto; }
+.cmdk-empty { padding: 34px 20px 40px; text-align: center; color: var(--text-dim); font-size: 14px; }
+.cmdk-foot {
+  padding: 11px 16px; border-top: 1px solid var(--border); background: var(--bg-inset);
+  color: var(--text-faint); font-size: 11.5px;
+}
 .cmdk-foot kbd {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px;
-  padding: 1px 5px; font-family: ui-monospace, monospace; font-size: 10.5px; color: var(--accent); margin: 0 1px;
+  background: var(--bg-card); border: 1px solid var(--border-lift); border-radius: 5px;
+  padding: 2px 7px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); margin: 0 1px;
 }
 
 /* ====================================================================== */
