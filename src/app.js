@@ -432,7 +432,10 @@ function animateCounts(rootEl) {
     if (!isFinite(target)) return;
     const suffix = node.dataset.suffix || "";
     const fmt = (v) => (decimal ? v.toFixed(1) : fmtNum(Math.round(v))) + suffix;
-    if (reduce) { node.textContent = fmt(target); return; }
+    // Hidden documents never fire rAF (background tab / minimized window), so
+    // an animation started there would sit at "0" until the next visibility
+    // change. Render the final value straight away instead.
+    if (reduce || document.hidden) { node.textContent = fmt(target); return; }
     node.textContent = fmt(0);
     const dur = 1000;
     setTimeout(() => {
