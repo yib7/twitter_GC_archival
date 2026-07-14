@@ -1018,7 +1018,7 @@ function ensureSearch() {
         <div class="popwrap">
           <button class="pill" id="f-people">${cmdIco("people")} People <span class="badge" id="f-people-n" hidden>0</span></button>
         </div>
-        <label class="pill" id="f-date"><span>From</span><input type="date" id="f-from" /><span>to</span><input type="date" id="f-to" /></label>
+        <label class="pill" id="f-date"><span>From</span><input type="date" id="f-from" aria-label="From date" /><span>to</span><input type="date" id="f-to" aria-label="To date" /></label>
         <button class="pill" id="f-media">${cmdIco("camera")} Media</button>
         <button class="pill" id="f-links">${cmdIco("link")} Links</button>
         <button class="pill" id="f-reacts">${cmdIco("heart")} Reactions</button>
@@ -3062,7 +3062,7 @@ function renderConvPicker() {
   host.hidden = false;
   const opt = (c) => `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`;
   const body = convos.map(opt).join("");
-  host.innerHTML = `<label class="conv-pick-label">Group chat (${convos.length})</label>
+  host.innerHTML = `<label class="conv-pick-label" for="conv-select">Group chat (${convos.length})</label>
     <select id="conv-select" class="conv-select">${body}</select>`;
   host.querySelector("#conv-select").onchange = (e) => activateConversation(e.target.value, true);
 }
