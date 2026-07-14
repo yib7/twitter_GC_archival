@@ -691,17 +691,17 @@ function mobileSheetClose() {
 // Mirror .nav-item.active onto the tab bar: the four tab views light their own
 // tab; any sheet view lights "More" plus its .sh-item.
 function reflectMobileNav(name) {
-  const tabs = document.querySelectorAll(".tabbar .tab[data-view]");
+  const tabs = document.querySelectorAll(".tabbar .tab[data-tab]");
   if (!tabs.length) return;
   let tabbed = false;
   tabs.forEach((t) => {
-    const on = t.dataset.view === name;
+    const on = t.dataset.tab === name;
     if (on) tabbed = true;
     t.classList.toggle("active", on);
   });
   let inSheet = false;
   document.querySelectorAll(".sheet .sh-item").forEach((it) => {
-    const on = it.dataset.view === name;
+    const on = it.dataset.tab === name;
     if (on) inSheet = true;
     it.classList.toggle("active", on);
   });
@@ -730,15 +730,15 @@ function syncMobileConvPicker() {
   sel.disabled = single;
 }
 function initMobileChrome() {
-  document.querySelectorAll(".tabbar .tab[data-view]").forEach((t) => {
-    t.addEventListener("click", () => setView(t.dataset.view));
+  document.querySelectorAll(".tabbar .tab[data-tab]").forEach((t) => {
+    t.addEventListener("click", () => setView(t.dataset.tab));
   });
   const more = document.getElementById("tab-more");
   if (more) more.addEventListener("click", mobileSheetOpen);
   const scrim = document.getElementById("sheet-scrim");
   if (scrim) scrim.addEventListener("click", mobileSheetClose);
-  document.querySelectorAll(".sheet .sh-item[data-view]").forEach((it) => {
-    it.addEventListener("click", () => { mobileSheetClose(); setView(it.dataset.view); });
+  document.querySelectorAll(".sheet .sh-item[data-tab]").forEach((it) => {
+    it.addEventListener("click", () => { mobileSheetClose(); setView(it.dataset.tab); });
   });
   const rand = document.getElementById("sh-random");
   if (rand) rand.addEventListener("click", () => { mobileSheetClose(); jumpTo(Math.floor(Math.random() * N)); });
