@@ -44,6 +44,9 @@ Wrapped recap, and the stats dashboard (synthetic demo data):
 - Theming: three modes (Light, Dim, and Lights-out, a black-and-blue default),
   with a customizable accent, adjustable density, and a theme shuffle. All
   preferences are saved to `localStorage`.
+- A responsive mobile layout (≤760px): a top app bar, a 5-tab bottom bar
+  (Search / Timeline / Gallery / Stats / More), and a bottom sheet for the
+  remaining views.
 
 Everything runs from `file://`, so you can just double-click `index.html`. The
 included `scripts/server.js` is needed only for the first-run setup wizard
