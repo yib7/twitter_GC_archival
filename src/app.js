@@ -2056,13 +2056,19 @@ function renderStats() {
   let html = `<div class="page"><div class="page-head"><div class="page-title">Stats & overview</div>
     <div class="page-sub">${esc(DAY.format(s.first))} → ${esc(DAY.format(s.last))}</div></div>
     <div class="page-body">
-      <div class="cards">
-        <div class="card"><div class="stat-num accent">${fmtNum(N)}</div><div class="stat-lbl">Messages</div></div>
-        <div class="card"><div class="stat-num">${PARTS.length}</div><div class="stat-lbl">People</div></div>
-        <div class="card"><div class="stat-num">${fmtNum(s.daysActive)}</div><div class="stat-lbl">Active days</div></div>
-        <div class="card"><div class="stat-num">${fmtNum(Math.round(N / s.daysActive))}</div><div class="stat-lbl">Msgs / active day</div></div>
-        <div class="card"><div class="stat-num">${fmtNum(MSGS.filter((m) => m.m).length)}</div><div class="stat-lbl">Media shared</div></div>
-        <div class="card"><div class="stat-num">${fmtNum(days)}</div><div class="stat-lbl">Days span</div></div>
+      <div class="hero">
+        <div class="h-main">
+          <div class="h-eyebrow">Overview</div>
+          <div class="h-num">${fmtNum(N)}</div>
+          <div class="h-sub">messages · ${esc(DAY.format(s.first))} → ${esc(DAY.format(s.last))}</div>
+          <div class="h-inline">
+            <div class="it"><span class="v">${PARTS.length}</span><span class="l">People</span></div>
+            <div class="it"><span class="v">${fmtNum(s.daysActive)}</span><span class="l">Active days</span></div>
+            <div class="it"><span class="v">${fmtNum(Math.round(N / s.daysActive))}</span><span class="l">Msgs / day</span></div>
+            <div class="it"><span class="v">${fmtNum(MSGS.filter((m) => m.m).length)}</span><span class="l">Media</span></div>
+            <div class="it"><span class="v">${fmtNum(days)}</span><span class="l">Days span</span></div>
+          </div>
+        </div>
       </div>
 
       <div class="section"><div class="section-h">Milestones</div>
@@ -2126,7 +2132,7 @@ function renderStats() {
           <div class="card" style="display:flex; align-items:center; gap:12px;">
             ${pfpHtml(x.win.id, "width:40px;height:40px;font-size:16px")}
             <div>
-              <div style="font-weight:600;font-size:14px;">${esc(nameOf(x.win.id))}</div>
+              <div style="font-weight:700;font-size:14px;color:${hueOf(x.win.id).p};">${esc(nameOf(x.win.id))}</div>
               <div class="stat-lbl" style="margin-top:2px;">${esc(x.title)}</div>
               <div style="font-size:11px;color:var(--text-dim);margin-top:2px;">${esc(x.desc)}</div>
             </div>
@@ -2137,13 +2143,13 @@ function renderStats() {
       <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
           <div class="section-h">Average Response Latency</div>
-          <div class="bars" style="background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
             ${latencyRows || '<div class="pop-empty">No response latency data yet.</div>'}
           </div>
         </div>
         <div>
           <div class="section-h">Top Interaction Pairings</div>
-          <div class="bars" style="background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
             ${pairRows || '<div class="pop-empty">No pairing data yet.</div>'}
           </div>
         </div>
@@ -2162,7 +2168,7 @@ function renderStats() {
       <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
           <div class="section-h">The Yapping Index (Avg Words / Message)</div>
-          <div class="bars" style="background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
 `;
   const maxYap = Math.max(1, ...PARTS.map(p => s.yapperStats[p.id] || 0));
   PARTS.forEach(p => {
@@ -2179,7 +2185,7 @@ function renderStats() {
         </div>
         <div>
           <div class="section-h">Double Texting Leaderboard</div>
-          <div class="bars" style="background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
 `;
   const maxDT = Math.max(1, ...PARTS.map(p => s.doubleTextStats[p.id] || 0));
   PARTS.forEach(p => {
@@ -2187,7 +2193,7 @@ function renderStats() {
     if (dt > 0) {
       html += `<div class="bar-row">
         <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
-        <div class="bar-track"><div class="bar-fill" style="width:${(dt / maxDT * 100).toFixed(1)}%; background:#e0245e"></div></div>
+        <div class="bar-track"><div class="bar-fill" style="width:${(dt / maxDT * 100).toFixed(1)}%; background:var(--accent-2)"></div></div>
         <div class="bar-val" style="width:40px; text-align:right;">${fmtNum(dt)}</div>
       </div>`;
     }
@@ -2198,7 +2204,7 @@ function renderStats() {
 
       <div class="section">
         <div class="section-h">Reaction Generosity (Given vs. Received)</div>
-        <div class="bars" style="background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px; display:flex; flex-direction:column; gap:12px;">
+        <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; display:flex; flex-direction:column; gap:12px;">
 `;
   const maxReactTotal = Math.max(1, ...PARTS.map(p => (s.reactionGenerosity[p.id]?.given || 0) + (s.reactionGenerosity[p.id]?.received || 0)));
   PARTS.forEach(p => {
@@ -2207,10 +2213,10 @@ function renderStats() {
       html += `<div class="bar-row" style="align-items:center;">
         <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
         <div style="flex:1; display:flex; gap:4px; font-size:11px; align-items:center;">
-          <div style="width:${(r.given / maxReactTotal * 100).toFixed(1)}%; background:#1da1f2; height:8px; border-radius:4px;" title="Given: ${fmtNum(r.given)}"></div>
-          <span style="color:#1da1f2; font-weight:600; width:30px">${fmtNum(r.given)}</span>
-          <div style="width:${(r.received / maxReactTotal * 100).toFixed(1)}%; background:#17bf63; height:8px; border-radius:4px;" title="Received: ${fmtNum(r.received)}"></div>
-          <span style="color:#17bf63; font-weight:600; width:30px">${fmtNum(r.received)}</span>
+          <div style="width:${(r.given / maxReactTotal * 100).toFixed(1)}%; background:var(--accent); height:8px; border-radius:4px;" title="Given: ${fmtNum(r.given)}"></div>
+          <span style="color:var(--accent); font-weight:600; width:30px">${fmtNum(r.given)}</span>
+          <div style="width:${(r.received / maxReactTotal * 100).toFixed(1)}%; background:var(--success); height:8px; border-radius:4px;" title="Received: ${fmtNum(r.received)}"></div>
+          <span style="color:var(--success); font-weight:600; width:30px">${fmtNum(r.received)}</span>
         </div>
       </div>`;
     }
@@ -2221,7 +2227,7 @@ function renderStats() {
       <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
           <div class="section-h">Vocabulary Size (Unique Words)</div>
-          <div class="bars" style="background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
 `;
   const maxVocab = Math.max(1, ...PARTS.map(p => s.scholarStats[p.id] || 0));
   PARTS.forEach(p => {
@@ -2238,7 +2244,7 @@ function renderStats() {
         </div>
         <div>
           <div class="section-h">Platform Links Shared</div>
-          <div class="bars" style="background:var(--bg-1); border:1px solid var(--line); border-radius:var(--radius); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
 `;
   const maxPlat = Math.max(1, ...PARTS.map(p => {
     const pt = s.platformStats[p.id];
@@ -2335,8 +2341,11 @@ function renderStats() {
   });
 
   if (window.Chart) {
-    Chart.defaults.color = 'rgba(255,255,255,0.6)';
-    Chart.defaults.borderColor = 'rgba(255,255,255,0.1)';
+    // Theme-aware chart text + gridlines (read the resolved tokens so charts work
+    // in light/dim/lightsout; they refresh to the current theme on each re-render).
+    const _cv = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    Chart.defaults.color = _cv('--text-dim') || 'rgba(255,255,255,0.6)';
+    Chart.defaults.borderColor = _cv('--border') || 'rgba(255,255,255,0.1)';
     const ctxM = document.getElementById("chart-months").getContext("2d");
     statCharts.push(new Chart(ctxM, {
       type: 'bar',
@@ -2560,7 +2569,7 @@ function renderSettings() {
         <div class="set-row"><div><div class="set-label">Show timestamps</div></div>
           <div class="set-control"><label class="switch"><input type="checkbox" id="set-ts" ${settings.timestamps ? "checked" : ""}><span class="track"></span></label></div></div>
         <div class="set-row"><div><div class="set-label">Timezone</div><div class="set-desc">How timestamps are formatted.</div></div>
-          <div class="set-control"><select id="set-tz" style="background:var(--bg-2);border:1px solid var(--line);color:var(--text);padding:8px;border-radius:8px;font-family:var(--font);font-size:14px;outline:0;cursor:pointer;">
+          <div class="set-control"><select id="set-tz" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:var(--font);font-size:14px;outline:0;cursor:pointer;">
             <option value="UTC" ${settings.timezone === "UTC" ? "selected" : ""}>UTC (Original Data)</option>
             <option value="local" ${settings.timezone === "local" ? "selected" : ""}>Browser Local Time</option>
             <option value="America/New_York" ${settings.timezone === "America/New_York" ? "selected" : ""}>US Eastern (EST/EDT)</option>
@@ -3405,7 +3414,7 @@ function openProfileModal(id) {
   modal.innerHTML = `
     <div class="profile-card">
       <div class="profile-cover">
-        ${pfpHtml(id, "border:4px solid var(--bg-1)")}
+        ${pfpHtml(id, "border:4px solid var(--bg-panel)")}
         <button class="profile-card-close">✕</button>
       </div>
       <div class="profile-info">
