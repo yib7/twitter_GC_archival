@@ -176,6 +176,47 @@ function go(n) {
     li.classList.toggle("done", s < n);
   });
   if (n === 3) loadParts();
+  if (n === 4) renderFinishReceipt();
+}
+
+// Presentation-only summary card on the Finish step (mock-setup .receipt).
+// Reads only state the wizard already holds: `groups` from the build, the
+// active group's roster (PARTS, when step 3 loaded it), and saved names/pfps.
+function renderFinishReceipt() {
+  const host = $("#fin-receipt");
+  if (!host) return;
+  if (!groups.length) { host.hidden = true; return; }
+  const kept = groups.filter((g) => !state.ignoredGroups[String(g.id)]);
+  const removed = groups.length - kept.length;
+  const total = kept.reduce((a, g) => a + Number(g.count || 0), 0);
+  const g = groups.find((x) => String(x.id) === state.group) || groups[0];
+  const e = state.gc[String(g.id)] || {};
+  const nm = e.name || g.title || "Group " + String(g.id).slice(-4);
+  const markStyle = e.photo ? ` style="background-image:url('${e.photo}')"` : "";
+
+  const keptParts = PARTS.filter((p) => !state.ignored[p.id]);
+  const stack = keptParts.slice(0, 6).map((p) => {
+    const pfp = state.pfps[p.id] || savedPfpPaths[p.id];
+    const style = pfp
+      ? `background-image:url('${pfp}')`
+      : `background:${colorOf(p.id)}`;
+    const txt = pfp ? "" : escapeHtml(initials(state.names[p.id] || "User " + String(p.id).slice(-4)));
+    return `<span class="fr-av" style="${style}">${txt}</span>`;
+  }).join("");
+  const more = keptParts.length > 6 ? `<span class="fr-more">+${keptParts.length - 6} more</span>` : "";
+
+  host.innerHTML =
+    `<div class="fr-head"><span class="fr-mark"${markStyle}></span>` +
+    `<div><div class="fr-name">${escapeHtml(nm)}</div>` +
+    `<div class="fr-sub">${groups.length > 1 ? escapeHtml(String(kept.length)) + " group chats kept" : "group chat"}</div></div>` +
+    `<span class="fr-tag">Ready</span></div>` +
+    `<div class="fr-lines">` +
+    `<div class="fr-line"><span class="rl">Messages</span><span class="rv blue">${total.toLocaleString()}</span></div>` +
+    (keptParts.length ? `<div class="fr-line"><span class="rl">People</span><span class="rv">${keptParts.length}</span></div>` : "") +
+    (removed ? `<div class="fr-line"><span class="rl">Groups excluded</span><span class="rv">${removed}</span></div>` : "") +
+    `</div>` +
+    (stack ? `<div class="fr-people">${stack}${more}</div>` : "");
+  host.hidden = false;
 }
 $$("[data-next]").forEach((b) => b.onclick = () => {
   if (step === 1 && !built) { flash($("#src-result"), "Build the archive before continuing.", "err"); return; }

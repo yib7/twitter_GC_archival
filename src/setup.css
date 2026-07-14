@@ -51,7 +51,8 @@
 .setup-steps li.done::after { background: linear-gradient(90deg, var(--accent), var(--accent-soft)); }
 
 .setup-pane { display: none; }
-.setup-pane.active { display: block; }
+.setup-pane.active { display: block; animation: fade 0.28s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .setup-pane h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.01em; margin: 0 0 8px; }
 .setup-opt { font-size: 12px; font-weight: 600; color: var(--text-faint); }
 .setup-p { color: var(--text-dim); font-size: 14px; line-height: 1.55; margin: 0 0 16px; }
@@ -76,6 +77,58 @@
 .setup-req {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
   color: var(--accent); background: var(--accent-glow); padding: 1px 6px; border-radius: 5px;
+}
+
+/* ---- Finish hero + success seal (mock-setup .receipt-hero/.seal) ---------- */
+.setup-finhero { text-align: center; padding: 6px 0 18px; }
+.setup-seal {
+  width: 66px; height: 66px; border-radius: 50%; margin: 0 auto 14px;
+  display: grid; place-items: center;
+  background: linear-gradient(145deg, var(--success), color-mix(in srgb, var(--success) 78%, #000));
+  box-shadow: 0 10px 34px -10px color-mix(in srgb, var(--success) 50%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+.setup-seal svg { width: 32px; height: 32px; color: #04150f; stroke-width: 2.4; }
+.setup-pane.active .setup-seal { animation: sealPop 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+@keyframes sealPop { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+.fin-title { font-size: 23px; font-weight: 800; letter-spacing: -0.01em; margin-bottom: 6px; }
+.fin-sub { margin: 0; }
+
+/* ---- Finish receipt (mock-setup .receipt) --------------------------------- */
+.fin-receipt {
+  background: var(--bg-inset); border: 1px solid var(--border); border-radius: var(--radius-card);
+  overflow: hidden; margin-top: 4px;
+}
+.fr-head { display: flex; align-items: center; gap: 12px; padding: 15px 17px; border-bottom: 1px dashed var(--border-lift); }
+.fr-mark {
+  width: 34px; height: 34px; border-radius: 9px; flex: 0 0 auto;
+  background: linear-gradient(145deg, var(--accent-soft), var(--accent-deep));
+  background-size: cover; background-position: center;
+}
+.fr-name { font-size: 15px; font-weight: 700; }
+.fr-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+.fr-tag {
+  margin-left: auto; font-size: 11px; font-weight: 700; color: var(--success);
+  background: var(--success-bg); border: 1px solid color-mix(in srgb, var(--success) 34%, transparent);
+  padding: 5px 11px; border-radius: var(--radius-pill);
+}
+.fr-lines { padding: 6px 17px 12px; }
+.fr-line { display: flex; align-items: center; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid var(--border); }
+.fr-line:last-child { border-bottom: 0; }
+.fr-line .rl { font-size: 13px; color: var(--text-dim); }
+.fr-line .rv { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.fr-line .rv.blue { color: var(--accent-soft); }
+.fr-people { display: flex; align-items: center; padding: 12px 17px 15px; }
+.fr-av {
+  width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 11px; font-weight: 700; color: #fff; margin-right: -9px;
+  border: 2px solid var(--bg-inset); background-size: cover; background-position: center;
+}
+.fr-more { margin-left: 18px; font-size: 12.5px; color: var(--text-faint); }
+
+/* Filled source path → mock .filepick.filled success tint */
+.setup-pickrow .setup-input:not(:placeholder-shown) {
+  border-color: color-mix(in srgb, var(--success) 42%, var(--border-lift));
+  background: linear-gradient(90deg, var(--success-bg), transparent 70%);
 }
 
 .setup-actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
