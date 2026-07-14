@@ -2,6 +2,19 @@
 
 All notable changes to this project are recorded here.
 
+## v1.2.0 (2026-07-14)
+
+### Changed
+
+- Restyled the whole interface to X's design language: a three-mode theme
+  switch (Light, Dim, and Lights-out, defaulting to Lights-out), X-style
+  message bubbles with per-person avatar colors, an X nav rail, and refreshed
+  stat tiles, command palette, and setup wizard. Behavior, data, and settings
+  are unchanged; this is a visual refresh.
+- The theme is now saved under its own `gca.theme` key. The old dark-intensity
+  control is replaced by the Light/Dim/Lights-out modes; accent color, font
+  size, and density remain customizable.
+
 ## v1.1.0 (2026-07-11)
 
 ### Added
@@ -117,6 +130,7 @@ First public release.
 - Synthetic demo data (`data.sample.js`) so the repository runs with no real
   data committed.
 
+[v1.2.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.2.0
 [v1.1.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.1.0
 [v1.0.2]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.2
 [v1.0.1]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.1
