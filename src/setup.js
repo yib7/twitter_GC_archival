@@ -458,6 +458,20 @@ $("#reset-go").onclick = async () => {
   }
 };
 
+/* ---- theme switch (mirrors app.js: key gca.theme, default lightsout) ------ */
+(function initTheme() {
+  const KEY = "gca.theme", THEMES = ["light", "dim", "lightsout"];
+  function get() { try { const t = localStorage.getItem(KEY); if (THEMES.indexOf(t) !== -1) return t; } catch (e) { /* ignore */ } return "lightsout"; }
+  function set(t) {
+    if (THEMES.indexOf(t) === -1) t = "lightsout";
+    document.documentElement.setAttribute("data-theme", t);
+    try { localStorage.setItem(KEY, t); } catch (e) { /* ignore */ }
+    $$(".theme-switch button").forEach((b) => b.classList.toggle("on", b.dataset.set === t));
+  }
+  set(get());
+  $$(".theme-switch button").forEach((b) => b.addEventListener("click", () => set(b.dataset.set)));
+})();
+
 go(1);
 loadStatus();
 })();
