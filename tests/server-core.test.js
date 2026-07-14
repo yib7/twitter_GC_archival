@@ -202,7 +202,7 @@ test("isServablePath allows anything under /src/, /lib/, /sample_media/", () => 
   assert.equal(isServablePath("/src/app.js"), true);
   assert.equal(isServablePath("/src/styles.css"), true);
   assert.equal(isServablePath("/lib/fuse.min.js"), true);
-  assert.equal(isServablePath("/lib/fonts/plus-jakarta-sans-latin.woff2"), true);
+  assert.equal(isServablePath("/lib/chart.min.js"), true);
   assert.equal(isServablePath("/sample_media/avatar-1.svg"), true);
 });
 

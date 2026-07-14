@@ -9,4 +9,3 @@
 
 # Vendored binaries: leave bytes untouched.
 lib/*.min.js -text
-*.woff2 binary

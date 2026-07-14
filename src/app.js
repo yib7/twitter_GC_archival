@@ -3692,7 +3692,7 @@ function exportQuoteCard(i) {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d");
-  const FONT = '"Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif';
+  const FONT = '"Chirp", "TwitterChirp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
   // Word-wrap the body text at 26px
   ctx.font = '400 26px ' + FONT;

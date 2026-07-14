@@ -22,21 +22,9 @@ Powers the fuzzy search and the search filters.
 
 Renders the charts in the Stats view.
 
-## Plus Jakarta Sans
-
-- License: SIL Open Font License 1.1
-- Copyright (c) The Plus Jakarta Sans Project Authors (Tokotype)
-- Site: https://github.com/tokotype/PlusJakartaSans
-- Files: `lib/fonts/plus-jakarta-sans-latin.woff2`,
-  `lib/fonts/plus-jakarta-sans-latin-ext.woff2` (latin + latin-ext subsets of
-  the variable font, weights 400-700)
-
-The interface typeface, vendored so the app loads it offline instead of fetching
-from Google Fonts. The OFL permits this bundling and redistribution.
-
 ---
 
 Everything else in this repository (the viewer, the build and setup scripts, the
 synthetic sample data, and the placeholder SVG media) is original work released
-under the MIT License in [LICENSE](LICENSE). The three bundled licenses above
-(Apache-2.0, MIT, and OFL-1.1) are permissive and compatible with that release.
+under the MIT License in [LICENSE](LICENSE). The two bundled licenses above
+(Apache-2.0 and MIT) are permissive and compatible with that release.

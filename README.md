@@ -188,7 +188,6 @@ scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware
 scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
 lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored
-lib/fonts/          Plus Jakarta Sans (OFL-1.1), vendored for offline use
 data.sample.js      committed synthetic demo data
 sample_media/       committed placeholder media
 docs/               architecture notes

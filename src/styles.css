@@ -1,7 +1,6 @@
 /* Fonts: the X --font token uses the system UI stack (X's "Chirp" is
    proprietary and not bundled), so no @font-face is needed and the app stays
-   fully offline — exactly like the mockups. The previously-bundled Plus Jakarta
-   Sans woff2 files under lib/fonts/ are no longer referenced by the app shell. */
+   fully offline, exactly like the mockups. */
 
 /* =========================================================================
    Group Chat Archive — X design tokens.
