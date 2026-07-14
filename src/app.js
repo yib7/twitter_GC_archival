@@ -2549,7 +2549,7 @@ function renderSettings() {
     <div class="page-body">
 
       <div class="set-group">
-        <div class="set-row"><div><div class="set-label">Accent color</div><div class="set-desc">Stays black + blue; pick a shade or a custom color.</div></div>
+        <div class="set-row"><div><div class="set-label">Accent color</div><div class="set-desc">Pick a preset shade or a custom color.</div></div>
           <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" value="${esc(settings.accent)}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">🎲 Shuffle</button></div></div>
         <div class="set-row"><div><div class="set-label">Theme</div><div class="set-desc">X's Light, Dim, or Lights out.</div></div>
           <div class="set-control"><div class="seg" id="set-theme">
@@ -3077,7 +3077,7 @@ function appendGalleryPage() {
 const STOPWORDS = new Set("the a an and or but to of in on at for with is are was were be been being am i you he she it we they them me my your our this that these those have has had do does did not no so if as up out get got go gonna just like dont didnt cant wont im youre theyre thats whats here there all any some more most then than too very can could would should will shall may might must about into over under again only also even still much many lol lmao lmaooo yeah yea nah ok okay haha hahaha bro man dude what when who whom how why which whose oh uh um yo idk imo tbh".split(/\s+/));
 
 /* ===========================================================================
-   THEME SHUFFLE (surprise me — stays black + blue)
+   THEME SHUFFLE (surprise me — random theme + accent)
    ======================================================================== */
 function shuffleTheme() {
   settings.accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)];

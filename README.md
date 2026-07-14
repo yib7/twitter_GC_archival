@@ -13,7 +13,7 @@ internet. Have several group chats? A picker switches between them.
 > `data.sample.js`. Point it at your own export to see your real history (kept
 > local and `.gitignore`d).
 
-![Group Chat Archive search view on the black and blue theme: a fuzzy search for the misspelled "hilarous" highlights the matching text in several "that's hilarious" messages from the synthetic Demo Squad chat](docs/screenshot.png)
+![Group Chat Archive search view on the default dark Lights-out theme: a fuzzy search for the misspelled "hilarous" highlights the matching text in several "that's hilarious" messages from the synthetic Demo Squad chat](docs/screenshot.png)
 
 A quick tour through search, the timeline, the media gallery, Hall of Fame, the
 Wrapped recap, and the stats dashboard (synthetic demo data):
@@ -41,7 +41,8 @@ Wrapped recap, and the stats dashboard (synthetic demo data):
 - A Pinned view that collects bookmarked messages from every group chat, a
   Cmd/Ctrl-K command palette, a Time Capsule ("on this day"), Random Quote,
   context-peek, and quote-card PNG export.
-- Theming: black and blue, customizable accent, density, and theme shuffle. All
+- Theming: three modes (Light, Dim, and Lights-out, a black-and-blue default),
+  with a customizable accent, adjustable density, and a theme shuffle. All
   preferences are saved to `localStorage`.
 
 Everything runs from `file://`, so you can just double-click `index.html`. The
@@ -180,7 +181,7 @@ local override.
 index.html          app shell + script loading
 setup.html          first-run setup wizard (served)
 src/app.js          all UI logic (vanilla JS, no framework)
-src/styles.css      black + blue theme
+src/styles.css      theme tokens + app styles (Light / Dim / Lights out)
 src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
 scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)

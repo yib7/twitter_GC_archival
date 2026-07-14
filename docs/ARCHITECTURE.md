@@ -67,7 +67,7 @@ Server endpoints:
 | `setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard (served). Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Loads `data.sample.js` first, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/app.js`. |
 | `src/app.js` | The entire UI. See "Runtime model" below. |
-| `src/styles.css` | Black + blue theme, CSS variables for accent/density/intensity. |
+| `src/styles.css` | App styles + the X design-token theme system: `html[data-theme]` blocks for Light, Dim, and Lights out. Accent, font size, and density stay JS-driven CSS variables. |
 | `scripts/server.js` | Static file server with HTTP range support (for video) **plus** the setup-wizard API (`/api/source`, `/api/parts`, `/api/identity`). Not required for daily use, the app runs from `file://`. |
 | `lib/` | Vendored Fuse.js (Apache-2.0) + Chart.js (MIT), and `lib/fonts/` Plus Jakarta Sans (OFL-1.1) so the UI font loads offline with no Google Fonts request. |
 
