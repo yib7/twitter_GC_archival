@@ -3067,7 +3067,16 @@ function renderConvPicker() {
   host.querySelector("#conv-select").onchange = (e) => activateConversation(e.target.value, true);
 }
 
+function updateSetupUrlInfo() {
+  // If the server injected the actual URL, use it; otherwise default message stays.
+  if (window.GCA_SERVER_URL) {
+    const el = document.getElementById("setup-url-note");
+    if (el) el.textContent = window.GCA_SERVER_URL + "/setup.html";
+  }
+}
+
 function init() {
+  updateSetupUrlInfo();
   applyTheme();
   initTheme();
   updateBrand();
@@ -3141,7 +3150,7 @@ function maybeShowOnboarding() {
       </div>
       <div class="onboard-note">The wizard needs the local server: run
         <code>node scripts/server.js</code> and open
-        <code>localhost:8765/setup.html</code>.</div>
+        <code><span id="setup-url-note">localhost:8765/setup.html</span></code>.</div>
       <div class="onboard-actions">
         <a class="btn primary" href="setup.html">Open setup wizard</a>
         <button class="btn ghost" id="onboard-people">Go to People tab</button>

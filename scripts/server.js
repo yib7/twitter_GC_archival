@@ -393,6 +393,9 @@ function serveStatic(req, res) {
       res.writeHead(404); return res.end("not found");
     }
     const type = TYPES[path.extname(file).toLowerCase()] || "application/octet-stream";
+    // For HTML files served from the server, inject the server URL so client code
+    // can use it instead of hardcoding localhost and the port.
+    const isHtmlFile = type === "text/html" && (p === "/index.html" || p === "/setup.html");
     const range = req.headers.range;
     if (range && /^bytes=/.test(range)) {
       const m = /^bytes=(\d*)-(\d*)$/.exec(range);
@@ -418,6 +421,27 @@ function serveStatic(req, res) {
       });
       if (req.method === "HEAD") return res.end();
       fs.createReadStream(file, { start, end }).pipe(res);
+    } else if (isHtmlFile) {
+      // Read HTML, inject server URL config, send modified version
+      fs.readFile(file, "utf8", (err, data) => {
+        if (err) {
+          res.writeHead(500);
+          return res.end("internal server error");
+        }
+        const serverUrl = "http://" + HOST + ":" + PORT;
+        const injectedData = data.replace(
+          "</head>",
+          `<script>window.GCA_SERVER_URL="${serverUrl}";</script>\n</head>`
+        );
+        const body = Buffer.from(injectedData, "utf8");
+        res.writeHead(200, {
+          "Content-Type": type,
+          "Content-Length": body.length,
+          "Accept-Ranges": "bytes",
+          "X-Content-Type-Options": "nosniff",
+        });
+        res.end(body);
+      });
     } else {
       res.writeHead(200, { "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
       if (req.method === "HEAD") return res.end();

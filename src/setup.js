@@ -231,11 +231,14 @@ function flash(host, html, cls) { host.hidden = false; host.className = "setup-r
 // cryptic "Failed to fetch" — so detect that and say exactly what to do.
 const SERVED = location.protocol === "http:" || location.protocol === "https:";
 function needServer(host) {
+  const setupUrl = window.GCA_SERVER_URL
+    ? window.GCA_SERVER_URL + "/setup.html"
+    : "http://localhost:8765/setup.html";
   flash(host,
     "This page is open as a <b>local file</b>, but the setup wizard must run " +
     "<b>through the local server</b>. Start it and reopen this page there:" +
     "<br><br>1. <code>node scripts/server.js</code>" +
-    "<br>2. open <code>http://localhost:8765/setup.html</code>", "err");
+    "<br>2. open <code>" + setupUrl + "</code>", "err");
 }
 if (!SERVED) needServer($("#src-result"));
 
