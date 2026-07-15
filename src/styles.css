@@ -78,7 +78,7 @@ html[data-theme="light"]{
 .theme-switch button:hover{background:var(--hover);color:var(--text)}
 .theme-switch button.on{background:var(--accent);color:#fff}
 .theme-switch svg{width:17px;height:17px;stroke-width:1.9}
-@media (max-width:760px){.theme-switch{bottom:74px}}
+@media (max-width:760px){.theme-switch{bottom:140px}}
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
