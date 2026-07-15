@@ -37,6 +37,8 @@ exports/
 # Local environment overrides (the app needs none, but never commit one if added)
 .env
 .env.*
+# But DO track the example file so users know what vars are available
+!.env.example
 
 # Editor / IDE / tool / AI session files — never published
 .claude/
