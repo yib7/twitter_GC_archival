@@ -2,6 +2,40 @@
 
 All notable changes to this project are recorded here.
 
+## v1.3.0 (2026-07-16)
+
+### Added
+
+- The timeline gained sticky date dividers, richer link previews, an "On this
+  day" toast, and a toolbar with the message count and a jump-to-date control.
+- Stats count up on load and show a messages-per-month sparkline above the tiles.
+- Wrapped is now a story-mode recap: step through segmented slides with themed
+  backdrops, animated counters, and per-person bars.
+- The command palette groups results by type (views, actions, theme, people,
+  saved searches, dates), highlights the matched text, and shows avatars.
+- A layout for narrow screens: a top bar with the conversation picker, a
+  five-tab bottom bar, and a "More" sheet for the remaining views.
+
+### Changed
+
+- The setup wizard has smoother step transitions, a success animation, and a
+  summary of the archive it built.
+- Motion honors the system "reduce motion" setting and pauses while the tab is
+  hidden.
+
+### Fixed
+
+- The setup server prints a clear message when its port is already in use,
+  instead of a raw stack trace.
+- Screen readers now announce every form control and gallery image: the settings
+  options, the Word Battles person pickers, the photo uploaders, and the media
+  grid all carry proper labels.
+
+### Security
+
+- The setup wizard escapes server error text before showing it, closing a
+  reflected-markup gap.
+
 ## v1.2.0 (2026-07-14)
 
 ### Changed
@@ -130,6 +164,7 @@ First public release.
 - Synthetic demo data (`data.sample.js`) so the repository runs with no real
   data committed.
 
+[v1.3.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.3.0
 [v1.2.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.2.0
 [v1.1.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.1.0
 [v1.0.2]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.2
