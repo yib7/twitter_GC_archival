@@ -450,7 +450,7 @@ function serveStatic(req, res) {
   });
 }
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const [url, qs] = req.url.split("?");
   try {
     if (req.method === "GET" && url === "/api/ping") { notePing(); return sendJSON(res, 200, { ok: true }); }
@@ -465,7 +465,26 @@ http.createServer(async (req, res) => {
     return sendJSON(res, e.statusCode || 500, { error: String(e && e.message || e) });
   }
   serveStatic(req, res);
-}).listen(PORT, HOST, () => {
+});
+// Bind errors (port already taken, permission denied) would otherwise throw an
+// uncaught exception and dump a raw stack trace. Turn the common cases into a
+// clear, actionable message and exit cleanly instead.
+server.on("error", (err) => {
+  if (err && err.code === "EADDRINUSE") {
+    console.error(
+      "\nPort " + PORT + " is already in use — the Group Chat Archive may already be running." +
+      "\nOpen  http://" + HOST + ":" + PORT + "/setup.html  in your browser, or stop the other" +
+      "\nprocess and try again. To use a different port, set GCA_PORT (e.g. GCA_PORT=9000).");
+  } else if (err && err.code === "EACCES") {
+    console.error(
+      "\nCan't bind to port " + PORT + " — permission denied." +
+      "\nPick a port above 1024 with GCA_PORT (e.g. GCA_PORT=9000) and try again.");
+  } else {
+    console.error("\nServer failed to start: " + (err && err.message || err));
+  }
+  process.exit(1);
+});
+server.listen(PORT, HOST, () => {
   const setupUrl = "http://" + HOST + ":" + PORT + "/setup.html";
   console.log(
     "Group Chat Archive running at  http://" + HOST + ":" + PORT +
