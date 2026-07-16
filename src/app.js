@@ -1320,7 +1320,7 @@ function galleryCell(i) {
   // is neither "img" nor "vid", so it must not fall into the video branch
   // (which renders an empty, broken <video>). Reuse renderMedia's file-chip
   // markup instead of forking a third pattern.
-  if (m.k === "img") { const img = el("img"); img.loading = "lazy"; img.src = m.m; c.appendChild(img); }
+  if (m.k === "img") { const img = el("img"); img.loading = "lazy"; img.src = m.m; img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t); c.appendChild(img); }
   else if (m.k === "vid") { const v = document.createElement("video"); v.src = m.m; v.preload = "metadata"; c.appendChild(v); c.appendChild(el("div", "play", "▶")); }
   else { const chip = renderMedia(m, i); chip.classList.add("gallery-cell"); c.appendChild(chip); }
   c.title = nameOf(m.s) + " · " + DT.format(m.t);
@@ -2607,6 +2607,7 @@ function personCard(p) {
   const av = el("div", "av"); applyPfp(av, p.id);
   const file = document.createElement("input");
   file.type = "file"; file.accept = "image/*"; file.className = "pfp-file";
+  file.setAttribute("aria-label", (PFPS[p.id] ? "Change" : "Add") + " photo for " + nameOf(p.id));
   const pick = el("button", "btn sm ghost pfp-pick", PFPS[p.id] ? "Change photo" : "Add photo");
   pick.onclick = () => file.click();
   file.addEventListener("change", () => {
@@ -2749,7 +2750,7 @@ function renderSettings() {
 
       <div class="set-group">
         <div class="set-row"><div><div class="set-label">Accent color</div><div class="set-desc">Pick a preset shade or a custom color.</div></div>
-          <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" value="${esc(settings.accent)}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">${cmdIco("random")} Shuffle</button></div></div>
+          <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" aria-label="Custom accent color" value="${esc(settings.accent)}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">${cmdIco("random")} Shuffle</button></div></div>
         <div class="set-row"><div><div class="set-label">Theme</div><div class="set-desc">X's Light, Dim, or Lights out.</div></div>
           <div class="set-control"><div class="seg" id="set-theme">
             <button data-v="light">Light</button><button data-v="dim">Dim</button><button data-v="lightsout">Lights out</button>
@@ -2758,7 +2759,7 @@ function renderSettings() {
 
       <div class="set-group">
         <div class="set-row"><div><div class="set-label">Font size</div><div class="set-desc">${settings.fontSize}px</div></div>
-          <div class="set-control"><input type="range" id="set-font" min="13" max="19" step="1" value="${settings.fontSize}"></div></div>
+          <div class="set-control"><input type="range" id="set-font" aria-label="Font size" min="13" max="19" step="1" value="${settings.fontSize}"></div></div>
         <div class="set-row"><div><div class="set-label">Density</div><div class="set-desc">Spacing between messages.</div></div>
           <div class="set-control"><div class="seg" id="set-density">
             <button data-v="comfortable">Comfortable</button><button data-v="compact">Compact</button>
@@ -2768,7 +2769,7 @@ function renderSettings() {
         <div class="set-row"><div><div class="set-label">Show timestamps</div></div>
           <div class="set-control"><label class="switch"><input type="checkbox" id="set-ts" ${settings.timestamps ? "checked" : ""}><span class="track"></span></label></div></div>
         <div class="set-row"><div><div class="set-label">Timezone</div><div class="set-desc">How timestamps are formatted.</div></div>
-          <div class="set-control"><select id="set-tz" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:var(--font);font-size:14px;outline:0;cursor:pointer;">
+          <div class="set-control"><select id="set-tz" aria-label="Timezone" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:var(--font);font-size:14px;outline:0;cursor:pointer;">
             <option value="UTC" ${settings.timezone === "UTC" ? "selected" : ""}>UTC (Original Data)</option>
             <option value="local" ${settings.timezone === "local" ? "selected" : ""}>Browser Local Time</option>
             <option value="America/New_York" ${settings.timezone === "America/New_York" ? "selected" : ""}>US Eastern (EST/EDT)</option>
@@ -2801,7 +2802,7 @@ function renderSettings() {
           <div class="set-control"><button class="btn ghost" id="set-export">Export JSON</button></div></div>
         <div class="set-row"><div><div class="set-label">Import settings</div><div class="set-desc">Restore settings from a previously saved JSON file.</div></div>
           <div class="set-control">
-            <input type="file" id="set-import-file" accept=".json" style="display:none;">
+            <input type="file" id="set-import-file" accept=".json" aria-label="Import settings JSON file" style="display:none;">
             <button class="btn ghost" id="set-import">Import JSON</button>
           </div></div>
       </div>
@@ -2859,6 +2860,7 @@ function renderSettings() {
     mid.appendChild(name);
     mid.appendChild(el("div", "gc-item-meta", esc(convLabel(c)) + " · " + fmtNum(c.count) + " messages"));
     const file = document.createElement("input"); file.type = "file"; file.accept = "image/*"; file.style.display = "none";
+    file.setAttribute("aria-label", (effPhoto ? "Change" : "Add") + " photo for " + convLabel(c));
     const pick = el("button", "btn sm ghost", effPhoto ? "Change photo" : "Add photo");
     pick.onclick = () => file.click();
     file.addEventListener("change", () => {
@@ -4440,12 +4442,12 @@ function renderBattles() {
     <div class="battle-selectors">
       <div class="battle-picker">
         ${battleP1 ? pfpHtml(battleP1, "width:40px;height:40px;font-size:15px") : ""}
-        <select id="battle-p1">${pOpts}</select>
+        <select id="battle-p1" aria-label="First person to compare">${pOpts}</select>
       </div>
       <div class="battle-vs">VS</div>
       <div class="battle-picker">
         ${battleP2 ? pfpHtml(battleP2, "width:40px;height:40px;font-size:15px") : ""}
-        <select id="battle-p2">${pOpts}</select>
+        <select id="battle-p2" aria-label="Second person to compare">${pOpts}</select>
       </div>
     </div>
     <div class="battle-custom" style="margin:16px 0;">
