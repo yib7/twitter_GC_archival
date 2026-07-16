@@ -62,16 +62,6 @@ PLAN.md
 # Brainstorming / design specs (work-in-progress notes, reference private data)
 docs/superpowers/
 
-# Ship checklist (internal planning doc)
-final.md
-
-# Internal model-usage planning note (references the project's private roadmap)
-fable_5_plan.md
-
-# Internal audit report snapshots (superseded once findings are triaged into
-# .autopilot/DECISIONS.md and docs/superpowers/specs/)
-NEW_UPDATES.md
-
 # OS / editor noise
 .DS_Store
 Thumbs.db
