@@ -59,6 +59,7 @@ Run smoke checks after installing dev dependencies:
 
 ```bash
 npm install
+npx playwright install chromium   # one-time: the smoke tests drive a headless browser
 npm run test:smoke
 ```
 
