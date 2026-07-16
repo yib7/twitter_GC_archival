@@ -63,7 +63,7 @@ Server endpoints:
 | File | Role |
 |------|------|
 | `scripts/build.js` | Node script and the filesystem shell around `build-core.js`. Wizard-driven (requires `personal_data/config.json`; exits otherwise): reads the export file(s), calls `assembleConversations()`, and writes `personal_data/data.js`. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only, 1:1 DMs (id shape `a-b`) are skipped. |
-| `scripts/build-core.js` | The pure archive-assembly logic (no filesystem I/O), so it can be unit-tested in isolation (`tests/build-core.test.js`). Folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, and — when the headers file is supplied — folds `direct-message-group-headers.js` (metadata only: it adds no messages but completes each conversation's participant roster and join/leave/name events). Also owns `collectParticipants` (used by the server's `/api/parts`) and the `X_LINK` regex kept in sync with `app.js`. |
+| `scripts/build-core.js` | The pure archive-assembly logic (no filesystem I/O), so it can be unit-tested in isolation (`tests/build-core.test.js`). Folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, and, when the headers file is supplied, folds `direct-message-group-headers.js` (metadata only: it adds no messages but completes each conversation's participant roster and join/leave/name events). Also owns `collectParticipants` (used by the server's `/api/parts`) and the `X_LINK` regex kept in sync with `app.js`. |
 | `scripts/make_sample.js` | Node script. Deterministic synthetic-data generator → `data.sample.js` (3 group chats, ~130 messages, tagged `__sample`) plus placeholder SVG media/avatars. Zero real data. |
 | `setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard (served). Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Loads `data.sample.js` first, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/app.js`. |
@@ -146,7 +146,7 @@ bottom bar (Search / Timeline / Gallery / Stats / More), and a bottom "More"
 sheet holding the remaining views. `initMobileChrome()` wires the tab bar,
 sheet, and top-bar conversation `<select>`; `reflectMobileNav()` mirrors the
 active view onto the tab bar (or lights "More" when the active view lives in
-the sheet). Desktop and non-DOM contexts are unaffected — the whole layer is
+the sheet). Desktop and non-DOM contexts are unaffected; the whole layer is
 `display:none` above the breakpoint.
 
 ### Local data
