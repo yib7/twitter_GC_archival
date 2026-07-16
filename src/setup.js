@@ -255,7 +255,7 @@ async function pick(kind, fill, which) {
     fill(j.path);
     $("#src-result").hidden = true;
   } catch (e) {
-    flash($("#src-result"), "✗ " + e.message + " — is the server running? (node scripts/server.js)", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
   }
 }
 $("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value = p; }, "group");
@@ -306,7 +306,7 @@ $("#btn-build").onclick = async () => {
   try {
     const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupJs, headersJs, mediaDir }) });
     const j = await r.json();
-    if (!r.ok) { flash($("#src-result"), "✗ " + (j.error || "Build failed"), "err"); return; }
+    if (!r.ok) { flash($("#src-result"), "✗ " + escapeHtml(j.error || "Build failed"), "err"); return; }
     built = true;
     groups = j.groups || [];
     state.group = groups[0] ? String(groups[0].id) : "";
@@ -320,7 +320,7 @@ $("#btn-build").onclick = async () => {
     lockSource(true);
     go(2);
   } catch (e) {
-    flash($("#src-result"), "✗ " + e.message + " — is the server running? (node scripts/server.js)", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
   }
 };
 
@@ -460,13 +460,13 @@ $("#btn-save").onclick = async () => {
       body: JSON.stringify({ me: state.me, gc: state.gc, names, pfps, ignoredUsers, ignoredGroups: Object.keys(state.ignoredGroups) }),
     });
     const j = await r.json();
-    if (!r.ok) { flash($("#finish-result"), "✗ " + (j.error || "Save failed"), "err"); return; }
+    if (!r.ok) { flash($("#finish-result"), "✗ " + escapeHtml(j.error || "Save failed"), "err"); return; }
     flash($("#finish-result"),
       `✓ Saved <b>${j.names}</b> name(s) and <b>${j.pfps}</b> photo(s)` +
       (j.ignored ? ` and removed <b>${j.ignored}</b> user(s)` : "") +
       `. <a href="index.html">Open your archive →</a>`, "ok");
   } catch (e) {
-    flash($("#finish-result"), "✗ " + e.message, "err");
+    flash($("#finish-result"), "✗ " + escapeHtml(e.message), "err");
   }
 };
 
@@ -494,11 +494,11 @@ $("#reset-go").onclick = async () => {
   try {
     const r = await fetch("/api/reset", { method: "POST" });
     const j = await r.json();
-    if (!r.ok) { flash(out, "✗ " + (j.error || "Reset failed"), "err"); return; }
+    if (!r.ok) { flash(out, "✗ " + escapeHtml(j.error || "Reset failed"), "err"); return; }
     flash(out, "✓ Erased. Restarting setup…", "ok");
     setTimeout(() => location.reload(), 600);
   } catch (e) {
-    flash(out, "✗ " + e.message, "err");
+    flash(out, "✗ " + escapeHtml(e.message), "err");
   }
 };
 
