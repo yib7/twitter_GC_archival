@@ -144,12 +144,20 @@ function isLoopbackHostname(hostname) {
 // non-browser client) is returned as-is with no port guessed, rather than
 // mis-splitting on the wrong colon — it will simply fail the loopback-name
 // check downstream since it won't equal "::1".
+// A MALFORMED bracket (a "[" or "]" present but the full bracketed form above
+// doesn't match — e.g. "[::1" with no closing "]") is rejected outright
+// (return null → 403). Otherwise it would fall through to the bare-string
+// branch and, because isLoopbackHostname() strips a stray leading "[", "[::1"
+// would normalize to "::1" and be wrongly ALLOWED. Brackets are only ever
+// legitimate in the fully-matched "[v6]"/"[v6]:port" form, so any other
+// bracket is a malformed/hostile Host header.
 function parseHostHeader(hostHeader) {
   if (typeof hostHeader !== "string") return null;
   const s = hostHeader.trim();
   if (!s) return null;
   const bracketed = /^\[([^\]]*)\](?::(\d+))?$/.exec(s);
   if (bracketed) return { hostname: bracketed[1], port: bracketed[2] ? Number(bracketed[2]) : null };
+  if (s.includes("[") || s.includes("]")) return null;   // unmatched bracket → malformed, reject
   const firstColon = s.indexOf(":");
   const lastColon = s.lastIndexOf(":");
   if (firstColon !== -1 && firstColon === lastColon && /^\d+$/.test(s.slice(lastColon + 1))) {

@@ -360,6 +360,32 @@ test("isAllowedHost accepts a loopback Host header with no port (defensive, not 
   assert.equal(isAllowedHost("127.0.0.1", 8765), true);
 });
 
+// Anti-bypass: a Host that merely CONTAINS a loopback label as a substring/
+// subdomain ("localhost.evil.com") is an attacker domain, not loopback — the
+// check must be exact-name equality, never a prefix/substring match.
+test("isAllowedHost rejects a domain that only has a loopback name as a subdomain label", () => {
+  assert.equal(isAllowedHost("localhost.evil.com", 8765), false);
+  assert.equal(isAllowedHost("localhost.evil.com:8765", 8765), false);
+  assert.equal(isAllowedHost("127.0.0.1.evil.com:8765", 8765), false);
+});
+
+// Anti-bypass regression: a MALFORMED bracketed Host ("[::1" with no closing
+// "]", "[localhost", "[127.0.0.1") must be rejected. Before the fix,
+// parseHostHeader fell through to the bare-string branch and isLoopbackHostname
+// stripped the stray leading "[", so "[::1" normalized to "::1" and was wrongly
+// ALLOWED (verified live: `Host: [::1` returned 200). Brackets are only ever
+// valid in the fully-matched "[v6]"/"[v6]:port" form.
+test("isAllowedHost rejects a malformed bracketed Host (unmatched brackets)", () => {
+  assert.equal(isAllowedHost("[::1", 8765), false);
+  assert.equal(isAllowedHost("[localhost", 8765), false);
+  assert.equal(isAllowedHost("[127.0.0.1", 8765), false);
+  assert.equal(isAllowedHost("::1]", 8765), false);
+  assert.equal(isAllowedHost("[::1]extra", 8765), false);
+  // The valid bracketed forms must still be accepted (no regression).
+  assert.equal(isAllowedHost("[::1]", 8765), true);
+  assert.equal(isAllowedHost("[::1]:8765", 8765), true);
+});
+
 // isAllowedOrigin: the CSRF guard on state-changing routes only. A same-origin
 // no-CORS GET (or a non-browser client like curl) never sets Origin/Referer,
 // so absence must be allowed — but a cross-origin fetch() always carries an
@@ -394,4 +420,13 @@ test("isAllowedOrigin rejects a same-hostname Origin on the wrong port", () => {
 test("isAllowedOrigin rejects a malformed Origin/Referer rather than throwing", () => {
   assert.equal(isAllowedOrigin("not-a-url", undefined, 8765), false);
   assert.equal(isAllowedOrigin(undefined, "not-a-url", 8765), false);
+});
+
+// Anti-bypass: Origin is the browser-authoritative CSRF signal and takes
+// priority. A foreign Origin must be rejected even when the request also
+// carries a legit-looking (loopback) Referer — an attacker can freely set
+// Referer via referrerpolicy/meta, but the browser controls Origin, so a
+// present foreign Origin is dispositive and the Referer must NOT rescue it.
+test("isAllowedOrigin rejects a foreign Origin even when a legit-looking Referer is present", () => {
+  assert.equal(isAllowedOrigin("http://evil.com", "http://127.0.0.1:8765/legit", 8765), false);
 });

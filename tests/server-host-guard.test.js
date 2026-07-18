@@ -91,6 +91,17 @@ test("a loopback-resolving attacker domain in Host gets 403 on the reset route",
   assert.deepEqual(fs.readdirSync(tmpDir), listBefore);
 });
 
+// Anti-bypass regression: a malformed bracketed Host ("[::1" with no closing
+// bracket) used to normalize to a loopback name and be ALLOWED (verified live:
+// returned 200). It must now 403 at the server just like the unit test asserts.
+test("a malformed bracketed Host ([::1 with no closing bracket) gets 403 on the reset route", async () => {
+  const listBefore = fs.readdirSync(tmpDir);
+  const res = await rawRequest("/api/reset", { method: "POST", host: "[::1" });
+  assert.equal(res.status, 403);
+  assert.match(res.body, /forbidden host/);
+  assert.deepEqual(fs.readdirSync(tmpDir), listBefore);
+});
+
 test("the exact CSRF scenario — legit Host, foreign Origin, POST /api/reset — gets 403 and never runs", async () => {
   const listBefore = fs.readdirSync(tmpDir);
   const res = await rawRequest("/api/reset", { method: "POST", origin: "http://evil.com" });
