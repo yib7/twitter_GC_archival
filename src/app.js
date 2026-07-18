@@ -1442,7 +1442,7 @@ document.addEventListener("click", (e) => { if (!e.target.closest(".popwrap")) c
    ======================================================================== */
 let tlBuilt = false, tlEls = {}, virtObs = null;
 const CHUNK_SIZE = 50;
-let numChunks = 0, chunkHeights = [], chunkRendered = [];
+let numChunks = 0, chunkHeights = [], chunkRendered = [], eventBuckets = [];
 
 function ensureTimelineShell() {
   if (tlBuilt) return;
@@ -1473,7 +1473,7 @@ function ensureTimelineShell() {
   // conversation has the SAME chunk count as the last one, openTimeline() would
   // otherwise skip rebuilding the chunk divs and leave the timeline blank
   // (P2-5 follow-on: cross-conversation pin jumps land on this path).
-  numChunks = 0; chunkHeights = []; chunkRendered = [];
+  numChunks = 0; chunkHeights = []; chunkRendered = []; eventBuckets = [];
 
   virtObs = new IntersectionObserver((entries) => {
     entries.forEach(e => {
@@ -1509,6 +1509,23 @@ function openTimeline(anchor) {
        tlEls.list.appendChild(c);
        virtObs.observe(c);
     }
+    // P1-1/P2-4: bucket every system event to exactly one chunk here, once,
+    // instead of re-scanning all of EVENTS against each chunk's message-time
+    // envelope on every renderChunk() call. Owning chunk = chunk of the first
+    // message at-or-after the event's time (binary search over MSGS, which
+    // is sorted ascending by t) — this also naturally places pre-first-message
+    // events (create/name, fired before MSGS[0].t) into chunk 0, and gap
+    // events into the chunk of the next message, with no boundary duplicate.
+    eventBuckets = Array.from({ length: numChunks }, () => []);
+    EVENTS.forEach((e) => {
+      let lo = 0, hi = N;
+      while (lo < hi) {
+        const mid = (lo + hi) >>> 1;
+        if (MSGS[mid].t < e.t) lo = mid + 1; else hi = mid;
+      }
+      const chunkIdx = lo < N ? Math.floor(lo / CHUNK_SIZE) : numChunks - 1;
+      eventBuckets[chunkIdx].push(e);
+    });
   }
   if (anchor == null) anchor = 0;
   const chunkIdx = Math.floor(anchor / CHUNK_SIZE);
@@ -1540,12 +1557,10 @@ function renderChunk(idx, container) {
   container.innerHTML = "";
   const start = idx * CHUNK_SIZE;
   const end = Math.min(start + CHUNK_SIZE, N);
-  const lo = MSGS[start].t;
-  const hi = end < N ? MSGS[end - 1].t : MSGS[N - 1].t;
 
   const items = [];
   for (let i = start; i < end; i++) items.push({ t: MSGS[i].t, kind: "m", i });
-  EVENTS.forEach((e) => { if (e.t >= lo && e.t <= hi) items.push({ t: e.t, kind: "e", e }); });
+  (eventBuckets[idx] || []).forEach((e) => items.push({ t: e.t, kind: "e", e }));
   items.sort((a, b) => a.t - b.t);
 
   let prevDay = null;
