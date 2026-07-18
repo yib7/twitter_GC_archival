@@ -5,10 +5,17 @@ const { test, expect } = require("@playwright/test");
 // This spec freezes the *rendered* stats surface on the repo sample data
 // (data.sample.js) so that deletion can never change what users see:
 //   (a) the Stats view's "Superlatives & Fun Stats" grid renders exactly the
-//       same 27 cards (count + every title, in order), and
+//       same 29 cards (count + every title, in order), and
 //   (b) profile modals keep their badge and stat lines byte-identical.
 // Captured from a pre-deletion run at HEAD 1d8080a; it must pass both before
 // and after the dead-stat removal.
+//
+// Updated for P1-2 (fix(stats): compare reaction keys not emoji glyphs):
+// "The Laugh Track" and "The Hater" now render too, since the sample
+// generator guarantees funny/disagree reactions and the comparison bug that
+// zeroed both counters (comparing r.k against emoji glyphs instead of the
+// reaction key) is fixed. They land between "The Ignored" and "Gratitude
+// King", matching the fixed render order in src/app.js.
 
 // Every card the sample data renders in the Superlatives grid, in DOM order.
 const EXPECTED_CARD_TITLES = [
@@ -18,6 +25,7 @@ const EXPECTED_CARD_TITLES = [
   "Weekend Warrior", "The Work Slacker", "The Ghost", "The Ghoster",
   "The Flash", "The Scholar", "The Novelist", "The Early Bird",
   "Vampiric Owl", "The Deserter", "Crowd Pleaser", "The Ignored",
+  "The Laugh Track", "The Hater",
   "Gratitude King", "The Optimist", "The Zoomer",
 ];
 

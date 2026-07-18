@@ -1756,8 +1756,8 @@ function computeStats() {
       reactsCount[m.s] = (reactsCount[m.s] || 0) + m.r.length;
       m.r.forEach(r => {
          reactorCount[r.s] = (reactorCount[r.s] || 0) + 1;
-         if (r.k === "😂" || r.k === "😭") laughReactCount[r.s] = (laughReactCount[r.s] || 0) + 1;
-         if (r.k === "👎" || r.k === "😡" || r.k === "🤡" || r.k === "🤬") hateReactCount[r.s] = (hateReactCount[r.s] || 0) + 1;
+         if (r.k === "funny") laughReactCount[r.s] = (laughReactCount[r.s] || 0) + 1;
+         if (r.k === "disagree") hateReactCount[r.s] = (hateReactCount[r.s] || 0) + 1;
       });
     } else {
       zeroReactCount[m.s] = (zeroReactCount[m.s] || 0) + 1;

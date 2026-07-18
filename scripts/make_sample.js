@@ -63,7 +63,7 @@ const LONGER = [
   "remember when we stayed up until 4am arguing about the most random stuff, good times",
   "just wanted to say thanks for always being down to hang, means a lot fr",
 ];
-const REACTS = ["funny", "like", "agree", "excited", "surprised", "emoji"];
+const REACTS = ["funny", "like", "agree", "disagree", "excited", "surprised", "emoji"];
 
 /* ---- conversation factory ------------------------------------------------ */
 let clock = Date.parse("2024-01-06T15:00:00Z");
@@ -86,6 +86,14 @@ function makeMessages(participants, n, opts) {
       const howMany = 1 + Math.floor(rnd() * Math.min(3, reactors.length));
       for (let j = 0; j < howMany; j++) r.push({ k: pick(REACTS), s: pick(reactors) });
       if (r.length) rec.r = r;
+    }
+    // Guarantee at least one "funny" and one "disagree" reaction per
+    // conversation (deterministic, not left to chance()) so the "Laugh
+    // Track" / "The Hater" superlatives always have a winner to render (P1-2).
+    const reactors = participants.filter((p) => p !== s);
+    if (reactors.length) {
+      if (k === 0) rec.r = (rec.r || []).concat([{ k: "funny", s: reactors[0] }]);
+      if (k === 1) rec.r = (rec.r || []).concat([{ k: "disagree", s: reactors[0] }]);
     }
     msgs.push(rec);
   }
