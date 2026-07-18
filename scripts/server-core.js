@@ -120,6 +120,86 @@ function isServablePath(urlPath) {
   return SERVABLE_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
+// Loopback hostname allowlist shared by isAllowedHost (raw Host header) and
+// isAllowedOrigin (parsed Origin/Referer URL). Bracket-stripped and lowercased
+// before the lookup, so it matches both "::1" (out of parseHostHeader, which
+// already strips brackets) and "[::1]" (the WHATWG URL API's own .hostname
+// serialization for IPv6, which KEEPS the brackets) with one definition.
+const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "localhost", "::1"]);
+function isLoopbackHostname(hostname) {
+  const h = String(hostname == null ? "" : hostname).toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+  return LOOPBACK_HOSTNAMES.has(h);
+}
+
+// Parse a raw `Host` request-header value into { hostname, port } (port is
+// `null` when absent), or `null` when the header is missing/empty. Handles the
+// three shapes we actually need to tell apart:
+//   "host"          → { hostname: "host", port: null }
+//   "host:port"      → { hostname: "host", port: Number(port) }   (exactly one colon, numeric tail)
+//   "[v6]" / "[v6]:port" → bracketed IPv6, the only unambiguous way to combine
+//                          a literal IPv6 address (which itself contains colons)
+//                          with a port
+// A bare, unbracketed multi-colon string (an IPv6 literal with no brackets,
+// which is not valid per RFC 3986/7230 but could still arrive from a
+// non-browser client) is returned as-is with no port guessed, rather than
+// mis-splitting on the wrong colon — it will simply fail the loopback-name
+// check downstream since it won't equal "::1".
+function parseHostHeader(hostHeader) {
+  if (typeof hostHeader !== "string") return null;
+  const s = hostHeader.trim();
+  if (!s) return null;
+  const bracketed = /^\[([^\]]*)\](?::(\d+))?$/.exec(s);
+  if (bracketed) return { hostname: bracketed[1], port: bracketed[2] ? Number(bracketed[2]) : null };
+  const firstColon = s.indexOf(":");
+  const lastColon = s.lastIndexOf(":");
+  if (firstColon !== -1 && firstColon === lastColon && /^\d+$/.test(s.slice(lastColon + 1))) {
+    return { hostname: s.slice(0, lastColon), port: Number(s.slice(lastColon + 1)) };
+  }
+  return { hostname: s, port: null };
+}
+
+// Loopback Host-header allowlist, checked on EVERY request (server.js does this
+// first, before routing). The Host header's hostname must be one of our
+// loopback names; if it carries a port, that port must equal ours. This is
+// what stops DNS rebinding: an attacker's DNS name can be made to resolve to
+// 127.0.0.1, but the browser still sends that attacker name (not "127.0.0.1")
+// in the Host header, so checking the NAME (not the IP the socket connected
+// to) is what catches it. A missing/malformed Host header is rejected, not
+// treated as "no opinion" — legitimate requests (browser or the loopback
+// smoke/e2e tests) always send one.
+function isAllowedHost(hostHeader, port) {
+  const parsed = parseHostHeader(hostHeader);
+  if (!parsed || !isLoopbackHostname(parsed.hostname)) return false;
+  return parsed.port == null || parsed.port === port;
+}
+
+// Does `urlString` (an Origin or Referer header value) parse as our own
+// loopback origin on `port`? Used only by isAllowedOrigin below. Any parse
+// failure (missing scheme, garbage text, etc.) is a reject, never a throw.
+function isOwnLoopbackUrl(urlString, port) {
+  let u;
+  try { u = new URL(urlString); } catch (e) { return false; }
+  if (u.protocol !== "http:") return false;
+  if (!isLoopbackHostname(u.hostname)) return false;
+  const p = u.port ? Number(u.port) : 80;
+  return p === port;
+}
+
+// CSRF guard for state-changing routes only (server.js applies this after
+// isAllowedHost, and only to the guarded route set). A same-origin, non-CORS
+// GET — and any non-browser client (curl, the native app talking to itself)
+// — never sets Origin or Referer, so their absence must be ALLOWED. But a
+// cross-origin browser request always carries an Origin the page itself
+// cannot spoof or suppress, so any PRESENT value must match our own loopback
+// origin; Referer is the fallback when Origin is absent (older browsers /
+// some same-site navigations omit Origin on GETs but still send Referer).
+// Origin takes priority over Referer when both are present.
+function isAllowedOrigin(originHeader, refererHeader, port) {
+  if (typeof originHeader === "string" && originHeader) return isOwnLoopbackUrl(originHeader, port);
+  if (typeof refererHeader === "string" && refererHeader) return isOwnLoopbackUrl(refererHeader, port);
+  return true;
+}
+
 // The command + args to open `url` in the platform's default browser, used by the
 // `--open` launcher flag so a double-clicked start-setup script pops the wizard.
 function openerCommand(platform, url) {
@@ -158,4 +238,4 @@ function makeLiveness(idleMs, clock) {
   };
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES };
+module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
-const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES } = require("./server-core.js");
+const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -450,9 +450,27 @@ function serveStatic(req, res) {
   });
 }
 
+// State-changing routes (writes to disk or spawns a blocking native dialog) —
+// these get the Origin/Referer CSRF check on top of the universal Host check.
+// The two picker GETs are included even though they're GETs: they freeze the
+// event loop with a blocking native dialog, so a cross-origin page spamming
+// them is a DoS + dialog-spoofing vector, not a harmless read.
+const GUARDED = new Set(["/api/reset", "/api/source", "/api/identity", "/api/pick-file", "/api/pick-folder"]);
+
 const server = http.createServer(async (req, res) => {
   const [url, qs] = req.url.split("?");
   try {
+    // Loopback Host allowlist — every request, before any routing. Blocks DNS
+    // rebinding (an attacker domain resolving to 127.0.0.1 still sends its own
+    // name in Host) and any request that didn't actually target this server.
+    if (!isAllowedHost(req.headers.host, PORT)) return sendJSON(res, 403, { error: "forbidden host" });
+    // CSRF guard on state-changing routes: a cross-origin fetch() always
+    // carries a browser-set Origin (unspoofable from page JS), so a PRESENT
+    // foreign Origin/Referer is the attack signal; same-origin requests never
+    // send one for a same-origin no-CORS call, so absence stays allowed.
+    if (GUARDED.has(url) && !isAllowedOrigin(req.headers.origin, req.headers.referer, PORT)) {
+      return sendJSON(res, 403, { error: "forbidden origin" });
+    }
     if (req.method === "GET" && url === "/api/ping") { notePing(); return sendJSON(res, 200, { ok: true }); }
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }

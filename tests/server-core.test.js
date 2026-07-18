@@ -2,7 +2,7 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
 const fs = require("node:fs");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES } = require("../scripts/server-core.js");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("../scripts/server-core.js");
 
 // A controllable clock so elapsed time can be simulated deterministically.
 function fakeClock(start) {
@@ -317,4 +317,81 @@ test("OPTIONAL_OVERRIDES are all allowlisted and match index.html's script probe
   const probes = [...html.matchAll(/<script\s+src="([^"]+)"\s+onerror=/g)].map((m) => "/" + m[1]);
   assert.ok(probes.length > 0, "expected to find optional <script onerror> probes in index.html");
   assert.deepEqual(new Set(probes), OPTIONAL_OVERRIDES, "index.html optional probes and OPTIONAL_OVERRIDES have drifted");
+});
+
+// isAllowedHost: the Host header allowlist checked on EVERY request. Without
+// this, DNS rebinding (an attacker-controlled domain that resolves to
+// 127.0.0.1) makes a remote page same-origin against this server for every
+// route, defeating the browser's own same-origin protections entirely.
+test("isAllowedHost accepts loopback hostnames on our own port", () => {
+  assert.equal(isAllowedHost("127.0.0.1:8765", 8765), true);
+  assert.equal(isAllowedHost("localhost:8765", 8765), true);
+  assert.equal(isAllowedHost("[::1]:8765", 8765), true);
+});
+
+test("isAllowedHost rejects a non-loopback Host regardless of port", () => {
+  assert.equal(isAllowedHost("evil.com", 8765), false);
+  assert.equal(isAllowedHost("evil.com:8765", 8765), false);
+  assert.equal(isAllowedHost("attacker.com:8765", 8765), false);
+});
+
+// DNS-rebinding: an attacker domain that resolves to 127.0.0.1 still carries
+// its own name in the Host header — the header string is never rewritten by
+// the rebind, only the DNS answer is — so name-checking (not IP-checking)
+// stops it.
+test("isAllowedHost rejects a loopback-resolving attacker domain (DNS rebind)", () => {
+  assert.equal(isAllowedHost("rebind.attacker.com:8765", 8765), false);
+});
+
+test("isAllowedHost rejects a loopback hostname on the wrong port", () => {
+  assert.equal(isAllowedHost("127.0.0.1:9999", 8765), false);
+  assert.equal(isAllowedHost("localhost:9999", 8765), false);
+  assert.equal(isAllowedHost("[::1]:9999", 8765), false);
+});
+
+test("isAllowedHost rejects an absent/empty Host header", () => {
+  assert.equal(isAllowedHost(undefined, 8765), false);
+  assert.equal(isAllowedHost("", 8765), false);
+  assert.equal(isAllowedHost(null, 8765), false);
+});
+
+test("isAllowedHost accepts a loopback Host header with no port (defensive, not our normal traffic)", () => {
+  assert.equal(isAllowedHost("localhost", 8765), true);
+  assert.equal(isAllowedHost("127.0.0.1", 8765), true);
+});
+
+// isAllowedOrigin: the CSRF guard on state-changing routes only. A same-origin
+// no-CORS GET (or a non-browser client like curl) never sets Origin/Referer,
+// so absence must be allowed — but a cross-origin fetch() always carries an
+// Origin the browser itself sets (unspoofable from page JS), so any PRESENT
+// foreign value is the actual attack signal and must be rejected.
+test("isAllowedOrigin allows when neither Origin nor Referer is present", () => {
+  assert.equal(isAllowedOrigin(undefined, undefined, 8765), true);
+  assert.equal(isAllowedOrigin("", "", 8765), true);
+});
+
+test("isAllowedOrigin allows our own loopback Origin", () => {
+  assert.equal(isAllowedOrigin("http://127.0.0.1:8765", undefined, 8765), true);
+  assert.equal(isAllowedOrigin("http://localhost:8765", undefined, 8765), true);
+});
+
+test("isAllowedOrigin rejects a foreign Origin", () => {
+  assert.equal(isAllowedOrigin("http://evil.com", undefined, 8765), false);
+});
+
+test("isAllowedOrigin rejects a foreign Referer when Origin is absent", () => {
+  assert.equal(isAllowedOrigin(undefined, "http://evil.com/attack.html", 8765), false);
+});
+
+test("isAllowedOrigin allows our own loopback Referer when Origin is absent", () => {
+  assert.equal(isAllowedOrigin(undefined, "http://127.0.0.1:8765/setup.html", 8765), true);
+});
+
+test("isAllowedOrigin rejects a same-hostname Origin on the wrong port", () => {
+  assert.equal(isAllowedOrigin("http://127.0.0.1:9999", undefined, 8765), false);
+});
+
+test("isAllowedOrigin rejects a malformed Origin/Referer rather than throwing", () => {
+  assert.equal(isAllowedOrigin("not-a-url", undefined, 8765), false);
+  assert.equal(isAllowedOrigin(undefined, "not-a-url", 8765), false);
 });
