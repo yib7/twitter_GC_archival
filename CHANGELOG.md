@@ -2,6 +2,43 @@
 
 All notable changes to this project are recorded here.
 
+## v1.4.0 (unreleased) — code-audit remediation
+
+### Added
+
+- Custom-emoji DM reactions now show the actual emoji instead of a generic
+  placeholder.
+- Two Stats superlatives that never used to appear — "The Laugh Track" and
+  "The Hater" — now show up (they were comparing reaction keys to the wrong
+  values and always scored zero).
+
+### Fixed
+
+- The timeline now renders system events (created the conversation, named the
+  group, joins, and leaves) that happen before the first message or in a quiet
+  stretch between screens, instead of silently dropping them.
+- A corrupt or ported timezone setting no longer stops the app from starting —
+  it falls back to UTC.
+- Copying a message now reports "Copy failed" instead of a false "Copied" when
+  the clipboard is unavailable or denied.
+- The setup wizard no longer silently overwrites media files that share a
+  filename across different folders, and stays responsive while copying large
+  media libraries.
+
+### Changed
+
+- Internal cleanup with no behavior change: the Stats superlatives are now
+  data-driven, shared constants live in a single module, and a redundant
+  per-render count was removed.
+
+### Security
+
+- The setup server now rejects requests with a foreign Host header or a
+  cross-origin Origin/Referer, closing a cross-site path to the destructive
+  reset endpoint and a DNS-rebinding exposure.
+- Added a Content-Security-Policy (served mode) as a second line of defense
+  behind the existing output escaping.
+
 ## v1.3.0 (2026-07-16)
 
 ### Added
