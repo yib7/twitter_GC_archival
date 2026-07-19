@@ -1932,137 +1932,100 @@ function computeStats() {
     if (days[k] > busy[1]) busy = [k, days[k]];
   }
 
-  // Calculate final metrics for each user to determine who wins each superlative
-  let owlWinner = { id: null, val: -1 };
-  let emojiWinner = { id: null, val: -1 };
-  let mediaWinner = { id: null, val: -1 };
-  let reactsWinner = { id: null, val: -1 };
-  let swearWinner = { id: null, val: -1 };
-  let capsWinner = { id: null, val: -1 };
-  let questionWinner = { id: null, val: -1 };
-  let narcissistWinner = { id: null, val: -1 };
-  let comedianWinner = { id: null, val: -1 };
-  let reactorWinner = { id: null, val: -1 };
-  let linkWinner = { id: null, val: -1 };
-  let starterWinner = { id: null, val: -1 };
-  let killerWinner = { id: null, val: -1 };
-  let doubleTextWinner = { id: null, val: -1 };
-  let weekendWinner = { id: null, val: -1 };
-  let slackerWinner = { id: null, val: -1 };
-  let yapperWinner = { id: null, val: -1 };
-  let cavemanWinner = { id: null, val: 999999 }; // Lowest avg words
-  let ghosterWinner = { id: null, val: -1 }; // Highest latency
-  let flashWinner = { id: null, val: 999999999 }; // Lowest latency
-  let lurkerWinner = { id: null, val: 999999999 }; // Lowest msgs
-  let scholarWinner = { id: null, val: -1 };
-  let novelistWinner = { id: null, val: -1 };
-  let keysmashWinner = { id: null, val: -1 };
-  let earlyBirdWinner = { id: null, val: -1 };
-  let vampiricOwlWinner = { id: null, val: -1 };
-  let deserterWinner = { id: null, val: -1 };
-  let monologuerWinner = { id: null, val: -1 };
-  let crowdPleaserWinner = { id: null, val: -1 };
-  let ignoredWinner = { id: null, val: -1 };
-  let laughTrackWinner = { id: null, val: -1 };
-  let haterWinner = { id: null, val: -1 };
-  let tiktokWinner = { id: null, val: -1 };
-  let youtubeWinner = { id: null, val: -1 };
-  let twitterWinner = { id: null, val: -1 };
-
-  let gratitudeWinner = { id: null, val: -1 };
-  let laughVoidWinner = { id: null, val: -1 };
-  let exclaimerWinner = { id: null, val: -1 };
-  let midnightSniperWinner = { id: null, val: -1 };
-
-  let optimistWinner = { id: null, val: -1 };
-  let pessimistWinner = { id: null, val: -1 };
-  let zoomerWinner = { id: null, val: -1 };
-  let gamerWinner = { id: null, val: -1 };
-  let financeBroWinner = { id: null, val: -1 };
-
   const yapperStats = {};
   const doubleTextStats = {};
   const reactionGenerosity = {};
   const scholarStats = {};
   const platformStats = {};
 
-  PARTS.forEach(p => {
-    const id = p.id;
-    if (nightCount[id] > owlWinner.val) owlWinner = { id, val: nightCount[id] };
-    if (emojiCount[id] > emojiWinner.val) emojiWinner = { id, val: emojiCount[id] };
-    if (mediaCount[id] > mediaWinner.val) mediaWinner = { id, val: mediaCount[id] };
-    if (reactsCount[id] > reactsWinner.val) reactsWinner = { id, val: reactsCount[id] };
-    if ((swearCount[id]||0) > swearWinner.val) swearWinner = { id, val: swearCount[id]||0 };
-    if ((capsCount[id]||0) > capsWinner.val) capsWinner = { id, val: capsCount[id]||0 };
-    if ((questionCount[id]||0) > questionWinner.val) questionWinner = { id, val: questionCount[id]||0 };
-    if ((narcissistCount[id]||0) > narcissistWinner.val) narcissistWinner = { id, val: narcissistCount[id]||0 };
-    if ((comedianCount[id]||0) > comedianWinner.val) comedianWinner = { id, val: comedianCount[id]||0 };
-    if ((reactorCount[id]||0) > reactorWinner.val) reactorWinner = { id, val: reactorCount[id]||0 };
-    if ((linkCount[id]||0) > linkWinner.val) linkWinner = { id, val: linkCount[id]||0 };
-    if ((starterCount[id]||0) > starterWinner.val) starterWinner = { id, val: starterCount[id]||0 };
-    if ((killerCount[id]||0) > killerWinner.val) killerWinner = { id, val: killerCount[id]||0 };
-    if ((doubleTextCount[id]||0) > doubleTextWinner.val) doubleTextWinner = { id, val: doubleTextCount[id]||0 };
-    if ((weekendCount[id]||0) > weekendWinner.val) weekendWinner = { id, val: weekendCount[id]||0 };
-    if ((slackerCount[id]||0) > slackerWinner.val) slackerWinner = { id, val: slackerCount[id]||0 };
-    
-    if (p.count < lurkerWinner.val && p.count > 0) lurkerWinner = { id, val: p.count };
+  // Every superlative is one row here: how to score a person (`value`), an
+  // optional eligibility `gate`, and — for "lowest wins" stats — the `min`
+  // sentinel to seed with. The derive loop below turns each row into an
+  // `<key>Winner` field, reproducing exactly what the ~45 hand-written
+  // init/update/reset blocks used to produce (same names, values, strict `>`/`<`
+  // tie-breaks — first person in PARTS order wins a tie — and sentinel resets),
+  // so every consumer (the render grid and the profile badges) is untouched.
+  // Two families of max deliberately differ: the first four read the counter RAW
+  // (an absent count is `undefined`, never beats the -1 seed, so the winner can
+  // stay {id:null,val:-1}); the rest coerce with `||0` (an absent count scores 0
+  // and seeds the first person at val 0, which the val>0 render filter hides).
+  const gatedLatency = (id) => responseStats[id] && responseStats[id].count > 0;
+  const SUPERLATIVES = [
+    { key: "owl", value: (id) => nightCount[id] },
+    { key: "emoji", value: (id) => emojiCount[id] },
+    { key: "media", value: (id) => mediaCount[id] },
+    { key: "reacts", value: (id) => reactsCount[id] },
+    { key: "swear", value: (id) => swearCount[id] || 0 },
+    { key: "caps", value: (id) => capsCount[id] || 0 },
+    { key: "question", value: (id) => questionCount[id] || 0 },
+    { key: "narcissist", value: (id) => narcissistCount[id] || 0 },
+    { key: "comedian", value: (id) => comedianCount[id] || 0 },
+    { key: "reactor", value: (id) => reactorCount[id] || 0 },
+    { key: "link", value: (id) => linkCount[id] || 0 },
+    { key: "starter", value: (id) => starterCount[id] || 0 },
+    { key: "killer", value: (id) => killerCount[id] || 0 },
+    { key: "doubleText", value: (id) => doubleTextCount[id] || 0 },
+    { key: "weekend", value: (id) => weekendCount[id] || 0 },
+    { key: "slacker", value: (id) => slackerCount[id] || 0 },
+    { key: "novelist", value: (id) => maxMsgLen[id] || 0 },
+    { key: "keysmash", value: (id) => keysmashCount[id] || 0 },
+    { key: "earlyBird", value: (id) => earlyBirdCount[id] || 0 },
+    { key: "vampiricOwl", value: (id) => vampiricOwlCount[id] || 0 },
+    { key: "deserter", value: (id) => maxGapCount[id] || 0 },
+    { key: "monologuer", value: (id) => monologuerCount[id] || 0 },
+    { key: "laughTrack", value: (id) => laughReactCount[id] || 0 },
+    { key: "hater", value: (id) => hateReactCount[id] || 0 },
+    { key: "tiktok", value: (id) => tiktokCount[id] || 0 },
+    { key: "youtube", value: (id) => youtubeCount[id] || 0 },
+    { key: "twitter", value: (id) => twitterCount[id] || 0 },
+    { key: "gratitude", value: (id) => gratitudeCount[id] || 0 },
+    { key: "laughVoid", value: (id) => laughVoidCount[id] || 0 },
+    { key: "exclaimer", value: (id) => exclaimerCount[id] || 0 },
+    { key: "midnightSniper", value: (id) => midnightSniperCount[id] || 0 },
+    { key: "optimist", value: (id) => optimistCount[id] || 0 },
+    { key: "pessimist", value: (id) => pessimistCount[id] || 0 },
+    { key: "zoomer", value: (id) => zoomerCount[id] || 0 },
+    { key: "gamer", value: (id) => gamerCount[id] || 0 },
+    { key: "financeBro", value: (id) => financeBroCount[id] || 0 },
+    // Derived-value maxes — read the per-person maps populated in the loop below.
+    { key: "scholar", value: (id) => scholarStats[id] },
+    { key: "yapper", value: (id) => yapperStats[id] },
+    { key: "crowdPleaser", value: (id, p) => (p.count ? ((reactsCount[id] || 0) / p.count) : 0) },
+    { key: "ignored", value: (id, p) => (p.count ? ((zeroReactCount[id] || 0) / p.count) * 100 : 0) },
+    { key: "ghoster", gate: gatedLatency, value: (id) => responseStats[id].avg },
+    // Lowest-wins: seed the sentinel, and if nobody is eligible reset to
+    // {id:null,val:0} — byte-identical to the old post-loop sentinel checks.
+    { key: "caveman", min: 999999, gate: (id) => yapperStats[id] > 0, value: (id) => yapperStats[id] },
+    { key: "flash", min: 999999999, gate: gatedLatency, value: (id) => responseStats[id].avg },
+    { key: "lurker", min: 999999999, gate: (id, p) => p.count > 0, value: (id, p) => p.count },
+  ];
 
-    // Wave 2 Winners
-    const uWords = uniqueWords[id] ? uniqueWords[id].size : 0;
-    scholarStats[id] = uWords;
-    if (uWords > scholarWinner.val) scholarWinner = { id, val: uWords };
-
-    if ((maxMsgLen[id]||0) > novelistWinner.val) novelistWinner = { id, val: maxMsgLen[id]||0 };
-
-    if ((keysmashCount[id]||0) > keysmashWinner.val) keysmashWinner = { id, val: keysmashCount[id]||0 };
-    if ((earlyBirdCount[id]||0) > earlyBirdWinner.val) earlyBirdWinner = { id, val: earlyBirdCount[id]||0 };
-    if ((vampiricOwlCount[id]||0) > vampiricOwlWinner.val) vampiricOwlWinner = { id, val: vampiricOwlCount[id]||0 };
-    if ((maxGapCount[id]||0) > deserterWinner.val) deserterWinner = { id, val: maxGapCount[id]||0 };
-    if ((monologuerCount[id]||0) > monologuerWinner.val) monologuerWinner = { id, val: monologuerCount[id]||0 };
-
-    const avgReacts = p.count ? ((reactsCount[id]||0)/p.count) : 0;
-    if (avgReacts > crowdPleaserWinner.val) crowdPleaserWinner = { id, val: avgReacts };
-
-    const pctIgnored = p.count ? ((zeroReactCount[id]||0)/p.count)*100 : 0;
-    if (pctIgnored > ignoredWinner.val) ignoredWinner = { id, val: pctIgnored };
-
-    if ((laughReactCount[id]||0) > laughTrackWinner.val) laughTrackWinner = { id, val: laughReactCount[id]||0 };
-    if ((hateReactCount[id]||0) > haterWinner.val) haterWinner = { id, val: hateReactCount[id]||0 };
-    if ((tiktokCount[id]||0) > tiktokWinner.val) tiktokWinner = { id, val: tiktokCount[id]||0 };
-    if ((youtubeCount[id]||0) > youtubeWinner.val) youtubeWinner = { id, val: youtubeCount[id]||0 };
-    if ((twitterCount[id]||0) > twitterWinner.val) twitterWinner = { id, val: twitterCount[id]||0 };
-
-    if ((gratitudeCount[id]||0) > gratitudeWinner.val) gratitudeWinner = { id, val: gratitudeCount[id]||0 };
-    if ((laughVoidCount[id]||0) > laughVoidWinner.val) laughVoidWinner = { id, val: laughVoidCount[id]||0 };
-    if ((exclaimerCount[id]||0) > exclaimerWinner.val) exclaimerWinner = { id, val: exclaimerCount[id]||0 };
-    if ((midnightSniperCount[id]||0) > midnightSniperWinner.val) midnightSniperWinner = { id, val: midnightSniperCount[id]||0 };
-
-    if ((optimistCount[id]||0) > optimistWinner.val) optimistWinner = { id, val: optimistCount[id]||0 };
-    if ((pessimistCount[id]||0) > pessimistWinner.val) pessimistWinner = { id, val: pessimistCount[id]||0 };
-    if ((zoomerCount[id]||0) > zoomerWinner.val) zoomerWinner = { id, val: zoomerCount[id]||0 };
-    if ((gamerCount[id]||0) > gamerWinner.val) gamerWinner = { id, val: gamerCount[id]||0 };
-    if ((financeBroCount[id]||0) > financeBroWinner.val) financeBroWinner = { id, val: financeBroCount[id]||0 };
-
-    platformStats[id] = { tt: tiktokCount[id]||0, yt: youtubeCount[id]||0, tw: twitterCount[id]||0, ig: instaCount[id]||0 };
-
-    const avgWords = msgWithWords[id] ? (wordsTotal[id] / msgWithWords[id]) : 0;
-    yapperStats[id] = avgWords;
-    if (avgWords > yapperWinner.val) yapperWinner = { id, val: avgWords };
-    if (avgWords > 0 && avgWords < cavemanWinner.val) cavemanWinner = { id, val: avgWords };
-
-    doubleTextStats[id] = doubleTextCount[id] || 0;
-    reactionGenerosity[id] = { given: reactorCount[id] || 0, received: reactsCount[id] || 0 };
-
-    if (responseStats[id] && responseStats[id].count > 0) {
-      const avgLat = responseStats[id].avg;
-      if (avgLat > ghosterWinner.val) ghosterWinner = { id, val: avgLat };
-      if (avgLat < flashWinner.val) flashWinner = { id, val: avgLat };
-    }
+  const winners = {};
+  SUPERLATIVES.forEach((e) => {
+    winners[e.key + "Winner"] = { id: null, val: e.min !== undefined ? e.min : -1 };
   });
 
-  if (cavemanWinner.val === 999999) cavemanWinner = { id: null, val: 0 };
-  if (flashWinner.val === 999999999) flashWinner = { id: null, val: 0 };
-  if (lurkerWinner.val === 999999999) lurkerWinner = { id: null, val: 0 };
+  PARTS.forEach(p => {
+    const id = p.id;
+    // Per-person derived stats the return object and profile modal read directly
+    // (and that scholar/yapper/caveman score off, so populate them before scoring).
+    scholarStats[id] = uniqueWords[id] ? uniqueWords[id].size : 0;
+    yapperStats[id] = msgWithWords[id] ? (wordsTotal[id] / msgWithWords[id]) : 0;
+    doubleTextStats[id] = doubleTextCount[id] || 0;
+    reactionGenerosity[id] = { given: reactorCount[id] || 0, received: reactsCount[id] || 0 };
+    platformStats[id] = { tt: tiktokCount[id]||0, yt: youtubeCount[id]||0, tw: twitterCount[id]||0, ig: instaCount[id]||0 };
+
+    SUPERLATIVES.forEach((e) => {
+      if (e.gate && !e.gate(id, p)) return;
+      const v = e.value(id, p);
+      const w = winners[e.key + "Winner"];
+      if (e.min !== undefined ? v < w.val : v > w.val) winners[e.key + "Winner"] = { id, val: v };
+    });
+  });
+
+  SUPERLATIVES.forEach((e) => {
+    if (e.min !== undefined && winners[e.key + "Winner"].id === null) winners[e.key + "Winner"] = { id: null, val: 0 };
+  });
 
   // Sort interaction pairings
   const topPairs = Object.entries(replyPairStats)
@@ -2084,21 +2047,9 @@ function computeStats() {
     hourCount,
     weekdayCount,
     emojis: Object.entries(emojis).sort((a,b)=>b[1]-a[1]).slice(0, 15),
-    owlWinner,
-    emojiWinner,
-    mediaWinner,
-    reactsWinner,
-    swearWinner, capsWinner, questionWinner, narcissistWinner,
-    comedianWinner, reactorWinner, linkWinner, starterWinner,
-    killerWinner, doubleTextWinner, weekendWinner, slackerWinner,
-    yapperWinner, cavemanWinner, ghosterWinner, flashWinner, lurkerWinner,
-    scholarWinner, novelistWinner, keysmashWinner, earlyBirdWinner,
-    vampiricOwlWinner, deserterWinner, monologuerWinner,
-    crowdPleaserWinner, ignoredWinner, laughTrackWinner,
-    haterWinner, tiktokWinner, youtubeWinner, twitterWinner,
-    gratitudeWinner, laughVoidWinner, exclaimerWinner, midnightSniperWinner,
-    optimistWinner, pessimistWinner, zoomerWinner,
-    gamerWinner, financeBroWinner,
+    // Each SUPERLATIVES row becomes an `<key>Winner` field here — the same names
+    // the render grid and profile badges read (e.g. owlWinner, haterWinner, …).
+    ...winners,
     yapperStats, doubleTextStats, reactionGenerosity,
     scholarStats, platformStats,
     responseStats,
