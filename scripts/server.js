@@ -116,17 +116,23 @@ function decodeDataUrl(url) {
   if (buf.length > MAX_IMAGE_BYTES) throw httpError(413, "Uploaded images must be 10 MB or smaller.");
   return { buf, ext };
 }
+// Flattens srcDir's tree into destDir by basename. Two files sharing a
+// basename in different source subfolders would otherwise silently clobber
+// (last-write-wins, data loss with no signal) — instead, keep the first one
+// encountered and count the rest as skipped so the caller can warn.
 function copyMediaFlat(srcDir, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
-  let n = 0;
+  const taken = new Set();
+  let copied = 0, skipped = 0;
   (function walk(dir) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, e.name);
       if (e.isDirectory()) walk(full);
-      else { fs.copyFileSync(full, path.join(destDir, e.name)); n++; }
+      else if (taken.has(e.name)) { skipped++; }   // duplicate basename → keep first, don't clobber
+      else { fs.copyFileSync(full, path.join(destDir, e.name)); taken.add(e.name); copied++; }
     }
   })(srcDir);
-  return n;
+  return { copied, skipped };
 }
 // Open a native Windows file/folder picker and return the chosen absolute path.
 // `which` ("group" | "headers") only tailors the file dialog's title + filter —
@@ -198,9 +204,15 @@ function apiSource(body, res) {
   cfg.sourceJs = [copyInto(groupAbs)];   // message bodies (build parses these)
   cfg.headersJs = copyInto(headersAbs);  // metadata only (roster + events)
 
-  // media is required → always copied
+  // media is required → always copied. Thousands of files can take a while to
+  // copy synchronously, so bracket it in duringBlocking like the build below —
+  // otherwise the auto-exit watchdog could mistake the frozen event loop for
+  // the browser having closed.
   const mediaDestDir = path.join(PERSONAL, "media");
-  const mediaCopied = copyMediaFlat(mediaAbs, mediaDestDir);
+  const media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir));
+  if (media.skipped > 0) {
+    console.warn("Skipped " + media.skipped + " media file(s) with a basename already used by another file — only the first of each was kept.");
+  }
   cfg.mediaDir = mediaDestDir;
   saveConfig(cfg);
 
@@ -212,7 +224,7 @@ function apiSource(body, res) {
   const data = readBuiltData();
   const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, mediaCopied, groups, totalMsgs, log: buildLog.trim() });
+  sendJSON(res, 200, { ok: true, mediaCopied: media.copied, mediaSkipped: media.skipped, groups, totalMsgs, log: buildLog.trim() });
 }
 
 /* ---- endpoint: participants for the naming step -------------------------- */
@@ -502,18 +514,26 @@ server.on("error", (err) => {
   }
   process.exit(1);
 });
-server.listen(PORT, HOST, () => {
-  const setupUrl = "http://" + HOST + ":" + PORT + "/setup.html";
-  console.log(
-    "Group Chat Archive running at  http://" + HOST + ":" + PORT +
-    "\nFirst-run setup:               " + setupUrl +
-    "\nPress Ctrl+C to stop.");
-  // `--open` (used by the double-click start-setup launchers) pops the wizard in
-  // the default browser. A failed open must never crash the server.
-  if (process.argv.includes("--open")) {
-    try {
-      const { cmd, args } = openerCommand(process.platform, setupUrl);
-      spawn(cmd, args, { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
-    } catch (e) { /* ignore — the URL is printed above */ }
-  }
-});
+// Only actually bind + listen when this file is run directly (`node
+// scripts/server.js`), never when it's require()d — e.g. by tests that want
+// copyMediaFlat() in-process. `server.on("error", ...)` above is a harmless
+// registration either way, so it's left outside the guard.
+if (require.main === module) {
+  server.listen(PORT, HOST, () => {
+    const setupUrl = "http://" + HOST + ":" + PORT + "/setup.html";
+    console.log(
+      "Group Chat Archive running at  http://" + HOST + ":" + PORT +
+      "\nFirst-run setup:               " + setupUrl +
+      "\nPress Ctrl+C to stop.");
+    // `--open` (used by the double-click start-setup launchers) pops the wizard in
+    // the default browser. A failed open must never crash the server.
+    if (process.argv.includes("--open")) {
+      try {
+        const { cmd, args } = openerCommand(process.platform, setupUrl);
+        spawn(cmd, args, { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
+      } catch (e) { /* ignore — the URL is printed above */ }
+    }
+  });
+}
+
+module.exports = { copyMediaFlat };
