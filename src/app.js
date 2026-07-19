@@ -900,10 +900,27 @@ function renderMedia(m, i) {
 }
 function renderReacts(r) {
   const wrap = el("div", "reacts");
-  const byK = {}; r.forEach((x) => { (byK[x.k] = byK[x.k] || []).push(x.s); });
-  Object.keys(byK).forEach((k) => {
-    const c = el("span", "react", (REACT[k] || "•") + ' <span class="who">' + byK[k].length + "</span>");
-    c.title = k + " — " + byK[k].map(nameOf).join(", ");
+  // Group by an effective key that distinguishes custom-emoji glyphs (P2-1):
+  // plain reaction keys ("funny", "like", ...) group as before, but a
+  // captured custom glyph (x.e, only ever set when x.k === "emoji") gets its
+  // own group per distinct glyph instead of collapsing every custom emoji
+  // into one generic REACT.emoji ("💬") bucket.
+  const groups = new Map();   // gk -> { k, e, senders: [] }
+  r.forEach((x) => {
+    const gk = (x.k === "emoji" && x.e) ? "emoji " + x.e : x.k;
+    let g = groups.get(gk);
+    if (!g) { g = { k: x.k, e: x.e, senders: [] }; groups.set(gk, g); }
+    g.senders.push(x.s);
+  });
+  groups.forEach((g) => {
+    // g.e is untrusted export data (X's raw reaction payload) — it MUST be
+    // escaped before it enters innerHTML (via el()) or the title, exactly
+    // like renderText() escapes message bodies. Never insert it raw.
+    const isCustom = g.k === "emoji" && g.e;
+    const glyph = isCustom ? esc(g.e) : (REACT[g.k] || "•");
+    const label = isCustom ? esc(g.e) : g.k;
+    const c = el("span", "react", glyph + ' <span class="who">' + g.senders.length + "</span>");
+    c.title = label + " — " + g.senders.map(nameOf).join(", ");
     wrap.appendChild(c);
   });
   return wrap;

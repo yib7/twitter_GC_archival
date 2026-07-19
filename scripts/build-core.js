@@ -25,7 +25,23 @@ const isGroupId = (id) => !/^\d+-\d+$/.test(String(id));
 function rawToRec(mc) {
   const rec = { i: mc.id, s: mc.senderId, t: toMs(mc.createdAt), x: mc.text || "" };
   if (mc.urls && mc.urls.length) rec.u = mc.urls.map((u) => ({ s: u.url, e: u.expanded, d: u.display }));
-  if (mc.reactions && mc.reactions.length) rec.r = mc.reactions.map((r) => ({ k: r.reactionKey, s: r.senderId }));
+  if (mc.reactions && mc.reactions.length) {
+    rec.r = mc.reactions.map((r) => {
+      const rr = { k: r.reactionKey, s: r.senderId };
+      // Custom-emoji reactions (reactionKey "emoji") carry the actual glyph in a
+      // separate field so it isn't lost to the generic REACT.emoji placeholder
+      // (P2-1). ASSUMPTION: field name `emojiReaction` is taken from X's
+      // documented export schema and has NOT been verified against a real
+      // reaction object's keys (PROJECT HARD RULE forbids touching real
+      // personal_data/exports) — flag for human verification. `r.emoji` is a
+      // defensive fallback in case a differently-shaped export uses that name.
+      if (r.reactionKey === "emoji") {
+        const g = r.emojiReaction || r.emoji;
+        if (g) rr.e = String(g);
+      }
+      return rr;
+    });
+  }
   return rec;
 }
 function toEvent(m) {

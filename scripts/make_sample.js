@@ -94,6 +94,10 @@ function makeMessages(participants, n, opts) {
     if (reactors.length) {
       if (k === 0) rec.r = (rec.r || []).concat([{ k: "funny", s: reactors[0] }]);
       if (k === 1) rec.r = (rec.r || []).concat([{ k: "disagree", s: reactors[0] }]);
+      // Guarantee a custom-emoji reaction (glyph not in REACT, so it's an
+      // unambiguous demo/test of P2-1's capture+render, never mistaken for a
+      // generic reaction key) per conversation, deterministic like the above.
+      if (k === 2) rec.r = (rec.r || []).concat([{ k: "emoji", s: reactors[0], e: "🎉" }]);
     }
     msgs.push(rec);
   }

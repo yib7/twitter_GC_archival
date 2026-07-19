@@ -11,7 +11,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { assembleConversations, isGroupId, kindOf } = require("../scripts/build-core.js");
+const { assembleConversations, isGroupId, kindOf, rawToRec } = require("../scripts/build-core.js");
 
 // ---- helpers to build tiny synthetic export payloads ----------------------
 const iso = (s) => new Date(s).toISOString();
@@ -152,6 +152,42 @@ test("drops messages + roster entries from ignoredUsers", () => {
   assert.equal(g.count, 1);
   assert.deepEqual(g.msgs.map((m) => m.s), ["u1"]);
   assert.ok(!g.participants.includes("bot"));
+});
+
+// ---- custom-emoji reaction capture (P2-1) ----------------------------------
+// X represents an arbitrary-emoji DM reaction with reactionKey:"emoji" and the
+// real glyph in a separate field (assumed `emojiReaction` per X's documented
+// export schema — NOT verified against a real reaction object; flagged for
+// human verification). rawToRec must capture it into rec.r[i].e so the UI can
+// render the actual glyph instead of collapsing every custom emoji into one
+// generic placeholder.
+test("rawToRec captures the custom-emoji glyph (r.emojiReaction) only when reactionKey is 'emoji'", () => {
+  const rec = rawToRec({
+    id: "m1", senderId: "u1", createdAt: iso("2020-05-01T10:00:00Z"), text: "hi",
+    reactions: [
+      { reactionKey: "emoji", emojiReaction: "🎉", senderId: "u2" },
+      { reactionKey: "funny", senderId: "u3" },
+    ],
+  });
+  assert.deepEqual(rec.r[0], { k: "emoji", s: "u2", e: "🎉" });
+  assert.deepEqual(rec.r[1], { k: "funny", s: "u3" });
+  assert.equal("e" in rec.r[1], false, "non-emoji reactions must not gain an `e` field");
+});
+
+test("rawToRec falls back to r.emoji when r.emojiReaction is absent (defensive)", () => {
+  const rec = rawToRec({
+    id: "m2", senderId: "u1", createdAt: iso("2020-05-01T10:00:00Z"), text: "hi",
+    reactions: [{ reactionKey: "emoji", emoji: "🥳", senderId: "u2" }],
+  });
+  assert.equal(rec.r[0].e, "🥳");
+});
+
+test("rawToRec: an 'emoji' reaction with no glyph field at all gets no `e`", () => {
+  const rec = rawToRec({
+    id: "m3", senderId: "u1", createdAt: iso("2020-05-01T10:00:00Z"), text: "hi",
+    reactions: [{ reactionKey: "emoji", senderId: "u2" }],
+  });
+  assert.equal("e" in rec.r[0], false);
 });
 
 // ---- title derivation ------------------------------------------------------
