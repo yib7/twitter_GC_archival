@@ -2,17 +2,13 @@
 (function () {
 "use strict";
 
-// PALETTE/hashId/colorOf/initials: kept in sync with src/app.js (PALETTE,
-// hashId, colorOf, initials) so a person's avatar color/initials match
-// between the wizard and the viewer — update both.
-const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
-function hashId(id) { id = String(id); let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
-const colorOf = (id) => PALETTE[hashId(id) % PALETTE.length];
-function initials(name) {
-  const p = String(name || "").trim().split(/\s+/).filter(Boolean);
-  if (!p.length) return "?";
-  return (p.length === 1 ? p[0].slice(0, 2) : p[0][0] + p[p.length - 1][0]).toUpperCase();
-}
+// Avatar color + initials helpers shared with the viewer (src/app.js) and the
+// Node build live in ONE module, loaded as a <script> before this one
+// (setup.html) — see src/shared-core.js. The wizard's colorOf is the plain
+// palette lookup (no settings.colors override, which is viewer-only).
+/* global GCAShared */
+const { initials, paletteColor } = GCAShared;
+const colorOf = paletteColor;
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 function fileToDataURL(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); }); }

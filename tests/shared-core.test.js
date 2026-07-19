@@ -1,0 +1,142 @@
+// Replaces tests/shared-constants-drift.test.js (P2-11). The old guard existed
+// only because PALETTE / X_LINK / hashId / initials / the colorOf palette-lookup
+// were hand-copied across src/app.js, src/setup.js and scripts/build-core.js — it
+// compared the copies to each other so they couldn't silently drift.
+//
+// P2-7 collapsed those copies into ONE module (src/shared-core.js), so "drift
+// between copies" is no longer possible. This test instead:
+//   1. pins the shared logic — hashId / paletteColor / initials produce exactly
+//      the expected outputs over the same ID/NAME batteries the drift test used,
+//      so a refactor of the single source can't quietly change avatar
+//      colors/initials; and
+//   2. asserts single-source — none of the three consumers still declares its
+//      own PALETTE / X_LINK / hashId / initials, proving the extraction actually
+//      happened and no stale copy was left behind.
+//
+// The expected literals below were derived from an independent reference
+// implementation of the (fixed, deterministic) algorithm — not from the module
+// under test — so they genuinely constrain its behavior.
+
+const test = require("node:test");
+const assert = require("node:assert");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const shared = require("../src/shared-core.js");
+
+const ROOT = path.join(__dirname, "..");
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
+
+/* ---- API surface --------------------------------------------------------- */
+
+test("shared-core exports the full API", () => {
+  for (const k of ["PALETTE", "X_LINK", "hashId", "initials", "paletteColor"]) {
+    assert.ok(k in shared, `src/shared-core.js must export ${k}`);
+  }
+  assert.ok(Array.isArray(shared.PALETTE) && shared.PALETTE.length === 12, "PALETTE is the 12-color array");
+  assert.ok(shared.X_LINK instanceof RegExp, "X_LINK is a RegExp");
+  assert.equal(typeof shared.hashId, "function");
+  assert.equal(typeof shared.initials, "function");
+  assert.equal(typeof shared.paletteColor, "function");
+});
+
+test("PALETTE is the exact 12-color avatar palette", () => {
+  assert.deepStrictEqual(shared.PALETTE, [
+    "#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4",
+    "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308",
+  ]);
+});
+
+test("X_LINK matches Twitter/X links (and not plain text)", () => {
+  assert.equal(shared.X_LINK.source, "(?:https?:\\/\\/)?(?:t\\.co|(?:[\\w-]+\\.)?twitter\\.com|(?:[\\w-]+\\.)?x\\.com)\\/");
+  assert.equal(shared.X_LINK.flags, "i");
+  for (const s of ["https://t.co/abc", "check twitter.com/x out", "x.com/foo", "HTTP://X.COM/", "sub.twitter.com/y"]) {
+    assert.ok(shared.X_LINK.test(s), `X_LINK should match ${s}`);
+  }
+  for (const s of ["hello world", "example.com/x", "just talking about x and twitter"]) {
+    assert.ok(!shared.X_LINK.test(s), `X_LINK should NOT match ${s}`);
+  }
+});
+
+/* ---- pinned behavior over the drift test's batteries --------------------- */
+
+// String ids only (real sender ids are strings, e.g. "900000000000000001");
+// hashId additionally String()-coerces so numeric wizard ids hash identically.
+const ID_BATTERY = [
+  "", "0", "1", "u1", "u2", "abc", "900000000000000001",
+  "1467812909021231104", "some-long-mixed-ID_42", "🙂🙂",
+];
+const EXPECT_HASH = [0, 48, 49, 3676, 3677, 96354, 3419089176, 3545674119, 4044068280, 1705592330];
+const EXPECT_COLOR = [
+  "#3b82f6", "#3b82f6", "#22c55e", "#8b5cf6", "#06b6d4", "#ef4444",
+  "#3b82f6", "#ec4899", "#3b82f6", "#f59e0b",
+];
+
+const NAME_BATTERY = [
+  "", "   ", "a", "Al", "Alice", "alice bob", "Alice Bob Carol",
+  "  padded   name  ", "josé garcía", "X Æ A-12", "🙂 face", "van der Berg",
+];
+const EXPECT_INITIALS = ["?", "?", "A", "AL", "AL", "AB", "AC", "PN", "JG", "XA", "\uD83DF", "VB"];
+
+test("hashId returns the expected 32-bit hash for every id in the battery", () => {
+  ID_BATTERY.forEach((id, i) => {
+    assert.equal(shared.hashId(id), EXPECT_HASH[i], `hashId(${JSON.stringify(id)})`);
+  });
+});
+
+test("hashId String()-coerces (numeric id hashes same as its string form)", () => {
+  assert.equal(shared.hashId(1), shared.hashId("1"));
+  assert.equal(shared.hashId(900000000000000001n.toString()), shared.hashId("900000000000000001"));
+});
+
+test("paletteColor maps each id to the expected avatar color", () => {
+  ID_BATTERY.forEach((id, i) => {
+    assert.equal(shared.paletteColor(id), EXPECT_COLOR[i], `paletteColor(${JSON.stringify(id)})`);
+  });
+});
+
+test("paletteColor is exactly the PALETTE[hashId(id) % len] kernel", () => {
+  for (const id of ID_BATTERY) {
+    assert.equal(shared.paletteColor(id), shared.PALETTE[shared.hashId(id) % shared.PALETTE.length]);
+  }
+});
+
+test("initials returns the expected monogram for every name in the battery", () => {
+  NAME_BATTERY.forEach((name, i) => {
+    assert.equal(shared.initials(name), EXPECT_INITIALS[i], `initials(${JSON.stringify(name)})`);
+  });
+});
+
+/* ---- single-source guard ------------------------------------------------- */
+// The whole point of P2-7: no consumer may keep its own copy. If any of these
+// declarations reappears in a consumer, the extraction has regressed.
+
+const NO_LOCAL_DECL = [
+  { file: "src/app.js", name: "PALETTE", re: /^\s*const\s+PALETTE\s*=/m },
+  { file: "src/app.js", name: "X_LINK", re: /^\s*const\s+X_LINK\s*=/m },
+  { file: "src/app.js", name: "hashId", re: /^\s*function\s+hashId\b/m },
+  { file: "src/app.js", name: "initials", re: /^\s*function\s+initials\b/m },
+  { file: "src/setup.js", name: "PALETTE", re: /^\s*const\s+PALETTE\s*=/m },
+  { file: "src/setup.js", name: "hashId", re: /^\s*function\s+hashId\b/m },
+  { file: "src/setup.js", name: "initials", re: /^\s*function\s+initials\b/m },
+  { file: "scripts/build-core.js", name: "X_LINK", re: /^\s*const\s+X_LINK\s*=/m },
+];
+
+test("no consumer redeclares a shared constant/helper (single source of truth)", () => {
+  for (const { file, name, re } of NO_LOCAL_DECL) {
+    assert.ok(
+      !re.test(read(file)),
+      `${file} still declares its own ${name} — it must consume src/shared-core.js ` +
+        `instead. The extraction (P2-7) regressed; remove the local copy.`
+    );
+  }
+});
+
+test("every consumer wires up src/shared-core.js", () => {
+  assert.ok(/GCAShared/.test(read("src/app.js")), "src/app.js must destructure GCAShared");
+  assert.ok(/GCAShared/.test(read("src/setup.js")), "src/setup.js must destructure GCAShared");
+  assert.ok(/require\(["']\.\.\/src\/shared-core\.js["']\)/.test(read("scripts/build-core.js")),
+    "scripts/build-core.js must require ../src/shared-core.js");
+  assert.ok(/src\/shared-core\.js/.test(read("index.html")), "index.html must load src/shared-core.js");
+  assert.ok(/src\/shared-core\.js/.test(read("setup.html")), "setup.html must load src/shared-core.js");
+});

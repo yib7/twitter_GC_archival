@@ -4,6 +4,11 @@
 (function () {
 "use strict";
 
+// Constants/helpers shared with the setup wizard + Node build live in ONE module,
+// loaded as a <script> before this one (index.html) — see src/shared-core.js.
+/* global GCAShared */
+const { PALETTE, X_LINK, hashId, initials, paletteColor } = GCAShared;
+
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
 // True only for the shipped synthetic demo (data.sample.js sets __sample). Any
@@ -105,8 +110,7 @@ function activateConversation(id, rerender) {
 
 /* ---- Constants ----------------------------------------------------------- */
 const REACT = { funny: "😂", like: "❤️", agree: "👍", disagree: "👎", excited: "🔥", surprised: "😮", sad: "😢", emoji: "💬" };
-// kept in sync with src/setup.js:PALETTE — update both.
-const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
+// PALETTE moved to src/shared-core.js (destructured at the top of this IIFE).
 const ACCENTS = ["#1d9bf0", "#3b82f6", "#2563eb", "#1d4ed8", "#0ea5e9", "#38bdf8", "#06b6d4", "#0891b2", "#6366f1", "#818cf8", "#60a5fa"];
 // Dark-intensity presets removed: surfaces are owned by the html[data-theme]
 // blocks (Light / Dim / Lights out) in styles.css, selected via the theme module.
@@ -426,8 +430,7 @@ function highlightRangesDOM(element, ranges) {
 function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function hexA(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; const f = Math.abs(p) / 100; r = Math.round((t - r) * f + r); g = Math.round((t - g) * f + g); b = Math.round((t - b) * f + b); return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
-// kept in sync with src/setup.js:hashId — update both.
-function hashId(id) { let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
+// hashId moved to src/shared-core.js (destructured at the top of this IIFE).
 // Day bucket for an epoch, in the configured zone ("YYYY-MM-DD"). Callers group
 // by equality; the human-readable busiest-day label formats via zone-aware DAY.
 function dayKey(t) { return zonedParts(t).key; }
@@ -472,9 +475,9 @@ function animateCounts(rootEl) {
 }
 
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
-// kept in sync with src/setup.js:colorOf — update both (app.js additionally
-// lets a user-picked settings.colors override fall back to the same palette).
-function colorOf(id) { return settings.colors[id] || PALETTE[hashId(id) % PALETTE.length]; }
+// The viewer's colorOf honors a user-picked settings.colors override first, then
+// falls back to the shared palette lookup (paletteColor, from src/shared-core.js).
+function colorOf(id) { return settings.colors[id] || paletteColor(id); }
 // X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
 // A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
 // (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
@@ -569,13 +572,7 @@ function indexForDate(dateStr) {
   }
   return ans;
 }
-// kept in sync with src/setup.js:initials — update both.
-function initials(name) {
-  const p = name.trim().split(/\s+/).filter(Boolean);
-  if (!p.length) return "?";
-  if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
-  return (p[0][0] + p[p.length - 1][0]).toUpperCase();
-}
+// initials moved to src/shared-core.js (destructured at the top of this IIFE).
 
 // No committed profile pictures (the real ones are private). Sources, lowest to
 // highest priority: a gitignored local.js (window.LOCAL_PFPS, file paths) and
@@ -617,8 +614,7 @@ let STATS = null, WORDS = null;
 // Messages containing a Twitter/X link are useless for telling people apart, so
 // they're excluded from the naming samples entirely (not only when they *start*
 // with a URL). A few shared-media paths are collected as extra memory jogs.
-// kept in sync with scripts/build-core.js:X_LINK — update both.
-const X_LINK = /(?:https?:\/\/)?(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
+// (X_LINK moved to src/shared-core.js — destructured at the top of this IIFE.)
 function computeParticipants() {
   const map = new Map();
   for (let i = 0; i < N; i++) {

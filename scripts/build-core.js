@@ -9,6 +9,10 @@
  * See tests/build-core.test.js.
  */
 
+// X_LINK (the Twitter/X link matcher) is shared with the viewer + wizard — one
+// source, required here so the build and the app can't disagree. See src/shared-core.js.
+const { X_LINK } = require("../src/shared-core.js");
+
 const IMG = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const VID = new Set(["mp4", "mov", "webm", "m4v"]);
 const kindOf = (p) => {
@@ -173,8 +177,7 @@ function assembleConversations(opts) {
 }
 
 /* ---- wizard participant roster ------------------------------------------- */
-// kept in sync with src/app.js:X_LINK — update both.
-const X_LINK = /(?:https?:\/\/)?(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
+// X_LINK is required from src/shared-core.js at the top of this file.
 
 /**
  * Build the setup wizard's participant list from already-built CHAT_DATA:
