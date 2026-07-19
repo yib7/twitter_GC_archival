@@ -2,22 +2,27 @@
 <html lang="en" data-theme="lightsout">
 <head>
   <meta charset="UTF-8" />
+  <!-- Served-mode defense-in-depth: see index.html for the full rationale.
+       Strict script-src 'self'; the theme-boot is a same-origin file (shared
+       with the app), so no inline-script hash to keep in sync. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    media-src 'self';
+    font-src 'self';
+    connect-src 'self';
+    object-src 'none';
+    base-uri 'self'
+  " />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#000000" />
   <title>Setup · Group Chat Archive</title>
   <link rel="stylesheet" href="src/styles.css" />
   <link rel="stylesheet" href="src/setup.css" />
-  <script>
-    /* Match the app: apply saved theme (gca.theme, default lightsout) before paint. */
-    (function () {
-      try {
-        var t = localStorage.getItem("gca.theme");
-        if (t === "light" || t === "dim" || t === "lightsout") {
-          document.documentElement.setAttribute("data-theme", t);
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <!-- Render-blocking in <head> so the saved theme applies before first paint. -->
+  <script src="src/theme-boot.js"></script>
 </head>
 <body class="setup-body">
   <div class="setup-shell">

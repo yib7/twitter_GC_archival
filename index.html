@@ -2,24 +2,33 @@
 <html lang="en" data-theme="lightsout">
 <head>
   <meta charset="UTF-8" />
+  <!-- Served-mode defense-in-depth: archive content is escaped before it ever
+       reaches innerHTML (see esc() in src/app.js); this CSP is a second line of
+       defense against a future escaping regression. script-src is a strict
+       'self' — every script (incl. the theme-boot below) is a same-origin file,
+       so no inline-script hash/nonce to keep in sync. style-src needs
+       'unsafe-inline' because the app uses inline style="" attributes throughout
+       (skeleton/bar widths, avatar hues) — CSP2 cannot hash inline style
+       ATTRIBUTES; the escaping defense is what keeps untrusted text out of
+       style="". img-src allows data: for pfp avatars stored as data URLs. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    media-src 'self';
+    font-src 'self';
+    connect-src 'self';
+    object-src 'none';
+    base-uri 'self'
+  " />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Offline archive viewer for Twitter/X group DM conversations — search, browse, and explore your group chat history with full media support." />
   <meta name="theme-color" content="#000000" />
   <title>Group Chat Archive</title>
   <link rel="stylesheet" href="src/styles.css" />
-  <script>
-    /* Apply the saved theme before first paint to avoid a flash-of-wrong-theme.
-       gca.theme is the single source of truth (default "lightsout"); app.js's
-       theme module reconciles the floating switch + Settings and persists here. */
-    (function () {
-      try {
-        var t = localStorage.getItem("gca.theme");
-        if (t === "light" || t === "dim" || t === "lightsout") {
-          document.documentElement.setAttribute("data-theme", t);
-        }
-      } catch (e) {}
-    })();
-  </script>
+  <!-- Render-blocking in <head> so the saved theme applies before first paint. -->
+  <script src="src/theme-boot.js"></script>
 </head>
 <body>
   <div id="boot" class="boot" aria-hidden="true">

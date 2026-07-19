@@ -18,6 +18,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
 const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
@@ -441,10 +442,24 @@ function serveStatic(req, res) {
           return res.end("internal server error");
         }
         const serverUrl = "http://" + HOST + ":" + PORT;
-        const injectedData = data.replace(
-          "</head>",
-          `<script>window.GCA_SERVER_URL="${serverUrl}";</script>\n</head>`
-        );
+        // The page ships a strict `script-src 'self'` CSP (defense-in-depth). This
+        // server-injected config is the one inline script we add, so give it a
+        // per-response nonce and add that nonce to the page's own CSP so it (and
+        // ONLY it) is allowed to run. Over file:// there is no server, no
+        // injection, and no nonce — the static `script-src 'self'` stands alone.
+        const nonce = crypto.randomBytes(16).toString("base64");
+        const injectedData = data
+          // Add the nonce to the page's script-src, anchored INSIDE the CSP
+          // meta's content="..." so a stray "script-src 'self'" in a comment
+          // can't be matched instead of the real directive.
+          .replace(
+            /(content="[^"]*?script-src 'self')/,
+            "$1 'nonce-" + nonce + "'"
+          )
+          .replace(
+            "</head>",
+            `<script nonce="${nonce}">window.GCA_SERVER_URL="${serverUrl}";</script>\n</head>`
+          );
         const body = Buffer.from(injectedData, "utf8");
         res.writeHead(200, {
           "Content-Type": type,

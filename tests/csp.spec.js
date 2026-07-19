@@ -1,0 +1,106 @@
+const { test, expect } = require("@playwright/test");
+
+// P2-8: served-mode Content-Security-Policy (defense-in-depth). The app already
+// escapes all archive content before it reaches innerHTML (esc() in src/app.js),
+// but shipped no CSP — a future escaping regression would have no second line of
+// defense. This spec proves the meta CSP added to index.html/setup.html:
+//   (a) breaks NOTHING real — the theme-boot runs, Chart.js paints the Stats
+//       charts, Fuse.js/the command palette work, same-origin media renders, all
+//       under the strict `script-src 'self'`;
+//   (b) is actually enforced, by asserting zero CSP violations on both pages.
+// (The data:-URL pfp path — img-src 'self' data: — is exercised end-to-end under
+// this same embedded CSP by tests/setup-prefill.spec.js, which saves + reloads a
+// data-URL avatar; no need to re-prove it here.)
+
+// Chromium logs a blocked resource as a console error AND fires a structured
+// `securitypolicyviolation` DOM event. Capture both.
+function trackConsoleCsp(page) {
+  const violations = [];
+  page.on("console", (m) => {
+    const t = m.text();
+    if (/content security policy/i.test(t) || /Refused to/.test(t)) violations.push(t);
+  });
+  page.on("pageerror", (e) => {
+    if (/content security policy/i.test(e.message)) violations.push("pageerror: " + e.message);
+  });
+  return violations;
+}
+
+async function installCspEventCollector(page) {
+  await page.addInitScript(() => {
+    window.__cspEvents = [];
+    document.addEventListener("securitypolicyviolation", (e) => {
+      window.__cspEvents.push({ directive: e.violatedDirective, blocked: e.blockedURI, sample: (e.sample || "").slice(0, 120) });
+    });
+  });
+}
+
+async function assertNoCspViolations(page, consoleViolations) {
+  const cspEvents = await page.evaluate(() => window.__cspEvents);
+  expect(cspEvents, "securitypolicyviolation events fired:\n" + JSON.stringify(cspEvents, null, 2)).toEqual([]);
+  expect(consoleViolations, "console CSP violation lines:\n" + consoleViolations.join("\n")).toEqual([]);
+}
+
+test.describe("served-mode CSP (index.html + setup.html)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("gca.onboarded", "1");
+      localStorage.removeItem("gca.lastView");
+    });
+    await installCspEventCollector(page);
+  });
+
+  test("index.html: search, timeline, command palette, Stats charts — zero CSP violations, theme boot applied", async ({ page }) => {
+    const consoleViolations = trackConsoleCsp(page);
+    // If theme-boot were blocked by script-src, documentElement would keep its
+    // hard-coded default ("lightsout") instead of this saved theme — so this
+    // assertion doubles as proof the boot script ran under the CSP.
+    await page.addInitScript(() => localStorage.setItem("gca.theme", "light"));
+
+    await page.goto("/");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+    await expect(page.locator(".msg").first()).toBeVisible();
+
+    // Search (default view): Fuse.js-backed filtering + escaped rendering.
+    await expect(page.locator("#s-input")).toBeVisible();
+    await page.locator("#s-input").fill("movie");
+    await expect(page.locator("#s-meta")).toContainText(/message(s)? found/);
+    await expect(page.locator(".bubble").first()).toContainText(/movie/i);
+    await page.locator("#s-input").fill("");
+
+    // Timeline.
+    await page.locator('.nav-item[data-view="timeline"]').click();
+    await expect(page.locator("#tl-list .msg").first()).toBeVisible();
+
+    // Command palette (Ctrl/Cmd-K) — jump-to-date flow from smoke.spec.js.
+    await page.keyboard.press("Control+K");
+    await page.locator(".cmdk-input").fill("2024-01-01");
+    await page.getByText(/Jump to 2024-01-01/).click();
+    await expect(page.locator("#tl-list .msg").first()).toBeVisible();
+
+    // Stats — Chart.js must construct + paint real <canvas> charts under this
+    // script-src (no 'unsafe-eval' needed for Chart.js 4.x).
+    await page.locator('.nav-item[data-view="stats"]').click();
+    await expect(page.locator("#chart-months")).toBeVisible();
+    await expect(page.locator("#chart-trends")).toBeVisible();
+    const liveCharts = await page.evaluate(() => {
+      const inst = window.Chart.instances;
+      return inst instanceof Map ? inst.size : Object.keys(inst).length;
+    });
+    expect(liveCharts).toBeGreaterThan(0);
+
+    await assertNoCspViolations(page, consoleViolations);
+  });
+
+  test("setup.html: zero CSP violations, theme boot applied", async ({ page }) => {
+    const consoleViolations = trackConsoleCsp(page);
+    await page.addInitScript(() => localStorage.setItem("gca.theme", "dim"));
+
+    await page.goto("/setup.html");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", "dim");
+    await expect(page.locator("#btn-build")).toBeVisible();
+    await expect(page.locator("#src-group")).toBeVisible();
+
+    await assertNoCspViolations(page, consoleViolations);
+  });
+});
