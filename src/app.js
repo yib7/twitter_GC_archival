@@ -120,19 +120,34 @@ let DT, DAY, dShort;
 // Rebuilt (not per-call) whenever the timezone changes — 134k msgs each call a
 // formatToParts, so constructing a formatter per call is not acceptable.
 let ZP = null, ZP_LOCAL = false;
+// True if `tz` is a zone Intl can build a formatter for; used to keep a
+// corrupt/ported gca.settings.timezone from reaching initDateFormatters (P1-4).
+function isValidTimeZone(tz) {
+  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch (e) { return false; }
+}
 function initDateFormatters() {
   const isLocal = !!(settings && settings.timezone === 'local');
-  const opts = isLocal ? {} : { timeZone: (settings && settings.timezone) || 'UTC' };
-  DT = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }));
-  DAY = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
-  dShort = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric" }));
   // 'local' uses native Date accessors (no formatter); every other zone shares
   // this single formatter. hour12:false so hour comes back 0-23.
+  const build = (opts) => {
+    DT = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }));
+    DAY = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
+    dShort = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric" }));
+    ZP = isLocal ? null : new Intl.DateTimeFormat("en-US", Object.assign({}, opts, {
+      weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+    }));
+  };
   ZP_LOCAL = isLocal;
-  ZP = isLocal ? null : new Intl.DateTimeFormat("en-US", Object.assign({}, opts, {
-    weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-  }));
+  try {
+    build(isLocal ? {} : { timeZone: (settings && settings.timezone) || 'UTC' });
+  } catch (e) {
+    // A corrupt/ported gca.settings.timezone (invalid IANA zone) throws a
+    // RangeError on construction. This runs at top-level module init with no
+    // other guard, so an uncaught throw here bricks the whole app before it
+    // ever leaves the boot skeleton (P1-4) — fall back to UTC instead.
+    build({ timeZone: "UTC" });
+  }
 }
 
 // Zoned calendar parts for an epoch (ms), in the CONFIGURED timezone. This is the
@@ -232,6 +247,9 @@ function loadSettings() {
     s.ignoredUsers = Array.isArray(saved.ignoredUsers) ? saved.ignoredUsers.map(String) : [];
     s.ignoredGroups = Array.isArray(saved.ignoredGroups) ? saved.ignoredGroups.map(String) : [];
     if (!Array.isArray(s.saved)) s.saved = [];
+    // A corrupt/ported settings blob can carry an unusable timezone; correct it
+    // here so both initDateFormatters and the settings UI see a sane value (P1-4).
+    if (s.timezone !== "local" && !isValidTimeZone(s.timezone)) s.timezone = "UTC";
     return s;
   } catch (e) { 
     // clone deeply to prevent mutation
