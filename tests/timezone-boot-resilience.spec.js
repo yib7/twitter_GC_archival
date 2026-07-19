@@ -50,8 +50,21 @@ test("an invalid stored timezone is normalized to UTC in the settings UI", async
   await expect(page.locator(".msg").first()).toBeVisible();
 
   await page.locator('[data-view="settings"]').click();
-  // The bad value must not leak into the UI: the timezone select shows UTC.
-  await expect(page.locator("#set-tz")).toHaveValue("UTC");
+  // The bad value must not leak into the UI. Assert via the UTC option's
+  // `selected` MARKUP (defaultSelected), NOT the select's `.value`: value would
+  // report "UTC" for free because UTC is the first <option> and a select with no
+  // explicitly-selected option defaults .value to its first option — so a
+  // toHaveValue("UTC") check passes even if normalization is gone. defaultSelected
+  // is only true when render actually emitted `selected` on UTC, i.e. when
+  // settings.timezone was normalized to "UTC" (not the leaked "Not/AZone").
+  const utcSelected = await page.locator('#set-tz option[value="UTC"]').evaluate((el) => el.defaultSelected);
+  expect(utcSelected).toBe(true);
+  // And the corrupt value must not have rendered as a selected option anywhere.
+  const selectedValue = await page.locator("#set-tz").evaluate((el) => {
+    const opt = el.querySelector("option[selected]");
+    return opt ? opt.value : null;
+  });
+  expect(selectedValue).toBe("UTC");
 });
 
 test("'local' is still accepted and does not fall back to UTC", async ({ page }) => {
