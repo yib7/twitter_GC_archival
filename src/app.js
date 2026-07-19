@@ -842,7 +842,14 @@ function renderMsg(i, opts) {
   const actPin = el("button", "act-pin" + (pinned ? " on" : ""), pinned ? "★" : "☆");
   actPin.dataset.mid = m.i; actPin.title = pinned ? "Remove bookmark" : "Bookmark";
   actPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); };
-  const actCopy = el("button", "", "Copy"); actCopy.onclick = (e) => { e.stopPropagation(); navigator.clipboard.writeText(m.x); toast("Copied text"); };
+  const actCopy = el("button", "", "Copy"); actCopy.onclick = (e) => {
+    e.stopPropagation();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(m.x).then(() => toast("Copied text")).catch(() => toast("Copy failed"));
+    } else {
+      toast("Copy failed");
+    }
+  };
   const actCtx = el("button", "", "Context"); actCtx.onclick = (e) => { e.stopPropagation(); openContextPeek(i); };
   const actQuote = el("button", "", "Quote"); actQuote.onclick = (e) => { e.stopPropagation(); exportQuoteCard(i); };
   const actJump = el("button", "", "Jump"); actJump.onclick = (e) => { e.stopPropagation(); jumpTo(i); };
@@ -2299,6 +2306,10 @@ function renderStats() {
         </div>`;
   }
 
+  // P2-6: compute the whole-archive media count once — it's used twice below
+  // (data-count + the formatted label) and is an O(N) scan over all messages.
+  const mediaMsgCount = MSGS.filter((m) => m.m).length;
+
   let html = `<div class="page"><div class="page-head"><div class="page-title">Stats & overview</div>
     <div class="page-sub">${esc(DAY.format(s.first))} → ${esc(DAY.format(s.last))}</div></div>
     <div class="page-body">
@@ -2311,7 +2322,7 @@ function renderStats() {
             <div class="it"><span class="v" data-count="${PARTS.length}">${PARTS.length}</span><span class="l">People</span></div>
             <div class="it"><span class="v" data-count="${s.daysActive}">${fmtNum(s.daysActive)}</span><span class="l">Active days</span></div>
             <div class="it"><span class="v" data-count="${Math.round(N / s.daysActive)}">${fmtNum(Math.round(N / s.daysActive))}</span><span class="l">Msgs / day</span></div>
-            <div class="it"><span class="v" data-count="${MSGS.filter((m) => m.m).length}">${fmtNum(MSGS.filter((m) => m.m).length)}</span><span class="l">Media</span></div>
+            <div class="it"><span class="v" data-count="${mediaMsgCount}">${fmtNum(mediaMsgCount)}</span><span class="l">Media</span></div>
             <div class="it"><span class="v" data-count="${days}">${fmtNum(days)}</span><span class="l">Days span</span></div>
           </div>
         </div>
