@@ -12,6 +12,16 @@ All notable changes to this project are recorded here.
   "The Hater" — now show up (they were comparing reaction keys to the wrong
   values and always scored zero).
 
+### Changed
+
+- Internal cleanup with no behavior change: the Stats superlatives are now
+  data-driven, shared constants live in a single module, and a redundant
+  per-render count was removed.
+- CI now runs the test suite on Windows, macOS, and Linux (previously Linux
+  only), plus a manual dispatch trigger. Refreshed dev dependencies
+  (Playwright, ESLint, globals) including a transitive audit-advisory fix; no
+  runtime dependency is affected, since the project ships none.
+
 ### Fixed
 
 - The timeline now renders system events (created the conversation, named the
@@ -25,12 +35,6 @@ All notable changes to this project are recorded here.
   filename across different folders, and stays responsive while copying large
   media libraries.
 
-### Changed
-
-- Internal cleanup with no behavior change: the Stats superlatives are now
-  data-driven, shared constants live in a single module, and a redundant
-  per-render count was removed.
-
 ### Security
 
 - The setup server now rejects requests with a foreign Host header or a
@@ -38,6 +42,10 @@ All notable changes to this project are recorded here.
   reset endpoint and a DNS-rebinding exposure.
 - Added a Content-Security-Policy (served mode) as a second line of defense
   behind the existing output escaping.
+- The identity endpoint (`POST /api/identity`) no longer lets a `__proto__`
+  key in the request body repoint an internal object's prototype
+  (prototype-pollution hardening; the exposure was narrow, since the same
+  request already controls every real key).
 
 ## v1.3.0 (2026-07-16)
 

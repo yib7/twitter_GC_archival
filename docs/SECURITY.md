@@ -6,13 +6,18 @@ Group Chat Archive runs entirely on your own machine. The viewer is a static
 page that reads a local data file; the optional setup server binds to
 `127.0.0.1` only and is meant to be run for the few minutes setup takes, not left
 listening. Nothing is sent to any external service, and your real export stays in
-the git-ignored `personal_data/` folder.
+the git-ignored `personal_data/` folder. The setup server sends a
+Content-Security-Policy header and validates every request's Host/Origin against
+a loopback allowlist, rejecting cross-origin and DNS-rebinding attempts (see
+[docs/ARCHITECTURE.md](ARCHITECTURE.md)).
 
 The most relevant areas for security reports are therefore:
 
 - HTML/script injection from message content, names, or group titles rendered in
   the viewer.
 - Path handling in `scripts/server.js` (static serving and the setup endpoints).
+- Gaps in the Host/Origin/CSP defenses above, or other ways to reach the setup
+  server's file-writing endpoints from an unintended origin.
 
 ## Reporting a vulnerability
 
