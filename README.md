@@ -13,12 +13,9 @@ internet. Have several group chats? A picker switches between them.
 > `data.sample.js`. Point it at your own export to see your real history (kept
 > local and `.gitignore`d).
 
+## Screenshots
+
 ![Group Chat Archive search view on the default dark Lights-out theme: a fuzzy search for the misspelled "hilarous" highlights the matching text in several "that's hilarious" messages from the synthetic Demo Squad chat](docs/screenshot.png)
-
-A quick tour through search, the timeline, the media gallery, Hall of Fame, the
-Wrapped recap, and the stats dashboard (synthetic demo data):
-
-![Animated walkthrough of the Group Chat Archive: typing a fuzzy search, scrolling the virtual timeline, opening the media gallery, Hall of Fame, the Wrapped year-in-review slideshow, and the stats dashboard](docs/demo.gif)
 
 ---
 
@@ -151,6 +148,15 @@ upload a profile picture, and mark "This is me", all saved to `localStorage`
 (works from `file://`, no server). For a permanent local mapping you can also
 hand-edit `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` /
 `LOCAL_ME` / `LOCAL_GC`).
+
+---
+
+## Demo
+
+A quick tour through search, the timeline, the media gallery, Hall of Fame, the
+Wrapped recap, and the stats dashboard (synthetic demo data):
+
+![Animated walkthrough of the Group Chat Archive: typing a fuzzy search, scrolling the virtual timeline, opening the media gallery, Hall of Fame, the Wrapped year-in-review slideshow, and the stats dashboard](docs/demo.gif)
 
 ---
 

@@ -26,5 +26,5 @@ Renders the charts in the Stats view.
 
 Everything else in this repository (the viewer, the build and setup scripts, the
 synthetic sample data, and the placeholder SVG media) is original work released
-under the MIT License in [LICENSE](LICENSE). The two bundled licenses above
+under the MIT License in [LICENSE](../LICENSE). The two bundled licenses above
 (Apache-2.0 and MIT) are permissive and compatible with that release.
