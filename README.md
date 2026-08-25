@@ -15,7 +15,32 @@ internet. Have several group chats? A picker switches between them.
 
 ## Screenshots
 
+<table>
+<tr>
+<td width="50%">
+
 ![Group Chat Archive search view on the default dark Lights-out theme: a fuzzy search for the misspelled "hilarous" highlights the matching text in several "that's hilarious" messages from the synthetic Demo Squad chat](docs/screenshot.png)
+
+</td>
+<td width="50%">
+
+![Timeline view showing the synthetic Demo Squad chat with a sticky date pill, a "created the conversation" / "named the group" system event pair, inline reaction chips under several messages, and the day's message thread](docs/screenshot-timeline.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+![Stats view for the synthetic Demo Squad chat: an overview card with message/people/active-day counts, a milestones row (longest streak, busiest day, total words, reactions given), and the start of the superlatives grid](docs/screenshot-stats.png)
+
+</td>
+<td width="50%">
+
+![Wrapped year-in-review slideshow opening slide for the synthetic Demo Squad chat, showing a segmented progress bar and a large animated "2024 Wrapped" title over a themed gradient backdrop](docs/screenshot-wrapped.png)
+
+</td>
+</tr>
+</table>
 
 ---
 
