@@ -278,6 +278,12 @@ function apiIdentity(body, res) {
   const gcIn = body.gc && typeof body.gc === "object" ? body.gc : {};
   const gcOut = Object.assign({}, cfg.gc || {});
   for (const cid of Object.keys(gcIn)) {
+    // SECURITY: cid is an attacker-controllable JSON key on the unauthenticated,
+    // local POST /api/identity (body.gc). "__proto__" is special-cased on plain
+    // objects — `gcOut[cid] = {...}` below would otherwise invoke the inherited
+    // accessor setter and repoint gcOut's own [[Prototype]] instead of adding a
+    // "__proto__" entry (classic prototype-pollution shape). Skip it outright.
+    if (cid === "__proto__") continue;
     const entry = gcIn[cid] || {};
     const name = entry.name != null ? String(entry.name) : ((gcOut[cid] && gcOut[cid].name) || "");
     let photo = (gcOut[cid] && gcOut[cid].photo) || "";

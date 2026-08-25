@@ -74,8 +74,20 @@ function pfpFileName(name, id, ext, taken) {
 function asNamesMap(v) {
   return v && typeof v === "object" && !Array.isArray(v) ? v : {};
 }
+// SECURITY: `posted` is attacker-controllable JSON (body.names on the
+// unauthenticated, local POST /api/identity). Object.assign({}, ...) copies
+// via ordinary [[Set]], so a "__proto__" key — a normal OWN data property on
+// an object JSON.parse produced, not the special object-literal syntax —
+// would invoke the inherited accessor setter and repoint the merged object's
+// own [[Prototype]] instead of adding a "__proto__" entry (classic
+// prototype-pollution shape). Skip that one key explicitly rather than
+// relying on Object.assign's default copy semantics.
 function mergeNames(prev, posted) {
-  return Object.assign({}, asNamesMap(prev), asNamesMap(posted));
+  const out = {};
+  for (const src of [asNamesMap(prev), asNamesMap(posted)]) {
+    for (const k of Object.keys(src)) { if (k !== "__proto__") out[k] = src[k]; }
+  }
+  return out;
 }
 
 // Allowlist gate for serveStatic: true only for URL paths the app actually
