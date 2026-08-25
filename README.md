@@ -201,7 +201,7 @@ personal_data/      (git-ignored) wizard output: config.json, data.js, local.js,
 
 Built with [Fuse.js](https://www.fusejs.io/) (Apache-2.0) and
 [Chart.js](https://www.chartjs.org/) (MIT), both vendored under `lib/`. Full
-attribution is in [CREDITS.md](CREDITS.md).
+attribution is in [docs/CREDITS.md](docs/CREDITS.md).
 
 For how the raw export, the build step, and the viewer fit together, see
 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
