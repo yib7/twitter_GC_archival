@@ -30,9 +30,12 @@ Wrapped recap, and the stats dashboard (synthetic demo data):
   list/grid views, saved searches, and plain-text export of the results.
 - Multiple group chats: a conversation picker switches between every group in
   your export. Every view is scoped to the selected group.
-- A virtual timeline that scrolls 100K+ messages smoothly, with jump-to-date in
-  the Cmd/Ctrl-K command palette.
+- A virtual timeline that scrolls 100K+ messages smoothly, with inline system
+  events (group created, renamed, joins, leaves) and jump-to-date in the
+  Cmd/Ctrl-K command palette.
 - Gallery of every photo and video, with a lightbox.
+- Reactions render inline under each message, including custom emoji
+  reactions shown as the actual glyph rather than a generic placeholder.
 - Hall of Fame: most-reacted messages, podium and leaderboards by year.
 - Wrapped, an animated year-in-review slideshow.
 - Stats covering per-person activity, word clouds, milestones, busiest hours,
@@ -208,9 +211,34 @@ For how the raw export, the build step, and the viewer fit together, see
 
 ---
 
-## Privacy
+## Limitations
+
+- Group chats only — 1:1 DM exports aren't parsed (X ships them in a separate
+  file this tool doesn't read).
+- Single-user, local-only: no accounts or sync. Everything you edit in-app
+  (names, photos, bookmarks) lives in this browser's `localStorage` unless you
+  back it up yourself.
+- Native Browse-button file dialogs are Windows-only; macOS/Linux users paste
+  file/folder paths into the wizard by hand.
+- Load-tested with synthetic data up to ~130K messages; hasn't been run
+  against a real export at that scale, and custom-emoji reaction rendering
+  trusts a documented X export field name that hasn't been independently
+  re-verified against a real archive.
+
+What's next: native macOS/Linux file-picker dialogs, and confirming that
+field name against a real export.
+
+---
+
+## Privacy & security
 
 This repository is designed to be published without any private data. Real
 messages, media, profile pictures, names, and packaged archives are listed in
 [`.gitignore`](.gitignore). The only data committed is the fully synthetic
 sample.
+
+When you run the local setup server (`scripts/server.js`), it sends a
+Content-Security-Policy header and validates every request's Host/Origin
+against a loopback allowlist, rejecting cross-origin and DNS-rebinding
+attempts. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. It's
+not needed for daily use — the built archive runs from `file://`.
