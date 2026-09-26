@@ -187,6 +187,22 @@ test("mergeNames returns a fresh object, not a reference to prev or posted", () 
   assert.notEqual(out, prev);
 });
 
+// QA-13 review fix: mergeNames' own `k !== "__proto__"` skip (server-core.js
+// ~line 88) is the one thing standing between an attacker-controlled
+// body.names and a polluted Object.prototype. Built via JSON.parse, not the
+// `{ __proto__: ... }` object-literal syntax — a literal sets the object's
+// real prototype (special-cased grammar) and would prove nothing here; only
+// JSON.parse produces a genuine OWN "__proto__" data property, matching what
+// an attacker's raw JSON POST body parses to server-side.
+test("mergeNames drops a JSON-parsed own __proto__ key instead of repointing the result's prototype", () => {
+  const posted = JSON.parse('{"__proto__": {"polluted": true}, "1": "Alice"}');
+  const out = mergeNames({}, posted);
+  assert.equal(Object.getPrototypeOf(out), Object.prototype, "mergeNames must not repoint its result's own [[Prototype]]");
+  assert.equal(Object.prototype.hasOwnProperty.call(out, "__proto__"), false, "no own __proto__ data property either");
+  assert.equal(out["1"], "Alice", "a legitimate sibling key in the same payload must still merge");
+  assert.equal(({}).polluted, undefined, "global Object.prototype must remain unpolluted");
+});
+
 // isServablePath: the allowlist serveStatic consults BEFORE touching the
 // filesystem. Real personal messages/config/media/source and repo internals
 // (.git, scripts, tests, docs, node_modules) must never be reachable over
