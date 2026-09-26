@@ -952,8 +952,13 @@ function renderMsg(i, opts) {
   const actCtx = el("button", "", "Context"); actCtx.onclick = (e) => { e.stopPropagation(); openContextPeek(i); };
   const actQuote = el("button", "", "Quote"); actQuote.onclick = (e) => { e.stopPropagation(); exportQuoteCard(i); };
   const actJump = el("button", "", "Jump"); actJump.onclick = (e) => { e.stopPropagation(); jumpTo(i); };
-  acts.appendChild(actPin); acts.appendChild(actCopy); acts.appendChild(actCtx);
-  if ((m.x || "").trim()) acts.appendChild(actQuote);
+  // VC-25: Copy and Quote only make sense with text — on a media-only message
+  // Copy used to copy "" and still toast "Copied text".
+  const hasText = !!(m.x || "").trim();
+  acts.appendChild(actPin);
+  if (hasText) acts.appendChild(actCopy);
+  acts.appendChild(actCtx);
+  if (hasText) acts.appendChild(actQuote);
   acts.appendChild(actJump);
   body.appendChild(acts);
 
