@@ -20,15 +20,27 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 //   "Show close matches" (forced) .. < 400   (a deliberate click, not a keystroke)
 //
 // CI robustness: shared CI runners are slower and noisier than a dev box, so
-// every budget is multiplied by GCA_PERF_MULT (default 1 locally, 3 when
-// process.env.CI is set). Each metric is the BEST of a few runs where the
+// every budget is multiplied by GCA_PERF_MULT (default 1 locally, 2 when
+// process.env.CI is set — at 2 the Stats budgets, 800 ms, are still well under
+// the pre-SP3 ~1200 ms, so a full revert fails on CI too).
+//
+// Machine-independent check: the two Stats metrics are ALSO held to a ratio
+// against an in-page yardstick (R.calib: 20k Intl formatToParts calls in
+// America/New_York, best of 3 — the per-message work pre-SP3 Stats did many
+// times over). Both sides slow down together on a slower runner, so the ratio
+// needs no multiplier. On the dev box calib is ~29 ms: SP3 Stats sits at ~4x
+// calib, pre-SP3 Stats measured 31-34x, the limit is 14x.
+// GCA_PERF_CPU_THROTTLE=<n> slows the page's CPU n-fold (CDP) to rehearse a
+// slow runner locally. Each metric is the BEST of a few runs where the
 // action can be repeated cold, so a neighbouring worker stealing the CPU for
 // one sample doesn't fail the run. Budgets are asserted on the measured value;
 // every sample is also attached to the test report (perf-100k.json).
 //
 // Tagged @perf: `npx playwright test --grep @perf` runs just this;
 // `--grep-invert @perf` skips it.
-const MULT = Number(process.env.GCA_PERF_MULT) || (process.env.CI ? 3 : 1);
+const MULT = Number(process.env.GCA_PERF_MULT) || (process.env.CI ? 2 : 1);
+const RATIO = { statsCold: 14, convSwitchStats: 14 };
+const THROTTLE = Number(process.env.GCA_PERF_CPU_THROTTLE) || 1;
 const BUDGET = { statsFirst: 400, convSwitchStats: 400, wrappedFirst: 400, capsule: 400, fuzzyKey: 120, exactKey: 120, forcedFuzzy: 400 };
 const BIG = "910000000000000001", SIDE = "910000000000000002";
 
@@ -98,7 +110,22 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   // A named DST zone is the slowest path (no native fast path), so it is the
   // one the budgets are held to.
   await boot(page, { timezone: "America/New_York", tzExplicit: true });
-  const R = { mult: MULT };
+  if (THROTTLE > 1) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: THROTTLE });
+  }
+  const R = { mult: MULT, throttle: THROTTLE };
+  // Machine-speed yardstick (see RATIO above), best of 3.
+  R.calib = await page.evaluate(() => {
+    const f = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+    let bestMs = Infinity, sink = 0;
+    for (let r = 0; r < 3; r++) {
+      const t0 = performance.now();
+      for (let k = 0; k < 20000; k++) sink += f.formatToParts(1546300800000 + k * 3607001).length;
+      bestMs = Math.min(bestMs, performance.now() - t0);
+    }
+    return sink > 0 ? Math.round(bestMs * 10) / 10 : 0;
+  });
   const best = (arr) => Math.min(...arr);
 
   // --- Stats first render (cold caches) -------------------------------------
@@ -163,6 +190,9 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
 
   expect.soft(R.statsCold, "Stats first render, cold (paint + index build)").toBeLessThan(BUDGET.statsFirst * MULT);
   expect.soft(best(R.convSwitchStats), "convo switch with Stats open").toBeLessThan(BUDGET.convSwitchStats * MULT);
+  expect(R.calib, "calibration ran").toBeGreaterThan(0);
+  expect.soft(R.statsCold / R.calib, "Stats cold / calib").toBeLessThan(RATIO.statsCold);
+  expect.soft(best(R.convSwitchStats) / R.calib, "convo switch / calib").toBeLessThan(RATIO.convSwitchStats);
   expect.soft(best(R.wrappedFirst), "Wrapped first render").toBeLessThan(BUDGET.wrappedFirst * MULT);
   expect.soft(best(R.capsule), "Time Capsule").toBeLessThan(BUDGET.capsule * MULT);
   // Keystrokes are each a distinct query, so every one must fit, not the best.
