@@ -17,9 +17,13 @@ test("served app loads with no 404s or console errors (optional overrides are em
   await page.goto("/", { waitUntil: "networkidle" });
   await expect(page.locator(".msg").first()).toBeVisible();
 
-  // The four optional overrides must have been served (empty 200), so the app fell
-  // back to the bundled synthetic sample — its demo conversation is present.
-  await expect(page.locator("#conv-select, [id^=conv]")).toBeTruthy();
+  // QA-4: `expect(locator).toBeTruthy()` checks that the Locator OBJECT is
+  // truthy, which it always is (a Locator is never null/undefined, matched or
+  // not) — this passed even if the app never fell back to the sample at all.
+  // Assert something that is actually only true when the fallback happened:
+  // window.CHAT_DATA.__sample is the fallback's own marker (see data.sample.js
+  // / cmdk-jump.spec.js's DATA fixture, which sets it for the same reason).
+  await expect.poll(() => page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample)).toBe(true);
 
   expect(notFound, "no 404s on a served load:\n" + notFound.join("\n")).toHaveLength(0);
   expect(consoleErrors, "no console errors on a served load:\n" + consoleErrors.join("\n")).toHaveLength(0);

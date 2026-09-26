@@ -1,5 +1,13 @@
 const { test, expect } = require("@playwright/test");
 
+// QA-3: the jump-to-date test used to jump to 2020-06-01, which is BEFORE the
+// sample's first message (2024-01-06) — indexForDate resolves that to index 0,
+// exactly where the timeline already sits, so the only assertion afterward
+// (".msg first toBeVisible") was already true before the jump and would pass
+// even if jumpToDate were completely broken. Jumping into the middle of the
+// range and asserting the specific landing message closes that gap.
+test.use({ timezoneId: "UTC" });
+
 function pickSearchTerm(text) {
   return (text || "")
     .toLowerCase()
@@ -45,11 +53,19 @@ test("timeline renders and jumps by date", async ({ page }) => {
   // The old floating scrubber rail overlapped the scrollbar and is gone.
   await expect(page.locator("#tl-scrubber")).toHaveCount(0);
 
-  // Jump-by-date now lives in the Ctrl/Cmd-K command palette.
+  // Jump-by-date now lives in the Ctrl/Cmd-K command palette. 2024-01-07 is
+  // squarely inside the sample's 2024-01-06..2024-01-08 range (unlike the old
+  // 2020-06-01, which fell before every message and landed on index 0 — right
+  // where the timeline already was, whether or not the jump actually worked).
   await page.keyboard.press("Control+K");
-  await page.locator(".cmdk-input").fill("2020-06-01");
-  await page.getByText(/Jump to 2020-06-01/).click();
-  await expect(page.locator("#tl-list .msg").first()).toBeVisible();
+  await page.locator(".cmdk-input").fill("2024-01-07");
+  await page.getByText(/Jump to 2024-01-07/).click();
+
+  // The timeline anchors (flashes) the jumped-to message — assert it landed on
+  // the sample's actual first 2024-01-07 message, not merely "some message".
+  const target = page.locator('#tl-list [data-idx="11"]');
+  await expect(target).toHaveClass(/flash/);
+  await expect(target).toContainText("who's hyped for the game");
 });
 
 test("setup page renders source step", async ({ page }) => {
