@@ -2202,7 +2202,13 @@ const SUPERLATIVES = [
   { key: "vampiricOwl", icon: "🧛", title: "Vampiric Owl", need: "msgs", value: (P) => share(P.vampire, P),
     fmt: (v) => pct(v) + " of msgs 3–5 AM", def: "Highest share of messages sent between 3 and 5 AM." },
   { key: "deserter", icon: "🏃", title: "The Deserter", need: "msgs", value: (P) => P.desertMsgs,
-    fmt: (v, ctx, P) => plural(v, "message") + " from others" + (P && P.desertMs ? " over " + fmtDur(P.desertMs) : "") + " without a word",
+    // On a tie the duration is quoted only when every winner's silence lasted
+    // the same time (review fix 8) — never the first winner's for all of them.
+    fmt: (v, ctx, P, W) => {
+      const ms = (W || [P]).map((x) => (x ? x.desertMs : 0));
+      const same = ms.every((m) => m === ms[0]);
+      return plural(v, "message") + " from others" + (same && ms[0] ? " over " + fmtDur(ms[0]) : "") + " without a word";
+    },
     def: "Longest silence while the chat kept going: messages from others between two of theirs (or since their last)." },
   { key: "monologuer", icon: "🎤", title: "The Monologuer", need: "msgs", value: (P) => share(P.monologues, P),
     fmt: (v) => per100(v) + " runs of 5+ / 100 msgs", def: "Most runs of 5+ messages in a row, per 100 messages." },
@@ -2476,7 +2482,7 @@ function* statsGen() {
     const eps = 1e-9 * Math.max(1, Math.abs(best));
     const ids = pool.filter((P, k) => Math.abs(vals[k] - best) <= eps).map((P) => P.id);
     if (ids.length === pool.length) continue;              // everyone ties: nothing to award
-    awards.push({ key: d.key, ids, val: best, stat: d.fmt(best, ctx, rec.get(ids[0])) });
+    awards.push({ key: d.key, ids, val: best, stat: d.fmt(best, ctx, rec.get(ids[0]), ids.map((id) => rec.get(id))) });
   }
 
   // ---- Panels ------------------------------------------------------------------

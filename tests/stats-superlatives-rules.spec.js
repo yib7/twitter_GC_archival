@@ -162,3 +162,23 @@ test("Thread Killer credits the final day", async ({ page }) => {
   await expect(card(page, "Thread Killer").locator(".s-stat")).toHaveText("2 days ended");
   await expect(card(page, "Thread Killer").locator(".s-tie")).toHaveCount(0);
 });
+
+// Review fix 8: tied Deserters with different silences — the card must not
+// quote the first winner's duration as if it were everyone's.
+test("a tied Deserter card only quotes a duration the winners share", async ({ page }) => {
+  const out = [];
+  let t = Date.UTC(2024, 7, 1, 9, 0);
+  const step = (ms) => (t += ms);
+  for (let r = 0; r < 20; r++) for (const s of ["u1", "u2", "u3"]) out.push({ s, t: step(60000), x: "round " + r });
+  for (let k = 0; k < 30; k++) out.push({ s: "u3", t: step(60000), x: "solo " + k });
+  out.push({ s: "u1", t: step(60000), x: "back after a bit" });          // u1: 32 msgs, ~33 min
+  out.push({ s: "u2", t: step(5 * 3600000), x: "back much later" });     // u2: 32 msgs, ~5.5 h
+  out.forEach((m, k) => { m.i = "z" + k; });
+  await bootViewer(page, { conversations: [{ id: "G5", type: "group", title: "Tie", participants: ["u1", "u2", "u3"], count: out.length, msgs: out, events: [] }] });
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");
+  const c = card(page, "The Deserter");
+  await expect(c.locator(".s-name")).toHaveText("User 2");
+  await expect(c.locator(".s-tie")).toHaveText("tied with User 3");
+  await expect(c.locator(".s-stat")).toHaveText("32 messages from others without a word");
+});
