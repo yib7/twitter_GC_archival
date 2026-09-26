@@ -40,7 +40,7 @@ test("VC-14: switching to a conversation too short for a sparkline removes it", 
 test("VC-14: the sidebar year range follows a timezone change", async ({ page }) => {
   // 2023-01-01T02:00Z is still Dec 31 2022 in New York.
   const C = [...msgs("c", 1, { t0: Date.parse("2023-01-01T02:00:00Z") }), ...msgs("d", 3, { t0: Date.parse("2023-06-01T12:00:00Z"), step: MONTH })];
-  await bootViewer(page, { conversations: [conv("C", "Gamma", C)] }, { ls: { "gca.settings": JSON.stringify({ timezone: "UTC" }) } });
+  await bootViewer(page, { conversations: [conv("C", "Gamma", C)] }, { ls: { "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
   await expect(page.locator("#sidebar-foot")).toContainText("2023–2023");
   await page.locator('.nav-item[data-view="settings"]').click();
   await page.locator("#set-tz").selectOption("America/New_York");

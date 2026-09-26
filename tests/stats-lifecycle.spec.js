@@ -1,5 +1,9 @@
 const { test, expect } = require("@playwright/test");
 
+// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// expected dates were written for UTC, so it pins the browser zone to UTC.
+test.use({ timezoneId: "UTC" });
+
 // P2-2: renderStats() used to create three untracked `new Chart(...)` instances
 // (#chart-months, #chart-hours, #chart-weekdays) on every render and only ever
 // destroyed trendChart — so each Stats re-render (view revisit, conversation

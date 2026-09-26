@@ -291,7 +291,15 @@
     if (typeof src.timestamps === "boolean") s.timestamps = src.timestamps;
     if (src.me === null) s.me = null;                  // an explicit "nobody is me"
     else if (isId(src.me)) s.me = String(src.me);
-    if (typeof src.timezone === "string" && (src.timezone === "local" || isValidTimeZone(src.timezone))) s.timezone = src.timezone;
+    // UX-20 (SP3): "UTC" was the DEFAULT zone before SP3, so an unmarked "UTC"
+    // means "never chose one" and keeps the fallback (the new default "local"
+    // at boot, the current zone on Import). A zone the user picked carries
+    // tzExplicit: true; any accepted zone takes the source's marker with it.
+    const tzOk = typeof src.timezone === "string" && (src.timezone === "local" || isValidTimeZone(src.timezone));
+    if (tzOk && !(src.timezone === "UTC" && src.tzExplicit !== true)) {
+      s.timezone = src.timezone;
+      s.tzExplicit = src.tzExplicit === true;
+    }
     if (Array.isArray(src.pins)) s.pins = src.pins.filter(isId);
     if (Array.isArray(src.ignoredUsers)) s.ignoredUsers = idList(src.ignoredUsers);
     if (Array.isArray(src.ignoredGroups)) s.ignoredGroups = idList(src.ignoredGroups);

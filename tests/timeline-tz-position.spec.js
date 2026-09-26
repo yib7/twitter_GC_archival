@@ -9,7 +9,7 @@ const { bootViewer, msgs, conv, settledTimeline } = require("./_viewer-fixture.j
 const DATA = { conversations: [conv("A", "Alpha", msgs("m", 3000, { s: ["u1", "u2", "u3"], step: 3600000, t0: Date.parse("2023-01-01T00:30:00Z") }))] };
 
 test("a timezone change keeps the Timeline reading position and relabels it", async ({ page }) => {
-  await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC" }) } });
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
   await expect(page.locator("#view-timeline .msg").first()).toBeVisible();
   // Jump to a mid-archive date through the palette, then settle.
   await page.keyboard.press("Control+k");

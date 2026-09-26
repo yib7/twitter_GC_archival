@@ -30,7 +30,7 @@ async function chunks(page, n = 3) {
 test("VC-13: one day spanning several chunks gets one day pill and unbroken sender runs", async ({ page }) => {
   // 150 messages from one sender, 1 minute apart, all on Sunday March 10 (UTC).
   const DATA = { conversations: [conv("A", "Alpha", msgs("a", 150, { s: ["u1"], t0: T0 }))] };
-  await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC" }) } });
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
   await expect(page.locator("#view-timeline .msg").first()).toBeVisible();
   const c = await chunks(page);
   expect(c.every((x) => x.rendered)).toBe(true);
@@ -50,7 +50,7 @@ test("VC-13: one day spanning several chunks gets one day pill and unbroken send
 test("VC-13: a new day that starts exactly at a chunk boundary still gets its in-flow pill", async ({ page }) => {
   const day1 = msgs("d", 50, { s: ["u1"], t0: T0 });
   const day2 = msgs("e", 30, { s: ["u1"], t0: T0 + 86400000 });
-  await bootViewer(page, { conversations: [conv("A", "Alpha", [...day1, ...day2])] }, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC" }) } });
+  await bootViewer(page, { conversations: [conv("A", "Alpha", [...day1, ...day2])] }, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
   await expect(page.locator("#view-timeline .msg").first()).toBeVisible();
   const c = await chunks(page, 2);
   expect(c[1].inFlowPills).toEqual(["Monday, March 11, 2024"]);
@@ -62,7 +62,7 @@ test("VC-13: an event closing the previous chunk breaks the sender run", async (
   const list = msgs("a", 80, { s: ["u1"], t0: T0 });
   // Event at the same instant as message 49 (last of chunk 0) -> bucketed into chunk 0, after it.
   const events = [{ type: "join", s: "u1", ids: ["u2"], t: list[49].t }];
-  await bootViewer(page, { conversations: [conv("A", "Alpha", list, { events })] }, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC" }) } });
+  await bootViewer(page, { conversations: [conv("A", "Alpha", list, { events })] }, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
   await expect(page.locator("#view-timeline .msg").first()).toBeVisible();
   const c = await chunks(page, 2);
   expect(c[1].firstMsgConsecutive).toBe(false);

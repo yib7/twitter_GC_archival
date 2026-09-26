@@ -1,6 +1,10 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv, collectErrors } = require("./_viewer-fixture.js");
 
+// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// expected dates were written for UTC, so it pins the browser zone to UTC.
+test.use({ timezoneId: "UTC" });
+
 // VC-5 / VC-6: settings reach the app from two untrusted places — the
 // persisted gca.settings blob and an imported JSON file — and neither was
 // validated. A crafted colour value was interpolated raw into style="…"
@@ -161,7 +165,7 @@ test("a full exported file replaces photos, “this is me” and appearance — 
   await importJson(page, {
     version: 2, names: {}, colors: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "", me: null,
     accent: "#1d9bf0", fontSize: 15, density: "compact", avatars: true, timestamps: true,
-    saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC",
+    saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC", tzExplicit: true,
   });
   await expect(page.locator(".toast")).toContainText("imported");
   const replaces = asked[0].split(/\n\s*\n/)[1];

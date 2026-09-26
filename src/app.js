@@ -355,7 +355,11 @@ const GC_KEY = "gca.gc";
 // pushed straight into DEFAULTS.pins (VC-3).
 const DEFAULTS = deepFreeze({
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
-  colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC"
+  colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [],
+  // UX-20 (SP3): dates render in the viewer's own zone by default. tzExplicit
+  // marks a zone picked in Settings — see validateSettings (shared-core) for
+  // how an unmarked legacy "UTC" is migrated.
+  timezone: "local", tzExplicit: false
 });
 const FONT_MIN = 13, FONT_MAX = 19;   // the Settings slider's range
 function deepFreeze(o) { Object.values(o).forEach((v) => { if (v && typeof v === "object") deepFreeze(v); }); return Object.freeze(o); }
@@ -373,6 +377,13 @@ function validateSettings(raw, base) {
 }
 
 let settings = loadSettings();
+// UX-20: persist the one-time "unmarked UTC -> local" migration, so the stored
+// blob matches what is in effect (and the rule never has to run again).
+(function persistTzMigration() {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem("gca.settings") || "null"); } catch (e) { /* unreadable: nothing to migrate */ }
+  if (isPlainObj(raw) && raw.timezone === "UTC" && raw.tzExplicit !== true) saveSettings();
+})();
 migratePfpsKey();
 initDateFormatters();
 function loadSettings() {
@@ -3218,18 +3229,11 @@ function renderSettings() {
           <div class="set-control"><label class="switch"><input type="checkbox" id="set-av" ${settings.avatars ? "checked" : ""}><span class="track"></span></label></div></div>
         <div class="set-row"><div><div class="set-label">Show timestamps</div></div>
           <div class="set-control"><label class="switch"><input type="checkbox" id="set-ts" ${settings.timestamps ? "checked" : ""}><span class="track"></span></label></div></div>
-        <div class="set-row"><div><div class="set-label">Timezone</div><div class="set-desc">How timestamps are formatted.</div></div>
-          <div class="set-control"><select id="set-tz" aria-label="Timezone" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text);padding:8px;border-radius:8px;font-family:var(--font);font-size:14px;outline:0;cursor:pointer;">
-            <option value="UTC" ${settings.timezone === "UTC" ? "selected" : ""}>UTC (Original Data)</option>
-            <option value="local" ${settings.timezone === "local" ? "selected" : ""}>Browser Local Time</option>
-            <option value="America/New_York" ${settings.timezone === "America/New_York" ? "selected" : ""}>US Eastern (EST/EDT)</option>
-            <option value="America/Chicago" ${settings.timezone === "America/Chicago" ? "selected" : ""}>US Central (CST/CDT)</option>
-            <option value="America/Denver" ${settings.timezone === "America/Denver" ? "selected" : ""}>US Mountain (MST/MDT)</option>
-            <option value="America/Los_Angeles" ${settings.timezone === "America/Los_Angeles" ? "selected" : ""}>US Pacific (PST/PDT)</option>
-            <option value="Europe/London" ${settings.timezone === "Europe/London" ? "selected" : ""}>British Time (GMT/BST)</option>
-            <option value="Europe/Paris" ${settings.timezone === "Europe/Paris" ? "selected" : ""}>Central European (CET/CEST)</option>
-            <option value="Australia/Sydney" ${settings.timezone === "Australia/Sydney" ? "selected" : ""}>Australian Eastern (AEST/AEDT)</option>
-          </select></div></div>
+        <div class="set-row"><div><div class="set-label">Timezone</div><div class="set-desc">How timestamps, days and every stats bucket are dated. Defaults to this browser's zone.</div></div>
+          <div class="set-control tz-pick">
+            <input type="search" id="set-tz-filter" class="person-name-input" placeholder="Filter zones (e.g. Tokyo)" aria-label="Filter timezones" autocomplete="off" spellcheck="false">
+            <select id="set-tz" aria-label="Timezone"></select>
+          </div></div>
       </div>
 
       <div class="set-group">
@@ -3277,8 +3281,12 @@ function renderSettings() {
   font.oninput = () => { settings.fontSize = +font.value; font.closest(".set-row").querySelector(".set-desc").textContent = settings.fontSize + "px"; saveSettings(); applyTheme(); };
   v.querySelector("#set-av").onchange = (e) => { settings.avatars = e.target.checked; saveSettings(); applyTheme(); };
   v.querySelector("#set-ts").onchange = (e) => { settings.timestamps = e.target.checked; saveSettings(); applyTheme(); };
-  v.querySelector("#set-tz").onchange = (e) => {
-    settings.timezone = e.target.value; saveSettings(); initDateFormatters();
+  const tzSel = v.querySelector("#set-tz"), tzFilter = v.querySelector("#set-tz-filter");
+  fillTzOptions(tzSel, "");
+  tzFilter.oninput = () => fillTzOptions(tzSel, tzFilter.value);
+  tzSel.onchange = (e) => {
+    // Any pick — UTC included — is an explicit choice (UX-20).
+    settings.timezone = e.target.value; settings.tzExplicit = true; saveSettings(); initDateFormatters();
     // Every zone-dependent derived cache must be dropped: stats, word/keyword
     // months, milestones, Hall of Fame years, threads, and each Wrapped year.
     STATS = null; WORDS = null; MILES = null; HOF = null; threadsCache = null;
@@ -3405,6 +3413,47 @@ function renderSettings() {
     reader.readAsText(file);
   };
 }
+/* ---- Timezone picker (UX-20, SP3) --------------------------------------------
+   Every IANA zone the browser knows (Intl.supportedValuesOf, or a short list of
+   common zones on engines without it), filterable by id or friendly name.
+   "Browser local" and "UTC" are always the first two options, and the zone in
+   effect is always present (and marked selected) even when the filter would
+   hide it, so the <select> never silently shows a different zone. */
+const TZ_LABELS = {
+  local: "Browser local time", UTC: "UTC (as exported)",
+  "America/New_York": "US Eastern (EST/EDT)", "America/Chicago": "US Central (CST/CDT)",
+  "America/Denver": "US Mountain (MST/MDT)", "America/Los_Angeles": "US Pacific (PST/PDT)",
+  "Europe/London": "British Time (GMT/BST)", "Europe/Paris": "Central European (CET/CEST)",
+  "Australia/Sydney": "Australian Eastern (AEST/AEDT)",
+};
+let TZ_ALL = null;
+function tzZoneList() {
+  if (TZ_ALL) return TZ_ALL;
+  let z = null;
+  try { if (typeof Intl.supportedValuesOf === "function") z = Intl.supportedValuesOf("timeZone"); } catch (e) { z = null; }
+  if (!z || !z.length) z = Object.keys(TZ_LABELS).filter((k) => k !== "local" && k !== "UTC");
+  TZ_ALL = z.filter((k) => k !== "UTC");
+  return TZ_ALL;
+}
+function tzLabel(z) {
+  if (TZ_LABELS[z]) return z === "local" || z === "UTC" ? TZ_LABELS[z] : TZ_LABELS[z] + " — " + z.replace(/_/g, " ");
+  return z.replace(/_/g, " ");
+}
+function fillTzOptions(sel, filter) {
+  const f = String(filter || "").toLowerCase().replace(/_/g, " ").trim();
+  const cur = settings.timezone;
+  const hit = (z) => !f || (z + " " + tzLabel(z)).toLowerCase().replace(/_/g, " ").includes(f);
+  const zones = ["local", "UTC"].concat(tzZoneList().filter((z) => hit(z) || z === cur));
+  if (zones.indexOf(cur) < 0) zones.push(cur);
+  const frag = document.createDocumentFragment();
+  zones.forEach((z) => {
+    const o = document.createElement("option");
+    o.value = z; o.textContent = tzLabel(z);
+    if (z === cur) { o.defaultSelected = true; o.selected = true; }
+    frag.appendChild(o);
+  });
+  sel.replaceChildren(frag);
+}
 // VC-3/UX-3: a SCOPED reset. The old "Reset all" silently wiped bookmarks,
 // "me", ignored people/groups and the timezone while its dialog only
 // mentioned names/colors/theme/saved searches. It now resets exactly what the
@@ -3424,7 +3473,7 @@ const IMPORT_SECTIONS = [
   ["saved searches", ["saved"]],
   ["bookmarks", ["pins"]],
   ["“this is me”", ["me"]],
-  ["timezone", ["timezone"]],
+  ["timezone", ["timezone", "tzExplicit"]],
   ["hidden people & groups", ["ignoredUsers", "ignoredGroups"]],
 ];
 function importConfirmText(doc) {
@@ -3445,6 +3494,7 @@ function resetCustomization() {
   next.ignoredUsers = prev.ignoredUsers.slice();
   next.ignoredGroups = prev.ignoredGroups.slice();
   next.timezone = prev.timezone;
+  next.tzExplicit = prev.tzExplicit;
   next.pfps = Object.assign({}, prev.pfps);
   next.gcPhoto = prev.gcPhoto;
   for (const cid in prev.gc) { if (prev.gc[cid] && prev.gc[cid].photo) next.gc[cid] = { photo: prev.gc[cid].photo }; }

@@ -35,7 +35,7 @@ async function boot(page, timezone) {
   await page.addInitScript((tz) => {
     localStorage.setItem("gca.onboarded", "1");
     localStorage.removeItem("gca.lastView");
-    localStorage.setItem("gca.settings", JSON.stringify({ timezone: tz }));
+    localStorage.setItem("gca.settings", JSON.stringify({ timezone: tz, tzExplicit: true }));
   }, timezone);
   await page.route("**/data.sample.js", (route) =>
     route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(DATA) + ";" }));

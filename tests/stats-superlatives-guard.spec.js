@@ -1,5 +1,9 @@
 const { test, expect } = require("@playwright/test");
 
+// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// expected dates were written for UTC, so it pins the browser zone to UTC.
+test.use({ timezoneId: "UTC" });
+
 // P2-1 regression guard: computeStats() used to compute ~21 superlative
 // "winners" that no render path ever read; they were deleted as dead code.
 // This spec freezes the *rendered* stats surface on the repo sample data

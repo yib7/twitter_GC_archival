@@ -1,5 +1,9 @@
 const { test, expect } = require("@playwright/test");
 
+// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// expected dates were written for UTC, so it pins the browser zone to UTC.
+test.use({ timezoneId: "UTC" });
+
 // Smoke coverage for the six analytics views that previously had zero specs:
 // Threads, Reply Chains, Word Battles, Wrapped, Hall of Fame, Time Capsule.
 // Each test asserts (1) no pageerror while the view loads and (2) the view
@@ -14,7 +18,7 @@ const { test, expect } = require("@playwright/test");
 //     Chain (6+ volleys, gaps < 10 min)
 //   - a 10-msg u1↔u3 burst in 2024                 → a second thread/chain
 //   - reacted messages in both years               → Hall of Fame podium
-//   - messages on today's month/day (UTC — the app's default timezone) in
+//   - messages on today's month/day (UTC — pinned via timezoneId below) in
 //     2023 and 2024                                → Time Capsule sections
 //   - battle-word-rich texts ("lmao", "bro", …)    → Word Battles rows
 

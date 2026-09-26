@@ -612,6 +612,11 @@ button, input, select, textarea { font-family: inherit; }
 .set-label { font-size: 14px; }
 .set-desc { color: var(--text-dim); font-size: 12.5px; margin-top: 3px; }
 .set-control { flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+/* UX-20: timezone filter + full zone list, stacked. */
+.set-control.tz-pick { flex-direction: column; align-items: stretch; gap: 6px; width: min(280px, 100%); flex-shrink: 1; }
+.tz-pick input, .tz-pick select { width: 100%; box-sizing: border-box; }
+.tz-pick select { background: var(--bg-card); border: 1px solid var(--border); color: var(--text); padding: 8px; border-radius: 8px; font-family: var(--font); font-size: 14px; outline: 0; cursor: pointer; }
+.tz-pick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .preset-swatches { display: flex; gap: 8px; }
 .preset { width: 28px; height: 28px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; }

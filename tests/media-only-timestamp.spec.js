@@ -12,7 +12,7 @@ const LIST = [
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 
 test("VC-24: a consecutive media-only message still exposes its time", async ({ page }) => {
-  await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC" }) } });
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
   const row = page.locator('#view-timeline .msg[data-idx="1"]');
   await expect(row).toHaveClass(/consecutive/);
   await expect(row.locator(".msg-head")).toBeHidden();

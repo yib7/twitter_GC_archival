@@ -12,10 +12,12 @@ const {
 } = require("../src/shared-core.js");
 
 // Mirrors the viewer's DEFAULTS / slider range / density names (src/app.js).
+// UX-20 (SP3): the default zone is the browser's own ("local"); tzExplicit
+// marks a zone the user actually picked.
 const DEFAULTS = Object.freeze({
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
   colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true,
-  saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC",
+  saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "local", tzExplicit: false,
 });
 const RULES = { defaults: DEFAULTS, fontMin: 13, fontMax: 19, densities: ["comfortable", "compact"] };
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
@@ -100,7 +102,7 @@ test("validateSettings falls back field by field and never throws", () => {
   assert.equal(s.avatars, true);
   assert.equal(s.timestamps, false);
   assert.equal(s.me, "42");
-  assert.equal(s.timezone, "UTC");
+  assert.equal(s.timezone, "local");
   assert.equal(validateSettings({ timezone: "local" }, RULES).timezone, "local");
   assert.deepStrictEqual(s.pins, ["m1", 2]);
   assert.deepStrictEqual(s.ignoredUsers, ["u9"]);
@@ -136,4 +138,40 @@ test("with rules.base (Import), absent or invalid fields keep the CURRENT value"
   assert.equal(t.me, null);
   assert.deepStrictEqual(t.pfps, {});
   assert.deepStrictEqual(t.pins, []);
+});
+
+// UX-20 (SP3): "UTC" used to be the DEFAULT zone, so a stored "UTC" without the
+// tzExplicit marker is indistinguishable from "never chose one" and migrates to
+// the new default (local). A UTC the user picked (marker set) is kept.
+test("an unmarked stored UTC is the old default and migrates to local", () => {
+  const s = validateSettings({ timezone: "UTC" }, RULES);
+  assert.equal(s.timezone, "local");
+  assert.equal(s.tzExplicit, false);
+  assert.equal(validateSettings({ timezone: "UTC", tzExplicit: "yes" }, RULES).timezone, "local", "the marker must be a real true");
+});
+
+test("an explicitly chosen UTC (tzExplicit: true) is preserved", () => {
+  const s = validateSettings({ timezone: "UTC", tzExplicit: true }, RULES);
+  assert.equal(s.timezone, "UTC");
+  assert.equal(s.tzExplicit, true);
+});
+
+test("any other stored zone is kept whether or not it carries the marker", () => {
+  assert.equal(validateSettings({ timezone: "Europe/Paris" }, RULES).timezone, "Europe/Paris");
+  assert.equal(validateSettings({ timezone: "local" }, RULES).timezone, "local");
+  const s = validateSettings({ timezone: "Asia/Kolkata", tzExplicit: true }, RULES);
+  assert.equal(s.timezone, "Asia/Kolkata");
+  assert.equal(s.tzExplicit, true);
+});
+
+test("Import: an unmarked UTC in the file does not override the current zone", () => {
+  const base = validateSettings({ timezone: "America/New_York", tzExplicit: true }, RULES);
+  const rules = Object.assign({ base }, RULES);
+  const s = validateSettings({ timezone: "UTC" }, rules);
+  assert.equal(s.timezone, "America/New_York");
+  assert.equal(s.tzExplicit, true);
+  const t = validateSettings({ timezone: "UTC", tzExplicit: true }, rules);
+  assert.equal(t.timezone, "UTC");
+  // A marker without a usable zone changes nothing.
+  assert.equal(validateSettings({ timezone: "Not/AZone", tzExplicit: true }, Object.assign({ base: validateSettings({}, RULES) }, RULES)).tzExplicit, false);
 });

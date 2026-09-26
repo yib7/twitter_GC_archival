@@ -1,6 +1,10 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
+// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// expected dates were written for UTC, so it pins the browser zone to UTC.
+test.use({ timezoneId: "UTC" });
+
 // VC-4 / UX-2: the search filter state `F` is module-level and survived a
 // conversation switch, while ensureSearch() rebuilt the toolbar with EMPTY
 // date inputs and a hard-coded "List" toggle. After switching, results were
