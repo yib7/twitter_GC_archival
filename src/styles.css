@@ -651,7 +651,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .gcell .play { position: absolute; inset: 0; display: grid; place-items: center; font-size: 28px; color: #fff; background: rgba(0,0,0,0.25); pointer-events: none; text-shadow: 0 2px 8px #000; }
 
 /* lightbox */
-.lightbox { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,0.88); display: grid; place-items: center; padding: 30px; overflow: hidden; }
+.lightbox { position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(0,0,0,0.88); display: grid; place-items: center; padding: 30px; overflow: hidden; }
 .lightbox img, .lightbox video { max-width: 92vw; max-height: 88vh; border-radius: 10px; transition: transform 0.1s ease-out; cursor: grab; }
 .lightbox img:active, .lightbox video:active { cursor: grabbing; }
 .lightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 30px; color: #fff; cursor: pointer; background: none; border: 0; z-index: 110; }
@@ -668,7 +668,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
   background: var(--bg-hover); border: 1px solid var(--accent); color: var(--text);
   padding: 11px 18px; border-radius: 10px; font-size: 13.5px; box-shadow: var(--el2);
-  z-index: 120; animation: toastin 0.2s ease;
+  z-index: var(--z-toast); animation: toastin 0.2s ease;
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .toast.fade-out { opacity: 0; transform: translate(-50%, 10px); }
@@ -703,7 +703,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* ---- Keyboard shortcuts modal -------------------------------------------- */
 .kb-modal {
-  position: fixed; inset: 0; z-index: 200;
+  position: fixed; inset: 0; z-index: var(--z-modal);
   background: rgba(0, 0, 0, 0.7);
   display: grid; place-items: center;
   animation: kbIn 0.15s ease-out;
@@ -820,7 +820,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .av-clickable:hover { transform: scale(1.1); box-shadow: 0 0 8px var(--accent-glow); z-index: 10; }
 
 .profile-modal {
-  position: fixed; inset: 0; z-index: 250;
+  position: fixed; inset: 0; z-index: var(--z-modal);
   background: rgba(0, 0, 0, 0.75); display: grid; place-items: center;
   backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   animation: kbIn 0.15s ease-out;
@@ -918,7 +918,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* ---- Context-peek modal -------------------------------------------------- */
 .ctx-modal {
-  position: fixed; inset: 0; z-index: 230; background: rgba(0,0,0,0.7);
+  position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(0,0,0,0.7);
   display: grid; place-items: center; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
   animation: kbIn 0.15s ease-out;
 }
@@ -936,7 +936,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* ---- Command palette (Ctrl/Cmd+K) ---------------------------------------- */
 .cmdk {
-  position: fixed; inset: 0; z-index: 300; background: rgba(0,0,0,0.6);
+  position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(0,0,0,0.6);
   display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh;
   backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: kbIn 0.12s ease-out;
 }

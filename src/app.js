@@ -596,7 +596,17 @@ function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 // Overlays (lightbox, command palette, profile/context modals) are plain divs.
 // These helpers make them behave like real dialogs: expose role/aria-modal, trap
 // Tab focus inside, move focus in on open, and restore focus to the opener on close.
-let modalOpener = null;
+//
+// VC-20/UX-26: overlays form a STACK. They all share one z-index (styles.css)
+// and are appended to <body> as they open, so DOM order is paint order and the
+// last one in the DOM is the top layer. Escape pops only that layer; each
+// layer remembers its own opener (box._opener) so closing the top one hands
+// focus back into the layer below instead of to a single global opener.
+const MODAL_SEL = ".cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal";
+function topModal() {
+  const all = document.querySelectorAll(MODAL_SEL);
+  return all.length ? all[all.length - 1] : null;
+}
 const FOCUSABLE_SEL = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),video[controls],[tabindex]:not([tabindex="-1"])';
 function focusablesIn(root) {
   return [...root.querySelectorAll(FOCUSABLE_SEL)]
@@ -613,7 +623,7 @@ function trapTab(e) {
 }
 function applyDialog(box, label, opts) {
   opts = opts || {};
-  if (!opts.keepOpener) modalOpener = document.activeElement;   // remember who opened it
+  box._opener = opts.opener !== undefined ? opts.opener : document.activeElement;   // remember who opened it
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-modal", "true");
   if (label) box.setAttribute("aria-label", label);
@@ -621,20 +631,23 @@ function applyDialog(box, label, opts) {
   const initial = (opts.initial && box.querySelector(opts.initial)) || focusablesIn(box)[0];
   if (initial && initial.focus) { try { initial.focus(); } catch (e) {} }
 }
-function restoreFocus() {
-  if (modalOpener && modalOpener.focus && document.contains(modalOpener)) { try { modalOpener.focus(); } catch (e) {} }
-  modalOpener = null;
+// Call after `box` has been removed. Falls back to the first focusable of the
+// layer now on top when the opener is gone, so focus never drops to <body>
+// behind a still-open modal.
+function restoreFocus(box) {
+  const o = box && box._opener;
+  if (o && o.focus && document.contains(o) && o !== document.body) { try { o.focus(); } catch (e) {} return; }
+  const t = topModal();
+  const f = t && focusablesIn(t)[0];
+  if (f) { try { f.focus(); } catch (e) {} }
 }
-// Close the topmost open overlay, most-recently-layered first. Returns true if
-// one was dismissed, so Escape handling stays predictable when modals stack
-// (e.g. a lightbox opened from inside a profile modal).
-function closeAllModals() {
-  const order = [".cmdk", ".ctx-modal", ".kb-modal", ".lightbox", ".profile-modal"];
-  for (const sel of order) {
-    const nodes = document.querySelectorAll(sel);
-    if (nodes.length) { nodes.forEach((n) => n.remove()); restoreFocus(); return true; }
-  }
-  return false;
+// Close ONLY the top layer. Returns true if one was dismissed.
+function closeTopModal() {
+  const top = topModal();
+  if (!top) return false;
+  if (top === lbState.box) closeLightbox();
+  else { top.remove(); restoreFocus(top); }
+  return true;
 }
 
 /* ---- Time → index (binary search; MSGS is sorted ascending by t) --------- */
@@ -986,7 +999,9 @@ function renderMedia(m, i) {
   if (m.k === "img") {
     const img = el("img"); img.loading = "lazy"; img.src = m.m;
     img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
-    img.addEventListener("click", (e) => { e.stopPropagation(); openLightbox(i); });
+    // A search result walks the result media; anywhere else (timeline, a
+    // Context peek — even over Search) walks the conversation's media.
+    img.addEventListener("click", (e) => { e.stopPropagation(); openLightbox(i, img.closest("#s-list") ? resState.idx : null); });
     d.appendChild(img);
   } else if (m.k === "vid") {
     const v = document.createElement("video"); v.src = m.m; v.controls = true; v.preload = "none";
@@ -1027,22 +1042,36 @@ function renderReacts(r) {
 }
 
 /* ---- Lightbox ------------------------------------------------------------ */
-let lbState = { idxList: [], pos: 0, box: null };
+let lbState = { idxList: [], pos: 0, box: null, opener: null };
 
-function openLightbox(i) {
-  if (document.querySelector(".lightbox")) document.querySelector(".lightbox").remove();
-  
-  const list = curView === "search" ? resState.idx.filter(idx => MSGS[idx].m) : MSGS.map((_, idx) => idx).filter(idx => MSGS[idx].m);
-  if (!list.length) return;
-  lbState.idxList = list;
-  let pos = list.indexOf(i);
-  if (pos < 0) {
-    const found = list.findIndex(idx => idx >= i);
-    pos = found >= 0 ? found : 0;
-  }
-  lbState.pos = Math.max(0, Math.min(pos, list.length - 1));
-  modalOpener = document.activeElement;   // remember focus to restore on close
+// VC-9/AN-12: only images and videos are lightbox slides — "file" media
+// (pdf, …) is a link chip, never a (broken) <img>.
+function isViewable(i) { const m = MSGS[i]; return !!(m && m.m && (m.k === "img" || m.k === "vid")); }
+function convMediaList() { const out = []; for (let i = 0; i < N; i++) if (isViewable(i)) out.push(i); return out; }
+
+// `list` is the ordered set the arrows walk, supplied by the caller so they
+// follow what the user is looking at (AN-16): newest-first Gallery, the ranked
+// Hall of Fame set, the search results. When the list doesn't contain `i`
+// (e.g. a neighbour photo in Context peek over Search — VC-7) or no list is
+// given, fall back to the conversation's media in date order.
+function openLightbox(i, list) {
+  if (!isViewable(i)) return;
+  let idx = (list || []).filter(isViewable);
+  if (idx.indexOf(i) < 0) idx = convMediaList();
+  // Re-opening over an open lightbox keeps the ORIGINAL opener.
+  const opener = lbState.box ? lbState.opener : document.activeElement;
+  if (lbState.box) { lbState.box.remove(); lbState.box = null; }
+  lbState.opener = opener;
+  lbState.idxList = idx;
+  lbState.pos = idx.indexOf(i);
   renderLightbox();
+}
+function closeLightbox() {
+  const box = lbState.box;
+  if (!box) return;
+  box.remove(); lbState.box = null;
+  document.removeEventListener("keydown", lbKeyHandler);
+  restoreFocus(box);
 }
 
 function renderLightbox() {
@@ -1052,7 +1081,7 @@ function renderLightbox() {
   const box = el("div", "lightbox");
   lbState.box = box;
   
-  const close = () => { box.remove(); lbState.box = null; document.removeEventListener("keydown", lbKeyHandler); restoreFocus(); };
+  const close = closeLightbox;
   box.addEventListener("click", (e) => { if (e.target === box) close(); });
   
   const x = el("button", "lb-close", "✕"); x.onclick = close; box.appendChild(x);
@@ -1107,14 +1136,17 @@ function renderLightbox() {
   box.appendChild(cap);
   
   document.body.appendChild(box);
-  applyDialog(box, "Media viewer", { initial: ".lb-close", keepOpener: true });
+  applyDialog(box, "Media viewer", { initial: ".lb-close", opener: lbState.opener });
 
   document.removeEventListener("keydown", lbKeyHandler);
   document.addEventListener("keydown", lbKeyHandler);
 }
 
 function lbKeyHandler(e) {
-  if (e.key === "Escape") { if(lbState.box) lbState.box.remove(); lbState.box = null; document.removeEventListener("keydown", lbKeyHandler); restoreFocus(); }
+  // Escape is the global handler's job (closeTopModal) — handling it here too
+  // closed two layers per keypress (VC-20). Arrows only drive the lightbox
+  // while it is the top layer (not under the keyboard help, say).
+  if (!lbState.box || topModal() !== lbState.box) return;
   if (e.key === "ArrowLeft" && lbState.pos > 0) { lbState.pos--; renderLightbox(); }
   if (e.key === "ArrowRight" && lbState.pos < lbState.idxList.length - 1) { lbState.pos++; renderLightbox(); }
 }
@@ -1477,7 +1509,7 @@ function appendResultsPage() {
   const slice = idx.slice(start, start + PAGE);
   const frag = document.createDocumentFragment();
   for (const i of slice) {
-    if (F.grid) frag.appendChild(galleryCell(i));   // idx is already the media subset (VC-16)
+    if (F.grid) frag.appendChild(galleryCell(i, idx));   // idx is already the media subset (VC-16)
     else frag.appendChild(renderMsg(i, { clickable: true, needles: F.needles, ranges: fuzzyRanges ? fuzzyRanges.get(i) : null }));
   }
   sEls.list.appendChild(frag);
@@ -1489,7 +1521,7 @@ function appendResultsPage() {
     resObserver.observe(sentinel);
   }
 }
-function galleryCell(i) {
+function galleryCell(i, list) {
   const m = MSGS[i], c = el("div", "gcell");
   // P2-4: kindOf() can return "file" for unknown extensions (e.g. .pdf) — that
   // is neither "img" nor "vid", so it must not fall into the video branch
@@ -1499,7 +1531,8 @@ function galleryCell(i) {
   else if (m.k === "vid") { const v = document.createElement("video"); v.src = m.m; v.preload = "metadata"; c.appendChild(v); c.appendChild(el("div", "play", "▶")); }
   else { const chip = renderMedia(m, i); chip.classList.add("gallery-cell"); c.appendChild(chip); }
   c.title = nameOf(m.s) + " · " + DT.format(m.t);
-  c.onclick = () => openLightbox(i);
+  // VC-9: a file cell is just its link chip — it must not also open a lightbox.
+  if (isViewable(i)) c.onclick = () => openLightbox(i, list);
   return c;
 }
 
@@ -3273,10 +3306,10 @@ function init() {
     if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); openCommandPalette(); return; }
     if (e.key === "Escape") {
       if (mobileSheetClose()) return;   // the More sheet sits above the views
-      if (closeAllModals()) return;
+      if (closeTopModal()) return;
       closePopovers();
     }
-    if (curView === "wrapped" && !document.querySelector(".cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal") && document.activeElement.tagName !== "INPUT") {
+    if (curView === "wrapped" && !topModal() && document.activeElement.tagName !== "INPUT") {
       if (e.key === "ArrowRight") { e.preventDefault(); wrappedGo(1); return; }
       if (e.key === "ArrowLeft") { e.preventDefault(); wrappedGo(-1); return; }
     }
@@ -3447,7 +3480,7 @@ function appendGalleryPage() {
   
   const frag = document.createDocumentFragment();
   for (const i of slice) {
-    frag.appendChild(galleryCell(i));
+    frag.appendChild(galleryCell(i, items));   // newest-first, like the grid (AN-16)
   }
   galEls.list.appendChild(frag);
   galleryState.page++;
@@ -3596,8 +3629,9 @@ function renderHallOfFame() {
   if (mediaItems.length) {
     v.querySelector("#hof-media-sec").hidden = false;
     const grid = v.querySelector("#hof-media");
+    const ranked = mediaItems.map((x) => x.i);   // arrows walk the ranking (AN-16)
     mediaItems.forEach((x) => {
-      const cell = galleryCell(x.i);
+      const cell = galleryCell(x.i, ranked);
       const tag = el("div", "hof-cell-rc", "🔥 " + fmtNum(x.rc));
       cell.appendChild(tag);
       grid.appendChild(cell);
@@ -3836,7 +3870,7 @@ function paintWrappedDots(n) {
 /* ---- Keyboard shortcuts modal ------------------------------------------- */
 function toggleKeyboardHelp() {
   const existing = document.querySelector(".kb-modal");
-  if (existing) { existing.remove(); restoreFocus(); return; }
+  if (existing) { existing.remove(); restoreFocus(existing); return; }
   const modal = el("div", "kb-modal");
   modal.innerHTML = `
     <div class="kb-content">
@@ -3855,7 +3889,7 @@ function toggleKeyboardHelp() {
       </div>
       <div class="kb-footer">Press <kbd>Esc</kbd> or <kbd>?</kbd> to close</div>
     </div>`;
-  const closeKb = () => { modal.remove(); restoreFocus(); };
+  const closeKb = () => { modal.remove(); restoreFocus(modal); };
   modal.addEventListener("click", (e) => { if (e.target === modal) closeKb(); });
   modal.querySelector(".kb-close").onclick = closeKb;
   document.body.appendChild(modal);
@@ -3873,6 +3907,7 @@ document.addEventListener("click", (e) => {
 
 function openProfileModal(id) {
   const existing = document.querySelector(".profile-modal");
+  const inherit = existing ? existing._opener : undefined;   // replacing: keep the original opener
   if (existing) existing.remove();
 
   const p = PARTS.find(x => x.id === id);
@@ -3908,7 +3943,7 @@ function openProfileModal(id) {
     </div>
   `;
 
-  const closeProfile = () => { modal.remove(); restoreFocus(); };
+  const closeProfile = () => { modal.remove(); restoreFocus(modal); };
   modal.addEventListener("click", (e) => { if (e.target === modal) closeProfile(); });
   modal.querySelector(".profile-card-close").onclick = closeProfile;
 
@@ -3916,7 +3951,7 @@ function openProfileModal(id) {
   if (avInner) { avInner.classList.remove("av-clickable"); avInner.style.cursor = "default"; }
 
   document.body.appendChild(modal);
-  applyDialog(modal, "Profile — " + nameOf(id), { initial: ".profile-card-close" });
+  applyDialog(modal, "Profile — " + nameOf(id), { initial: ".profile-card-close", opener: inherit });
 
   // P1-2: the stats-derived fields (words/msg, vocab, badges). On a cold STATS
   // cache computeStats() sweeps every message — synchronously that freezes the
@@ -4104,6 +4139,8 @@ function renderForeignPin(conv, m) {
    CONTEXT PEEK — surrounding messages without leaving the current view
    ======================================================================== */
 function openContextPeek(center) {
+  const prevCtx = document.querySelector(".ctx-modal");
+  const inherit = prevCtx ? prevCtx._opener : undefined;   // replacing: keep the original opener
   document.querySelectorAll(".ctx-modal").forEach((m) => m.remove());
   const RADIUS = 5;
   const lo = Math.max(0, center - RADIUS), hi = Math.min(N - 1, center + RADIUS);
@@ -4111,7 +4148,7 @@ function openContextPeek(center) {
   const card = el("div", "ctx-card");
   const head = el("div", "ctx-head");
   head.innerHTML = '<div class="ctx-title">Conversation context</div>';
-  const closeCtx = () => { modal.remove(); restoreFocus(); };
+  const closeCtx = () => { modal.remove(); restoreFocus(modal); };
   const close = el("button", "kb-close", "✕"); close.onclick = closeCtx;
   head.appendChild(close);
   card.appendChild(head);
@@ -4138,7 +4175,7 @@ function openContextPeek(center) {
   modal.appendChild(card);
   modal.addEventListener("click", (e) => { if (e.target === modal) closeCtx(); });
   document.body.appendChild(modal);
-  applyDialog(modal, "Conversation context", { initial: ".kb-close" });
+  applyDialog(modal, "Conversation context", { initial: ".kb-close", opener: inherit });
   const c = bodyEl.querySelector(".ctx-center");
   if (c) c.scrollIntoView({ block: "center" });
 }
@@ -4326,6 +4363,8 @@ function buildCommands() {
   return cmds;
 }
 function openCommandPalette() {
+  const prevCmdk = document.querySelector(".cmdk");
+  const inherit = prevCmdk ? prevCmdk._opener : undefined;   // replacing: keep the original opener
   document.querySelectorAll(".cmdk").forEach((m) => m.remove());
   const all = buildCommands();
   const modal = el("div", "cmdk");
@@ -4424,11 +4463,11 @@ function openCommandPalette() {
   });
   function ensureVisible() { const r = listEl.querySelectorAll(".cmdk-row")[sel]; if (r) r.scrollIntoView({ block: "nearest" }); }
 
-  modal.addEventListener("click", (e) => { if (e.target === modal) { modal.remove(); restoreFocus(); } });
+  modal.addEventListener("click", (e) => { if (e.target === modal) { modal.remove(); restoreFocus(modal); } });
   document.body.appendChild(modal);
   refresh();
   // applyDialog captures the opener (for focus restore) before focusing the input.
-  applyDialog(modal, "Command palette", { initial: ".cmdk-input" });
+  applyDialog(modal, "Command palette", { initial: ".cmdk-input", opener: inherit });
 }
 
 // NOTE: boot happens at the very end of this IIFE (see bottom of file), after
