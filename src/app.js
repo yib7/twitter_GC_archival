@@ -1636,11 +1636,18 @@ function ensureTimelineShell() {
 
   virtObs = new IntersectionObserver((entries) => {
     entries.forEach(e => {
+      // VC-1: when the Timeline view is hidden (another view is showing) the
+      // root isn't laid out and every chunk reports "not intersecting" with a
+      // 0 height. Acting on that unrendered the whole list and cached a bogus
+      // height, so the preserved scrollTop pointed somewhere else on return.
+      if (!e.rootBounds || !e.rootBounds.height) return;
       const idx = +e.target.dataset.c;
       if (e.isIntersecting) {
         renderChunk(idx, e.target);
       } else if (chunkRendered[idx]) {
-        chunkHeights[idx] = e.target.offsetHeight || 1000;
+        const h = e.target.offsetHeight;
+        if (!h) return;   // never cache a 0 (not laid out) height
+        chunkHeights[idx] = h;
         e.target.style.height = chunkHeights[idx] + "px";
         e.target.innerHTML = "";
         chunkRendered[idx] = false;
