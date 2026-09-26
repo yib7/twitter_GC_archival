@@ -3213,7 +3213,11 @@ function init() {
   document.getElementById("app").hidden = false;
   buildSidebarSparkline();
   showOnThisDayToast();
-  const lastView = localStorage.getItem("gca.lastView");
+  // VC-17: guarded like every other storage access — with site data blocked
+  // the localStorage getter itself throws, and an unguarded read here used to
+  // abort init() before setView() ever ran (blank main area).
+  let lastView = null;
+  try { lastView = localStorage.getItem("gca.lastView"); } catch (e) { /* storage blocked */ }
   setView((lastView && ["search","timeline","stats","people","settings","capsule","gallery","pins","hof","wrapped","threads","battles","chains"].includes(lastView)) ? lastView : "search");
   maybeShowOnboarding();
 }
