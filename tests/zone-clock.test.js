@@ -73,3 +73,23 @@ test("createZoneClock memoizes per UTC day: far fewer Intl calls than instants",
   // 2 lookups per day + a ~17-step bisection on the one transition day.
   assert.ok(clock.stats().exact < 400, "exact lookups: " + clock.stats().exact);
 });
+
+// SP4 carry-over: offset() used to call Intl / Date on the raw instant, so the
+// largest valid Date (8.64e15) threw a RangeError (its UTC day's last ms is past
+// the max) and instants before year 1 gave garbage. The lookup instant is now
+// clamped to the same 1900..2199 window buildTimeIndex buckets in.
+test("createZoneClock.offset clamps absurd instants to the time-index bounds", () => {
+  const { TI_T_LO, TI_T_HI } = require("../src/shared-core.js");
+  assert.equal(TI_T_LO, Date.UTC(1900, 0, 1));
+  assert.equal(TI_T_HI, Date.UTC(2200, 0, 1) - 1);
+  for (const tz of ["America/New_York", "Asia/Tokyo", "local", "UTC"]) {
+    const c = createZoneClock(tz);
+    for (const t of [8.64e15, -8.64e15, -62198755200000 /* year -1 */, NaN, 1e20]) {
+      let off;
+      assert.doesNotThrow(() => { off = c.offset(t); }, tz + " @ " + t);
+      assert.ok(Number.isFinite(off), tz + " @ " + t + " -> " + off);
+      const ref = (t > TI_T_HI) ? c.offset(TI_T_HI) : c.offset(TI_T_LO);
+      assert.equal(off, ref, tz + " @ " + t);
+    }
+  }
+});

@@ -68,8 +68,19 @@
      analytics pass) into a few thousand per archive. mode: "utc" (offset 0,
      no Intl at all — "UTC", "Etc/UTC", …), "local" (native Date getters) or
      "intl" (any other IANA zone). An invalid zone throws RangeError, like Intl.
+     Outliers (SP4): the looked-up instant is clamped to [TI_T_LO, TI_T_HI]
+     (the same 1900..2199 window buildTimeIndex buckets in; NaN goes low), so
+     the largest valid Date (8.64e15, whose UTC day ends past the Date range)
+     can't throw inside Intl, and pre-year-1 instants can't yield garbage.
      Pure and DOM-free; unit-tested against Intl in tests/zone-clock.test.js. */
   const DAY_MS = 86400000;
+  // Bucketing window shared by createZoneClock, buildTimeIndex and the
+  // viewer's zonedParts(): 1900-01-01 .. 2199-12-31T23:59:59.999 UTC.
+  const TI_T_LO = Date.UTC(1900, 0, 1), TI_T_HI = Date.UTC(2200, 0, 1) - 1;
+  function clampInstant(t) {
+    t = +t;
+    return !(t >= TI_T_LO) ? TI_T_LO : (t > TI_T_HI ? TI_T_HI : t);
+  }
   function createZoneClock(tz) {
     let mode = "local", fmt = null;
     if (tz !== "local") {
@@ -99,6 +110,7 @@
     }
     function offset(t) {
       if (mode === "utc") return 0;
+      t = clampInstant(t);
       const day = Math.floor(t / DAY_MS);
       let off = perDay.get(day);
       if (off === undefined) {
@@ -142,7 +154,6 @@
      corrupt timestamp would otherwise wrap the Uint16 year, throw inside Intl,
      or make a dense per-day array (the viewer's timeAgg) span ~10^8 days. The
      message's own t, and every label formatted from it, are left untouched. */
-  const TI_T_LO = Date.UTC(1900, 0, 1), TI_T_HI = Date.UTC(2200, 0, 1) - 1;
   function buildTimeIndex(msgs, clock) {
     const n = msgs.length;
     const TI = {
@@ -152,8 +163,7 @@
     };
     let lastDn = NaN, y = 0, mo = 0, md = 0, wd = 0;
     for (let i = 0; i < n; i++) {
-      let t = +msgs[i].t;
-      if (!(t >= TI_T_LO)) t = TI_T_LO; else if (t > TI_T_HI) t = TI_T_HI;
+      const t = clampInstant(msgs[i].t);
       const w = t + clock.offset(t);
       const dn = Math.floor(w / DAY_MS);
       const msOfDay = w - dn * DAY_MS;
@@ -357,6 +367,7 @@
   return {
     PALETTE, X_LINK, hashId, initials, paletteColor,
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock, buildTimeIndex,
+    TI_T_LO, TI_T_HI, clampInstant,
     createBigramIndex, fuzzyCandidates,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };

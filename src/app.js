@@ -195,7 +195,11 @@ function dayNumKey(dn) {
 // agrees with its DT/DAY/dShort label (same zone, same instant).
 //   -> { y, mo (0-11), d, h (0-23), mi, se, dow (0=Sun), key "YYYY-MM-DD" }
 // For a sweep over the active conversation's messages use timeIndex() instead.
+// The instant is clamped to the time index's 1900..2199 window (shared-core
+// clampInstant), so an outlier timestamp buckets exactly where timeIndex()
+// puts it and can never produce an Invalid Date / RangeError (SP4 carry-over).
 function zonedParts(t) {
+  t = GCAShared.clampInstant(t);
   const wall = t + zoneOffset(t);
   const w = new Date(wall);
   return { y: w.getUTCFullYear(), mo: w.getUTCMonth(), d: w.getUTCDate(), h: w.getUTCHours(), mi: w.getUTCMinutes(),
