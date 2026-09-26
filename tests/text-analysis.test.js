@@ -98,6 +98,14 @@ test("tokenize: the no-Segmenter fallback splits CJK into characters", () => {
   assert.deepStrictEqual(S.tokenizeNoSegmenter("我喜欢猫 ok"), ["我", "喜", "欢", "猫", "ok"]);
 });
 
+test("tokenize: the no-Segmenter fallback keeps combining marks on their base (review fix 3)", () => {
+  // กินข้าว = ก + ิ (vowel sign), น, ข + ้ (tone mark), า, ว — no standalone mark.
+  const toks = S.tokenizeNoSegmenter("กินข้าว");
+  assert.deepStrictEqual(toks, ["กิ", "น", "ข้", "า", "ว"]);
+  for (const t of toks) assert.ok(!/^\p{M}/u.test(t), JSON.stringify(t));
+  assert.equal(toks.join(""), "กินข้าว");
+});
+
 test("stopwords are apostrophe-insensitive", () => {
   for (const w of ["i'm", "don't", "can't", "that's", "it's", "everyone's", "didn't", "dont", "im"]) {
     assert.ok(S.isStopword(w), w);
