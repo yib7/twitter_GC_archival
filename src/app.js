@@ -231,6 +231,13 @@ const LOCAL_IGNORED_GROUPS = (typeof window !== "undefined" && Array.isArray(win
 //   window.LOCAL_GC  = { name, photo }       — the real group name + photo path
 const LOCAL_ME = (typeof window !== "undefined" && window.LOCAL_ME) || null;
 const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
+// Storage keys read by loadSettings() below. They MUST be declared before the
+// top-level `let settings = loadSettings()` runs: as `const`s further down they
+// sat in the temporal dead zone at boot, loadPfps()/loadGc() threw (and
+// swallowed) a ReferenceError, and every saved photo / in-app group rename was
+// silently dropped on reload.
+const PFPS_KEY = "gca.pfps";
+const GC_KEY = "gca.gc";
 const DEFAULTS = {
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
   colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC"
@@ -260,7 +267,6 @@ function loadSettings() {
     return JSON.parse(JSON.stringify(DEFAULTS)); 
   }
 }
-const PFPS_KEY = "gca.pfps";
 // Profile-picture data URLs are bulky; persist them under their OWN localStorage
 // key so an over-quota photo can never block names/pins/saved searches from
 // saving. (Previously photos lived inside the gca.settings blob, where one large
@@ -282,7 +288,6 @@ function savePfps() {
 // Per-group name + photo overrides ({ convId: { name, photo } }) editable in the
 // app. Like pfps, the (bulky) photo data URLs live under their OWN localStorage
 // key so they can never trip the gca.settings quota.
-const GC_KEY = "gca.gc";
 function loadGc(legacy) {
   try {
     const raw = localStorage.getItem(GC_KEY);
