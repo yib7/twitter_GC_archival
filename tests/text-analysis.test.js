@@ -112,6 +112,19 @@ test("countWord counts whole-token occurrences (phrases too), never substrings",
   assert.equal(S.countWord("anything", ""), 0);
 });
 
+test("countKeys / mayContainKey: the pre-folded loop form of countWord", () => {
+  const keys = S.wordKeys("Don’t");
+  assert.deepStrictEqual(keys, ["dont"]);
+  assert.equal(S.countKeys("i don't, i DON’T", keys), 2);
+  // The prefilter may say yes too often, never no when countKeys would count.
+  for (const t of ["i don’t know", "i don't know", "dont", "DONʼT stop"]) {
+    assert.ok(S.mayContainKey(t.toLowerCase(), "dont"), t);
+    assert.ok(S.countKeys(t, keys) > 0, t);
+  }
+  assert.ok(!S.mayContainKey("nothing here", "dont"));
+  assert.ok(!S.mayContainKey("", "dont"));
+});
+
 /* ---- AN-8: keyword patterns ---------------------------------------------- */
 test("countLaughs counts plain and stretched laughs and laughing emoji", () => {
   assert.equal(S.countLaughs("💀"), 1);

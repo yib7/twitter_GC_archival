@@ -381,17 +381,28 @@
   // Whole-token occurrences of `word` (which may be a phrase) in `text`,
   // apostrophe- and case-insensitive: "man" never matches "many"/"humans",
   // "dont" matches "don’t". Used by Word Battles and the keyword trend (AN-10).
-  function countWord(text, word) {
-    const w = tokenize(word).map(wordKey);
-    if (!w.length) return 0;
+  function wordKeys(word) { return tokenize(word).map(wordKey); }
+  // countWord with the word already folded by wordKeys() — for loops over
+  // many messages, so the query is tokenized once, not once per message.
+  function countKeys(text, keys) {
+    if (!keys.length) return 0;
     const t = tokenize(text);
     let n = 0;
-    for (let i = 0; i + w.length <= t.length; i++) {
+    for (let i = 0; i + keys.length <= t.length; i++) {
       let k = 0;
-      while (k < w.length && wordKey(t[i + k]) === w[k]) k++;
-      if (k === w.length) n++;
+      while (k < keys.length && wordKey(t[i + k]) === keys[k]) k++;
+      if (k === keys.length) n++;
     }
     return n;
+  }
+  function countWord(text, word) { return countKeys(text, wordKeys(word)); }
+  // Cheap prefilter before countKeys over many texts: false only when the
+  // lower-cased text cannot contain the folded key (apostrophes removed).
+  function mayContainKey(lowerText, key) {
+    if (!lowerText || !key) return false;
+    if (lowerText.indexOf(key) !== -1) return true;
+    if (lowerText.indexOf("'") === -1 && !RE_HAS_APOS.test(lowerText)) return false;
+    return lowerText.replace(RE_APOS, "").split("'").join("").indexOf(key) !== -1;
   }
 
   // --- Keyword patterns (AN-8) -------------------------------------------------
@@ -539,7 +550,7 @@
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant,
     createBigramIndex, fuzzyCandidates,
-    extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, countWord,
+    extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, urlHost, linkPlatform, plural,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };

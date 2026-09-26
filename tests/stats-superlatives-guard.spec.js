@@ -83,14 +83,14 @@ test("profile modal keeps its badges and stat lines on sample data", async ({ pa
     "📷\nMedia Hog", "🤬\nThe Sailor", "💀\nThread Killer",
     "📚\nThe Scholar", "👏\nCrowd Pleaser",
   ]);
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["18", "6.4", "77"]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["18", "6.2", "76"]);
   await expect(page.locator(".profile-modal .profile-stat-lbl")).toHaveText(["Messages", "Words/Msg", "Vocab Size"], { ignoreCase: true });
   await closeProfile();
 
   // 1002 holds the remaining Yapper badge — a second, independent winner path.
   await openProfile("1002");
   await expect(page.locator(".profile-modal .profile-badge")).toHaveText(["🗣️\nThe Yapper"]);
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["17", "9.5", "76"]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["17", "9.1", "75"]);
   await closeProfile();
 
   expect(errors).toEqual([]);

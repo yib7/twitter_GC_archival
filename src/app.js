@@ -10,6 +10,9 @@
 const { PALETTE, X_LINK, hashId, initials, paletteColor } = GCAShared;
 // Pure settings validators (VC-5/VC-6) — also unit-tested under Node.
 const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
+// SP4: the one definition of an emoji / word / stopword / keyword / platform
+// link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
+const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, isCloudWord, plural } = GCAShared;
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
@@ -69,7 +72,7 @@ function assignGenericNames() {
 
 // drop derived caches / per-view state so the next render uses the active conversation
 function resetDerived() {
-  STATS = null; WORDS = null; MILES = null; HOF = null; fuzzyIdxJob = null; fuzzyForceQ = null;
+  STATS = null; MILES = null; HOF = null; fuzzyIdxJob = null; fuzzyForceQ = null;
   threadsCache = null;
   TIDX = null;   // the zoned time index is per conversation (UX-4 / AN-13)
   searchBuilt = false; sEls = {};
@@ -104,7 +107,7 @@ function resetDerived() {
 // conversation or zone never linger or get mixed — setView re-renders Stats on
 // entry. Called on a conversation switch (resetDerived) and a timezone change.
 function cancelStatsRender() {
-  statsJob = null; wordsJob = null; statsRenderSeq++;
+  statsJob = null; statsRenderSeq++;
   const sv = document.getElementById("view-stats"); if (sv) { sv.innerHTML = ""; delete sv.dataset.ready; }
 }
 
@@ -741,7 +744,7 @@ function pfpHtml(id, styleStr) {
 
 /* ---- Participants & derived stats (computed once) ------------------------ */
 // PARTS is computed per-conversation by activateConversation()
-let STATS = null, WORDS = null;
+let STATS = null;
 // Messages containing a Twitter/X link are useless for telling people apart, so
 // they're excluded from the naming samples entirely (not only when they *start*
 // with a URL). A few shared-media paths are collected as extra memory jogs.
@@ -2056,18 +2059,16 @@ const RE_TIKTOK = /tiktok\.com/i;
 const RE_YOUTUBE = /youtube\.com|youtu\.be/i;
 const RE_TWITTER_URL = /twitter\.com|x\.com/i;
 const RE_INSTAGRAM = /instagram\.com/i;
-const RE_WORD = /\b\w+\b/g;
 const RE_KEYSMASH_RUN = /\b[a-z]{6,}\b/;
 const RE_VOWEL = /[aeiouy]/;
 const RE_KEYSMASH_SEQ = /asdf|fdsa|ghjk|hjkl/i;
 const RE_ANY_UPPER = /[A-Z]/;
 const RE_QUESTION = /\?/g;
 const RE_EXCLAIM = /!/g;
-const RE_EMOJI = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
 
 /* ---- Time-sliced sweeps (SP3) ------------------------------------------------
-   The two text-heavy sweeps (computeStats' superlatives, computeWords' word
-   cloud) are generator functions that `yield` once the current slice's
+   Text-heavy sweeps (computeStats' superlatives + word cloud, the fuzzy
+   bigram index) are generator functions that `yield` once the current slice's
    deadline (sliceEnd) has passed, checked every 1024 messages. A job wraps one
    such generator for one input (`key`):
      - synchronous callers (profile modal, Wrapped, …) drain it: runJob(job, Infinity)
@@ -2090,16 +2091,12 @@ function runJob(job, budget) {
   } finally { sliceEnd = prev; }
   return job.done;
 }
-let statsJob = null, wordsJob = null;
+let statsJob = null;
 // Keyed on the time index: a new conversation OR a new zone starts a new sweep.
 function statsJobFor() {
   const TI = timeIndex();
   if (!statsJob || statsJob.key !== TI) statsJob = makeJob(TI, statsGen);
   return statsJob;
-}
-function wordsJobFor() {
-  if (!wordsJob || wordsJob.key !== MSGS) wordsJob = makeJob(MSGS, wordsGen);
-  return wordsJob;
 }
 
 function computeStats() {
@@ -2114,7 +2111,11 @@ function computeStats() {
 }
 function* statsGen() {
   const perPerson = {}, emojis = {};
-  
+  // Every token of the chat, counted once — the word cloud filters the DISTINCT
+  // tokens afterwards (isCloudWord per token would be per-occurrence work).
+  const tokenCounts = new Map();
+  let totalWords = 0;
+
   // Superlative counters
   const nightCount = {};      // user -> late night msg count
   const emojiCount = {};      // user -> emoji count
@@ -2258,13 +2259,19 @@ function* statsGen() {
     // Text-based checks
     if (m.x) {
        const txt = m.x;
-       // Words
-       const wMatch = txt.match(RE_WORD);
-       if (wMatch && wMatch.length > 0) {
-         wordsTotal[m.s] = (wordsTotal[m.s] || 0) + wMatch.length;
+       // Words — the one shared tokenizer (AN-2 / AN-11): the per-person word
+       // stats, the whole-chat total and the word cloud all count these tokens.
+       const toks = tokenize(txt);
+       if (toks.length) {
+         totalWords += toks.length;
+         wordsTotal[m.s] = (wordsTotal[m.s] || 0) + toks.length;
          msgWithWords[m.s] = (msgWithWords[m.s] || 0) + 1;
-         if (!uniqueWords[m.s]) uniqueWords[m.s] = new Set();
-         wMatch.forEach(w => uniqueWords[m.s].add(w.toLowerCase()));
+         let seen = uniqueWords[m.s];
+         if (!seen) seen = uniqueWords[m.s] = new Set();
+         for (const w of toks) {
+           seen.add(wordKey(w));
+           tokenCounts.set(w, (tokenCounts.get(w) || 0) + 1);
+         }
        }
        
        if (txt.length > (maxMsgLen[m.s] || 0)) maxMsgLen[m.s] = txt.length;
@@ -2308,13 +2315,12 @@ function* statsGen() {
        const finMatch = txt.match(RE_FINANCE_BRO);
        if (finMatch) financeBroCount[m.s] = (financeBroCount[m.s] || 0) + finMatch.length;
 
-       // Emoji check
-       const ems = m.x.match(RE_EMOJI);
-       if (ems) {
-         ems.forEach(e => {
-           emojis[e] = (emojis[e] || 0) + 1;
-           emojiCount[m.s] = (emojiCount[m.s] || 0) + 1;
-         });
+       // Emoji — whole sequences (skin tone, ZWJ family, flag, keycap) count
+       // once each (AN-1), the same helper Wrapped uses.
+       const ems = extractEmojis(txt);
+       for (const e of ems) {
+         emojis[e] = (emojis[e] || 0) + 1;
+         emojiCount[m.s] = (emojiCount[m.s] || 0) + 1;
        }
     }
 
@@ -2454,8 +2460,14 @@ function* statsGen() {
       return { fromId, toId, count };
     });
 
+  const cloud = [];
+  for (const [w, c] of tokenCounts) if (isCloudWord(w)) cloud.push([w, c]);
+  cloud.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+
   return {
     perPerson,
+    words: cloud.slice(0, 42),
+    totalWords,
     days: agg.days,
     monthArr: agg.monthArr,
     daysActive: agg.daysActive,
@@ -2474,48 +2486,34 @@ function* statsGen() {
     topPairs
   };
 }
-function computeWords() {
-  if (WORDS) return WORDS;
-  const job = wordsJobFor();
-  runJob(job, Infinity);
-  WORDS = job.value;
-  return WORDS;
-}
-function* wordsGen() {
-  // STOPWORDS is declared further down (search "SHARED STOPWORDS") — safe to
-  // reference here since this function only runs after the whole module has
-  // parsed, not at declaration time. Kept as one Set so the word cloud and the
-  // wrapped top-word stat can never drift out of sync with each other.
-  const counts = {};
-  for (let i = 0; i < N; i++) {
-    if ((i & 1023) === 1023 && performance.now() > sliceEnd) yield;
-    const x = MSGS[i].x; if (!x) continue;
-    const toks = x.toLowerCase().replace(/https?:\/\/\S+/g, " ").replace(/[^a-z0-9']+/g, " ").split(" ");
-    for (const t of toks) { if (t.length < 3 || t.length > 18) continue; if (STOPWORDS.has(t)) continue; counts[t] = (counts[t] || 0) + 1; }
-  }
-  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 42);
-}
+// The word cloud (top 42 cloud words) is gathered by the same stats sweep that
+// tokenizes every message for the per-person word stats — one tokenizer pass.
+function computeWords() { return computeStats().words || []; }
 let trendChart = null;
 // P2-2: the months/hours/weekdays Chart.js instances of the current Stats
 // render. Tracked (like trendChart) so renderStats()/resetDerived() can
 // destroy them before their canvases are detached.
 let statCharts = [];
+// Whole-word uses of `word` (or phrase) per zoned month — the same token
+// definition as the word cloud and Word Battles (AN-10), never a substring.
 function computeKeywordTrend(word) {
-  const wordLower = word.toLowerCase();
+  const keys = wordKeys(word);
   const monthCounts = {};
-  
   timeAgg().monthArr.forEach(m => monthCounts[m[0]] = 0);
-
+  if (!keys.length) return Object.entries(monthCounts);
+  // Prefilter on the longest key: most messages can't contain it at all.
+  const probe = keys.reduce((a, b) => (b.length > a.length ? b : a));
   // Same zoned "YYYY-MM" keys as timeAgg().monthArr so the trend chart aligns.
   const TI = timeIndex(), hits = new Map();
   for (let i = 0; i < N; i++) {
-    if (LOWER[i].includes(wordLower)) hits.set(TI.monthKey[i], (hits.get(TI.monthKey[i]) || 0) + 1);
+    if (!mayContainKey(LOWER[i], probe)) continue;
+    const c = countKeys(MSGS[i].x, keys);
+    if (c) hits.set(TI.monthKey[i], (hits.get(TI.monthKey[i]) || 0) + c);
   }
   for (const [mk, c] of hits) {
     const ym = monthKeyStr(mk);
     monthCounts[ym] = (monthCounts[ym] || 0) + c;
   }
-
   return Object.entries(monthCounts).sort((a,b) => a[0] < b[0] ? -1 : 1);
 }
 
@@ -2550,25 +2548,11 @@ function computeMilestones() {
   if (MILES) return MILES;
   // Same empty-conversation guard as computeStats() — MSGS[N-1]/MSGS[0] would throw.
   if (!N) return (MILES = { empty: true });
-  let totalWords = 0, totalReacts = 0;
-  // Word count = whitespace-separated runs of the trimmed text (the old
-  // `t.split(/\s+/).length`), counted with one test per char instead of
-  // allocating a split array per message.
-  const RE_WS = /\s/;
-  for (let i = 0; i < N; i++) {
-    const m = MSGS[i];
-    const x = m.x;
-    if (x) {
-      let inWord = false;
-      for (let k = 0; k < x.length; k++) {
-        const c = x.charCodeAt(k);
-        const ws = c === 32 || (c <= 13 && c >= 9) || (c > 127 && RE_WS.test(x[k]));
-        if (!ws && !inWord) totalWords++;
-        inWord = !ws;
-      }
-    }
-    if (m.r) totalReacts += m.r.length;
-  }
+  // "Total words sent" is NOT computed here: it is the shared tokenizer's
+  // count (AN-2), gathered by the deferred stats sweep with every other word
+  // stat, and filled into its milestone card in stage 2.
+  let totalReacts = 0;
+  for (let i = 0; i < N; i++) { const r = MSGS[i].r; if (r) totalReacts += r.length; }
   // Day / hour tallies come from the zoned time index aggregate: dayCounts is
   // indexed by zoned day number, so "consecutive days" is just adjacent slots
   // (exact and DST-proof), and the busiest day is the earliest maximum.
@@ -2592,7 +2576,7 @@ function computeMilestones() {
   MILES = {
     streak: fmtNum(best) + (best === 1 ? " day" : " days"), streakDays: best, streakRange,
     busiestDay: busiestDay ? keyLabel(DAY, busiestDay) : "—", busiestCount,
-    totalWords, bookPages: Math.round(totalWords / 250), totalReacts,
+    totalReacts,
     ageYears: (ageMs / (365.25 * 86400000)).toFixed(1) + " yrs",
     firstDay: dShort.format(MSGS[0].t),
     peakHourLabel: fmtH(peakHour), peakHourCount: hourCount[peakHour],
@@ -2607,8 +2591,8 @@ function computeMilestones() {
 //      (timeAgg) plus computeMilestones();
 //   2. deferred — superlatives, latency & pairings, yapping, double-texting,
 //      generosity, vocabulary, platforms, top emojis and the word cloud. Their
-//      slots render as pulsing placeholders; the computeStats()/computeWords()
-//      jobs are stepped in SLICE_MS tasks and the slots are swapped for the real
+//      slots render as pulsing placeholders; the computeStats() job (which
+//      also gathers the word cloud) is stepped in SLICE_MS tasks and the slots are swapped for the real
 //      sections in one go, after which #view-stats gets data-ready="1".
 // statsRenderSeq cancels a pending stage 2 when Stats re-renders, the
 // conversation changes (resetDerived) or the view is left and re-entered.
@@ -2698,7 +2682,7 @@ function renderStats() {
       <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
         <div class="card mile"><div class="stat-num accent" data-count="${ms.streakDays}" data-suffix="${ms.streakDays === 1 ? " day" : " days"}">${ms.streak}</div><div class="stat-lbl">Longest daily streak</div><div class="mile-sub">${esc(ms.streakRange)}</div></div>
         <div class="card mile"><div class="stat-num" data-count="${ms.busiestCount}">${fmtNum(ms.busiestCount)}</div><div class="stat-lbl">Busiest single day</div><div class="mile-sub">${esc(ms.busiestDay)}</div></div>
-        <div class="card mile"><div class="stat-num" data-count="${ms.totalWords}">${fmtNum(ms.totalWords)}</div><div class="stat-lbl">Total words sent</div><div class="mile-sub">≈ ${fmtNum(ms.bookPages)} paperback pages</div></div>
+        <div class="card mile" data-mile="words"><div class="stat-num">${deferSlot("words-total")}</div><div class="stat-lbl">Total words sent</div><div class="mile-sub">&nbsp;</div></div>
         <div class="card mile"><div class="stat-num" data-count="${ms.totalReacts}">${fmtNum(ms.totalReacts)}</div><div class="stat-lbl">Reactions given</div><div class="mile-sub">across the whole chat</div></div>
         <div class="card mile"><div class="stat-num">${ms.ageYears}</div><div class="stat-lbl">Chat age</div><div class="mile-sub">since ${esc(ms.firstDay)}</div></div>
         <div class="card mile"><div class="stat-num">${esc(ms.peakHourLabel)}</div><div class="stat-lbl">Peak hour</div><div class="mile-sub">${fmtNum(ms.peakHourCount)} msgs all-time</div></div>
@@ -2825,7 +2809,6 @@ function scheduleStatsStage2(v, seq) {
   const tick = () => {
     if (!live()) return;
     if (!STATS && !runJob(statsJobFor(), SLICE_MS)) { setTimeout(tick, 0); return; }
-    if (!WORDS && !runJob(wordsJobFor(), SLICE_MS)) { setTimeout(tick, 0); return; }
     fillStatsDeferred(v, computeStats(), computeWords());
     v.dataset.ready = "1";
   };
@@ -3043,6 +3026,14 @@ function fillStatsDeferred(v, s, cloudWords) {
           <div class="bars" style="${panel}">${platRows}</div>
         </div>
       </div>`);
+
+  // ---- Total words milestone (shared tokenizer count) -------------------------
+  const wm = v.querySelector('.mile[data-mile="words"]');
+  if (wm) {
+    slot("words-total", fmtNum(s.totalWords));
+    wm.querySelector(".stat-num").dataset.count = String(s.totalWords);
+    wm.querySelector(".mile-sub").textContent = "≈ " + plural(Math.round(s.totalWords / 250), "paperback page");
+  }
 
   // ---- Top emojis + word cloud ------------------------------------------------
   const emc = v.querySelector("#top-emojis");
@@ -3299,7 +3290,7 @@ function renderSettings() {
     settings.timezone = e.target.value; settings.tzExplicit = true; saveSettings(); initDateFormatters();
     // Every zone-dependent derived cache must be dropped: stats, word/keyword
     // months, milestones, Hall of Fame years, threads, and each Wrapped year.
-    STATS = null; WORDS = null; MILES = null; HOF = null; threadsCache = null;
+    STATS = null; MILES = null; HOF = null; threadsCache = null;
     for (const k in wrappedCache) delete wrappedCache[k];
     cancelStatsRender();   // a pending stage 2 would fill old-zone DOM with new-zone numbers
     // VC-22: already-rendered Search results / Timeline rows carry old-zone
@@ -3862,13 +3853,6 @@ function appendGalleryPage() {
 }
 
 /* ===========================================================================
-   SHARED STOPWORDS (word cloud, wrapped top word)
-   ======================================================================== */
-// Used by computeWords() (word cloud, above) and the per-year top-word scan
-// below — one Set so both stay in sync; do not reintroduce a second copy.
-const STOPWORDS = new Set("the a an and or but to of in on at for with is are was were be been being am i you he she it we they them me my your our this that these those have has had do does did not no so if as up out get got go gonna just like dont didnt cant wont im youre theyre thats whats here there all any some more most then than too very can could would should will shall may might must about into over under again only also even still much many lol lmao lmaooo yeah yea nah ok okay haha hahaha bro man dude what when who whom how why which whose oh uh um yo idk imo tbh".split(/\s+/));
-
-/* ===========================================================================
    THEME SHUFFLE (surprise me — random theme + accent)
    ======================================================================== */
 function shuffleTheme() {
@@ -4023,7 +4007,7 @@ function wrappedYears() {
 }
 function computeWrapped(year) {
   if (wrappedCache[year]) return wrappedCache[year];
-  const perPerson = {}, dayCount = {}, emojis = {}, words = {};
+  const perPerson = {}, dayCount = {}, emojis = {}, words = new Map();
   let total = 0, media = 0, reacts = 0, chars = 0;
   let topMsg = { i: -1, rc: -1 };
   const TI = timeIndex();
@@ -4040,17 +4024,16 @@ function computeWrapped(year) {
     if (rc > topMsg.rc) topMsg = { i, rc };
     if (m.x) {
       chars += m.x.length;
-      const ems = m.x.match(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu);
-      if (ems) ems.forEach((e) => (emojis[e] = (emojis[e] || 0) + 1));
-      const toks = m.x.toLowerCase().replace(/https?:\/\/\S+/g, " ").replace(/[^a-z0-9']+/g, " ").split(" ");
-      for (const t of toks) { if (t.length < 3 || t.length > 18 || STOPWORDS.has(t)) continue; words[t] = (words[t] || 0) + 1; }
+      // Same emoji grammar and tokenizer as Stats (AN-1 / AN-2).
+      for (const e of extractEmojis(m.x)) emojis[e] = (emojis[e] || 0) + 1;
+      for (const t of tokenize(m.x)) words.set(t, (words.get(t) || 0) + 1);
     }
   }
   const people = Object.entries(perPerson).sort((a, b) => b[1] - a[1]);
   let busyDay = "", busyN = 0;
   for (const k in dayCount) if (dayCount[k] > busyN) { busyN = dayCount[k]; busyDay = k; }
   const topEmoji = Object.entries(emojis).sort((a, b) => b[1] - a[1])[0] || null;
-  const topWords = Object.entries(words).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const topWords = [...words].filter(([t]) => isCloudWord(t)).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 5);
   wrappedCache[year] = {
     year, total, media, reacts, chars,
     people, activeDays: Object.keys(dayCount).length,
@@ -5070,21 +5053,26 @@ function drawBattleResults() {
   const container = document.getElementById("battle-results");
   if (!container || !battleP1 || !battleP2) return;
 
-  const counts1 = {}, counts2 = {};
+  // Whole-word token counts (the shared tokenizer, apostrophe-folded keys) —
+  // "lol!" is the word lol, "many" is not "man" (AN-10). The custom rows added
+  // by addBattleRow() count the very same way.
+  const counts1 = new Map(), counts2 = new Map();
   for (let i = 0; i < N; i++) {
     const m = MSGS[i];
-    if (!m.x) continue;
-    const toks = m.x.toLowerCase().split(/\s+/);
-    if (m.s === battleP1) toks.forEach(t => { if (t.length >= 2) counts1[t] = (counts1[t] || 0) + 1; });
-    if (m.s === battleP2) toks.forEach(t => { if (t.length >= 2) counts2[t] = (counts2[t] || 0) + 1; });
+    if (!m.x || (m.s !== battleP1 && m.s !== battleP2)) continue;
+    for (const t of tokenize(m.x)) {
+      const k = wordKey(t);
+      if (m.s === battleP1) counts1.set(k, (counts1.get(k) || 0) + 1);
+      if (m.s === battleP2) counts2.set(k, (counts2.get(k) || 0) + 1);
+    }
   }
 
   const battleWords = ["lol", "lmao", "bruh", "nah", "bro", "damn", "like", "yeah", "fuck", "man", "shit", "good", "love", "dead", "fire", "real", "nice", "wait", "facts", "honestly", "literally", "actually", "think", "know", "gonna"];
 
   let html = '<div class="battle-rows">';
   battleWords.forEach(word => {
-    const c1 = counts1[word] || 0;
-    const c2 = counts2[word] || 0;
+    const c1 = counts1.get(wordKey(word)) || 0;
+    const c2 = counts2.get(wordKey(word)) || 0;
     if (c1 === 0 && c2 === 0) return;
     const max = Math.max(c1, c2, 1);
     const w1 = (c1 / max * 100).toFixed(0);
@@ -5103,7 +5091,7 @@ function drawBattleResults() {
 
   let wins1 = 0, wins2 = 0;
   battleWords.forEach(w => {
-    const c1 = counts1[w] || 0, c2 = counts2[w] || 0;
+    const c1 = counts1.get(wordKey(w)) || 0, c2 = counts2.get(wordKey(w)) || 0;
     if (c1 > c2) wins1++;
     else if (c2 > c1) wins2++;
   });
@@ -5122,12 +5110,15 @@ function addBattleRow(word) {
   const rows = container.querySelector(".battle-rows");
   if (!rows) return;
 
+  const keys = wordKeys(word);
+  const probe = keys.length ? keys.reduce((a, b) => (b.length > a.length ? b : a)) : "";
   let c1 = 0, c2 = 0;
   for (let i = 0; i < N; i++) {
-    if (!MSGS[i].x) continue;
-    const has = MSGS[i].x.toLowerCase().includes(word.toLowerCase());
-    if (has && MSGS[i].s === battleP1) c1++;
-    if (has && MSGS[i].s === battleP2) c2++;
+    const s = MSGS[i].s;
+    if ((s !== battleP1 && s !== battleP2) || !mayContainKey(LOWER[i], probe)) continue;
+    const c = countKeys(MSGS[i].x, keys);
+    if (s === battleP1) c1 += c;
+    if (s === battleP2) c2 += c;
   }
 
   const max = Math.max(c1, c2, 1);

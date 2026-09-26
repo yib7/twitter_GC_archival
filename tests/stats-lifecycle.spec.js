@@ -131,7 +131,7 @@ test("profile modal cold-open (avatar click before ever visiting Stats) renders 
   await expect(page.locator(".profile-modal")).toBeVisible();
 
   // Content must end up equivalent to the old synchronous render.
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["18", "6.4", "77"]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["18", "6.2", "76"]);
   await expect(page.locator(".profile-modal .profile-stat-lbl")).toHaveText(
     ["Messages", "Words/Msg", "Vocab Size"], { ignoreCase: true });
   await expect(page.locator(".profile-modal .profile-badge")).toHaveText([
