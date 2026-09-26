@@ -637,11 +637,16 @@ function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id
 // A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
 // (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
 const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
+// The automatic (hashed) hue alone, ignoring any override — what the People
+// tab's "A" swatch previews.
+function autoColor(id) {
+  const h = HUES[hashId(id) % HUES.length];
+  return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" };
+}
 function personColor(id) {
   const c = sanitizeColor(settings.colors[id]);
   if (c) return { p: c, f: shade(c, -20) };
-  const h = HUES[hashId(id) % HUES.length];
-  return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" };
+  return autoColor(id);
 }
 // Resolve a personColor() value to a concrete colour — for canvas drawing,
 // which can't read CSS custom properties.
@@ -3197,7 +3202,7 @@ function personCard(p) {
   const override = sanitizeColor(settings.colors[p.id]);
   const auto = el("button", "swatch swatch-auto" + (override ? "" : " sel"), "A");
   auto.type = "button"; auto.title = "Automatic colour"; auto.setAttribute("aria-label", "Automatic colour");
-  auto.style.setProperty("--p", personColor(p.id).p);
+  auto.style.setProperty("--p", autoColor(p.id).p);   // the hash hue, not the override
   auto.onclick = () => { delete settings.colors[p.id]; saveSettings(); renderPeople(); };
   sws.appendChild(auto);
   PALETTE.forEach((col) => {
