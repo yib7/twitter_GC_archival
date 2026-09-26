@@ -7,7 +7,11 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 // under ~20 s and ships no 20 MB fixture.
 //
 // Budgets (ms of main-thread time, measured at 1x CPU on the dev machine):
-//   Stats first render ............. < 400   (was ~1200)
+//   Stats first render, COLD ....... < 400   (was ~1200) — the first Stats
+//     paint after boot PLUS a from-scratch time-index build with a fresh zone
+//     clock (the sidebar sparkline builds the index at boot, so the paint alone
+//     would hide that cost); asserted on that single cold sample, never on a
+//     best-of that includes warm samples
 //   convo switch with Stats open ... < 400   (was ~1190)
 //   Wrapped first render ........... < 400   (was ~440)
 //   Time Capsule ................... < 400   (was ~270)
@@ -100,6 +104,15 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   // --- Stats first render (cold caches) -------------------------------------
   R.statsFirst = [await timed(page, nav("stats"))];
   await expect(page.locator("#view-stats .h-num")).toBeVisible();
+  // The index + zone-clock work the sidebar already did at boot, redone from
+  // scratch (fresh clock, no memo): added to the paint for the COLD figure.
+  R.indexCold = await page.evaluate(() => {
+    const msgs = window.CHAT_DATA.conversations[0].msgs;
+    const t0 = performance.now();
+    window.GCAShared.buildTimeIndex(msgs, window.GCAShared.createZoneClock("America/New_York"));
+    return Math.round(performance.now() - t0);
+  });
+  R.statsCold = R.statsFirst[0] + R.indexCold;
   // --- Conversation switch with Stats open (cold compute each time) ---------
   R.convSwitchStats = [];
   for (let k = 0; k < 3; k++) {
@@ -107,9 +120,8 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
     R.convSwitchStats.push(await timed(page, pickConv(BIG)));
     await expect(page.locator("#view-stats .h-num")).toHaveAttribute("data-count", "100000");
   }
-  // A cold Stats render also happens on every big-conversation switch above,
-  // so those samples count toward "Stats first render" too.
-  R.statsFirst = R.statsFirst.concat(R.convSwitchStats);
+  // (These switch samples re-render Stats with a rebuilt index but a warm zone
+  // clock, so they are their own metric — not "first render" samples.)
 
   // --- Wrapped / Capsule (cold; the conversation switch reset their caches) --
   await timed(page, pickConv(SIDE));
@@ -149,7 +161,7 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   // Every typo'd fuzzy query still finds something (the fallback is real).
   expect(R.fuzzyMeta[0]).toMatch(/[1-9][\d,]* /);
 
-  expect.soft(best(R.statsFirst), "Stats first render").toBeLessThan(BUDGET.statsFirst * MULT);
+  expect.soft(R.statsCold, "Stats first render, cold (paint + index build)").toBeLessThan(BUDGET.statsFirst * MULT);
   expect.soft(best(R.convSwitchStats), "convo switch with Stats open").toBeLessThan(BUDGET.convSwitchStats * MULT);
   expect.soft(best(R.wrappedFirst), "Wrapped first render").toBeLessThan(BUDGET.wrappedFirst * MULT);
   expect.soft(best(R.capsule), "Time Capsule").toBeLessThan(BUDGET.capsule * MULT);
