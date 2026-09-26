@@ -2990,6 +2990,7 @@ function renderSettings() {
     syncDateBounds();
     if (searchBuilt) runSearch();
     tlBuilt = false; if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
+    updateBrand();   // the sidebar year range is zone-dependent too
     buildSidebarSparkline();
     if (curView && curView !== "settings") setView(curView);
     toast("Timezone updated");
@@ -3215,7 +3216,8 @@ function updateBrand() {
   }
   document.getElementById("brand-title").textContent = title || "Group Chat";
   document.getElementById("brand-sub").textContent = fmtNum(N) + " messages";
-  document.getElementById("sidebar-foot").innerHTML =
+  // VC-14: only the text line — the sparkline lives in its own #sidebar-spark.
+  document.getElementById("sidebar-foot-text").innerHTML =
     (N ? zonedParts(MSGS[0].t).y + "–" + zonedParts(MSGS[N - 1].t).y : "") +
     " · " + PARTS.length + " people<br>" + fmtNum(MSGS.filter((m) => m.m).length) + " photos & videos";
   syncMobileConvPicker();   // mobile top bar mirrors the brand name + count
@@ -3480,8 +3482,12 @@ function shuffleTheme() {
    SIDEBAR ACTIVITY SPARKLINE (monthly message volume)
    ======================================================================== */
 function buildSidebarSparkline() {
-  const foot = document.getElementById("sidebar-foot");
+  // VC-14/AN-4: own container, content REPLACED on every build (it used to be
+  // prepended to #sidebar-foot, duplicating on each timezone change, while
+  // updateBrand() wiped it on every rename / photo change / import).
+  const foot = document.getElementById("sidebar-spark");
   if (!foot) return;
+  foot.innerHTML = "";
   const months = {};
   for (let i = 0; i < N; i++) {
     const ym = zonedParts(MSGS[i].t).key.slice(0, 7);   // "YYYY-MM" in the configured zone
@@ -3501,7 +3507,7 @@ function buildSidebarSparkline() {
       <polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>
       <circle cx="${peak[0].toFixed(1)}" cy="${peak[1].toFixed(1)}" r="2.4" fill="var(--accent)"/>
     </svg></div>`;
-  foot.insertAdjacentHTML("afterbegin", svg);
+  foot.innerHTML = svg;
 }
 
 /* ===========================================================================
