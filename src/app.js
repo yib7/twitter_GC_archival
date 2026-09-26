@@ -1612,7 +1612,7 @@ function runSearch() {
   sEls.meta.textContent = !hasFilter
     ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'"
     : searchKind === "fallback" && out.length
-      ? "No exact matches — " + fmtNum(out.length) + " close " + (F.grid ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
+      ? "No exact " + (F.grid ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (F.grid ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
       : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
   // The per-query opt-in / opt-out for close matches (Fuzzy mode only).
   if (searchKind === "exact-first" || searchKind === "forced") {

@@ -136,7 +136,7 @@ test("grid mode falls back to close media matches when the literal hits have no 
   await page.locator('#f-viewtoggle button[data-mode="grid"]').click();
   await search(page, "sunset");
   await expect(page.locator("#s-list .gcell")).toHaveCount(1);
-  await expect(page.locator("#s-meta")).toContainText(/No exact matches — 1 close media match\b/);
+  await expect(page.locator("#s-meta")).toContainText(/No exact media matches — 1 close media match\b/);
   await expect(page.locator("#s-list .empty")).toHaveCount(0);
   // List mode is still exact-first: the literal (text-only) hit.
   await page.locator('#f-viewtoggle button[data-mode="list"]').click();
