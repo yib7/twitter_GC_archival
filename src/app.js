@@ -135,10 +135,9 @@ let DT, DAY, dShort;
 let ZP = null, ZP_LOCAL = false;
 // isValidTimeZone (P1-4) lives in src/shared-core.js, used by validateSettings.
 function initDateFormatters() {
-  const isLocal = !!(settings && settings.timezone === 'local');
   // 'local' uses native Date accessors (no formatter); every other zone shares
   // this single formatter. hour12:false so hour comes back 0-23.
-  const build = (opts) => {
+  const build = (opts, isLocal) => {
     DT = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }));
     DAY = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
     dShort = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric" }));
@@ -146,16 +145,16 @@ function initDateFormatters() {
       weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
       hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
     }));
+    ZP_LOCAL = isLocal;
   };
-  ZP_LOCAL = isLocal;
-  try {
-    build(isLocal ? {} : { timeZone: (settings && settings.timezone) || 'UTC' });
-  } catch (e) {
-    // A corrupt/ported gca.settings.timezone (invalid IANA zone) throws a
-    // RangeError on construction. This runs at top-level module init with no
-    // other guard, so an uncaught throw here bricks the whole app before it
-    // ever leaves the boot skeleton (P1-4) — fall back to UTC instead.
-    build({ timeZone: "UTC" });
+  // A corrupt/ported zone throws a RangeError on construction, and this runs at
+  // top-level module init with no other guard — an uncaught throw bricks the app
+  // before it leaves the boot skeleton (P1-4). validateSettings already keeps
+  // invalid zones out; as a last line of defence fall back to the DEFAULT zone
+  // (not a literal), then to UTC only if even that cannot be built.
+  const zones = [(settings && settings.timezone) || DEFAULTS.timezone, DEFAULTS.timezone, "UTC"];
+  for (const tz of zones) {
+    try { build(tz === "local" ? {} : { timeZone: tz }, tz === "local"); return; } catch (e) { /* next */ }
   }
 }
 
@@ -261,7 +260,10 @@ function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULTS)); }
 // sanitizePhoto, sanitizeColor, cleanMap, cleanSaved, …); this wrapper only
 // supplies the viewer's rules. Declared up here because it runs at boot.
 const SETTINGS_RULES = { defaults: DEFAULTS, fontMin: FONT_MIN, fontMax: FONT_MAX, densities: Object.keys(DENSITY) };
-function validateSettings(raw) { return GCAShared.validateSettings(raw, SETTINGS_RULES); }
+// `base` (Import only): the settings an absent/invalid field keeps — see shared-core.
+function validateSettings(raw, base) {
+  return GCAShared.validateSettings(raw, base ? Object.assign({ base }, SETTINGS_RULES) : SETTINGS_RULES);
+}
 
 let settings = loadSettings();
 migratePfpsKey();
@@ -3085,16 +3087,18 @@ function renderSettings() {
       if (!(isPlainObj(imported) && (imported.names || imported.colors || imported.accent || imported.gc))) {
         toast("Invalid settings file"); importFile.value = ""; return;
       }
-      // This replaces the current customizations with no undo, so confirm
-      // before clobbering them.
-      if (!confirm("Import settings? This replaces your current names, colors, saved searches, bookmarks, timezone and hidden people/groups.")) {
+      // This replaces customizations with no undo, so confirm first — naming
+      // exactly what this file replaces and what it keeps.
+      if (!confirm(importConfirmText(imported))) {
         importFile.value = "";
         return;
       }
-      // VC-5/VC-6: validate BEFORE anything is saved or applied — an invalid
-      // field falls back to its default (never throws), a crafted colour or
-      // photo is dropped, so nothing bad ever reaches storage or the DOM.
-      settings = validateSettings(imported);
+      // VC-5/VC-6: validate BEFORE anything is saved or applied — a crafted
+      // colour or photo is dropped and nothing throws, so nothing bad ever
+      // reaches storage or the DOM. A field the file lacks, or gets wrong,
+      // keeps its CURRENT value (not the default): a file with no photos must
+      // not wipe the saved ones.
+      settings = validateSettings(imported, settings);
       if (!settings.me && LOCAL_ME) settings.me = LOCAL_ME;   // same rule as loadSettings
       saveSettings(); savePfps(); saveGc();   // bulky photos live under their own keys
       importFile.value = "";
@@ -3112,6 +3116,30 @@ function renderSettings() {
 const RESET_CONFIRM = "Reset customization?\n\n" +
   "Resets: theme, accent color, font size, density, avatar & timestamp display, people & group names, person colors, and saved searches.\n\n" +
   "Keeps: bookmarks, “this is me”, hidden people & groups, timezone, and profile & group photos.";
+// What an Import can replace, in the order its confirm lists them. A section is
+// replaced only when the file carries at least one of its fields.
+const IMPORT_SECTIONS = [
+  ["appearance (accent color, font size, density, avatar & timestamp display)", ["accent", "fontSize", "density", "avatars", "timestamps"]],
+  ["people names", ["names"]],
+  ["person colors", ["colors"]],
+  ["profile photos", ["pfps"]],
+  ["group names & photos", ["gc", "gcName", "gcPhoto"]],
+  ["saved searches", ["saved"]],
+  ["bookmarks", ["pins"]],
+  ["“this is me”", ["me"]],
+  ["timezone", ["timezone"]],
+  ["hidden people & groups", ["ignoredUsers", "ignoredGroups"]],
+];
+function importConfirmText(doc) {
+  const has = (k) => Object.prototype.hasOwnProperty.call(doc, k);
+  const rep = [], keep = [];
+  for (const [label, keys] of IMPORT_SECTIONS) (keys.some(has) ? rep : keep).push(label);
+  keep.push("theme");   // lives under its own gca.theme key; Import never touches it
+  return "Import settings?\n\n" +
+    "Replaces: " + rep.join(", ") + ".\n\n" +
+    "Keeps: " + keep.join(", ") + ".\n\n" +
+    "Invalid values in the file are skipped and keep their current setting.";
+}
 function resetCustomization() {
   const prev = settings;
   const next = cloneDefaults();

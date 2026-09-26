@@ -100,8 +100,12 @@ test("VC-6: an imported timezone is validated and applied immediately", async ({
   await page.locator('.nav-item[data-view="search"]').click();
   await expect(page.locator("#s-list .msg-time").first()).toContainText("Mar 9, 2024");
 
+  // Review fix: an invalid imported zone keeps the user's CURRENT zone (it used
+  // to reset to the default), exactly like any other invalid imported field.
   await importJson(page, { names: {}, timezone: "Not/AZone" });
-  await expect(page.locator("#set-tz")).toHaveValue("UTC");
+  await expect(page.locator(".toast").last()).toContainText("imported");
+  await expect(page.locator("#set-tz")).toHaveValue("America/New_York");
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("gca.settings")).timezone)).toBe("America/New_York");
 });
 
 test("VC-6: imported ignored users are filtered out right away", async ({ page }) => {
@@ -115,3 +119,59 @@ test("VC-6: imported ignored users are filtered out right away", async ({ page }
   await expect(page.locator("#s-list .msg-name", { hasText: "Bob" })).toHaveCount(0);
 });
 
+
+// Review fix (import semantics): Import replaces only what the file carries.
+// A file with no `pfps` used to wipe every saved profile photo (and "me", the
+// appearance, …) back to defaults, while the confirm never mentioned photos,
+// "this is me" or appearance at all.
+const PNG = "data:image/png;base64,iVBORw0KGgo=";
+const SEEDED = {
+  "gca.pfps": JSON.stringify({ u1: PNG }),
+  "gca.settings": JSON.stringify({ me: "u2", accent: "#ff0000", fontSize: 17, pins: ["m1"], timezone: "America/New_York" }),
+};
+
+test("import keeps what the file does not carry, and the confirm says so", async ({ page }) => {
+  const asked = [];
+  page.on("dialog", (d) => { asked.push(d.message()); d.accept(); });
+  await bootViewer(page, DATA, { ls: SEEDED });
+  await importJson(page, { names: { u1: "Imported" }, colors: { u2: "#00ff00" } });
+  await expect(page.locator(".toast")).toContainText("imported");
+  expect(asked).toHaveLength(1);
+  const [replaces, keeps] = asked[0].split(/\n\s*\n/).slice(1);
+  expect(replaces).toMatch(/^Replaces:/);
+  expect(replaces).toContain("people names");
+  expect(replaces).toContain("person colors");
+  expect(keeps).toMatch(/^Keeps:/);
+  for (const k of ["profile photos", "“this is me”", "appearance", "bookmarks", "timezone", "theme"]) expect(keeps).toContain(k);
+  const st = await page.evaluate(() => ({ s: JSON.parse(localStorage.getItem("gca.settings")), p: JSON.parse(localStorage.getItem("gca.pfps")) }));
+  expect(st.p).toEqual({ u1: PNG });
+  expect(st.s.me).toBe("u2");
+  expect(st.s.accent).toBe("#ff0000");
+  expect(st.s.fontSize).toBe(17);
+  expect(st.s.pins).toEqual(["m1"]);
+  expect(st.s.timezone).toBe("America/New_York");
+  expect(st.s.names).toEqual({ u1: "Imported" });
+  expect(st.s.colors).toEqual({ u2: "#00ff00" });
+});
+
+test("a full exported file replaces photos, “this is me” and appearance — and the confirm lists them", async ({ page }) => {
+  const asked = [];
+  page.on("dialog", (d) => { asked.push(d.message()); d.accept(); });
+  await bootViewer(page, DATA, { ls: SEEDED });
+  await importJson(page, {
+    version: 2, names: {}, colors: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "", me: null,
+    accent: "#1d9bf0", fontSize: 15, density: "compact", avatars: true, timestamps: true,
+    saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC",
+  });
+  await expect(page.locator(".toast")).toContainText("imported");
+  const replaces = asked[0].split(/\n\s*\n/)[1];
+  for (const k of ["appearance", "people names", "person colors", "profile photos", "group names & photos",
+    "saved searches", "bookmarks", "“this is me”", "timezone", "hidden people & groups"]) expect(replaces).toContain(k);
+  const st = await page.evaluate(() => ({ s: JSON.parse(localStorage.getItem("gca.settings")), p: JSON.parse(localStorage.getItem("gca.pfps")) }));
+  expect(st.p).toEqual({});
+  expect(st.s.me).toBeNull();
+  expect(st.s.accent).toBe("#1d9bf0");
+  expect(st.s.density).toBe("compact");
+  expect(st.s.pins).toEqual([]);
+  expect(st.s.timezone).toBe("UTC");
+});

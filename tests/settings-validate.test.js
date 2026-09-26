@@ -119,3 +119,21 @@ test("validateSettings takes its fallbacks from rules.defaults, not literals", (
   assert.equal(s.accent, "#123456");
   assert.equal(s.fontSize, 17);
 });
+
+test("with rules.base (Import), absent or invalid fields keep the CURRENT value", () => {
+  const base = validateSettings({ me: "u2", accent: "#ff0000", pfps: { u1: PNG }, timezone: "America/New_York", pins: ["m1"], names: { u1: "Old" } }, RULES);
+  const rules = Object.assign({ base }, RULES);
+  const s = validateSettings({ names: { u1: "New" }, timezone: "Not/AZone", accent: 5 }, rules);
+  assert.deepStrictEqual(s.names, { u1: "New" }, "a valid field present in the file replaces");
+  assert.equal(s.timezone, "America/New_York", "an invalid zone keeps the current one");
+  assert.equal(s.accent, "#ff0000", "an invalid accent keeps the current one");
+  assert.deepStrictEqual(s.pfps, { u1: PNG }, "photos absent from the file are kept");
+  assert.equal(s.me, "u2");
+  assert.deepStrictEqual(s.pins, ["m1"]);
+  assert.notStrictEqual(s.pins, base.pins, "must not alias the base object");
+  // An explicit value (even an empty one) is honoured.
+  const t = validateSettings({ me: null, pfps: {}, pins: [] }, rules);
+  assert.equal(t.me, null);
+  assert.deepStrictEqual(t.pfps, {});
+  assert.deepStrictEqual(t.pins, []);
+});

@@ -82,39 +82,49 @@
     };
   }
   const clone = (v) => JSON.parse(JSON.stringify(v));
-  // The ONE gate every settings object passes through. Builds a fresh object from
-  // a deep clone of `rules.defaults` and copies over only fields whose type/shape
-  // is valid, field by field; an invalid field falls back to its default instead
-  // of throwing, so a malformed file can never brick boot or inject markup.
-  //   rules = { defaults, fontMin, fontMax, densities: [names] }
+  const isId = (v) => (typeof v === "string" && v !== "") || typeof v === "number";
+  const gcEntry = (e) => {
+    if (!isPlainObj(e)) return null;
+    const out = {};
+    if (typeof e.name === "string" && e.name.trim()) out.name = e.name;
+    const p = sanitizePhoto(e.photo); if (p) out.photo = p;
+    return out;
+  };
+  // The ONE gate every settings object passes through. Copies over only fields
+  // whose type/shape is valid, field by field; a field that is absent or invalid
+  // keeps its FALLBACK instead of throwing, so a malformed file can never brick
+  // boot or inject markup. The fallback is `rules.base` when given — Import passes
+  // the user's current settings, so a file only replaces what it actually carries
+  // (a file with no `pfps` keeps the photos; an invalid zone keeps the current
+  // zone) — and otherwise `rules.defaults` (boot). Never literals, so changing a
+  // default (e.g. the timezone) changes every fallback with it.
+  //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
   function validateSettings(raw, rules) {
     const D = rules.defaults;
+    const B = isPlainObj(rules.base) ? rules.base : D;
     const src = isPlainObj(raw) ? raw : {};
     const s = clone(D);
-    s.names = cleanMap(src.names, (v) => (typeof v === "string" && v.trim() ? v : ""));
-    s.colors = cleanMap(src.colors, sanitizeColor);
-    s.pfps = cleanMap(src.pfps, sanitizePhoto);
-    s.gc = cleanMap(src.gc, (e) => {
-      if (!isPlainObj(e)) return null;
-      const out = {};
-      if (typeof e.name === "string" && e.name.trim()) out.name = e.name;
-      const p = sanitizePhoto(e.photo); if (p) out.photo = p;
-      return out;
-    });
-    s.gcName = typeof src.gcName === "string" ? src.gcName : "";
-    s.gcPhoto = sanitizePhoto(src.gcPhoto);
-    s.accent = sanitizeColor(src.accent) || D.accent;
+    for (const k of Object.keys(D)) if (B[k] !== undefined) s[k] = clone(B[k]);
+    const map = (k, fn) => { if (isPlainObj(src[k])) s[k] = cleanMap(src[k], fn); };
+    map("names", (v) => (typeof v === "string" && v.trim() ? v : ""));
+    map("colors", sanitizeColor);
+    map("pfps", sanitizePhoto);
+    map("gc", gcEntry);
+    if (typeof src.gcName === "string") s.gcName = src.gcName;
+    if (src.gcPhoto === "" || sanitizePhoto(src.gcPhoto)) s.gcPhoto = src.gcPhoto;
+    if (sanitizeColor(src.accent)) s.accent = sanitizeColor(src.accent);
     const fs = typeof src.fontSize === "number" ? src.fontSize : (typeof src.fontSize === "string" && src.fontSize.trim() ? Number(src.fontSize) : NaN);
-    s.fontSize = isFinite(fs) ? Math.min(rules.fontMax, Math.max(rules.fontMin, Math.round(fs))) : D.fontSize;
-    s.density = (typeof src.density === "string" && rules.densities.indexOf(src.density) !== -1) ? src.density : D.density;
-    s.avatars = typeof src.avatars === "boolean" ? src.avatars : D.avatars;
-    s.timestamps = typeof src.timestamps === "boolean" ? src.timestamps : D.timestamps;
-    s.me = (typeof src.me === "string" && src.me) || typeof src.me === "number" ? String(src.me) : null;
-    s.timezone = (typeof src.timezone === "string" && (src.timezone === "local" || isValidTimeZone(src.timezone))) ? src.timezone : D.timezone;
-    s.pins = Array.isArray(src.pins) ? src.pins.filter((p) => (typeof p === "string" && p) || typeof p === "number") : [];
-    s.ignoredUsers = idList(src.ignoredUsers);
-    s.ignoredGroups = idList(src.ignoredGroups);
-    s.saved = Array.isArray(src.saved) ? src.saved.map(cleanSaved).filter(Boolean) : [];
+    if (isFinite(fs)) s.fontSize = Math.min(rules.fontMax, Math.max(rules.fontMin, Math.round(fs)));
+    if (typeof src.density === "string" && rules.densities.indexOf(src.density) !== -1) s.density = src.density;
+    if (typeof src.avatars === "boolean") s.avatars = src.avatars;
+    if (typeof src.timestamps === "boolean") s.timestamps = src.timestamps;
+    if (src.me === null) s.me = null;                  // an explicit "nobody is me"
+    else if (isId(src.me)) s.me = String(src.me);
+    if (typeof src.timezone === "string" && (src.timezone === "local" || isValidTimeZone(src.timezone))) s.timezone = src.timezone;
+    if (Array.isArray(src.pins)) s.pins = src.pins.filter(isId);
+    if (Array.isArray(src.ignoredUsers)) s.ignoredUsers = idList(src.ignoredUsers);
+    if (Array.isArray(src.ignoredGroups)) s.ignoredGroups = idList(src.ignoredGroups);
+    if (Array.isArray(src.saved)) s.saved = src.saved.map(cleanSaved).filter(Boolean);
     return s;
   }
   return {
