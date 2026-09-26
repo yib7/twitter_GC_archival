@@ -41,11 +41,11 @@ test("Laugh Track and Hater superlative cards render when funny/disagree reactio
 
   const laughTrackCard = page.locator(".card", { hasText: "The Laugh Track" });
   await expect(laughTrackCard).toHaveCount(1);
-  await expect(laughTrackCard).toContainText("1 😂/😭 given");
+  await expect(laughTrackCard).toContainText("1 laughing reaction given");
 
   const haterCard = page.locator(".card", { hasText: "The Hater" });
   await expect(haterCard).toHaveCount(1);
-  await expect(haterCard).toContainText("1 👎/😡 given");
+  await expect(haterCard).toContainText("1 👎/😡 reaction given");
 
   expect(errors).toEqual([]);
 });

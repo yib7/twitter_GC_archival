@@ -12,7 +12,8 @@ const { PALETTE, X_LINK, hashId, initials } = GCAShared;
 const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
-const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, isCloudWord, plural } = GCAShared;
+const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, isCloudWord, KEYWORDS, countMatches,
+  countLaughs, isLaughOnly, isProfane, isKeysmash, linkPlatform, plural } = GCAShared;
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
@@ -2080,32 +2081,142 @@ function jumpTo(i) { setView("timeline"); openTimeline(i); }
 /* ===========================================================================
    STATS VIEW
    ======================================================================== */
-// P1-2: computeStats() runs these against every message of a 134k+ archive;
-// they used to be re-declared (recompiled) on every call. Compiled once here.
-// Hoisting a `g`-flag regex to shared scope is only safe because every g-regex
-// below is used solely via String.prototype.match(), which resets lastIndex —
-// none is used with regex.test()/.exec(), which would carry lastIndex state
-// between messages and calls.
-const RE_PROFANITY = /\b(fuck|shit|bitch|damn|asshole|cunt|dick|pussy|cock|bastard|slut|whore)\b/i;
-const RE_NARCISSIST = /\b(i|me|my|mine)\b/gi;
-const RE_COMEDIAN = /\b(lol|lmao|lmfao|rofl|💀|😭)\b/gi;
-const RE_GRATITUDE = /\b(thanks|thank you|ty|thx)\b/gi;
-const RE_LAUGH_VOID = /^(lol|lmao|lmfao|rofl|💀|😭|\s)+$/i;
-const RE_OPTIMIST = /\b(good|great|awesome|amazing|love|best)\b/gi;
-const RE_PESSIMIST = /\b(bad|terrible|awful|hate|worst)\b/gi;
-const RE_ZOOMER = /\b(fr|ngl|bet|cap|no cap|sus|bruh|based|cringe|rizz|gyatt)\b/gi;
-const RE_GAMER = /\b(gg|wp|lag|nerf|buff|noob|bot|fps)\b/gi;
-const RE_FINANCE_BRO = /\b(crypto|btc|eth|stocks|stonks|moon|bull|bear)\b/gi;
-const RE_TIKTOK = /tiktok\.com/i;
-const RE_YOUTUBE = /youtube\.com|youtu\.be/i;
-const RE_TWITTER_URL = /twitter\.com|x\.com/i;
-const RE_INSTAGRAM = /instagram\.com/i;
-const RE_KEYSMASH_RUN = /\b[a-z]{6,}\b/;
-const RE_VOWEL = /[aeiouy]/;
-const RE_KEYSMASH_SEQ = /asdf|fdsa|ghjk|hjkl/i;
-const RE_ANY_UPPER = /[A-Z]/;
-const RE_QUESTION = /\?/g;
-const RE_EXCLAIM = /!/g;
+/* ---- Superlatives: ONE definition list (SP4 AN-3 / AN-7) ---------------------
+   Every award is one row here. The deferred Stats grid AND the profile badges
+   both read the resulting STATS.awards — same winners, same filter — so a badge
+   can never exist for a card that isn't shown (AN-3).
+
+   Scoring (statsGen scores each row per person from one sweep):
+     - `need` — who is eligible: "all" (every member, including people who never
+       posted), "msgs" (at least minMsgs messages), "words" (minMsgs messages
+       with words), "replies" (MIN_REPLIES replies), "scholar" (minMsgs messages
+       and at least the smallest vocabulary checkpoint of words);
+     - `value(P, ctx)` — the score from that person's record;
+     - `min: true` — lowest wins (otherwise highest).
+   Frequency awards are rates (per 100 messages / % of messages), not raw
+   counts, so the top poster doesn't win them all by volume (AN-7).
+   Visibility: a card is hidden when fewer than two people are eligible, when a
+   highest-wins best is 0, or when every eligible person ties; when 2+ share
+   the best they are all winners (the card shows "tied with …", each gets the
+   badge).
+   `def` is shown on the card: what exactly is measured. */
+const MIN_MSGS_FLOOR = 20;          // rate / average awards: at least this many messages…
+const MIN_MSGS_SHARE = 0.01;        // …or 1% of the chat, whichever is larger
+const MIN_REPLIES = 5;              // reply-time awards: at least this many replies
+const REPLY_WINDOW_MS = 12 * 3600000;   // a reply answers someone else within 12 h
+const PAIR_WINDOW_MS = 30 * 60000;      // "interaction pairs": answers within 30 min
+const DOUBLE_TEXT_MS = 3600000;         // a follow-up to your own message within 1 h
+const MONOLOGUE_RUN = 5;                // 5+ messages in a row
+// Scholar compares the same number of words for everyone: distinct words in
+// each eligible person's first W words, W = the largest checkpoint EVERY
+// eligible person has reached.
+const SCHOLAR_CHECKPOINTS = [100, 250, 500, 1000, 2500, 5000, 10000, 25000, 50000, 100000];
+const LAUGH_REACTS = new Set(["😂", "🤣", "😭", "💀"]);
+const HATE_REACTS = new Set(["👎", "😡", "🤬", "😠"]);
+
+const pct = (v) => (v >= 10 ? Math.round(v) : +v.toFixed(1)) + "%";
+const per100 = (v) => v.toFixed(1);
+const share = (n, P) => (P.msgs ? (n / P.msgs) * 100 : 0);
+function fmtDur(ms) {
+  if (ms >= 86400000) return plural(+(ms / 86400000).toFixed(1), "day");
+  if (ms >= 3600000) return (ms / 3600000).toFixed(1) + "h";
+  if (ms >= 60000) return (ms / 60000).toFixed(1) + "m";
+  return Math.round(ms / 1000) + "s";
+}
+const SUPERLATIVES = [
+  { key: "owl", icon: "🦉", title: "Late Night Owl", need: "msgs", value: (P) => share(P.night, P),
+    fmt: (v) => pct(v) + " of msgs 12–5 AM", def: "Highest share of their messages sent between midnight and 5 AM." },
+  { key: "reacts", icon: "⭐", title: "Reaction Magnet", need: "all", value: (P) => P.reactsRecv,
+    fmt: (v) => plural(v, "reaction") + " received", def: "Most reactions received on their messages." },
+  { key: "emoji", icon: "😂", title: "Emoji Enthusiast", need: "msgs", value: (P) => share(P.emoji, P),
+    fmt: (v) => per100(v) + " emoji / 100 msgs", def: "Most emoji per 100 messages (a skin-toned or combined emoji counts once)." },
+  { key: "media", icon: "📷", title: "Media Hog", need: "all", value: (P) => P.media,
+    fmt: (v) => plural(v, "file") + " shared", def: "Most photos, videos and files sent." },
+  { key: "yapper", icon: "🗣️", title: "The Yapper", need: "words", value: (P) => P.words / P.msgWithWords,
+    fmt: (v) => v.toFixed(1) + " words / msg", def: "Longest messages on average: words per message." },
+  { key: "caveman", icon: "🪨", title: "The Caveman", need: "words", min: true, value: (P) => P.words / P.msgWithWords,
+    fmt: (v) => v.toFixed(1) + " words / msg", def: "Shortest messages on average: words per message." },
+  { key: "swear", icon: "🤬", title: "The Sailor", need: "msgs", value: (P) => share(P.swear, P),
+    fmt: (v) => pct(v) + " of msgs swear", def: "Highest share of messages with a swear word." },
+  { key: "caps", icon: "📢", title: "The Shouter", need: "msgs", value: (P) => share(P.caps, P),
+    fmt: (v) => pct(v) + " of msgs ALL CAPS", def: "Highest share of messages written in ALL CAPS (6+ characters)." },
+  { key: "question", icon: "❓", title: "The Inquisitor", need: "msgs", value: (P) => share(P.question, P),
+    fmt: (v) => pct(v) + " of msgs ask", def: "Highest share of messages that ask something (contain a “?”)." },
+  { key: "narcissist", icon: "🪞", title: "The Narcissist", need: "msgs", value: (P) => share(P.narc, P),
+    fmt: (v) => per100(v) + ' "I/me/my" / 100 msgs', def: "Most “I / me / my / mine / myself” per 100 messages." },
+  { key: "comedian", icon: "🤣", title: "The LMAO User", need: "msgs", value: (P) => share(P.laughs, P),
+    fmt: (v) => per100(v) + " laughs / 100 msgs", def: "Most laughs (lol, lmao, haha, 😂, 💀 …) per 100 messages." },
+  { key: "reactor", icon: "🎁", title: "The Giver", need: "all", value: (P) => P.given,
+    fmt: (v) => plural(v, "reaction") + " given", def: "Most reactions given." },
+  { key: "link", icon: "🔗", title: "The Link Spammer", need: "all", value: (P) => P.links,
+    fmt: (v) => plural(v, "link") + " shared", def: "Most links shared." },
+  { key: "starter", icon: "🚀", title: "Thread Starter", need: "all", value: (P) => P.starter,
+    fmt: (v) => plural(v, "day") + " started", def: "Sent the first message of the day most often." },
+  { key: "killer", icon: "🔚", title: "Thread Killer", need: "all", value: (P) => P.killer,
+    fmt: (v) => plural(v, "day") + " ended", def: "Sent the last message of the day most often." },
+  { key: "doubleText", icon: "✌️", title: "The Double Texter", need: "msgs", value: (P) => share(P.doubleText, P),
+    fmt: (v) => per100(v) + " double texts / 100 msgs", def: "Most follow-ups to their own message within an hour, per 100 messages." },
+  { key: "weekend", icon: "🎉", title: "Weekend Warrior", need: "msgs", value: (P) => share(P.weekend, P),
+    fmt: (v) => pct(v) + " of msgs on weekends", def: "Highest share of messages sent on Saturday or Sunday." },
+  { key: "slacker", icon: "💼", title: "The Work Slacker", need: "msgs", value: (P) => share(P.slacker, P),
+    fmt: (v) => pct(v) + " of msgs 9–5 weekdays", def: "Highest share of messages sent 9 AM–5 PM on weekdays." },
+  { key: "lurker", icon: "👻", title: "The Ghost", need: "all", min: true, value: (P) => P.msgs,
+    fmt: (v) => (v ? "Only " + plural(v, "message") + " total" : "Never posted"), def: "Fewest messages sent — members who never posted count too." },
+  { key: "ghoster", icon: "🐌", title: "The Ghoster", need: "replies", value: (P) => P.replyMedian,
+    fmt: (v) => fmtDur(v) + " median reply", def: "Slowest typical reply: median time to answer someone else (answers within 12 h, 5+ replies)." },
+  { key: "flash", icon: "⚡", title: "The Flash", need: "replies", min: true, value: (P) => P.replyMedian,
+    fmt: (v) => fmtDur(v) + " median reply", def: "Fastest typical reply: median time to answer someone else (answers within 12 h, 5+ replies)." },
+  { key: "scholar", icon: "📚", title: "The Scholar", need: "scholar", value: (P, ctx) => P.scholarAt[ctx.scholarW],
+    fmt: (v, ctx) => plural(v, "different word") + " in first " + fmtNum(ctx.scholarW),
+    def: "Biggest vocabulary: distinct words among each person’s first N words (the same N for everyone)." },
+  { key: "novelist", icon: "📜", title: "The Novelist", need: "all", value: (P) => P.maxLen,
+    fmt: (v) => plural(v, "character") + " (longest msg)", def: "Longest single message, in characters." },
+  { key: "keysmash", icon: "⌨️", title: "The Keysmasher", need: "msgs", value: (P) => share(P.keysmash, P),
+    fmt: (v) => pct(v) + " of msgs keysmash", def: "Highest share of keyboard-mash messages (asdf, sdfghjkl …)." },
+  { key: "earlyBird", icon: "🐦", title: "The Early Bird", need: "msgs", value: (P) => share(P.early, P),
+    fmt: (v) => pct(v) + " of msgs 5–8 AM", def: "Highest share of messages sent between 5 and 8 AM." },
+  { key: "vampiricOwl", icon: "🧛", title: "Vampiric Owl", need: "msgs", value: (P) => share(P.vampire, P),
+    fmt: (v) => pct(v) + " of msgs 3–5 AM", def: "Highest share of messages sent between 3 and 5 AM." },
+  { key: "deserter", icon: "🏃", title: "The Deserter", need: "msgs", value: (P) => P.desertMsgs,
+    fmt: (v, ctx, P) => plural(v, "message") + " from others" + (P && P.desertMs ? " over " + fmtDur(P.desertMs) : "") + " without a word",
+    def: "Longest silence while the chat kept going: messages from others between two of theirs (or since their last)." },
+  { key: "monologuer", icon: "🎤", title: "The Monologuer", need: "msgs", value: (P) => share(P.monologues, P),
+    fmt: (v) => per100(v) + " runs of 5+ / 100 msgs", def: "Most runs of 5+ messages in a row, per 100 messages." },
+  { key: "crowdPleaser", icon: "👏", title: "Crowd Pleaser", need: "msgs", value: (P) => P.reactsRecv / P.msgs,
+    fmt: (v) => v.toFixed(2) + " reactions / msg", def: "Most reactions received per message sent." },
+  { key: "ignored", icon: "🦗", title: "The Ignored", need: "msgs", value: (P) => share(P.zeroReact, P),
+    fmt: (v) => pct(v) + " of msgs got no reaction", def: "Highest share of messages that got no reaction." },
+  { key: "laughTrack", icon: "😆", title: "The Laugh Track", need: "all", value: (P) => P.laughGiven,
+    fmt: (v) => plural(v, "laughing reaction") + " given", def: "Most laughing reactions given (funny, 😂 🤣 😭 💀)." },
+  { key: "hater", icon: "👎", title: "The Hater", need: "all", value: (P) => P.hateGiven,
+    fmt: (v) => plural(v, "👎/😡 reaction") + " given", def: "Most thumbs-down or angry reactions given (👎 😡 🤬 😠)." },
+  { key: "tiktok", icon: "🎵", title: "The TikToker", need: "all", value: (P) => P.tt,
+    fmt: (v) => plural(v, "TikTok link") + " shared", def: "Most tiktok.com links shared." },
+  { key: "youtube", icon: "▶️", title: "The YouTuber", need: "all", value: (P) => P.yt,
+    fmt: (v) => plural(v, "YouTube link") + " shared", def: "Most youtube.com / youtu.be links shared." },
+  { key: "twitter", icon: "🐤", title: "X/Twitter Addict", need: "all", value: (P) => P.tw,
+    fmt: (v) => plural(v, "X / Twitter link") + " shared", def: "Most x.com / twitter.com links shared." },
+  { key: "gratitude", icon: "🙏", title: "Gratitude King", need: "msgs", value: (P) => share(P.gratitude, P),
+    fmt: (v) => per100(v) + " thank-yous / 100 msgs", def: "Most thank-yous (thanks, thank you, ty, thx …) per 100 messages." },
+  { key: "laughVoid", icon: "🕳️", title: "The Laughing Void", need: "msgs", value: (P) => share(P.laughVoid, P),
+    fmt: (v) => pct(v) + " of msgs only laughter", def: "Highest share of messages that are nothing but laughter (lol, lmao, 😂 …)." },
+  { key: "exclaimer", icon: "❗", title: "The Exclaimer", need: "msgs", value: (P) => share(P.exclaims, P),
+    fmt: (v) => per100(v) + " “!” / 100 msgs", def: "Most exclamation marks per 100 messages." },
+  { key: "midnightSniper", icon: "🎯", title: "Midnight Sniper", need: "msgs", value: (P) => share(P.midnight, P),
+    fmt: (v) => pct(v) + " of msgs at 12:00 AM", def: "Highest share of messages sent in the 12:00 AM minute." },
+  { key: "optimist", icon: "☀️", title: "The Optimist", need: "msgs", value: (P) => share(P.optimist, P),
+    fmt: (v) => per100(v) + " positive words / 100 msgs", def: "Most positive words (good, great, awesome, love, best …) per 100 messages." },
+  { key: "pessimist", icon: "🌧️", title: "The Pessimist", need: "msgs", value: (P) => share(P.pessimist, P),
+    fmt: (v) => per100(v) + " negative words / 100 msgs", def: "Most negative words (bad, terrible, awful, hate, worst) per 100 messages." },
+  { key: "zoomer", icon: "🧢", title: "The Zoomer", need: "msgs", value: (P) => share(P.zoomer, P),
+    fmt: (v) => per100(v) + " slang words / 100 msgs", def: "Most Gen-Z slang (fr, ngl, no cap, sus, bruh …) per 100 messages." },
+  { key: "gamer", icon: "🎮", title: "The Gamer", need: "msgs", value: (P) => share(P.gamer, P),
+    fmt: (v) => per100(v) + " gamer terms / 100 msgs", def: "Most gamer terms (gg, wp, nerf, noob …) per 100 messages." },
+  { key: "financeBro", icon: "📈", title: "Finance Bro", need: "msgs", value: (P) => share(P.finance, P),
+    fmt: (v) => per100(v) + " crypto/stock terms / 100 msgs", def: "Most crypto / stock talk (btc, stocks, hodl, to the moon …) per 100 messages." },
+];
+const RE_UPPER = /\p{Lu}/u;         // an ALL CAPS message has at least one capital
+const RE_BANG = /[!！]/g;              // counted via countMatches (match resets lastIndex)
 
 /* ---- Time-sliced sweeps (SP3) ------------------------------------------------
    Text-heavy sweeps (computeStats' superlatives + word cloud, the fuzzy
@@ -2151,345 +2262,201 @@ function computeStats() {
   return STATS;
 }
 function* statsGen() {
-  const perPerson = {}, emojis = {};
+  const emojis = {};
   // Every token of the chat, counted once — the word cloud filters the DISTINCT
   // tokens afterwards (isCloudWord per token would be per-occurrence work).
   const tokenCounts = new Map();
   let totalWords = 0;
 
-  // Superlative counters
-  const nightCount = {};      // user -> late night msg count
-  const emojiCount = {};      // user -> emoji count
-  const mediaCount = {};      // user -> media count
-  const reactsCount = {};     // user -> reactions received count
-  const responseStats = {};   // user -> { avg: 0, count: 0 } (Welford online mean)
-  const replyPairStats = {};  // "userA→userB" -> count (userB replied to userA)
+  // One record per person (every member, so zero-message people score 0).
+  const rec = new Map();
+  const blank = (id) => ({
+    id, msgs: 0, night: 0, early: 0, vampire: 0, weekend: 0, slacker: 0, midnight: 0,
+    media: 0, links: 0, tt: 0, yt: 0, tw: 0, ig: 0,
+    reactsRecv: 0, zeroReact: 0, given: 0, laughGiven: 0, hateGiven: 0,
+    starter: 0, killer: 0, words: 0, msgWithWords: 0, vocab: new Set(), tokN: 0, cpNext: 0, scholarAt: {},
+    maxLen: 0, keysmash: 0, swear: 0, caps: 0, question: 0, exclaims: 0, narc: 0, laughs: 0,
+    gratitude: 0, laughVoid: 0, optimist: 0, pessimist: 0, zoomer: 0, gamer: 0, finance: 0, emoji: 0,
+    doubleText: 0, monologues: 0, replies: [], lastIdx: -1, desertMsgs: 0, desertMs: 0,
+  });
+  const R = (id) => { let r = rec.get(id); if (!r) { r = blank(id); rec.set(id, r); } return r; };
+  PARTS.forEach((p) => R(p.id));
+  const replyPairStats = {};  // "userA→userB" -> count (userB answered userA within PAIR_WINDOW_MS)
 
-  // NEW Exhaustive Stats
-  const wordsTotal = {};
-  const msgWithWords = {};
-  const swearCount = {};
-  const capsCount = {};
-  const questionCount = {};
-  const narcissistCount = {};
-  const comedianCount = {};
-  const linkCount = {};
-  const reactorCount = {};
-  const doubleTextCount = {};
-  const weekendCount = {};
-  const slackerCount = {};
-  const starterCount = {};
-  const killerCount = {};
-
-  // Wave 2 Stats
-  const uniqueWords = {};
-  const maxMsgLen = {};
-  const keysmashCount = {};
-
-  const earlyBirdCount = {};
-  const vampiricOwlCount = {};
-  const maxGapCount = {};
-  const monologuerCount = {};
-  let consecutiveCount = 1; // the first message is itself a run of length 1
-
-  const zeroReactCount = {};
-  const laughReactCount = {};
-  const hateReactCount = {};
-
-  const tiktokCount = {};
-  const youtubeCount = {};
-  const twitterCount = {};
-  const instaCount = {};
-
-  // Wave 3 Stats
-  const gratitudeCount = {};
-  const laughVoidCount = {};
-  const exclaimerCount = {};
-  const midnightSniperCount = {};
-
-  // Wave 4 Stats
-  const optimistCount = {};
-  const pessimistCount = {};
-  const zoomerCount = {};
-  const gamerCount = {};
-  const financeBroCount = {};
-
-  const lastMsgTime = {};
-
-  let prevDay = null;
-  let prevMsgUser = null;
+  let prevDay = null, prevMsgUser = null, run = 0;
   // Every date/hour bucket below reads the configured-zone time index (UX-4 /
   // AN-13), so they agree with the DT/DAY labels the same message renders with.
-  // The per-day / per-month / hour / weekday tallies come ready-made from
-  // timeAgg() (shared with the first Stats paint and the milestones).
   const TI = timeIndex();
-  const agg = timeAgg();
 
   for (let i = 0; i < N; i++) {
     if ((i & 1023) === 1023 && performance.now() > sliceEnd) yield;
     const m = MSGS[i];
-    perPerson[m.s] = (perPerson[m.s] || 0) + 1;
-    const dk = TI.day[i];            // zoned day number
+    const P = R(m.s);
+    P.msgs++;
 
-    // Day Starter & Killer Tracking
+    // Day starter / killer: the first / last message of each zoned day.
+    const dk = TI.day[i];
     if (dk !== prevDay) {
-      starterCount[m.s] = (starterCount[m.s] || 0) + 1;
-      if (prevMsgUser) {
-        killerCount[prevMsgUser] = (killerCount[prevMsgUser] || 0) + 1;
-      }
+      P.starter++;
+      if (prevMsgUser !== null) R(prevMsgUser).killer++;
       prevDay = dk;
     }
     prevMsgUser = m.s;
 
-    if (lastMsgTime[m.s]) {
-      const gap = m.t - lastMsgTime[m.s];
-      if (gap > (maxGapCount[m.s] || 0)) maxGapCount[m.s] = gap;
+    // Deserter: messages from others between two of theirs.
+    if (P.lastIdx >= 0) {
+      const gap = i - P.lastIdx - 1;
+      if (gap > P.desertMsgs) { P.desertMsgs = gap; P.desertMs = m.t - MSGS[P.lastIdx].t; }
     }
-    lastMsgTime[m.s] = m.t;
-    
-    const hr = TI.hour[i], dayOfWeek = TI.dow[i];
+    P.lastIdx = i;
 
-    // Slacker & Weekend checks
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      weekendCount[m.s] = (weekendCount[m.s] || 0) + 1;
-    }
-    if (dayOfWeek >= 1 && dayOfWeek <= 5 && hr >= 9 && hr < 17) {
-      slackerCount[m.s] = (slackerCount[m.s] || 0) + 1;
-    }
+    const hr = TI.hour[i], dow = TI.dow[i];
+    if (dow === 0 || dow === 6) P.weekend++;
+    else if (hr >= 9 && hr < 17) P.slacker++;
+    if (hr < 5) P.night++;
+    if (hr >= 5 && hr < 8) P.early++;
+    if (hr >= 3 && hr < 5) P.vampire++;
+    if (hr === 0 && TI.minute[i] === 0) P.midnight++;
 
-    // Late night check (12 AM to 5 AM)
-    if (hr >= 0 && hr < 5) {
-      nightCount[m.s] = (nightCount[m.s] || 0) + 1;
-    }
+    if (m.m) P.media++;
 
-    if (hr >= 5 && hr < 8) earlyBirdCount[m.s] = (earlyBirdCount[m.s] || 0) + 1;
-    if (hr >= 3 && hr < 5) vampiricOwlCount[m.s] = (vampiricOwlCount[m.s] || 0) + 1;
-
-    // Specific times
-    if (hr === 0 && TI.minute[i] === 0) midnightSniperCount[m.s] = (midnightSniperCount[m.s] || 0) + 1;
-
-    // Media check
-    if (m.m) {
-      mediaCount[m.s] = (mediaCount[m.s] || 0) + 1;
-    }
-
-    // Reactions received check
     if (m.r && m.r.length) {
-      reactsCount[m.s] = (reactsCount[m.s] || 0) + m.r.length;
-      m.r.forEach(r => {
-         reactorCount[r.s] = (reactorCount[r.s] || 0) + 1;
-         if (r.k === "funny") laughReactCount[r.s] = (laughReactCount[r.s] || 0) + 1;
-         if (r.k === "disagree") hateReactCount[r.s] = (hateReactCount[r.s] || 0) + 1;
-      });
-    } else {
-      zeroReactCount[m.s] = (zeroReactCount[m.s] || 0) + 1;
-    }
+      P.reactsRecv += m.r.length;
+      for (const r of m.r) {
+        const G = R(r.s);
+        G.given++;
+        if (r.k === "funny" || (r.k === "emoji" && LAUGH_REACTS.has(r.e))) G.laughGiven++;
+        if (r.k === "disagree" || (r.k === "emoji" && HATE_REACTS.has(r.e))) G.hateGiven++;
+      }
+    } else P.zeroReact++;
 
-    // Link check
     if (m.u && m.u.length) {
-      linkCount[m.s] = (linkCount[m.s] || 0) + m.u.length;
-      m.u.forEach(u => {
-        const url = u.e || u.s || "";
-        if (RE_TIKTOK.test(url)) tiktokCount[m.s] = (tiktokCount[m.s] || 0) + 1;
-        if (RE_YOUTUBE.test(url)) youtubeCount[m.s] = (youtubeCount[m.s] || 0) + 1;
-        if (RE_TWITTER_URL.test(url)) twitterCount[m.s] = (twitterCount[m.s] || 0) + 1;
-        if (RE_INSTAGRAM.test(url)) instaCount[m.s] = (instaCount[m.s] || 0) + 1;
-      });
+      P.links += m.u.length;
+      for (const u of m.u) {
+        const pl = linkPlatform(u.e || u.s || "");
+        if (pl === "tiktok") P.tt++;
+        else if (pl === "youtube") P.yt++;
+        else if (pl === "twitter") P.tw++;
+        else if (pl === "instagram") P.ig++;
+      }
     }
 
-    // Text-based checks
-    if (m.x) {
-       const txt = m.x;
-       // Words — the one shared tokenizer (AN-2 / AN-11): the per-person word
-       // stats, the whole-chat total and the word cloud all count these tokens.
-       const toks = tokenize(txt);
-       if (toks.length) {
-         totalWords += toks.length;
-         wordsTotal[m.s] = (wordsTotal[m.s] || 0) + toks.length;
-         msgWithWords[m.s] = (msgWithWords[m.s] || 0) + 1;
-         let seen = uniqueWords[m.s];
-         if (!seen) seen = uniqueWords[m.s] = new Set();
-         for (const w of toks) {
-           seen.add(wordKey(w));
-           tokenCounts.set(w, (tokenCounts.get(w) || 0) + 1);
-         }
-       }
-       
-       if (txt.length > (maxMsgLen[m.s] || 0)) maxMsgLen[m.s] = txt.length;
+    const txt = m.x;
+    if (txt) {
+      // Words — the one shared tokenizer (AN-2 / AN-11): the per-person word
+      // stats, the whole-chat total and the word cloud all count these tokens.
+      const toks = tokenize(txt);
+      if (toks.length) {
+        totalWords += toks.length;
+        P.words += toks.length;
+        P.msgWithWords++;
+        for (const w of toks) {
+          P.vocab.add(wordKey(w));
+          if (++P.tokN === SCHOLAR_CHECKPOINTS[P.cpNext]) P.scholarAt[SCHOLAR_CHECKPOINTS[P.cpNext++]] = P.vocab.size;
+          tokenCounts.set(w, (tokenCounts.get(w) || 0) + 1);
+        }
+      }
+      // Longest message in characters (code points); UTF-16 length is an upper
+      // bound, so only a possibly-longer message pays for the exact count.
+      if (txt.length > P.maxLen) { const cp = [...txt].length; if (cp > P.maxLen) P.maxLen = cp; }
 
-       if (RE_KEYSMASH_RUN.test(txt) && !RE_VOWEL.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
-       else if (RE_KEYSMASH_SEQ.test(txt)) keysmashCount[m.s] = (keysmashCount[m.s] || 0) + 1;
+      if (isKeysmash(txt)) P.keysmash++;
+      if (isProfane(txt)) P.swear++;
+      if (txt.length > 5 && RE_UPPER.test(txt) && txt === txt.toUpperCase()) P.caps++;
+      if (txt.indexOf("?") !== -1 || txt.indexOf("？") !== -1) P.question++;
+      P.exclaims += countMatches(RE_BANG, txt);
+      P.narc += countMatches(KEYWORDS.narcissist, txt);
+      P.laughs += countLaughs(txt);
+      P.gratitude += countMatches(KEYWORDS.gratitude, txt);
+      if (isLaughOnly(txt)) P.laughVoid++;
+      P.optimist += countMatches(KEYWORDS.optimist, txt);
+      P.pessimist += countMatches(KEYWORDS.pessimist, txt);
+      P.zoomer += countMatches(KEYWORDS.zoomer, txt);
+      P.gamer += countMatches(KEYWORDS.gamer, txt);
+      P.finance += countMatches(KEYWORDS.finance, txt);
 
-       if (RE_PROFANITY.test(txt)) swearCount[m.s] = (swearCount[m.s] || 0) + 1;
-       if (txt.toUpperCase() === txt && RE_ANY_UPPER.test(txt) && txt.length > 5) capsCount[m.s] = (capsCount[m.s] || 0) + 1;
-
-       const qMatch = txt.match(RE_QUESTION);
-       if (qMatch) questionCount[m.s] = (questionCount[m.s] || 0) + qMatch.length;
-
-       const exMatch = txt.match(RE_EXCLAIM);
-       if (exMatch) exclaimerCount[m.s] = (exclaimerCount[m.s] || 0) + exMatch.length;
-
-       const narcMatch = txt.match(RE_NARCISSIST);
-       if (narcMatch) narcissistCount[m.s] = (narcissistCount[m.s] || 0) + narcMatch.length;
-
-       const comMatch = txt.match(RE_COMEDIAN);
-       if (comMatch) comedianCount[m.s] = (comedianCount[m.s] || 0) + comMatch.length;
-
-       const grMatch = txt.match(RE_GRATITUDE);
-       if (grMatch) gratitudeCount[m.s] = (gratitudeCount[m.s] || 0) + grMatch.length;
-
-       if (RE_LAUGH_VOID.test(txt)) laughVoidCount[m.s] = (laughVoidCount[m.s] || 0) + 1;
-
-       // Wave 4 text checks
-       const optMatch = txt.match(RE_OPTIMIST);
-       if (optMatch) optimistCount[m.s] = (optimistCount[m.s] || 0) + optMatch.length;
-
-       const pessMatch = txt.match(RE_PESSIMIST);
-       if (pessMatch) pessimistCount[m.s] = (pessimistCount[m.s] || 0) + pessMatch.length;
-
-       const zoomMatch = txt.match(RE_ZOOMER);
-       if (zoomMatch) zoomerCount[m.s] = (zoomerCount[m.s] || 0) + zoomMatch.length;
-
-       const gamMatch = txt.match(RE_GAMER);
-       if (gamMatch) gamerCount[m.s] = (gamerCount[m.s] || 0) + gamMatch.length;
-
-       const finMatch = txt.match(RE_FINANCE_BRO);
-       if (finMatch) financeBroCount[m.s] = (financeBroCount[m.s] || 0) + finMatch.length;
-
-       // Emoji — whole sequences (skin tone, ZWJ family, flag, keycap) count
-       // once each (AN-1), the same helper Wrapped uses.
-       const ems = extractEmojis(txt);
-       for (const e of ems) {
-         emojis[e] = (emojis[e] || 0) + 1;
-         emojiCount[m.s] = (emojiCount[m.s] || 0) + 1;
-       }
+      // Emoji — whole sequences (skin tone, ZWJ family, flag, keycap) count
+      // once each (AN-1), the same helper Wrapped uses.
+      for (const e of extractEmojis(txt)) {
+        emojis[e] = (emojis[e] || 0) + 1;
+        P.emoji++;
+      }
     }
 
-    // Response latency check
+    // Runs, double texts, replies and interaction pairs.
     if (i > 0) {
       const prev = MSGS[i - 1];
+      const diff = m.t - prev.t;
       if (m.s === prev.s) {
-        consecutiveCount++;
-        if (consecutiveCount === 5) {
-          monologuerCount[m.s] = (monologuerCount[m.s] || 0) + 1;
-        }
-        if (m.t - prev.t < 3600000) { // consecutive within 1 hr
-          doubleTextCount[m.s] = (doubleTextCount[m.s] || 0) + 1;
-        }
+        if (++run === MONOLOGUE_RUN) P.monologues++;
+        if (diff < DOUBLE_TEXT_MS) P.doubleText++;
       } else {
-        consecutiveCount = 1;
-      }
-
-      if (m.s !== prev.s) {
-        const diff = m.t - prev.t;
-        if (diff > 0 && diff < 1800000) { // < 30 minutes
-          if (!responseStats[m.s]) responseStats[m.s] = { avg: 0, count: 0 };
-          // Welford online mean: avoids an unbounded running sum that could lose
-          // precision on extremely dense archives.
-          const r = responseStats[m.s];
-          r.count++; r.avg += (diff - r.avg) / r.count;
-
-          // Interaction pair: prev.s -> m.s
+        run = 1;
+        if (diff >= 0 && diff <= REPLY_WINDOW_MS) P.replies.push(diff);
+        if (diff > 0 && diff < PAIR_WINDOW_MS) {
           const pairKey = prev.s + "→" + m.s;
           replyPairStats[pairKey] = (replyPairStats[pairKey] || 0) + 1;
         }
       }
-    }
+    } else run = 1;
   }
 
-  const yapperStats = {};
-  const doubleTextStats = {};
-  const reactionGenerosity = {};
-  const scholarStats = {};
-  const platformStats = {};
-
-  // Every superlative is one row here: how to score a person (`value`), an
-  // optional eligibility `gate`, and — for "lowest wins" stats — the `min`
-  // sentinel to seed with. The derive loop below turns each row into an
-  // `<key>Winner` field, reproducing exactly what the ~45 hand-written
-  // init/update/reset blocks used to produce (same names, values, strict `>`/`<`
-  // tie-breaks — first person in PARTS order wins a tie — and sentinel resets),
-  // so every consumer (the render grid and the profile badges) is untouched.
-  // Two families of max deliberately differ: the first four read the counter RAW
-  // (an absent count is `undefined`, never beats the -1 seed, so the winner can
-  // stay {id:null,val:-1}); the rest coerce with `||0` (an absent count scores 0
-  // and seeds the first person at val 0, which the val>0 render filter hides).
-  const gatedLatency = (id) => responseStats[id] && responseStats[id].count > 0;
-  const SUPERLATIVES = [
-    { key: "owl", value: (id) => nightCount[id] },
-    { key: "emoji", value: (id) => emojiCount[id] },
-    { key: "media", value: (id) => mediaCount[id] },
-    { key: "reacts", value: (id) => reactsCount[id] },
-    { key: "swear", value: (id) => swearCount[id] || 0 },
-    { key: "caps", value: (id) => capsCount[id] || 0 },
-    { key: "question", value: (id) => questionCount[id] || 0 },
-    { key: "narcissist", value: (id) => narcissistCount[id] || 0 },
-    { key: "comedian", value: (id) => comedianCount[id] || 0 },
-    { key: "reactor", value: (id) => reactorCount[id] || 0 },
-    { key: "link", value: (id) => linkCount[id] || 0 },
-    { key: "starter", value: (id) => starterCount[id] || 0 },
-    { key: "killer", value: (id) => killerCount[id] || 0 },
-    { key: "doubleText", value: (id) => doubleTextCount[id] || 0 },
-    { key: "weekend", value: (id) => weekendCount[id] || 0 },
-    { key: "slacker", value: (id) => slackerCount[id] || 0 },
-    { key: "novelist", value: (id) => maxMsgLen[id] || 0 },
-    { key: "keysmash", value: (id) => keysmashCount[id] || 0 },
-    { key: "earlyBird", value: (id) => earlyBirdCount[id] || 0 },
-    { key: "vampiricOwl", value: (id) => vampiricOwlCount[id] || 0 },
-    { key: "deserter", value: (id) => maxGapCount[id] || 0 },
-    { key: "monologuer", value: (id) => monologuerCount[id] || 0 },
-    { key: "laughTrack", value: (id) => laughReactCount[id] || 0 },
-    { key: "hater", value: (id) => hateReactCount[id] || 0 },
-    { key: "tiktok", value: (id) => tiktokCount[id] || 0 },
-    { key: "youtube", value: (id) => youtubeCount[id] || 0 },
-    { key: "twitter", value: (id) => twitterCount[id] || 0 },
-    { key: "gratitude", value: (id) => gratitudeCount[id] || 0 },
-    { key: "laughVoid", value: (id) => laughVoidCount[id] || 0 },
-    { key: "exclaimer", value: (id) => exclaimerCount[id] || 0 },
-    { key: "midnightSniper", value: (id) => midnightSniperCount[id] || 0 },
-    { key: "optimist", value: (id) => optimistCount[id] || 0 },
-    { key: "pessimist", value: (id) => pessimistCount[id] || 0 },
-    { key: "zoomer", value: (id) => zoomerCount[id] || 0 },
-    { key: "gamer", value: (id) => gamerCount[id] || 0 },
-    { key: "financeBro", value: (id) => financeBroCount[id] || 0 },
-    // Derived-value maxes — read the per-person maps populated in the loop below.
-    { key: "scholar", value: (id) => scholarStats[id] },
-    { key: "yapper", value: (id) => yapperStats[id] },
-    { key: "crowdPleaser", value: (id, p) => (p.count ? ((reactsCount[id] || 0) / p.count) : 0) },
-    { key: "ignored", value: (id, p) => (p.count ? ((zeroReactCount[id] || 0) / p.count) * 100 : 0) },
-    { key: "ghoster", gate: gatedLatency, value: (id) => responseStats[id].avg },
-    // Lowest-wins: seed the sentinel, and if nobody is eligible reset to
-    // {id:null,val:0} — byte-identical to the old post-loop sentinel checks.
-    { key: "caveman", min: 999999, gate: (id) => yapperStats[id] > 0, value: (id) => yapperStats[id] },
-    { key: "flash", min: 999999999, gate: gatedLatency, value: (id) => responseStats[id].avg },
-    { key: "lurker", min: 999999999, gate: (id, p) => p.count > 0, value: (id, p) => p.count },
-  ];
-
-  const winners = {};
-  SUPERLATIVES.forEach((e) => {
-    winners[e.key + "Winner"] = { id: null, val: e.min !== undefined ? e.min : -1 };
+  // ---- Per-person derived values -------------------------------------------
+  const lastT = N ? MSGS[N - 1].t : 0;
+  rec.forEach((P) => {
+    // Trailing silence: from their last message to the end of the chat.
+    if (P.lastIdx >= 0) {
+      const gap = N - 1 - P.lastIdx;
+      if (gap > P.desertMsgs) { P.desertMsgs = gap; P.desertMs = lastT - MSGS[P.lastIdx].t; }
+    }
+    const r = P.replies;
+    if (r.length) {
+      r.sort((a, b) => a - b);
+      const h = r.length >> 1;
+      P.replyMedian = r.length % 2 ? r[h] : (r[h - 1] + r[h]) / 2;
+    } else P.replyMedian = 0;
   });
 
-  PARTS.forEach(p => {
-    const id = p.id;
-    // Per-person derived stats the return object and profile modal read directly
-    // (and that scholar/yapper/caveman score off, so populate them before scoring).
-    scholarStats[id] = uniqueWords[id] ? uniqueWords[id].size : 0;
-    yapperStats[id] = msgWithWords[id] ? (wordsTotal[id] / msgWithWords[id]) : 0;
-    doubleTextStats[id] = doubleTextCount[id] || 0;
-    reactionGenerosity[id] = { given: reactorCount[id] || 0, received: reactsCount[id] || 0 };
-    platformStats[id] = { tt: tiktokCount[id]||0, yt: youtubeCount[id]||0, tw: twitterCount[id]||0, ig: instaCount[id]||0 };
+  // ---- Awards (see SUPERLATIVES) --------------------------------------------
+  const minMsgs = Math.max(MIN_MSGS_FLOOR, Math.ceil(MIN_MSGS_SHARE * N));
+  const people = PARTS.map((p) => rec.get(p.id));
+  const byMsgs = people.filter((P) => P.msgs >= minMsgs);
+  let scholarW = 0;
+  const scholarPool = byMsgs.filter((P) => P.tokN >= SCHOLAR_CHECKPOINTS[0]);
+  if (scholarPool.length) {
+    scholarW = Math.min(...scholarPool.map((P) => SCHOLAR_CHECKPOINTS[P.cpNext - 1]));
+  }
+  const pools = {
+    all: people,
+    msgs: byMsgs,
+    words: people.filter((P) => P.msgWithWords >= minMsgs),
+    replies: people.filter((P) => P.replies.length >= MIN_REPLIES),
+    scholar: scholarPool,
+  };
+  const ctx = { minMsgs, scholarW };
+  const awards = [];
+  for (const d of SUPERLATIVES) {
+    const pool = pools[d.need];
+    if (pool.length < 2) continue;
+    const vals = pool.map((P) => d.value(P, ctx));
+    let best = vals[0];
+    for (const v of vals) if (d.min ? v < best : v > best) best = v;
+    if (!d.min && !(best > 0)) continue;
+    const eps = 1e-9 * Math.max(1, Math.abs(best));
+    const ids = pool.filter((P, k) => Math.abs(vals[k] - best) <= eps).map((P) => P.id);
+    if (ids.length === pool.length) continue;              // everyone ties: nothing to award
+    awards.push({ key: d.key, ids, val: best, stat: d.fmt(best, ctx, rec.get(ids[0])) });
+  }
 
-    SUPERLATIVES.forEach((e) => {
-      if (e.gate && !e.gate(id, p)) return;
-      const v = e.value(id, p);
-      const w = winners[e.key + "Winner"];
-      if (e.min !== undefined ? v < w.val : v > w.val) winners[e.key + "Winner"] = { id, val: v };
-    });
-  });
-
-  SUPERLATIVES.forEach((e) => {
-    if (e.min !== undefined && winners[e.key + "Winner"].id === null) winners[e.key + "Winner"] = { id: null, val: 0 };
+  // ---- Panels ------------------------------------------------------------------
+  const yapperStats = {}, doubleTextStats = {}, reactionGenerosity = {}, vocabStats = {}, platformStats = {}, replyStats = {};
+  people.forEach((P) => {
+    yapperStats[P.id] = P.msgWithWords ? P.words / P.msgWithWords : 0;
+    doubleTextStats[P.id] = P.doubleText;
+    reactionGenerosity[P.id] = { given: P.given, received: P.reactsRecv };
+    vocabStats[P.id] = P.vocab.size;
+    platformStats[P.id] = { tt: P.tt, yt: P.yt, tw: P.tw, ig: P.ig };
+    if (P.replies.length) replyStats[P.id] = { median: P.replyMedian, count: P.replies.length };
   });
 
   // Sort interaction pairings
@@ -2506,25 +2473,12 @@ function* statsGen() {
   cloud.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
 
   return {
-    perPerson,
     words: cloud.slice(0, 42),
     totalWords,
-    days: agg.days,
-    monthArr: agg.monthArr,
-    daysActive: agg.daysActive,
-    busy: agg.busy,
-    first: MSGS[0].t,
-    last: MSGS[N - 1].t,
-    hourCount: agg.hourCount,
-    weekdayCount: agg.weekdayCount,
-    emojis: Object.entries(emojis).sort((a,b)=>b[1]-a[1]).slice(0, 15),
-    // Each SUPERLATIVES row becomes an `<key>Winner` field here — the same names
-    // the render grid and profile badges read (e.g. owlWinner, haterWinner, …).
-    ...winners,
-    yapperStats, doubleTextStats, reactionGenerosity,
-    scholarStats, platformStats,
-    responseStats,
-    topPairs
+    emojis: Object.entries(emojis).sort((a, b) => b[1] - a[1]).slice(0, 15),
+    awards, minMsgs, scholarW,
+    yapperStats, doubleTextStats, reactionGenerosity, vocabStats, platformStats, replyStats,
+    topPairs,
   };
 }
 // The word cloud (top 42 cloud words) is gathered by the same stats sweep that
@@ -2866,75 +2820,38 @@ function fillStatsDeferred(v, s, cloudWords) {
   const av = (id) => pfpHtml(id, "width:22px;height:22px;font-size:10px");
 
   // ---- Superlatives -----------------------------------------------------------
-  slot("supers", `<div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
-        ${[
-          { win: s.owlWinner, title: "Late Night Owl", desc: fmtNum(s.owlWinner.val) + " msgs (12AM-5AM)" },
-          { win: s.reactsWinner, title: "Reaction Magnet", desc: fmtNum(s.reactsWinner.val) + " reactions" },
-          { win: s.emojiWinner, title: "Emoji Enthusiast", desc: fmtNum(s.emojiWinner.val) + " emojis used" },
-          { win: s.mediaWinner, title: "Media Hog", desc: fmtNum(s.mediaWinner.val) + " files shared" },
-          { win: s.yapperWinner, title: "The Yapper", desc: s.yapperWinner.val.toFixed(1) + " words / msg" },
-          { win: s.cavemanWinner, title: "The Caveman", desc: s.cavemanWinner.val.toFixed(1) + " words / msg" },
-          { win: s.swearWinner, title: "The Sailor", desc: fmtNum(s.swearWinner.val) + " msgs w/ swearing" },
-          { win: s.capsWinner, title: "The Shouter", desc: fmtNum(s.capsWinner.val) + " ALL CAPS msgs" },
-          { win: s.questionWinner, title: "The Inquisitor", desc: fmtNum(s.questionWinner.val) + " questions asked" },
-          { win: s.narcissistWinner, title: "The Narcissist", desc: fmtNum(s.narcissistWinner.val) + ' "I/me/my"' },
-          { win: s.comedianWinner, title: "The LMAO User", desc: fmtNum(s.comedianWinner.val) + " laughs" },
-          { win: s.reactorWinner, title: "The Giver", desc: fmtNum(s.reactorWinner.val) + " reactions given" },
-          { win: s.linkWinner, title: "The Link Spammer", desc: fmtNum(s.linkWinner.val) + " URLs shared" },
-          { win: s.starterWinner, title: "Thread Starter", desc: fmtNum(s.starterWinner.val) + " days started" },
-          { win: s.killerWinner, title: "Thread Killer", desc: fmtNum(s.killerWinner.val) + " days ended" },
-          { win: s.doubleTextWinner, title: "The Double Texter", desc: fmtNum(s.doubleTextWinner.val) + " double texts" },
-          { win: s.weekendWinner, title: "Weekend Warrior", desc: fmtNum(s.weekendWinner.val) + " weekend msgs" },
-          { win: s.slackerWinner, title: "The Work Slacker", desc: fmtNum(s.slackerWinner.val) + " msgs (9-5)" },
-          { win: s.lurkerWinner, title: "The Ghost", desc: "Only " + fmtNum(s.lurkerWinner.val) + " messages total" },
-          { win: s.ghosterWinner, title: "The Ghoster", desc: s.ghosterWinner.val > 3600000 ? (s.ghosterWinner.val/3600000).toFixed(1) + "h avg reply" : s.ghosterWinner.val > 60000 ? (s.ghosterWinner.val/60000).toFixed(1) + "m avg reply" : Math.round(s.ghosterWinner.val/1000) + "s avg reply" },
-          { win: s.flashWinner, title: "The Flash", desc: s.flashWinner.val > 3600000 ? (s.flashWinner.val/3600000).toFixed(1) + "h avg reply" : s.flashWinner.val > 60000 ? (s.flashWinner.val/60000).toFixed(1) + "m avg reply" : Math.round(s.flashWinner.val/1000) + "s avg reply" },
-          { win: s.scholarWinner, title: "The Scholar", desc: fmtNum(s.scholarWinner.val) + " unique words" },
-          { win: s.novelistWinner, title: "The Novelist", desc: fmtNum(s.novelistWinner.val) + " chars (longest msg)" },
-          { win: s.keysmashWinner, title: "The Keysmasher", desc: fmtNum(s.keysmashWinner.val) + " gibberish msgs" },
-          { win: s.earlyBirdWinner, title: "The Early Bird", desc: fmtNum(s.earlyBirdWinner.val) + " msgs (5AM-8AM)" },
-          { win: s.vampiricOwlWinner, title: "Vampiric Owl", desc: fmtNum(s.vampiricOwlWinner.val) + " msgs (3AM-5AM)" },
-          { win: s.deserterWinner, title: "The Deserter", desc: s.deserterWinner.val > 86400000 ? (s.deserterWinner.val/86400000).toFixed(1) + " days without sending" : (s.deserterWinner.val/3600000).toFixed(1) + " hrs without sending" },
-          { win: s.monologuerWinner, title: "The Monologuer", desc: fmtNum(s.monologuerWinner.val) + " x 5+ msgs in a row" },
-          { win: s.crowdPleaserWinner, title: "Crowd Pleaser", desc: s.crowdPleaserWinner.val.toFixed(1) + " reacts / msg avg" },
-          { win: s.ignoredWinner, title: "The Ignored", desc: s.ignoredWinner.val.toFixed(1) + "% msgs 0 reacts" },
-          { win: s.laughTrackWinner, title: "The Laugh Track", desc: fmtNum(s.laughTrackWinner.val) + " 😂/😭 given" },
-          { win: s.haterWinner, title: "The Hater", desc: fmtNum(s.haterWinner.val) + " 👎/😡 given" },
-          { win: s.tiktokWinner, title: "The TikToker", desc: fmtNum(s.tiktokWinner.val) + " TikToks shared" },
-          { win: s.youtubeWinner, title: "The YouTuber", desc: fmtNum(s.youtubeWinner.val) + " YouTubes shared" },
-          { win: s.twitterWinner, title: "X/Twitter Addict", desc: fmtNum(s.twitterWinner.val) + " Tweets shared" },
-          { win: s.gratitudeWinner, title: "Gratitude King", desc: fmtNum(s.gratitudeWinner.val) + " 'thank you's" },
-          { win: s.laughVoidWinner, title: "The Laughing Void", desc: fmtNum(s.laughVoidWinner.val) + " 'lol' only msgs" },
-          { win: s.exclaimerWinner, title: "The Exclaimer", desc: fmtNum(s.exclaimerWinner.val) + " exclamation marks!" },
-          { win: s.midnightSniperWinner, title: "Midnight Sniper", desc: fmtNum(s.midnightSniperWinner.val) + " msgs at 12:00 AM" },
-          { win: s.optimistWinner, title: "The Optimist", desc: fmtNum(s.optimistWinner.val) + " positive words" },
-          { win: s.pessimistWinner, title: "The Pessimist", desc: fmtNum(s.pessimistWinner.val) + " negative words" },
-          { win: s.zoomerWinner, title: "The Zoomer", desc: fmtNum(s.zoomerWinner.val) + " Gen-Z slangs" },
-          { win: s.gamerWinner, title: "The Gamer", desc: fmtNum(s.gamerWinner.val) + " gamer terms" },
-          { win: s.financeBroWinner, title: "Finance Bro", desc: fmtNum(s.financeBroWinner.val) + " crypto/stock terms" },
-        ].filter(x => x.win && x.win.id && x.win.val > 0).map(x => `
-          <div class="card super" style="--p:${esc(personColor(x.win.id).p)}">
-            ${pfpHtml(x.win.id, "width:40px;height:40px;font-size:16px")}
+  // One card per award in STATS.awards (already filtered: shown winners only).
+  // A tie names every winner; the definition line says what was measured.
+  const DEF = {}; SUPERLATIVES.forEach((d) => { DEF[d.key] = d; });
+  const tieNames = (ids) => ids.map((id) => esc(nameOf(id))).join(", ");
+  const cards = s.awards.map((a) => {
+          const d = DEF[a.key], lead = a.ids[0];
+          const def = d.key === "scholar" ? d.def.replace("first N words", "first " + fmtNum(s.scholarW) + " words") : d.def;
+          return `
+          <div class="card super" data-award="${esc(a.key)}" data-winners="${esc(a.ids.join(" "))}" style="--p:${esc(personColor(lead).p)}">
+            ${pfpHtml(lead, "width:40px;height:40px;font-size:16px")}
             <div class="s-body">
-              <div class="s-name">${esc(nameOf(x.win.id))}</div>
-              <div class="s-title">${esc(x.title)}</div>
-              <div class="s-stat">${esc(x.desc)}</div>
+              <div class="s-name">${esc(nameOf(lead))}</div>
+              ${a.ids.length > 1 ? '<div class="s-tie">tied with ' + tieNames(a.ids.slice(1)) + "</div>" : ""}
+              <div class="s-title">${esc(d.title)}</div>
+              <div class="s-stat">${esc(a.stat)}</div>
+              <div class="s-def">${esc(def)}</div>
             </div>
-          </div>
-        `).join("")}
-      </div>`);
+          </div>`;
+  }).join("");
+  slot("supers", cards
+    ? '<div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">' + cards + "</div>"
+    : '<div class="pop-empty">Not enough messages yet for any awards — each needs at least two people to compare.</div>');
 
   // ---- Latency + pairings -----------------------------------------------------
   let latencyRows = "";
   PARTS.forEach(p => {
-    const stat = s.responseStats[p.id];
-    if (stat && stat.count > 0) {
-      const avgMs = stat.avg;
-      const displayTime = avgMs < 60000 ? Math.round(avgMs / 1000) + "s" : (avgMs / 60000).toFixed(1) + "m";
+    const stat = s.replyStats[p.id];
+    if (stat) {
       latencyRows += `<div class="bar-row">
         <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
-        <div class="bar-val" style="text-align:left; color:var(--text); font-weight:600;">${displayTime}</div>
-        <div class="bar-val" style="font-size:11px;color:var(--text-faint);">${stat.count} responses</div>
+        <div class="bar-val" style="text-align:left; color:var(--text); font-weight:600;">${fmtDur(stat.median)}</div>
+        <div class="bar-val" style="font-size:11px;color:var(--text-faint);">${plural(stat.count, "reply", "replies")}</div>
       </div>`;
     }
   });
@@ -2952,7 +2869,7 @@ function fillStatsDeferred(v, s, cloudWords) {
   });
   slot("latency", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
-          <div class="section-h">Average Response Latency</div>
+          <div class="section-h">Typical Reply Time (median, answers within 12 h)</div>
           <div class="bars" style="${panel}">
             ${latencyRows || '<div class="pop-empty">No response latency data yet.</div>'}
           </div>
@@ -3025,9 +2942,9 @@ function fillStatsDeferred(v, s, cloudWords) {
 
   // ---- Vocabulary + platform links -------------------------------------------
   let vocabRows = "";
-  const maxVocab = Math.max(1, ...PARTS.map(p => s.scholarStats[p.id] || 0));
+  const maxVocab = Math.max(1, ...PARTS.map(p => s.vocabStats[p.id] || 0));
   PARTS.forEach(p => {
-    const vcb = s.scholarStats[p.id] || 0;
+    const vcb = s.vocabStats[p.id] || 0;
     if (vcb > 0) {
       vocabRows += `<div class="bar-row">
         <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
@@ -4366,20 +4283,16 @@ function openProfileModal(id) {
     const s = computeStats();
     if (s.empty) return;
     modal.querySelector('[data-stat="wpm"]').textContent = s.yapperStats[id] ? s.yapperStats[id].toFixed(1) : "0";
-    modal.querySelector('[data-stat="vocab"]').textContent = s.scholarStats[id] ? fmtNum(s.scholarStats[id]) : "0";
+    modal.querySelector('[data-stat="vocab"]').textContent = fmtNum(s.vocabStats[id] || 0);
 
+    // AN-3: exactly the awards the Stats grid shows this person winning (ties
+    // included) — one list, one filter, never a badge for a hidden 0-value card.
     const badges = [];
-    const addBadge = (winStat, icon, text) => { if (winStat && winStat.id === id) badges.push({ icon, text }); };
-    addBadge(s.owlWinner, "🦉", "Late Night Owl");
-    addBadge(s.reactsWinner, "⭐", "Reaction Magnet");
-    addBadge(s.emojiWinner, "😂", "Emoji Enthusiast");
-    addBadge(s.mediaWinner, "📷", "Media Hog");
-    addBadge(s.yapperWinner, "🗣️", "The Yapper");
-    addBadge(s.swearWinner, "🤬", "The Sailor");
-    addBadge(s.starterWinner, "🚀", "Thread Starter");
-    addBadge(s.killerWinner, "💀", "Thread Killer");
-    addBadge(s.scholarWinner, "📚", "The Scholar");
-    addBadge(s.crowdPleaserWinner, "👏", "Crowd Pleaser");
+    s.awards.forEach((a) => {
+      if (a.ids.indexOf(id) < 0) return;
+      const d = SUPERLATIVES.find((x) => x.key === a.key);
+      badges.push({ icon: d.icon, text: d.title });
+    });
     if (badges.length) {
       const wrap = el("div", "profile-badges");
       wrap.innerHTML = badges.map(b => `<div class="profile-badge"><i>${b.icon}</i> ${esc(b.text)}</div>`).join("");

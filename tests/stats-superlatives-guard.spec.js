@@ -9,7 +9,7 @@ test.use({ timezoneId: "UTC" });
 // This spec freezes the *rendered* stats surface on the repo sample data
 // (data.sample.js) so that deletion can never change what users see:
 //   (a) the Stats view's "Superlatives & Fun Stats" grid renders exactly the
-//       same 29 cards (count + every title, in order), and
+//       same cards (count + every title, in order), and
 //   (b) profile modals keep their badge and stat lines byte-identical.
 // Captured from a pre-deletion run at HEAD 1d8080a; it must pass both before
 // and after the dead-stat removal.
@@ -22,15 +22,12 @@ test.use({ timezoneId: "UTC" });
 // King", matching the fixed render order in src/app.js.
 
 // Every card the sample data renders in the Superlatives grid, in DOM order.
+// SP4 (AN-3 / AN-7): rate / average awards need 20+ messages per person (the
+// 64-message sample has none), all-tie cards are hidden, so the sample grid is
+// down to the count-based awards until SP11 regenerates a bigger demo.
 const EXPECTED_CARD_TITLES = [
-  "Late Night Owl", "Reaction Magnet", "Emoji Enthusiast", "Media Hog",
-  "The Yapper", "The Caveman", "The Inquisitor", "The Narcissist",
-  "The Giver", "Thread Starter", "Thread Killer", "The Double Texter",
-  "Weekend Warrior", "The Work Slacker", "The Ghost", "The Ghoster",
-  "The Flash", "The Scholar", "The Novelist", "The Early Bird",
-  "Vampiric Owl", "The Deserter", "Crowd Pleaser", "The Ignored",
-  "The Laugh Track", "The Hater",
-  "Gratitude King", "The Optimist", "The Zoomer",
+  "Reaction Magnet", "Media Hog", "The Giver", "Thread Starter", "Thread Killer",
+  "The Ghost", "The Ghoster", "The Flash", "The Novelist", "The Laugh Track", "The Hater",
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -76,20 +73,20 @@ test("profile modal keeps its badges and stat lines on sample data", async ({ pa
     await expect(page.locator(".profile-modal")).toHaveCount(0);
   };
 
-  // 1005 is the sample data's big winner: 8 of the 10 badge stats.
+  // AN-3: badges are exactly the grid cards 1005 wins (ties included). It used
+  // to also get "The Sailor" (0 swear messages), "Late Night Owl" etc. from a
+  // badge path that only checked the winner id, never the value.
   await openProfile("1005");
   await expect(page.locator(".profile-modal .profile-badge")).toHaveText([
-    "🦉\nLate Night Owl", "⭐\nReaction Magnet", "😂\nEmoji Enthusiast",
-    "📷\nMedia Hog", "🤬\nThe Sailor", "💀\nThread Killer",
-    "📚\nThe Scholar", "👏\nCrowd Pleaser",
+    "⭐\nReaction Magnet", "📷\nMedia Hog", "🔚\nThread Killer",
   ]);
   await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["18", "6.2", "76"]);
   await expect(page.locator(".profile-modal .profile-stat-lbl")).toHaveText(["Messages", "Words/Msg", "Vocab Size"], { ignoreCase: true });
   await closeProfile();
 
-  // 1002 holds the remaining Yapper badge — a second, independent winner path.
+  // 1002 — a second, independent winner path.
   await openProfile("1002");
-  await expect(page.locator(".profile-modal .profile-badge")).toHaveText(["🗣️\nThe Yapper"]);
+  await expect(page.locator(".profile-modal .profile-badge")).toHaveText(["⚡\nThe Flash", "📜\nThe Novelist"]);
   await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["17", "9.1", "75"]);
   await closeProfile();
 

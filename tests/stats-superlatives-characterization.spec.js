@@ -16,36 +16,23 @@ test.use({ timezoneId: "UTC" });
 // caught. The golden below was captured from the pre-refactor code and must
 // pass byte-identically before and after the refactor.
 
+// SP4 (AN-3 / AN-7): superlatives were redefined — rates per 100 messages with
+// a minimum sample (MIN_MSGS = 20 messages), median reply times, tie / all-tie
+// rules and a definition line. The 64-message sample gives nobody 20 messages,
+// so every rate / average card is hidden until SP11 regenerates a bigger demo;
+// the golden now also pins the "tied with" line.
 const GOLDEN = [
-  { name: "User 1", title: "Late Night Owl", stat: "5 msgs (12AM-5AM)" },
-  { name: "User 1", title: "Reaction Magnet", stat: "10 reactions" },
-  { name: "User 1", title: "Emoji Enthusiast", stat: "2 emojis used" },
-  { name: "User 1", title: "Media Hog", stat: "2 files shared" },
-  { name: "User 2", title: "The Yapper", stat: "9.1 words / msg" },
-  { name: "User 3", title: "The Caveman", stat: "6.0 words / msg" },
-  { name: "User 5", title: "The Inquisitor", stat: "1 questions asked" },
-  { name: "User 2", title: "The Narcissist", stat: '6 "I/me/my"' },
-  { name: "User 4", title: "The Giver", stat: "10 reactions given" },
-  { name: "User 4", title: "Thread Starter", stat: "2 days started" },
-  { name: "User 1", title: "Thread Killer", stat: "1 days ended" },
-  { name: "User 2", title: "The Double Texter", stat: "3 double texts" },
-  { name: "User 2", title: "Weekend Warrior", stat: "13 weekend msgs" },
-  { name: "User 3", title: "The Work Slacker", stat: "3 msgs (9-5)" },
-  { name: "User 5", title: "The Ghost", stat: "Only 7 messages total" },
-  { name: "User 5", title: "The Ghoster", stat: "19.0m avg reply" },
-  { name: "User 2", title: "The Flash", stat: "12.1m avg reply" },
-  { name: "User 1", title: "The Scholar", stat: "76 unique words" },
-  { name: "User 2", title: "The Novelist", stat: "84 chars (longest msg)" },
-  { name: "User 1", title: "The Early Bird", stat: "4 msgs (5AM-8AM)" },
-  { name: "User 1", title: "Vampiric Owl", stat: "3 msgs (3AM-5AM)" },
-  { name: "User 5", title: "The Deserter", stat: "12.0 hrs without sending" },
-  { name: "User 1", title: "Crowd Pleaser", stat: "0.6 reacts / msg avg" },
-  { name: "User 5", title: "The Ignored", stat: "85.7% msgs 0 reacts" },
-  { name: "User 3", title: "The Laugh Track", stat: "2 😂/😭 given" },
-  { name: "User 4", title: "The Hater", stat: "4 👎/😡 given" },
-  { name: "User 1", title: "Gratitude King", stat: "2 'thank you's" },
-  { name: "User 3", title: "The Optimist", stat: "2 positive words" },
-  { name: "User 1", title: "The Zoomer", stat: "2 Gen-Z slangs" },
+  { name: "User 1", tie: "", title: "Reaction Magnet", stat: "10 reactions received" },
+  { name: "User 1", tie: "tied with User 3", title: "Media Hog", stat: "2 files shared" },
+  { name: "User 4", tie: "", title: "The Giver", stat: "10 reactions given" },
+  { name: "User 4", tie: "", title: "Thread Starter", stat: "2 days started" },
+  { name: "User 1", tie: "tied with User 5", title: "Thread Killer", stat: "1 day ended" },
+  { name: "User 5", tie: "", title: "The Ghost", stat: "Only 7 messages total" },
+  { name: "User 4", tie: "", title: "The Ghoster", stat: "1.1h median reply" },
+  { name: "User 2", tie: "", title: "The Flash", stat: "19.0m median reply" },
+  { name: "User 2", tie: "", title: "The Novelist", stat: "84 characters (longest msg)" },
+  { name: "User 3", tie: "", title: "The Laugh Track", stat: "2 laughing reactions given" },
+  { name: "User 4", tie: "", title: "The Hater", stat: "4 👎/😡 reactions given" },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -72,6 +59,7 @@ test("superlatives grid renders identical winner/title/stat per card on sample d
   const cards = await section.locator(".card.super").evaluateAll((nodes) =>
     nodes.map((n) => ({
       name: n.querySelector(".s-name") ? n.querySelector(".s-name").textContent : null,
+      tie: n.querySelector(".s-tie") ? n.querySelector(".s-tie").textContent : "",
       title: n.querySelector(".s-title") ? n.querySelector(".s-title").textContent : null,
       stat: n.querySelector(".s-stat") ? n.querySelector(".s-stat").textContent : null,
     })));
