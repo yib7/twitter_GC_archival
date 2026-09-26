@@ -1325,6 +1325,11 @@ function runSearch() {
   sEls.meta.textContent = hasFilter
     ? fmtNum(out.length) + (out.length === 1 ? " message" : " messages") + " found" + (F.grid ? " · showing media only" : "") + " · sorted by " + sortLbl
     : "Showing all " + fmtNum(out.length) + " messages, newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'";
+  // QA-15: bumped on every completed run (debounced or not), so tests can wait
+  // for "the search actually re-ran" instead of a fixed sleep timed to the
+  // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
+  // the search never reran at all. See search-operators.spec.js.
+  sEls.meta.dataset.gen = String((Number(sEls.meta.dataset.gen) || 0) + 1);
 
   if (!out.length) {
     sEls.list.className = "list";

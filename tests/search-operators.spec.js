@@ -54,6 +54,22 @@ const HAS_DATA = {
   ],
 };
 
+// QA-15: a fixed `waitForTimeout(250)` after typing only proves 250ms elapsed
+// — a search that never reran (e.g. an event handler silently detached) would
+// pass exactly the same way if every assertion after it is a NEGATIVE one
+// (toBeHidden / not.toHaveClass). runSearch() bumps #s-meta's data-gen on
+// every completed run (src/app.js); waiting for that to change past its
+// pre-fill value proves the search actually reran, not just that time passed.
+async function currentSearchGen(page) {
+  return page.locator("#s-meta").evaluate((el) => el.dataset.gen || "0");
+}
+async function waitForSearchGenChange(page, before) {
+  await page.waitForFunction(
+    (prev) => (document.querySelector("#s-meta") || {}).dataset?.gen !== prev,
+    before,
+  );
+}
+
 async function boot(page, data = DATA) {
   await page.addInitScript(() => {
     localStorage.setItem("gca.onboarded", "1");
@@ -94,8 +110,14 @@ test("partial from: token does not narrow results or touch the People filter UI"
   // still legitimately match on plain text) — the bug this guards against is
   // the People filter UI silently gaining a selection nobody made. It must
   // stay untouched regardless of how the text search itself scores "bo".
+  //
+  // QA-15: both checks below are negative (toBeHidden / not.toHaveClass), so a
+  // plain sleep would pass even if this fill() never triggered a re-run at
+  // all — waiting for the search generation to actually change first proves
+  // runSearch() really executed with "from:bo" in the box.
+  const genBeforeBo = await currentSearchGen(page);
   await page.locator("#s-input").fill("from:bo");
-  await page.waitForTimeout(250);
+  await waitForSearchGenChange(page, genBeforeBo);
   await expect(page.locator("#f-people-n")).toBeHidden();
   await expect(page.locator("#f-people")).not.toHaveClass(/active/);
 
