@@ -1,4 +1,5 @@
-const { test, before, after } = require("node:test");
+require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+const { test, before, after, describe } = require("node:test");
 const assert = require("node:assert");
 const http = require("node:http");
 const { spawn } = require("node:child_process");
@@ -20,19 +21,33 @@ const path = require("node:path");
 //
 // HARD RULE: GCA_PERSONAL points at a throwaway temp dir for this whole file.
 // The real project's personal_data/ is never read, written, or referenced.
-const PORT = 8800 + Math.floor(Math.random() * 900);
+//
+// QA-1: this used to pick a random port from a range that includes 8765 (the
+// default archive port) and 9000 (the port server.js itself tells users to
+// try), then poll /api/ping and treat serverProc.exitCode !== null as proof
+// the port was free — a race: if someone else already owned the port, the
+// poll would succeed before our own losing child had actually exited, so the
+// guard passed and every request in this file (including a real POST
+// /api/reset) went to a FOREIGN server. GCA_PORT=0 removes the race instead of
+// narrowing it: the OS hands back a genuinely free ephemeral port, so no two
+// runs can ever collide. server.js prints the port it actually bound; parse
+// that line rather than guessing one up front. See server-port-zero.test.js
+// for the focused regression on the print-and-parse contract itself.
+let PORT;
 let tmpDir;
 let serverProc;
 
-function waitForServer(url, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
+function waitForBootLine(child, timeoutMs) {
   return new Promise((resolve, reject) => {
-    (function poll() {
-      fetch(url).then(() => resolve()).catch((e) => {
-        if (Date.now() > deadline) return reject(e);
-        setTimeout(poll, 100);
-      });
-    })();
+    let out = "";
+    const timer = setTimeout(() => reject(new Error("server did not print its bound port within " + timeoutMs + "ms; stdout so far:\n" + out)), timeoutMs);
+    const onData = (chunk) => {
+      out += chunk.toString("utf8");
+      const m = /Group Chat Archive running at\s+http:\/\/127\.0\.0\.1:(\d+)/.exec(out);
+      if (m) { clearTimeout(timer); child.stdout.off("data", onData); resolve(Number(m[1])); }
+    };
+    child.stdout.on("data", onData);
+    child.on("exit", (code) => { clearTimeout(timer); reject(new Error("server exited early with code " + code + "; stdout:\n" + out)); });
   });
 }
 
@@ -60,13 +75,10 @@ before(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gca-hostguard-"));   // empty scratch dir — never real personal_data/
   serverProc = spawn(process.execPath, [path.join(__dirname, "..", "scripts", "server.js")], {
     cwd: path.join(__dirname, ".."),
-    env: Object.assign({}, process.env, { GCA_PERSONAL: tmpDir, GCA_PORT: String(PORT) }),
+    env: Object.assign({}, process.env, { GCA_PERSONAL: tmpDir, GCA_PORT: "0" }),
     stdio: "pipe",
   });
-  await waitForServer("http://127.0.0.1:" + PORT + "/api/ping", 10000);
-  if (serverProc.exitCode !== null) {
-    throw new Error("test server exited (code " + serverProc.exitCode + ") — port " + PORT + " likely in use");
-  }
+  PORT = await waitForBootLine(serverProc, 10000);
 });
 
 after(() => {
@@ -137,4 +149,130 @@ test("a legit loopback Host + own-origin Origin is allowed through a guarded rou
   assert.equal(res.status, 200);
   const parsed = JSON.parse(res.body);
   assert.equal(parsed.ok, true);
+});
+
+// QA-13: the most destructive and most security-sensitive server paths (reset
+// on populated data, HTTP Range serving, the two size caps, and the
+// __proto__ guard) had no integration test — apiReset was only ever exercised
+// against an EMPTY temp dir (the tests above), so nothing proved it deletes
+// exactly its six named targets and nothing else, and Range/413/prototype
+// pollution had no coverage at all. Each spawns its own server on its own
+// GCA_PORT=0 temp dir so it can freely populate/mutate without interfering
+// with the host-guard tests above.
+describe("QA-13: destructive & security-sensitive route coverage", () => {
+  let qPort, qTmp, qProc;
+
+  before(async () => {
+    qTmp = fs.mkdtempSync(path.join(os.tmpdir(), "gca-qa13-"));
+    qProc = spawn(process.execPath, [path.join(__dirname, "..", "scripts", "server.js")], {
+      cwd: path.join(__dirname, ".."),
+      env: Object.assign({}, process.env, { GCA_PERSONAL: qTmp, GCA_PORT: "0" }),
+      stdio: "pipe",
+    });
+    qPort = await waitForBootLine(qProc, 10000);
+  });
+
+  after(() => {
+    if (qProc) qProc.kill();
+    if (qTmp) fs.rmSync(qTmp, { recursive: true, force: true });
+  });
+
+  test("POST /api/reset on a POPULATED scratch dir removes exactly its six named targets and leaves anything else alone", async () => {
+    const targets = ["config.json", "data.js", "local.js", "source", "media", "pfps"];
+    for (const name of targets) {
+      const p = path.join(qTmp, name);
+      if (name.endsWith(".json") || name.endsWith(".js")) fs.writeFileSync(p, "seed");
+      else { fs.mkdirSync(p); fs.writeFileSync(path.join(p, "seed.txt"), "seed"); }
+    }
+    // Represents a sibling/unlisted item apiReset must never touch — the same
+    // isInsidePersonal()-gated allowlist that keeps a real personal_data.REAL/
+    // backup safe also keeps this untracked file safe.
+    fs.writeFileSync(path.join(qTmp, "keep-me.txt"), "do not delete");
+
+    const res = await fetch("http://127.0.0.1:" + qPort + "/api/reset", { method: "POST" });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+    assert.deepEqual(body.removed.sort(), targets.sort());
+
+    const survivors = fs.readdirSync(qTmp);
+    assert.deepEqual(survivors, ["keep-me.txt"], "only the untracked file should survive a reset");
+    assert.equal(fs.readFileSync(path.join(qTmp, "keep-me.txt"), "utf8"), "do not delete");
+  });
+
+  test("Range requests against a served media file: full 206, suffix 206, and out-of-range 416", async () => {
+    const svgPath = path.join(__dirname, "..", "sample_media", "clip-1.svg");
+    const full = fs.readFileSync(svgPath);
+    const base = "http://127.0.0.1:" + qPort;
+
+    const partial = await fetch(base + "/sample_media/clip-1.svg", { headers: { Range: "bytes=0-9" } });
+    assert.equal(partial.status, 206);
+    assert.equal(partial.headers.get("content-range"), `bytes 0-9/${full.length}`);
+    const partialBody = Buffer.from(await partial.arrayBuffer());
+    assert.deepEqual(partialBody, full.subarray(0, 10));
+
+    const suffixLen = 5;
+    const suffix = await fetch(base + "/sample_media/clip-1.svg", { headers: { Range: `bytes=-${suffixLen}` } });
+    assert.equal(suffix.status, 206);
+    assert.equal(suffix.headers.get("content-range"), `bytes ${full.length - suffixLen}-${full.length - 1}/${full.length}`);
+    const suffixBody = Buffer.from(await suffix.arrayBuffer());
+    assert.deepEqual(suffixBody, full.subarray(full.length - suffixLen));
+
+    const outOfRange = await fetch(base + "/sample_media/clip-1.svg", { headers: { Range: `bytes=${full.length + 100}-` } });
+    assert.equal(outOfRange.status, 416);
+  });
+
+  test("a JSON body over the 64 MB cap is rejected 413 before it is ever parsed", async () => {
+    const oversized = Buffer.alloc(64 * 1024 * 1024 + 1, 0x61);
+    const res = await fetch("http://127.0.0.1:" + qPort + "/api/source", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: oversized,
+    });
+    assert.equal(res.status, 413);
+  });
+
+  test("an uploaded pfp image over the 10 MB cap is rejected 413", async () => {
+    const oversizedPng = Buffer.alloc(10 * 1024 * 1024 + 1024, 1);
+    const dataUrl = "data:image/png;base64," + oversizedPng.toString("base64");
+    const res = await fetch("http://127.0.0.1:" + qPort + "/api/identity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ me: null, gc: {}, names: {}, pfps: { u1: dataUrl }, ignoredUsers: [], ignoredGroups: [] }),
+    });
+    assert.equal(res.status, 413);
+  });
+
+  test("a __proto__ key in POST /api/identity's gc/names is dropped, never pollutes Object.prototype or lands in config.json", async () => {
+    const res = await fetch("http://127.0.0.1:" + qPort + "/api/identity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        me: null,
+        // Built via JSON.parse, not an object literal: `{ __proto__: ... }` as
+        // a LITERAL sets the object's prototype (special-cased syntax) and
+        // JSON.stringify would then silently drop it entirely, testing
+        // nothing. JSON.parse uses ordinary [[DefineOwnProperty]], producing a
+        // real OWN "__proto__" data property — exactly what an attacker's raw
+        // POST body (parsed server-side the same way) would contain.
+        gc: JSON.parse('{"__proto__": {"name": "pwned", "photo": ""}}'),
+        names: JSON.parse('{"__proto__": {"polluted": true}, "1111": "Alice"}'),
+        pfps: {}, ignoredUsers: [], ignoredGroups: [],
+      }),
+    });
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.ok, true);
+
+    // The classic tell for a successful pollution: a plain object would now
+    // report a "polluted"/"name" property it never had via its OWN chain.
+    assert.equal({}.polluted, undefined, "Object.prototype must not be polluted");
+    assert.equal({}.name, undefined, "Object.prototype must not be polluted");
+
+    const cfgText = fs.readFileSync(path.join(qTmp, "config.json"), "utf8");
+    assert.ok(!cfgText.includes("__proto__"), "config.json must never contain a literal __proto__ entry");
+    const cfg = JSON.parse(cfgText);
+    assert.equal(Object.prototype.hasOwnProperty.call(cfg, "__proto__"), false);
+    assert.equal(cfg.names["1111"], "Alice", "a legitimate sibling key in the same payload must still save");
+  });
 });

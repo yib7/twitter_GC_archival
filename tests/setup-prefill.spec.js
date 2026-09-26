@@ -16,24 +16,33 @@ const path = require("path");
 // dir via env vars — instead of using the shared webServer from
 // playwright.config.js. The temp dir is created under the OS temp dir and
 // removed afterward; the real project's personal_data/ is never touched.
-// Random high port instead of a fixed one: a fixed port let an orphaned server
-// from an interrupted earlier run keep listening, so waitForServer polled the
-// STALE server (pointed at a dead temp dir) and every assertion here failed.
-const PORT = 8700 + Math.floor(Math.random() * 900);
-const BASE = "http://127.0.0.1:" + PORT;
+// QA-1: a random port from a fixed range (8700-9599) used to let this collide
+// with someone else's server — the range even included 8765, the default
+// archive port. Worse, the old "poll /api/ping, then check exitCode !== null"
+// guard has a race: if the port was already taken, the poll can succeed
+// before our own losing child has actually exited, so the guard passes and
+// this file's real /api/source + /api/identity writes land on a FOREIGN
+// server (reproduced in scratchpad/race.js). GCA_PORT=0 asks the OS for a
+// genuinely free ephemeral port instead of guessing one, removing the
+// collision outright; server.js prints the port it actually bound, so parse
+// that instead of assuming.
+let PORT;
+let BASE;
 let tmpDir;
 let exportDir;
 let serverProc;
 
-function waitForServer(url, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
+function waitForBootLine(child, timeoutMs) {
   return new Promise((resolve, reject) => {
-    (function poll() {
-      fetch(url).then(() => resolve()).catch((e) => {
-        if (Date.now() > deadline) return reject(e);
-        setTimeout(poll, 100);
-      });
-    })();
+    let out = "";
+    const timer = setTimeout(() => reject(new Error("server did not print its bound port within " + timeoutMs + "ms; stdout so far:\n" + out)), timeoutMs);
+    const onData = (chunk) => {
+      out += chunk.toString("utf8");
+      const m = /Group Chat Archive running at\s+http:\/\/127\.0\.0\.1:(\d+)/.exec(out);
+      if (m) { clearTimeout(timer); child.stdout.off("data", onData); resolve(Number(m[1])); }
+    };
+    child.stdout.on("data", onData);
+    child.on("exit", (code) => { clearTimeout(timer); reject(new Error("server exited early with code " + code + "; stdout:\n" + out)); });
   });
 }
 
@@ -58,15 +67,11 @@ test.beforeAll(async () => {
 
   serverProc = spawn(process.execPath, [path.join(__dirname, "..", "scripts", "server.js")], {
     cwd: path.join(__dirname, ".."),
-    env: Object.assign({}, process.env, { GCA_PERSONAL: tmpDir, GCA_PORT: String(PORT) }),
+    env: Object.assign({}, process.env, { GCA_PERSONAL: tmpDir, GCA_PORT: "0" }),
     stdio: "pipe",
   });
-  await waitForServer(BASE + "/api/ping", 10000);
-  // If our spawn lost the port to another process, waitForServer above just
-  // polled that impostor. Only our own live child counts.
-  if (serverProc.exitCode !== null) {
-    throw new Error("test server exited (code " + serverProc.exitCode + ") — port " + PORT + " likely in use");
-  }
+  PORT = await waitForBootLine(serverProc, 10000);
+  BASE = "http://127.0.0.1:" + PORT;
 });
 
 test.afterAll(async () => {
