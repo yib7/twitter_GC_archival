@@ -1551,6 +1551,9 @@ function runSearch() {
   updateClearAllBtn();
 
   let out = [];
+  // What List mode would show for this query — the "N messages match" in Grid
+  // mode's no-media empty state. -1 = the (pre-media-filter) result list itself.
+  let listCount = -1;
   if (F.needles.length > 0) {
     const canFuzzy = F.fuzzy && window.Fuse;
     const qKey = F.needles.join("\u0001");
@@ -1563,7 +1566,10 @@ function runSearch() {
       if (match && testMsgNoNeedle(i)) out.push(i);
     }
     searchKind = canFuzzy ? "exact-first" : "exact";
-    if (canFuzzy && (fuzzyForceQ || !out.length)) {
+    // The fallback is decided on what the view can show: in Grid mode literal
+    // hits without media don't count (they would only produce "No media").
+    const shown = F.grid ? out.filter((i) => MSGS[i].m) : out;
+    if (canFuzzy && (fuzzyForceQ || !shown.length)) {
       const lit = out;
       fuzzyPattern = F.needles.join(" ");
       fuzzyRanges = new Map();
@@ -1577,6 +1583,7 @@ function runSearch() {
         searchKind = "forced";
       } else {
         out = fz;
+        listCount = lit.length || fz.length;
         searchKind = "fallback";
       }
     }
@@ -1592,7 +1599,7 @@ function runSearch() {
 
   // VC-16: grid mode renders only messages with media, so the result set it
   // counts, pages and empty-states over must be that subset too.
-  const matched = out.length;
+  const matched = listCount >= 0 ? listCount : out.length;
   if (F.grid) out = out.filter((i) => MSGS[i].m);
 
   resState.idx = out; resState.page = 0;

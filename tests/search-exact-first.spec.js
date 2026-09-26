@@ -116,3 +116,30 @@ test("forced close matches keep every literal hit, literal first", async ({ page
   await expect(page.locator("#s-list .msg").first()).toContainText("the night we watched a movie");
   await expect(page.locator("#s-list .msg").nth(1)).toContainText("movie nite");
 });
+
+// SP3 review: in Grid mode the fallback is decided on what the grid can show —
+// literal hits that carry no media must not block the close media matches.
+const GRID = {
+  __sample: true,
+  conversations: [{
+    id: "G", type: "group", title: "Ops", participants: ["u1", "u2"], count: 3,
+    msgs: [
+      { i: "g1", s: "u1", t: Date.parse("2024-03-01T10:00:00Z"), x: "sunset was great" },
+      { i: "g2", s: "u2", t: Date.parse("2024-03-02T10:00:00Z"), x: "sunzet pic", m: "sample_media/photo-1.svg", k: "img" },
+      { i: "g3", s: "u1", t: Date.parse("2024-03-03T10:00:00Z"), x: "unrelated chatter" },
+    ],
+    events: [],
+  }],
+};
+test("grid mode falls back to close media matches when the literal hits have no media", async ({ page }) => {
+  await boot(page, GRID);
+  await page.locator('#f-viewtoggle button[data-mode="grid"]').click();
+  await search(page, "sunset");
+  await expect(page.locator("#s-list .gcell")).toHaveCount(1);
+  await expect(page.locator("#s-meta")).toContainText(/No exact matches — 1 close media match\b/);
+  await expect(page.locator("#s-list .empty")).toHaveCount(0);
+  // List mode is still exact-first: the literal (text-only) hit.
+  await page.locator('#f-viewtoggle button[data-mode="list"]').click();
+  await expect(page.locator("#s-list .msg")).toHaveCount(1);
+  await expect(page.locator("#s-list .msg")).toContainText("sunset was great");
+});
