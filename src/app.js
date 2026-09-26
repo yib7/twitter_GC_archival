@@ -4846,16 +4846,24 @@ function showOnThisDayToast() {
   // Same-zone "on this day" match as the Capsule view (configured timezone).
   const todayZ = zonedParts(Date.now());
   const tMonth = todayZ.mo, tDate = todayZ.d, tYear = todayZ.y;
-  const samples = [], TI = timeIndex();
-  for (let i = 0; i < N && samples.length < 20; i++) {
-    if (TI.month[i] === tMonth && TI.mday[i] === tDate && TI.year[i] !== tYear) {
-      samples.push(i);
+  // AN-18: gather EVERY same-day match from PAST years (a future-dated outlier
+  // is not "N years ago"; the old scan stopped at 20 matches,
+  // so a chatty early year hid every later one), then pick a random year and a
+  // random message of that year — each past year is equally likely.
+  const TI = timeIndex(), byYear = new Map();
+  for (let i = 0; i < N; i++) {
+    if (TI.month[i] === tMonth && TI.mday[i] === tDate && TI.year[i] < tYear) {
+      const y = TI.year[i];
+      let list = byYear.get(y); if (!list) byYear.set(y, (list = []));
+      list.push(i);
     }
   }
-  if (samples.length === 0) return;
-  const pick = samples[Math.floor(Math.random() * samples.length)];
+  if (byYear.size === 0) return;
+  const years = [...byYear.keys()].sort((x, z) => x - z);
+  const yr = years[Math.floor(Math.random() * years.length)];
+  const inYear = byYear.get(yr);
+  const pick = inYear[Math.floor(Math.random() * inYear.length)];
   const m = MSGS[pick];
-  const yr = TI.year[pick];
   const ago = tYear - yr;
   const snippet = (m.x || "").trim().slice(0, 60) || "[media]";
   // Mock .toast structure: header (clock icon + "On This Day" + "N years ago"),
@@ -4865,7 +4873,7 @@ function showOnThisDayToast() {
   const otdToast = el("div", "otd-toast");
   otdToast.innerHTML = `
     <button class="otd-close" type="button" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-    <div class="otd-head"><span class="otd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9a9 9 0 113 8.5M3.5 9V4.5M3.5 9H8M12 8v4.5l3 2"/></svg></span><span class="otd-title">On This Day</span><span class="otd-yr">${ago} year${ago > 1 ? "s" : ""} ago</span></div>
+    <div class="otd-head"><span class="otd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9a9 9 0 113 8.5M3.5 9V4.5M3.5 9H8M12 8v4.5l3 2"/></svg></span><span class="otd-title">On This Day</span><span class="otd-yr">${esc(plural(ago, "year"))} ago</span></div>
     <div class="otd-body">${pfpHtml(m.s, "width:30px;height:30px;font-size:11px")}<div class="otd-q"><span class="otd-name" style="color:${esc(hue.p)}">${esc(nameOf(m.s))}</span> · “${esc(snippet)}${snippet.length >= 60 ? "…" : ""}”</div></div>
     <div class="otd-cta">Open Time Capsule <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>`;
   // The whole toast is one click target (→ Capsule); don't let the avatar's
