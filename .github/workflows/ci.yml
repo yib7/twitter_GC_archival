@@ -6,7 +6,41 @@ on:
   pull_request:
   workflow_dispatch:
 
+# QA-17(b): explicit least-privilege default — this workflow only ever reads
+# the checkout, it never needs to write anything back.
+permissions:
+  contents: read
+
+# QA-17(c): a new push to the same branch/PR cancels any run already in
+# flight for it, instead of letting superseded runs keep burning minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # QA-17(g): lint used to run once PER OS in the test matrix below (3x the
+  # same, OS-independent check). It needs exactly one Node + one OS.
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          # QA-17(f): read from .nvmrc (the single source of truth for the
+          # supported Node version) instead of a second, independently
+          # hardcoded "24" that can silently drift from it.
+          node-version-file: ".nvmrc"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        # QA-17(h): --max-warnings=0 is also the default now via package.json's
+        # own "lint" script, so this matches what a contributor runs locally.
+        run: npm run lint
+
   test:
     strategy:
       fail-fast: false
@@ -18,22 +52,60 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version-file: ".nvmrc"
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
-
       - name: Unit tests (build core)
         run: npm run test:unit
+
+      # QA-17(d): the Playwright browser download (not the OS package install
+      # `--with-deps` also does) is the expensive part — about 3.5 of 4.7
+      # minutes on Windows. Caching it keyed on the lockfile (bumps whenever
+      # @playwright/test's pinned version changes) skips the re-download on a
+      # cache hit; `playwright install --with-deps` below still runs every
+      # time to install/verify OS-level dependencies, but it's a no-op on the
+      # browser binary itself when the cache already has it.
+      - name: Resolve Playwright browser cache directory for this OS
+        id: pw-cache-dir
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Linux)   echo "dir=$HOME/.cache/ms-playwright" >> "$GITHUB_OUTPUT" ;;
+            macOS)   echo "dir=$HOME/Library/Caches/ms-playwright" >> "$GITHUB_OUTPUT" ;;
+            Windows) echo "dir=$USERPROFILE/AppData/Local/ms-playwright" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.pw-cache-dir.outputs.dir }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
       # No personal_data/ on a clean checkout, so the app boots on the committed
       # synthetic sample — exactly what these end-to-end tests assert against.
+      # playwright.config.js's own globalSetup additionally refuses to run at
+      # all if that ever stopped being true (see tests/_real-data-guard.js).
       - name: End-to-end tests
         run: npm run test:e2e
+
+      # QA-17(e): a Windows- or macOS-only failure was previously undebuggable
+      # from CI — no trace, no report, nothing but the console log. trace and
+      # screenshot are already set to retain-on-failure in playwright.config.js
+      # (so a green run uploads nothing extra); this just gets those artifacts
+      # off the runner. Safe here specifically because CI only ever has the
+      # committed sample data to capture, never real messages.
+      - name: Upload Playwright report + traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.os }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
