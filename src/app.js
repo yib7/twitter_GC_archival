@@ -16,7 +16,7 @@ const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
-  countLaughs, isLaughOnly, isProfane, isKeysmash, plainText, linkPlatform, plural } = GCAShared;
+  countLaughs, isLaughOnly, isProfane, isKeysmashPlain, plainText, linkPlatform, plural } = GCAShared;
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
@@ -2393,7 +2393,7 @@ function* statsGen() {
       // Keyword / keysmash / caps / question checks read the text without its
       // links (review fix 1): a t.co slug is not a keysmash, "?s=20" not a question.
       const plain = plainText(txt);
-      if (isKeysmash(plain)) P.keysmash++;
+      if (isKeysmashPlain(plain)) P.keysmash++;
       if (isProfane(plain)) P.swear++;
       if (plain.length > 5 && RE_UPPER.test(plain) && plain === plain.toUpperCase()) P.caps++;
       if (plain.indexOf("?") !== -1 || plain.indexOf("？") !== -1) P.question++;

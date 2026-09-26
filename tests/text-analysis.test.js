@@ -211,6 +211,14 @@ test("isKeysmash: long home-row rolls and ones with a stray 'a' count; words nev
     "strngths", "psssst", "https://t.co/xkcdbzqwrt"]) assert.ok(!S.isKeysmash(t), t);
 });
 
+test("isKeysmashPlain skips the link strip for text that is already plainText (review round 2)", () => {
+  assert.equal(typeof S.isKeysmashPlain, "function");
+  for (const t of ["sdkjfhsdkjfh ok", "look https://t.co/xkcdbzqwrt lol", "salads", "", "hjkl @asdfbot"]) {
+    assert.equal(S.isKeysmashPlain(S.plainText(t)), S.isKeysmash(t), t);
+  }
+  assert.equal(S.isKeysmashPlain(""), false);
+});
+
 test("keyword / keysmash checks never read inside a link (review fix 1)", () => {
   assert.equal(S.isKeysmash("https://t.co/xkcdbzqwrt"), false);
   assert.equal(S.isKeysmash("look https://t.co/xkcdbzqwrt lol"), false);

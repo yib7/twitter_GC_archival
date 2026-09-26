@@ -501,8 +501,9 @@
     if (new Set(r).size < 4) return false;
     return (r.match(RE_HOME_ROW) || []).length * 10 >= r.length * 7;
   }
-  function isKeysmash(text) {
-    text = plainText(text);
+  function isKeysmash(text) { return isKeysmashPlain(plainText(text)); }
+  // For text that is already plainText() (statsGen strips each message once).
+  function isKeysmashPlain(text) {
     if (!text) return false;
     if (RE_KEYSMASH_SEQ.test(text)) return true;
     const runs = text.toLowerCase().match(/\b[a-z]{6,}\b/g);
@@ -617,7 +618,7 @@
     TI_T_LO, TI_T_HI, clampInstant,
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
-    KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, plainText, urlHost, linkPlatform, plural,
+    KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };
 });
