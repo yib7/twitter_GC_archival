@@ -114,6 +114,35 @@ become conversation-scoped "for free", switching simply swaps the data under
 them and forces a re-render. The conversation picker (`renderConvPicker()`) is a
 `<select>` in the sidebar, shown only when there is more than one group.
 
+### Time index, Stats rendering and search at scale
+
+- **`timeIndex()`** is the one zone-aware sweep over the active conversation:
+  typed arrays parallel to `MSGS` (zoned day number, year, month, day of month,
+  hour, minute, weekday, `year*12+month`), built lazily once per (conversation,
+  timezone) by a memoized zone clock (`GCAShared.createZoneClock`: one `Intl`
+  call per UTC day, bisection only on DST-transition days). **`timeAgg()`**
+  caches the per-day / per-month / hour / weekday counts on top of it. Every
+  analytics view reads these, and later features (per-person analytics, the
+  calendar heatmap) should too. Both are dropped by `resetDerived()` and on a
+  timezone change, and re-check `MSGS` identity and the zone, so a stale index
+  is never served. The full field list is documented above `timeIndex()`.
+- **Stats renders in two stages.** Stage 1 (overview, milestones, per-person
+  bars, the four charts, the keyword-trend input) paints synchronously; the
+  heavy sections (superlatives, reply latency, yapping, generosity, vocabulary,
+  emojis, word cloud) show pulsing placeholders and are filled by time-sliced
+  generator sweeps (~24 ms slices) after the first frame. A newer render cancels
+  a pending stage 2, and `#view-stats` gets `data-ready="1"` when complete.
+  Stats is not re-rendered while it is hidden; a conversation switch just
+  empties it.
+- **Search is exact-first.** The literal (AND of terms) match runs first; the
+  Fuse.js typo-tolerant ranking runs only when that finds nothing, or when the
+  user clicks "+ Show close matches" for the current query. Fuse is fed by a
+  bigram (q-gram lemma) prefilter (`GCAShared.createBigramIndex` /
+  `fuzzyCandidates`) that only drops messages Fuse could not match at its
+  threshold, so results are identical to scanning the whole archive (a unit
+  test proves it). The result list is windowed: 60-row pages far from the
+  viewport are frozen at their height and emptied, then re-rendered on return.
+
 Boot happens at the very end of the IIFE (after all `let`s are declared, so
 `resetDerived()` doesn't hit a temporal-dead-zone) → `activateConversation()` →
 `init()`.

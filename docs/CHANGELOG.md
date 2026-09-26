@@ -2,6 +2,33 @@
 
 All notable changes to this project are recorded here.
 
+## Unreleased
+
+### Changed
+
+- Dates now follow your browser's own timezone by default instead of UTC.
+  If you never picked a zone, a previously saved "UTC" (the old default) moves
+  to the new default once; a zone you picked, UTC included, is kept. Settings
+  now lists every timezone your browser knows, with a filter box.
+- Search shows exact matches first. Typo-tolerant "close matches" appear
+  automatically when nothing matches exactly, and a "+ Show close matches"
+  link adds them on demand.
+- An invalid saved timezone now falls back to the browser's zone (it used to
+  fall back to UTC).
+
+### Performance
+
+- On a 100,000-message archive, opening Stats or switching conversations with
+  Stats open is roughly 8x faster (about 1.2 s down to about 130 ms): the
+  overview paints first and the heavy sections fill in right after, and every
+  analytics view shares one cached per-conversation time index.
+- Fuzzy searches narrow the archive with a prefilter before scoring, so a
+  typo'd keystroke stays under about 60 ms on 100k messages with identical
+  results.
+- The search result list keeps only the pages near the viewport rendered, so
+  scrolling through a huge result set no longer grows the page without bound.
+  Infinite scroll is unchanged.
+
 ## v1.4.0 (unreleased) — code-audit remediation
 
 ### Added

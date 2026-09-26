@@ -46,10 +46,13 @@ internet. Have several group chats? A picker switches between them.
 
 ## Features
 
-- Fuzzy search (Fuse.js) that highlights the matched text in each result,
-  including close typo matches, with filters: `has:media`, `has:links`,
+- Search that shows exact matches first and falls back to typo-tolerant
+  fuzzy matches (Fuse.js) when there are none; "+ Show close matches" adds
+  them on demand, and the matched text is highlighted either way. Filters: `has:media`, `has:links`,
   `from:name`, `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`, sorting,
   list/grid views, saved searches, and plain-text export of the results.
+- Dates and every stats bucket follow your browser's timezone by default; any
+  IANA zone (or UTC) can be picked in Settings.
 - Multiple group chats: a conversation picker switches between every group in
   your export. Every view is scoped to the selected group.
 - A virtual timeline that scrolls 100K+ messages smoothly, with inline system
