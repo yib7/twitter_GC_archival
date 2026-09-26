@@ -52,6 +52,59 @@
     const s = v.trim();
     return /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(s) ? s : "";
   }
+  /* ---- Contrast (UX-11 / UX-22) -------------------------------------------
+     WCAG 2.x relative luminance + contrast ratio, and two derivations the
+     viewer applies at runtime: readableOn() nudges a colour toward white (on
+     dark backgrounds) or black (on light ones) until it reaches `min` against
+     every background, keeping its hue; accentTokens() derives the text colour
+     for a filled accent (--on-accent), the fill itself (only nudged when
+     neither white nor near-black text reaches 4.5:1), the .msg.me gradient's
+     far end, accent-as-text and a 3:1 UI/focus-ring colour for the theme. */
+  function parseRgb(c) {
+    const s = String(c).trim();
+    const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(s);
+    if (m) return [+m[1], +m[2], +m[3]];
+    let h = s.replace("#", "");
+    if (h.length === 3 || h.length === 4) h = h.slice(0, 3).split("").map((x) => x + x).join("");
+    const n = parseInt(h.slice(0, 6), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function toHex(rgb) { return "#" + rgb.map((x) => Math.round(Math.max(0, Math.min(255, x))).toString(16).padStart(2, "0")).join(""); }
+  function mixHex(c, target, t) {
+    const a = parseRgb(c), b = parseRgb(target);
+    return toHex(a.map((v, i) => v + (b[i] - v) * t));
+  }
+  function relLuminance(c) {
+    const ch = parseRgb(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  }
+  function contrastRatio(a, b) {
+    const x = relLuminance(a), y = relLuminance(b);
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+  }
+  function readableOn(c, bgs, min) {
+    if (bgs.every((bg) => contrastRatio(c, bg) >= min)) return c;
+    const dark = bgs.reduce((s, bg) => s + relLuminance(bg), 0) / bgs.length < 0.4;
+    const target = dark ? "#ffffff" : "#000000";
+    for (let i = 1; i <= 100; i++) {
+      const out = mixHex(c, target, i / 100);
+      if (bgs.every((bg) => contrastRatio(out, bg) >= min)) return out;
+    }
+    return target;
+  }
+  const ON_LIGHT = "#0f1419";   // the Light theme's --text: "near-black" text on a light accent
+  function accentTokens(accent, bgs) {
+    const w = contrastRatio("#ffffff", accent), d = contrastRatio(ON_LIGHT, accent);
+    const onAccent = w >= 4.5 ? "#ffffff" : d >= 4.5 ? ON_LIGHT : (w >= d ? "#ffffff" : ON_LIGHT);
+    const fill = readableOn(accent, [onAccent], 4.5);
+    const far = onAccent === "#ffffff" ? mixHex(fill, "#000000", 0.2) : mixHex(fill, "#ffffff", 0.15);
+    return {
+      onAccent, fill,
+      gradEnd: readableOn(far, [onAccent], 4.5),
+      text: readableOn(accent, bgs, 4.5),
+      ui: readableOn(accent, bgs.slice(0, 1), 3),
+    };
+  }
   // True if `tz` is a zone Intl can build a formatter for (P1-4).
   function isValidTimeZone(tz) {
     try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch (e) { return false; }
@@ -615,7 +668,8 @@
   }
   return {
     PALETTE, X_LINK, hashId, initials, paletteColor,
-    PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock, buildTimeIndex,
+    PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
+    relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant,
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,

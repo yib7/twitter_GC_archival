@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, hashId, initials } = GCAShared;
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators (VC-5/VC-6) — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -645,8 +645,27 @@ function autoColor(id) {
 }
 function personColor(id) {
   const c = sanitizeColor(settings.colors[id]);
-  if (c) return { p: c, f: shade(c, -20) };
+  if (c) return { p: overrideVar(c), f: shade(c, -20) };
   return autoColor(id);
+}
+// UX-11: a user-picked colour is used for name TEXT, so it must stay readable
+// in every theme (a bright yellow fails on white, a deep navy on black). Each
+// distinct override gets one --pc-<hex> custom property whose value is set per
+// theme (nudged toward white/black only as far as 4.5:1 needs), so switching
+// theme needs no re-render and cssColor() still resolves it for canvas.
+const overrideVars = new Set();
+function overrideVar(c) {
+  const key = c.slice(1).toLowerCase();
+  if (!overrideVars.has(key)) {
+    overrideVars.add(key);
+    let st = document.getElementById("pc-vars");
+    if (!st) { st = document.createElement("style"); st.id = "pc-vars"; document.head.appendChild(st); }
+    st.textContent = Object.keys(THEME_BGS).map((t) =>
+      (t === "lightsout" ? ":root," : "") + 'html[data-theme="' + t + '"]{' +
+      [...overrideVars].map((k) => "--pc-" + k + ":" + readableOn("#" + k.slice(0, 6), THEME_BGS[t], 4.5)).join(";") + "}"
+    ).join("\n");
+  }
+  return "var(--pc-" + key + ")";
 }
 // Resolve a personColor() value to a concrete colour — for canvas drawing,
 // which can't read CSS custom properties.
@@ -837,6 +856,7 @@ function applyTheme() {
   r.setProperty("--accent-deep", shade(accent, -20));   // gradient deep end
   r.setProperty("--accent-soft", shade(accent, 25));    // lighter tint
   r.setProperty("--accent-glow", hexA(accent, 0.35));
+  applyAccentTokens();
   const fs = +settings.fontSize;
   r.setProperty("--font-size", (isFinite(fs) ? Math.min(FONT_MAX, Math.max(FONT_MIN, fs)) : DEFAULTS.fontSize) + "px");
   const dc = DENSITY[settings.density] || DENSITY.comfortable;
@@ -847,6 +867,24 @@ function applyTheme() {
   refreshChartTheme();    // AN-5: open charts follow the new accent
 }
 
+// UX-22: text on a filled accent, the fill, the .msg.me gradient's far end and
+// accent-as-text all derive from the accent's luminance against the ACTIVE
+// theme's surfaces (GCAShared.accentTokens), so a light accent gets near-black
+// text instead of 2–3:1 white. Re-run on every accent AND theme change; the
+// Stats charts read the same tokens through chartTheme().
+function applyAccentTokens() {
+  const r = document.documentElement.style;
+  const accent = sanitizeColor(settings.accent) || DEFAULTS.accent;
+  const bgs = THEME_BGS[document.documentElement.getAttribute("data-theme")] || THEME_BGS.lightsout;
+  const k = accentTokens(accent, bgs);
+  r.setProperty("--on-accent", k.onAccent);
+  r.setProperty("--accent-fill", k.fill);
+  r.setProperty("--accent-grad-end", k.gradEnd);
+  r.setProperty("--accent-text", k.text);
+  r.setProperty("--accent-text-soft", readableOn(shade(accent, 25), bgs, 4.5));
+  r.setProperty("--accent-ui", k.ui);
+}
+
 /* ---- Theme modes (X: Light / Dim / Lights out) --------------------------- */
 // Persisted under its own gca.theme key (separate from gca.settings) and applied
 // as data-theme on <html>; the html[data-theme] block in styles.css owns every
@@ -855,7 +893,10 @@ function applyTheme() {
 // on the theme's page background (theme-boot.js does the same pre-paint).
 const THEME_KEY = "gca.theme";
 const THEMES = ["light", "dim", "lightsout"];
-const THEME_COLOR = { light: "#ffffff", dim: "#15202b", lightsout: "#000000" };
+// [--bg-page, --bg-card] per theme — mirrors the html[data-theme] blocks in
+// styles.css (tests/a11y-contrast.spec.js checks they agree). Feeds the theme-color
+// meta and the contrast derivations (accent tokens, person-colour overrides).
+const THEME_BGS = { light: ["#ffffff", "#f7f9f9"], dim: ["#15202b", "#1e2732"], lightsout: ["#000000", "#16181c"] };
 function getTheme() {
   try { const t = localStorage.getItem(THEME_KEY); if (THEMES.indexOf(t) !== -1) return t; } catch (e) { /* ignore */ }
   return "lightsout";
@@ -865,13 +906,14 @@ function reflectTheme(t) {
   const seg = document.getElementById("set-theme");
   if (seg) seg.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", b.dataset.v === t));
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", THEME_COLOR[t]);
+  if (meta) meta.setAttribute("content", THEME_BGS[t][0]);
 }
 function setTheme(t) {
   if (THEMES.indexOf(t) === -1) t = "lightsout";
   document.documentElement.setAttribute("data-theme", t);
   try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
   reflectTheme(t);
+  applyAccentTokens();    // UX-22: accent-as-text is re-derived for the new surfaces
   refreshChartTheme();    // AN-5: open charts follow the new surface tokens
 }
 function initTheme() {
@@ -2539,6 +2581,9 @@ function chartTheme() {
     text: cs.getPropertyValue("--text-dim").trim() || "rgba(255,255,255,0.6)",
     grid: cs.getPropertyValue("--border").trim() || "rgba(255,255,255,0.1)",
     accent, soft: hexA(accent, 0.2),
+    // UX-22: tooltips sit on the accent fill with the luminance-derived text
+    fill: cs.getPropertyValue("--accent-fill").trim() || accent,
+    onAccent: cs.getPropertyValue("--on-accent").trim() || "#ffffff",
   };
 }
 // Explicit x / y axes so a later re-theme has objects to recolour.
@@ -2556,6 +2601,10 @@ function paintChart(type, data, options, th) {
   });
   const lg = options.plugins && options.plugins.legend;
   if (lg && lg.labels) lg.labels.color = th.text;
+  if (!options.plugins) options.plugins = {};
+  if (!options.plugins.tooltip) options.plugins.tooltip = {};
+  const tt = options.plugins.tooltip;
+  tt.backgroundColor = th.fill; tt.titleColor = th.onAccent; tt.bodyColor = th.onAccent;
   data.datasets.forEach((ds) => {
     if (type === "bar") ds.backgroundColor = th.accent;
     else { ds.borderColor = th.accent; ds.backgroundColor = th.soft; }
@@ -2966,7 +3015,7 @@ function fillStatsDeferred(v, s, cloudWords) {
         ${av(pair.toId)}
         <span style="margin-left:8px; font-weight:500;">${esc(nameOf(pair.toId))} replied to ${esc(nameOf(pair.fromId))}</span>
       </div>
-      <div class="bar-val" style="font-weight:600;color:var(--accent);">${plural(pair.count, "time")}</div>
+      <div class="bar-val" style="font-weight:600;color:var(--accent-text);">${plural(pair.count, "time")}</div>
     </div>`;
   });
   slot("latency", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -3024,7 +3073,7 @@ function fillStatsDeferred(v, s, cloudWords) {
         <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
         <div style="flex:1; display:flex; gap:4px; font-size:11px; align-items:center;">
           <div style="width:${(r.given / maxReactTotal * 100).toFixed(1)}%; background:var(--accent); height:8px; border-radius:4px;" title="Given: ${fmtNum(r.given)}"></div>
-          <span style="color:var(--accent); font-weight:600; width:30px">${fmtNum(r.given)}</span>
+          <span style="color:var(--accent-text); font-weight:600; width:30px">${fmtNum(r.given)}</span>
           <div style="width:${(r.received / maxReactTotal * 100).toFixed(1)}%; background:var(--success); height:8px; border-radius:4px;" title="Received: ${fmtNum(r.received)}"></div>
           <span style="color:var(--success); font-weight:600; width:30px">${fmtNum(r.received)}</span>
         </div>
