@@ -56,6 +56,71 @@
   function isValidTimeZone(tz) {
     try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch (e) { return false; }
   }
+  /* ---- Zone clock (UX-4 / AN-13) ------------------------------------------
+     createZoneClock(tz) -> { zone, mode, offset(t), stats() }
+     offset(t) is the zone's UTC offset in ms at epoch-ms t, so the wall clock
+     is "UTC fields of t + offset(t)" (what Intl.formatToParts would report).
+     A zone's offset is constant except on the ~2 days a year it changes its
+     clocks, so it is resolved ONCE per UTC day — at the day's first and last
+     millisecond. Equal → the whole day uses it (no zone changes twice within a
+     day); different → a transition day, whose change instant is found once by
+     bisection. That turns one formatToParts per message (~1.75 µs each, per
+     analytics pass) into a few thousand per archive. mode: "utc" (offset 0,
+     no Intl at all — "UTC", "Etc/UTC", …), "local" (native Date getters) or
+     "intl" (any other IANA zone). An invalid zone throws RangeError, like Intl.
+     Pure and DOM-free; unit-tested against Intl in tests/zone-clock.test.js. */
+  const DAY_MS = 86400000;
+  function createZoneClock(tz) {
+    let mode = "local", fmt = null;
+    if (tz !== "local") {
+      fmt = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+        hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+      });
+      const resolved = fmt.resolvedOptions().timeZone;
+      mode = (resolved === "UTC" || resolved === "Etc/UTC" || resolved === "Etc/GMT") ? "utc" : "intl";
+    }
+    const perDay = new Map();   // UTC day number -> offset ms, or {a, b, at} on a transition day
+    let exactCalls = 0;
+    // Exact offset at t. Offsets are whole seconds, so the wall clock is
+    // compared against t truncated to the second.
+    function exact(t) {
+      exactCalls++;
+      const t0 = t - (((t % 1000) + 1000) % 1000);
+      if (mode === "local") {
+        const d = new Date(t0);
+        return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), d.getHours(), d.getMinutes(), d.getSeconds()) - t0;
+      }
+      const p = {};
+      for (const part of fmt.formatToParts(t0)) p[part.type] = part.value;
+      // Intl returns "24" for midnight under hour12:false in some engines.
+      const h = +p.hour === 24 ? 0 : +p.hour;
+      return Date.UTC(+p.year, +p.month - 1, +p.day, h, +p.minute, +p.second) - t0;
+    }
+    function offset(t) {
+      if (mode === "utc") return 0;
+      const day = Math.floor(t / DAY_MS);
+      let off = perDay.get(day);
+      if (off === undefined) {
+        const start = day * DAY_MS;
+        const a = exact(start), b = exact(start + DAY_MS - 1);
+        if (a === b) off = a;
+        else {
+          // Transition day: bisect (to the second, ~17 lookups) for the first
+          // second that already has the new offset.
+          let lo = 0, hi = 86399;   // seconds into the day; exact(start+hi*1000) === b
+          while (lo < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (exact(start + mid * 1000) === b) hi = mid; else lo = mid + 1;
+          }
+          off = { a, b, at: start + lo * 1000 };
+        }
+        perDay.set(day, off);
+      }
+      return typeof off === "number" ? off : (t < off.at ? off.a : off.b);
+    }
+    return { zone: tz, mode, offset, stats: () => ({ exact: exactCalls, days: perDay.size }) };
+  }
   function isPlainObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
   // Copy an object map keeping only entries `fn` maps to a truthy value; never
   // copies prototype-polluting keys.
@@ -129,7 +194,7 @@
   }
   return {
     PALETTE, X_LINK, hashId, initials, paletteColor,
-    PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
+    PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };
 });
