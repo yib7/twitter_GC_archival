@@ -176,9 +176,17 @@ test("isProfane matches the common stems", () => {
 });
 
 test("isKeysmash: a diverse vowel-free run, never a stretched interjection (review fix 4)", () => {
-  for (const t of ["sdfghjkl", "asdfasdf", "hjkl", "qwrtpsdf", "jfkdlsjf", "dhsjfkdl", "omg fjdkslfj", "GKDJSHFL"]) assert.ok(S.isKeysmash(t), t);
+  for (const t of ["sdfghjkl", "asdfasdf", "hjkl", "jfkdlsjf", "dhsjfkdl", "omg fjdkslfj", "GKDJSHFL"]) assert.ok(S.isKeysmash(t), t);
   for (const t of ["hmmmmm", "shhhhh", "brrrrr", "zzzzzz", "hello world",
     "pfffft", "hmmmmph", "nggghhh", "grrrrrr", "psssst", "tsktsktsk", "pshhhht", "rhythms"]) assert.ok(!S.isKeysmash(t), t);
+});
+
+test("isKeysmash: long home-row rolls and ones with a stray 'a' count; words never do (review round 2)", () => {
+  for (const t of ["sdkjfhsdkjfhskdjfh", "skdjfhskdjfhsdkjfhksjdhf", "jfkdlsajf", "ajsdhfkjsdhf", "asdfghjkl"]) {
+    assert.ok(S.isKeysmash(t), t);
+  }
+  for (const t of ["salads", "alaska", "glassjaw", "pfffft", "hmmmmph", "nggghhh", "tsktsktsk", "rhythms",
+    "strngths", "psssst", "https://t.co/xkcdbzqwrt"]) assert.ok(!S.isKeysmash(t), t);
 });
 
 test("keyword / keysmash checks never read inside a link (review fix 1)", () => {

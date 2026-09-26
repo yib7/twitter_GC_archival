@@ -475,22 +475,28 @@
   }
   const RE_PROFANITY = /\b(?:\w*fuck\w*|\w*shit\w*|bitch\w*|damn\w*|goddam\w*|asshole\w*|cunt\w*|dick|dicks|dickhead\w*|pussy|cock|bastard\w*|slut\w*|whore\w*|wtf|stfu)\b/i;
   function isProfane(text) { return !!text && RE_PROFANITY.test(text); }
-  // Keysmash (links ignored): a home-row roll, or a 6+ letter run with no
-  // vowel (y counts), no letter three times in a row and at least 4 distinct
-  // letters making up half the run — so stretched interjections ("hmmmmph",
-  // "pfffft", "nggghhh", "tsktsktsk") are not keysmashes but "jfkdlsjf" is.
+  // Keysmash (links ignored): a home-row roll ("asdf", "hjkl"), or a 6+ letter
+  // run that is mostly home row (70%+ of its letters from asdfghjkl), has at
+  // least 4 distinct letters, no letter three times in a row, no e/i/o/u/y
+  // and at most one "a" per 6 letters. So "sdkjfhsdkjfhskdjfh" and
+  // "jfkdlsajf" count, while words ("salads", "rhythms", "strngths") and
+  // stretched interjections ("hmmmmph", "pfffft", "tsktsktsk") do not.
   const RE_KEYSMASH_SEQ = /asdf|fdsa|ghjk|hjkl|jkl;/i;
+  const RE_HOME_ROW = /[asdfghjkl]/g;
+  function isKeysmashRun(r) {
+    if (/[eiouy]/.test(r) || /(.)\1\1/.test(r)) return false;   // a vowel, or a stretched letter ("pfffft")
+    const a = r.split("a").length - 1;
+    if (a * 6 > r.length) return false;
+    if (new Set(r).size < 4) return false;
+    return (r.match(RE_HOME_ROW) || []).length * 10 >= r.length * 7;
+  }
   function isKeysmash(text) {
     text = plainText(text);
     if (!text) return false;
     if (RE_KEYSMASH_SEQ.test(text)) return true;
     const runs = text.toLowerCase().match(/\b[a-z]{6,}\b/g);
     if (!runs) return false;
-    for (const r of runs) {
-      if (/[aeiouy]/.test(r) || /(.)\1\1/.test(r)) continue;   // a vowel, or a stretched letter ("pfffft")
-      const distinct = new Set(r).size;
-      if (distinct >= 4 && distinct * 2 >= r.length) return true;
-    }
+    for (const r of runs) if (isKeysmashRun(r)) return true;
     return false;
   }
 
