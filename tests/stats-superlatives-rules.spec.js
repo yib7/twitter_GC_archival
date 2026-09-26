@@ -128,3 +128,19 @@ test("Flash / Ghoster medians, Deserter silence, Scholar at a common N", async (
   await expect(card(page, "The Scholar").locator(".s-stat")).toHaveText("100 different words in first 100");
   await expect(card(page, "The Scholar").locator(".s-def")).toContainText("first 100 words");
 });
+
+// Review fix 1: keyword / keysmash / question checks read the message WITHOUT
+// its links — a t.co slug ("xkcdbzqwrt") is not a keysmash and a "?" in a query
+// string is not a question.
+test("links never count as keysmashes or questions", async ({ page }) => {
+  const out = [];
+  const T = (k) => Date.UTC(2024, 5, 1, 12, k);
+  for (let k = 0; k < 20; k++) out.push({ s: "u1", t: T(2 * k), x: "look https://t.co/xkcdbzqwrt?s=" + k });
+  for (let k = 0; k < 20; k++) out.push({ s: "u2", t: T(2 * k + 1), x: k < 2 ? "is this real?" : "sounds good to me" });
+  out.sort((a, b) => a.t - b.t).forEach((m, k) => { m.i = "k" + k; });
+  await bootViewer(page, { conversations: [{ id: "G3", type: "group", title: "Links", participants: ["u1", "u2"], count: out.length, msgs: out, events: [] }] });
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");
+  await expect(card(page, "The Keysmasher")).toHaveCount(0);
+  await expect(card(page, "The Inquisitor").locator(".s-name")).toHaveText("User 2");
+});

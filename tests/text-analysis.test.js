@@ -150,6 +150,17 @@ test("isKeysmash needs a vowel-free run with 3+ distinct letters", () => {
   for (const t of ["hmmmmm", "shhhhh", "brrrrr", "zzzzzz", "hello world"]) assert.ok(!S.isKeysmash(t), t);
 });
 
+test("keyword / keysmash checks never read inside a link (review fix 1)", () => {
+  assert.equal(S.isKeysmash("https://t.co/xkcdbzqwrt"), false);
+  assert.equal(S.isKeysmash("look https://t.co/xkcdbzqwrt lol"), false);
+  assert.equal(S.isKeysmash("sdfghjkl https://t.co/abc"), true);
+  const p = S.plainText("why? https://example.com/a?q=1 www.x.com/shit ok");
+  assert.ok(p.indexOf("?q=") === -1 && p.indexOf("shit") === -1, p);
+  assert.ok(p.indexOf("why?") !== -1 && p.indexOf("ok") !== -1, p);
+  assert.equal(S.plainText("no links here"), "no links here");
+  assert.equal(S.plainText(""), "");
+});
+
 test("slang / gamer / finance patterns skip everyday words", () => {
   assert.equal(S.countMatches(S.KEYWORDS.zoomer, "I bet the cap is on the bottle"), 0);
   assert.equal(S.countMatches(S.KEYWORDS.zoomer, "no cap fr fr"), 3);

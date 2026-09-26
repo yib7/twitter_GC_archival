@@ -330,6 +330,15 @@
   // otherwise into single characters. Tokens are lowercased.
   const RE_URL = /https?:\/\/\S+|www\.\S+/gi;
   const RE_APOS = /[\u2018\u2019\u02BC\uFF07]/g, RE_HAS_APOS = /[\u2018\u2019\u02BC\uFF07]/;
+  const RE_URL_HINT = /https?:|www\./i;
+  // The message with its links removed — what the keyword, keysmash, caps and
+  // question checks read, so a t.co slug ("xkcdbzqwrt") is not a keysmash and
+  // a "?" in a query string is not a question.
+  function plainText(text) {
+    if (!text) return "";
+    const s = String(text);
+    return RE_URL_HINT.test(s) ? s.replace(RE_URL, " ") : s;
+  }
   const RE_TOKEN = /[\p{L}\p{N}\p{M}]+(?:'[\p{L}\p{N}\p{M}]+)*/gu;
   const RE_NOSPACE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
   const RE_NOSPACE_RUNS = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]|[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]+/gu;
@@ -432,11 +441,12 @@
   }
   const RE_PROFANITY = /\b(?:\w*fuck\w*|\w*shit\w*|bitch\w*|damn\w*|goddam\w*|asshole\w*|cunt\w*|dick|dicks|dickhead\w*|pussy|cock|bastard\w*|slut\w*|whore\w*|wtf|stfu)\b/i;
   function isProfane(text) { return !!text && RE_PROFANITY.test(text); }
-  // Keysmash: a 6+ letter run with no vowel (y counts) and 3+ distinct
+  // Keysmash (links ignored): a 6+ letter run with no vowel (y counts) and 3+ distinct
   // letters ("hmmmmm", "shhhhh", "zzzzzz" are not keysmashes), or a
   // home-row roll.
   const RE_KEYSMASH_SEQ = /asdf|fdsa|ghjk|hjkl|jkl;/i;
   function isKeysmash(text) {
+    text = plainText(text);
     if (!text) return false;
     if (RE_KEYSMASH_SEQ.test(text)) return true;
     const runs = text.toLowerCase().match(/\b[a-z]{6,}\b/g);
@@ -551,7 +561,7 @@
     TI_T_LO, TI_T_HI, clampInstant,
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, countWord, wordKeys, countKeys, mayContainKey,
-    KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, urlHost, linkPlatform, plural,
+    KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, plainText, urlHost, linkPlatform, plural,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };
 });

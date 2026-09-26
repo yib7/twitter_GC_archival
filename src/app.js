@@ -16,7 +16,7 @@ const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, isCloudWord, KEYWORDS, countMatches,
-  countLaughs, isLaughOnly, isProfane, isKeysmash, linkPlatform, plural } = GCAShared;
+  countLaughs, isLaughOnly, isProfane, isKeysmash, plainText, linkPlatform, plural } = GCAShared;
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
@@ -2379,20 +2379,23 @@ function* statsGen() {
       // bound, so only a possibly-longer message pays for the exact count.
       if (txt.length > P.maxLen) { const cp = [...txt].length; if (cp > P.maxLen) P.maxLen = cp; }
 
-      if (isKeysmash(txt)) P.keysmash++;
-      if (isProfane(txt)) P.swear++;
-      if (txt.length > 5 && RE_UPPER.test(txt) && txt === txt.toUpperCase()) P.caps++;
-      if (txt.indexOf("?") !== -1 || txt.indexOf("？") !== -1) P.question++;
-      P.exclaims += countMatches(RE_BANG, txt);
-      P.narc += countMatches(KEYWORDS.narcissist, txt);
-      P.laughs += countLaughs(txt);
-      P.gratitude += countMatches(KEYWORDS.gratitude, txt);
-      if (isLaughOnly(txt)) P.laughVoid++;
-      P.optimist += countMatches(KEYWORDS.optimist, txt);
-      P.pessimist += countMatches(KEYWORDS.pessimist, txt);
-      P.zoomer += countMatches(KEYWORDS.zoomer, txt);
-      P.gamer += countMatches(KEYWORDS.gamer, txt);
-      P.finance += countMatches(KEYWORDS.finance, txt);
+      // Keyword / keysmash / caps / question checks read the text without its
+      // links (review fix 1): a t.co slug is not a keysmash, "?s=20" not a question.
+      const plain = plainText(txt);
+      if (isKeysmash(plain)) P.keysmash++;
+      if (isProfane(plain)) P.swear++;
+      if (plain.length > 5 && RE_UPPER.test(plain) && plain === plain.toUpperCase()) P.caps++;
+      if (plain.indexOf("?") !== -1 || plain.indexOf("？") !== -1) P.question++;
+      P.exclaims += countMatches(RE_BANG, plain);
+      P.narc += countMatches(KEYWORDS.narcissist, plain);
+      P.laughs += countLaughs(plain);
+      P.gratitude += countMatches(KEYWORDS.gratitude, plain);
+      if (isLaughOnly(txt)) P.laughVoid++;   // a link is content, not "only laughter"
+      P.optimist += countMatches(KEYWORDS.optimist, plain);
+      P.pessimist += countMatches(KEYWORDS.pessimist, plain);
+      P.zoomer += countMatches(KEYWORDS.zoomer, plain);
+      P.gamer += countMatches(KEYWORDS.gamer, plain);
+      P.finance += countMatches(KEYWORDS.finance, plain);
 
       // Emoji — whole sequences (skin tone, ZWJ family, flag, keycap) count
       // once each (AN-1), the same helper Wrapped uses.
