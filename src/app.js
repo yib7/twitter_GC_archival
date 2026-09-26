@@ -2877,8 +2877,8 @@ function renderSettings() {
       </div>
 
       <div class="set-group">
-        <div class="set-row"><div><div class="set-label">Reset customization</div><div class="set-desc">Clears names, colors, theme &amp; saved searches.</div></div>
-          <div class="set-control"><button class="btn ghost" id="set-reset">Reset all</button></div></div>
+        <div class="set-row"><div><div class="set-label">Reset customization</div><div class="set-desc">Resets appearance (theme, accent, font size, density, avatars, timestamps), people &amp; group names, colors and saved searches. Keeps bookmarks, “this is me”, hidden people &amp; groups, timezone and photos.</div></div>
+          <div class="set-control"><button class="btn ghost" id="set-reset">Reset…</button></div></div>
       </div>
 
       <div class="set-group">
@@ -2979,10 +2979,9 @@ function renderSettings() {
   });
 
   v.querySelector("#set-reset").onclick = () => {
-    if (!confirm("Reset all names, colors, theme and saved searches?")) return;
-    settings = Object.assign({}, DEFAULTS, { names: {}, colors: {}, saved: [] });
-    setTheme("lightsout");   // theme lives under its own gca.theme key
-    saveSettings(); applyTheme(); renderSettings(); toast("Customization reset");
+    if (!confirm(RESET_CONFIRM)) return;
+    resetCustomization();
+    toast("Customization reset");
   };
 
   v.querySelector("#set-export").onclick = () => {
@@ -3028,6 +3027,30 @@ function renderSettings() {
     };
     reader.readAsText(file);
   };
+}
+// VC-3/UX-3: a SCOPED reset. The old "Reset all" silently wiped bookmarks,
+// "me", ignored people/groups and the timezone while its dialog only
+// mentioned names/colors/theme/saved searches. It now resets exactly what the
+// dialog lists and keeps the rest; the new object is built from a deep clone
+// of DEFAULTS so nothing can alias the defaults afterwards.
+const RESET_CONFIRM = "Reset customization?\n\n" +
+  "Resets: theme, accent color, font size, density, avatar & timestamp display, people & group names, person colors, and saved searches.\n\n" +
+  "Keeps: bookmarks, “this is me”, hidden people & groups, timezone, and profile & group photos.";
+function resetCustomization() {
+  const prev = settings;
+  const next = cloneDefaults();
+  next.pins = prev.pins.slice();
+  next.me = prev.me;
+  next.ignoredUsers = prev.ignoredUsers.slice();
+  next.ignoredGroups = prev.ignoredGroups.slice();
+  next.timezone = prev.timezone;
+  next.pfps = Object.assign({}, prev.pfps);
+  next.gcPhoto = prev.gcPhoto;
+  for (const cid in prev.gc) { if (prev.gc[cid] && prev.gc[cid].photo) next.gc[cid] = { photo: prev.gc[cid].photo }; }
+  settings = next;
+  setTheme("lightsout");   // theme lives under its own gca.theme key
+  saveSettings(); savePfps(); saveGc();
+  applySettingsChange();
 }
 // Settings were replaced wholesale (Import / Reset): re-derive everything that
 // reads them — photo map, date formatters (timezone), theme vars — then
