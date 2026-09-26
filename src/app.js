@@ -1439,6 +1439,9 @@ function runSearch() {
   resState.idx = out; resState.page = 0;
   sEls.list.className = F.grid ? "gallery" : "list";
   sEls.list.innerHTML = "";
+  // VC-2: a new result set starts at the top — keeping the old offset hid the
+  // best results above the fold and let the sentinel pull in page 2 at once.
+  sEls.scroll.scrollTop = 0;
   if (resObserver) resObserver.disconnect();
 
   const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts || opPeople || opFrom || opTo || opMedia || opLinks || opReacts;
