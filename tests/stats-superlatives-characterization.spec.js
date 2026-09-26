@@ -26,7 +26,7 @@ const GOLDEN = [
   { name: "User 1", tie: "tied with User 3", title: "Media Hog", stat: "2 files shared" },
   { name: "User 4", tie: "", title: "The Giver", stat: "10 reactions given" },
   { name: "User 4", tie: "", title: "Thread Starter", stat: "2 days started" },
-  { name: "User 1", tie: "tied with User 5", title: "Thread Killer", stat: "1 day ended" },
+  { name: "User 1", tie: "tied with User 3, User 5", title: "Thread Killer", stat: "1 day ended" },
   { name: "User 5", tie: "", title: "The Ghost", stat: "Only 7 messages total" },
   { name: "User 4", tie: "", title: "The Ghoster", stat: "1.1h median reply" },
   { name: "User 2", tie: "", title: "The Flash", stat: "19.0m median reply" },

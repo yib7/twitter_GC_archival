@@ -144,3 +144,21 @@ test("links never count as keysmashes or questions", async ({ page }) => {
   await expect(card(page, "The Keysmasher")).toHaveCount(0);
   await expect(card(page, "The Inquisitor").locator(".s-name")).toHaveText("User 2");
 });
+
+// Review fix 5: the last message of the archive ends its day too — the final
+// day's closer used to be dropped from Thread Killer.
+test("Thread Killer credits the final day", async ({ page }) => {
+  const D = (d, h) => Date.UTC(2024, 6, 1 + d, h);
+  const out = [
+    { s: "u1", t: D(0, 10), x: "morning" }, { s: "u2", t: D(0, 20), x: "night" },
+    { s: "u1", t: D(1, 10), x: "morning" }, { s: "u3", t: D(1, 20), x: "night" },
+    { s: "u1", t: D(2, 10), x: "morning" }, { s: "u3", t: D(2, 20), x: "night" },
+  ].map((m, k) => Object.assign(m, { i: "d" + k }));
+  await bootViewer(page, { conversations: [{ id: "G4", type: "group", title: "Days", participants: ["u1", "u2", "u3"], count: out.length, msgs: out, events: [] }] });
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");
+  // u3 (User 2 by message count) ended days 2 and 3.
+  await expect(card(page, "Thread Killer").locator(".s-name")).toHaveText("User 2");
+  await expect(card(page, "Thread Killer").locator(".s-stat")).toHaveText("2 days ended");
+  await expect(card(page, "Thread Killer").locator(".s-tie")).toHaveCount(0);
+});

@@ -2423,6 +2423,10 @@ function* statsGen() {
     } else run = 1;
   }
 
+  // The archive's last message ends its day too (review fix 5): the loop only
+  // credits a day's closer when the next day starts.
+  if (prevMsgUser !== null) R(prevMsgUser).killer++;
+
   // ---- Per-person derived values -------------------------------------------
   const lastT = N ? MSGS[N - 1].t : 0;
   rec.forEach((P) => {
