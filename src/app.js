@@ -73,6 +73,7 @@ function resetDerived() {
   threadsCache = null;
   TIDX = null;   // the zoned time index is per conversation (UX-4 / AN-13)
   searchBuilt = false; sEls = {};
+  if (resPageObs) { try { resPageObs.disconnect(); } catch (e) {} resPageObs = null; }   // VC-29
   invalidateTimeline(); tlResume = null;   // a new conversation starts at the top
   galleryState = { items: [], page: 0 }; galEls = {};
   if (galleryObserver) { try { galleryObserver.disconnect(); } catch (e) {} galleryObserver = null; }
@@ -1364,6 +1365,24 @@ function ensureSearch() {
   resObserver = new IntersectionObserver((entries) => {
     if (entries[0].isIntersecting) appendResultsPage();
   }, { root: sEls.scroll, rootMargin: "600px" });
+  // VC-29 windowing: (un)render result pages as they leave / re-enter range.
+  resPageObs = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      // VC-1: a hidden Search view has an unlaid-out root (0 height) and reports
+      // every page as not intersecting — ignore it, or leaving the view would
+      // empty the list and lose the reading position.
+      if (!e.rootBounds || !e.rootBounds.height) return;
+      const pg = e.target;
+      if (e.isIntersecting) { if (pg.dataset.empty) renderResPage(pg); }
+      else if (!pg.dataset.empty) {
+        const h = pg.offsetHeight;
+        if (!h) return;   // never freeze a 0 (not laid out) height
+        pg.style.height = h + "px";
+        pg.replaceChildren();
+        pg.dataset.empty = "1";
+      }
+    });
+  }, { root: sEls.scroll, rootMargin: "1500px 0px" });
 
   runSearch();
 }
@@ -1557,7 +1576,8 @@ function runSearch() {
   if (F.grid) out = out.filter((i) => MSGS[i].m);
 
   resState.idx = out; resState.page = 0;
-  sEls.list.className = F.grid ? "gallery" : "list";
+  sEls.list.className = F.grid ? "gallery-pages" : "list";
+  if (resPageObs) resPageObs.disconnect();
   sEls.list.innerHTML = "";
   // VC-2: a new result set starts at the top — keeping the old offset hid the
   // best results above the fold and let the sentinel pull in page 2 at once.
@@ -1598,15 +1618,24 @@ function runSearch() {
   }
   appendResultsPage();
 }
-function appendResultsPage() {
-  const { idx, page } = resState;
-  const start = page * PAGE;
-  if (start >= idx.length) return;
-  const slice = idx.slice(start, start + PAGE);
+/* ---- Results windowing (VC-29, SP3) -----------------------------------------
+   Results arrive as 60-row .res-page blocks appended by the bottom sentinel
+   (infinite scroll). resPageObs then keeps only the pages within ~1500px of the
+   viewport rendered: a page that scrolls far away is frozen at its measured
+   height and emptied, and re-rendered from resState.idx when it comes back —
+   the same scheme as the Timeline's chunks, so a 100k-hit list never holds
+   more than a few pages of rows. Grid mode makes each page its own .gallery
+   grid (60 cells fill whole rows for every column count the 980px-max grid can
+   have, 1-6), inside a column of pages. */
+let resPageObs = null;
+function renderResPage(pg) {
+  const idx = resState.idx, k = +pg.dataset.p;
+  const slice = idx.slice(k * PAGE, (k + 1) * PAGE);
   // Fuzzy highlight ranges for just this page (P2-6): Fuse's includeMatches is
   // per text, so scoring the page's texts gives the same ranges the full run
   // would have, without paying for them on every hit.
-  if (fuzzyPattern && fuzzyRanges && !F.grid) {
+  if (fuzzyPattern && fuzzyRanges && !F.grid && !pg.dataset.hl) {
+    pg.dataset.hl = "1";
     const hl = new Fuse(slice.map((i) => LOWER[i]), Object.assign({ includeMatches: true }, FUSE_OPTS));
     for (const r of hl.search(fuzzyPattern)) {
       const ranges = [];
@@ -1623,10 +1652,21 @@ function appendResultsPage() {
     if (F.grid) frag.appendChild(galleryCell(i, idx));   // idx is already the media subset (VC-16)
     else frag.appendChild(renderMsg(i, { clickable: true, needles: F.needles, ranges: fuzzyRanges ? fuzzyRanges.get(i) : null }));
   }
-  sEls.list.appendChild(frag);
+  pg.replaceChildren(frag);
+  pg.style.height = "";
+  delete pg.dataset.empty;
+}
+function appendResultsPage() {
+  const { idx, page } = resState;
+  if (page * PAGE >= idx.length) return;
+  const pg = el("div", F.grid ? "res-page gallery" : "res-page");
+  pg.dataset.p = page;
+  renderResPage(pg);
+  const old = sEls.list.querySelector(".sentinel"); if (old) old.remove();
+  sEls.list.appendChild(pg);
+  if (resPageObs) resPageObs.observe(pg);
   resState.page++;
   // re-arm sentinel
-  const old = sEls.list.querySelector(".sentinel"); if (old) old.remove();
   if (resState.page * PAGE < idx.length) {
     const sentinel = el("div", "sentinel"); sEls.list.appendChild(sentinel);
     resObserver.observe(sentinel);
