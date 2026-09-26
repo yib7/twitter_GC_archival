@@ -71,6 +71,7 @@ function assignGenericNames() {
 function resetDerived() {
   STATS = null; WORDS = null; MILES = null; HOF = null; fuseIndex = null;
   threadsCache = null;
+  TIDX = null;   // the zoned time index is per conversation (UX-4 / AN-13)
   searchBuilt = false; sEls = {};
   invalidateTimeline(); tlResume = null;   // a new conversation starts at the top
   galleryState = { items: [], page: 0 }; galEls = {};
@@ -95,6 +96,11 @@ function resetDerived() {
   // (now detached) canvases.
   statCharts.forEach((c) => { try { c.destroy(); } catch (e) {} });
   statCharts = [];
+  // SP3: drop the half-stepped stats/word sweeps, cancel a pending deferred
+  // Stats stage, and clear the (hidden) Stats DOM so the previous
+  // conversation's numbers never linger — setView re-renders it on entry.
+  statsJob = null; wordsJob = null; statsRenderSeq++;
+  const sv = document.getElementById("view-stats"); if (sv) { sv.innerHTML = ""; delete sv.dataset.ready; }
 }
 
 function activateConversation(id, rerender) {
@@ -129,10 +135,12 @@ const DENSITY = {
 };
 const PAGE = 60;
 let DT, DAY, dShort;
-// ZP: the ONE cached parts-formatter used by zonedParts() for every message.
-// Rebuilt (not per-call) whenever the timezone changes — 134k msgs each call a
-// formatToParts, so constructing a formatter per call is not acceptable.
-let ZP = null, ZP_LOCAL = false;
+// ZP_LOCAL: the configured zone is the browser's own ("local"), whose day
+// bounds zonedDateBound() takes from native Date parsing.
+let ZP_LOCAL = false;
+// UX-4/AN-13: ZONE_ID is the zone actually in effect (after the fallbacks
+// below); the time index is keyed on it.
+let ZONE_ID = "UTC";
 // isValidTimeZone (P1-4) lives in src/shared-core.js, used by validateSettings.
 function initDateFormatters() {
   // 'local' uses native Date accessors (no formatter); every other zone shares
@@ -141,10 +149,6 @@ function initDateFormatters() {
     DT = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }));
     DAY = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { weekday: "long", month: "long", day: "numeric", year: "numeric" }));
     dShort = new Intl.DateTimeFormat("en-US", Object.assign({}, opts, { month: "short", day: "numeric", year: "numeric" }));
-    ZP = isLocal ? null : new Intl.DateTimeFormat("en-US", Object.assign({}, opts, {
-      weekday: "short", year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
-    }));
     ZP_LOCAL = isLocal;
   };
   // A corrupt/ported zone throws a RangeError on construction, and this runs at
@@ -154,28 +158,136 @@ function initDateFormatters() {
   // (not a literal), then to UTC only if even that cannot be built.
   const zones = [(settings && settings.timezone) || DEFAULTS.timezone, DEFAULTS.timezone, "UTC"];
   for (const tz of zones) {
-    try { build(tz === "local" ? {} : { timeZone: tz }, tz === "local"); return; } catch (e) { /* next */ }
+    try {
+      build(tz === "local" ? {} : { timeZone: tz }, tz === "local");
+      CLOCK = GCAShared.createZoneClock(tz);
+      ZONE_ID = tz;
+      TIDX = null;   // every zoned index is stale under a new zone
+      return;
+    } catch (e) { /* next */ }
   }
+}
+
+/* ---- Zone clock (UX-4 / AN-13) ---------------------------------------------
+   Every zoned calendar value is "UTC fields of (t + the zone's UTC offset at t)".
+   GCAShared.createZoneClock (src/shared-core.js, unit-tested against
+   Intl.formatToParts) resolves that offset once per UTC day instead of one
+   formatToParts per message, with no Intl at all for UTC. */
+let CLOCK = null;
+const DAY_MS = 86400000;
+function zoneOffset(t) { return CLOCK.offset(t); }
+// "YYYY-MM-DD" for a zoned day number (days since 1970-01-01 in the zone).
+// Cached: an archive has a few thousand distinct days, not 100k.
+const dayKeyCache = new Map();
+function dayNumKey(dn) {
+  let k = dayKeyCache.get(dn);
+  if (k === undefined) { k = new Date(dn * DAY_MS).toISOString().slice(0, 10); dayKeyCache.set(dn, k); }
+  return k;
 }
 
 // Zoned calendar parts for an epoch (ms), in the CONFIGURED timezone. This is the
 // single source of truth for every analytics bucket, so a message's bucket always
 // agrees with its DT/DAY/dShort label (same zone, same instant).
 //   -> { y, mo (0-11), d, h (0-23), mi, se, dow (0=Sun), key "YYYY-MM-DD" }
-const ZP_DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+// For a sweep over the active conversation's messages use timeIndex() instead.
 function zonedParts(t) {
-  if (ZP_LOCAL) {
-    const dt = new Date(t);
-    const y = dt.getFullYear(), mo = dt.getMonth(), day = dt.getDate();
-    return { y, mo, d: day, h: dt.getHours(), mi: dt.getMinutes(), se: dt.getSeconds(), dow: dt.getDay(),
-      key: y + "-" + String(mo + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0") };
+  const wall = t + zoneOffset(t);
+  const w = new Date(wall);
+  return { y: w.getUTCFullYear(), mo: w.getUTCMonth(), d: w.getUTCDate(), h: w.getUTCHours(), mi: w.getUTCMinutes(),
+    se: w.getUTCSeconds(), dow: w.getUTCDay(), key: dayNumKey(Math.floor(wall / DAY_MS)) };
+}
+
+/* ---- Per-conversation time index (UX-4 / AN-13; consumed by SP4 analytics and
+   the SP8 calendar heatmap) ----------------------------------------------------
+   timeIndex() -> TI, built lazily ONCE per (active conversation, timezone) and
+   shared by every analytics sweep (Stats, milestones, keyword trend, Wrapped,
+   Capsule, "On this day", sidebar sparkline, Hall of Fame, Threads). Arrays are
+   parallel to MSGS (index i = MSGS[i]), all values in the configured zone:
+     TI.n                 number of messages (=== N)
+     TI.day   Int32Array  zoned day number: days since 1970-01-01 (dayNumKey()
+                          turns it into "YYYY-MM-DD"; consecutive days differ by 1)
+     TI.year  Uint16Array calendar year
+     TI.month Uint8Array  month 0-11
+     TI.mday  Uint8Array  day of month 1-31
+     TI.hour  Uint8Array  hour 0-23
+     TI.minute Uint8Array minute 0-59
+     TI.dow   Uint8Array  weekday 0=Sun … 6=Sat
+     TI.monthKey Int32Array  year*12 + month (monthKeyStr() -> "YYYY-MM"); sorts
+                          chronologically as a plain number
+   Invalidated by resetDerived() (conversation switch / settings replaced) and
+   initDateFormatters() (timezone change); it also re-checks MSGS identity and
+   the zone, so a stale index can never be served. Read-only for consumers. */
+let TIDX = null;
+function timeIndex() {
+  if (TIDX && TIDX.msgs === MSGS && TIDX.zone === ZONE_ID) return TIDX;
+  const n = MSGS.length;
+  const TI = {
+    msgs: MSGS, zone: ZONE_ID, n,
+    day: new Int32Array(n), year: new Uint16Array(n), month: new Uint8Array(n), mday: new Uint8Array(n),
+    hour: new Uint8Array(n), minute: new Uint8Array(n), dow: new Uint8Array(n), monthKey: new Int32Array(n),
+  };
+  let lastDn = NaN, y = 0, mo = 0, md = 0, wd = 0;
+  for (let i = 0; i < n; i++) {
+    const t = MSGS[i].t;
+    const w = t + zoneOffset(t);
+    const dn = Math.floor(w / DAY_MS);
+    const msOfDay = w - dn * DAY_MS;
+    if (dn !== lastDn) {   // calendar fields change only once per day
+      const d = new Date(dn * DAY_MS);
+      y = d.getUTCFullYear(); mo = d.getUTCMonth(); md = d.getUTCDate(); wd = d.getUTCDay();
+      lastDn = dn;
+    }
+    TI.day[i] = dn; TI.year[i] = y; TI.month[i] = mo; TI.mday[i] = md; TI.dow[i] = wd;
+    TI.monthKey[i] = y * 12 + mo;
+    TI.hour[i] = Math.floor(msOfDay / 3600000);
+    TI.minute[i] = Math.floor(msOfDay / 60000) % 60;
   }
-  const p = {};
-  for (const part of ZP.formatToParts(t)) p[part.type] = part.value;
-  // Intl returns "24" for midnight under hour12:false in some engines; normalize.
-  let h = +p.hour; if (h === 24) h = 0;
-  return { y: +p.year, mo: +p.month - 1, d: +p.day, h, mi: +p.minute, se: +p.second, dow: ZP_DOW[p.weekday],
-    key: p.year + "-" + p.month + "-" + p.day };
+  TIDX = TI;
+  return TI;
+}
+function monthKeyStr(mk) { return Math.floor(mk / 12) + "-" + String((mk % 12) + 1).padStart(2, "0"); }
+
+// Time-only aggregate of the time index (per-day / per-month / hour / weekday
+// counts). Cached ON the index object, so it is invalidated exactly when the
+// index is (conversation switch, zone change). Cheap (typed-array tallies, no
+// text), so the first Stats paint and the milestones can use it without
+// waiting for the full computeStats() text sweep.
+//   dayMin / dayCounts: dayCounts[dn - dayMin] = messages on zoned day dn
+//   days:     { "YYYY-MM-DD": count } in chronological order
+//   monthArr: [["YYYY-MM", count], …] ascending
+//   busy:     ["YYYY-MM-DD", count] — the earliest busiest day
+function timeAgg() {
+  const TI = timeIndex();
+  if (TI.agg) return TI.agg;
+  const n = TI.n;
+  const hourCount = new Array(24).fill(0), weekdayCount = new Array(7).fill(0);
+  let dMin = Infinity, dMax = -Infinity, mMin = Infinity, mMax = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const d = TI.day[i], mk = TI.monthKey[i];
+    if (d < dMin) dMin = d; if (d > dMax) dMax = d;
+    if (mk < mMin) mMin = mk; if (mk > mMax) mMax = mk;
+  }
+  const dayCounts = new Int32Array(n ? dMax - dMin + 1 : 0);
+  const monthCounts = new Int32Array(n ? mMax - mMin + 1 : 0);
+  for (let i = 0; i < n; i++) {
+    dayCounts[TI.day[i] - dMin]++;
+    monthCounts[TI.monthKey[i] - mMin]++;
+    hourCount[TI.hour[i]]++;
+    weekdayCount[TI.dow[i]]++;
+  }
+  const days = {};
+  let daysActive = 0, busy = ["", 0];
+  for (let k = 0; k < dayCounts.length; k++) {
+    const c = dayCounts[k];
+    if (!c) continue;
+    const key = dayNumKey(dMin + k);
+    days[key] = c; daysActive++;
+    if (c > busy[1]) busy = [key, c];
+  }
+  const monthArr = [];
+  for (let k = 0; k < monthCounts.length; k++) if (monthCounts[k]) monthArr.push([monthKeyStr(mMin + k), monthCounts[k]]);
+  TI.agg = { dayMin: n ? dMin : 0, dayCounts, days, daysActive, busy, monthArr, hourCount, weekdayCount };
+  return TI.agg;
 }
 
 // Interpret a "YYYY-MM-DD" string as the start-of-day (or end-of-day when `end`)
@@ -214,12 +326,6 @@ function dayKeyBoundInstant(k) {
   if (ZP_LOCAL) return new Date(k + "T12:00:00").getTime();
   // Start-of-day in the zone + 12h stays on the same calendar day everywhere.
   return zonedDateBound(k, false) + 12 * 3600000;
-}
-// Subtract n days from a "YYYY-MM-DD" key via UTC arithmetic (calendar-correct,
-// independent of any zone offset).
-function isoDayKeyMinus(k, n) {
-  const t = Date.parse(k + "T00:00:00Z") - n * 86400000;
-  return new Date(t).toISOString().slice(0, 10);
 }
 
 /* ---- Settings ------------------------------------------------------------ */
@@ -1836,13 +1942,55 @@ const RE_QUESTION = /\?/g;
 const RE_EXCLAIM = /!/g;
 const RE_EMOJI = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
 
+/* ---- Time-sliced sweeps (SP3) ------------------------------------------------
+   The two text-heavy sweeps (computeStats' superlatives, computeWords' word
+   cloud) are generator functions that `yield` once the current slice's
+   deadline (sliceEnd) has passed, checked every 1024 messages. A job wraps one
+   such generator for one input (`key`):
+     - synchronous callers (profile modal, Wrapped, …) drain it: runJob(job, Infinity)
+       — sliceEnd stays Infinity, so the generator never yields;
+     - the deferred Stats stage steps it in short tasks: runJob(job, SLICE_MS),
+       so the first Stats paint isn't blocked by a ~0.5 s sweep at 100k.
+   A job half-stepped by the deferred stage and then drained by a sync caller
+   simply finishes from where it was — the result is identical either way. */
+let sliceEnd = Infinity;
+const SLICE_MS = 24;
+function makeJob(key, genFn) { return { key, gen: genFn(), done: false, value: undefined }; }
+// Advance `job` for up to `budget` ms (Infinity = to completion). True when done.
+function runJob(job, budget) {
+  if (job.done) return true;
+  const prev = sliceEnd;
+  sliceEnd = budget === Infinity ? Infinity : performance.now() + budget;
+  try {
+    const r = job.gen.next();
+    if (r.done) { job.done = true; job.value = r.value; }
+  } finally { sliceEnd = prev; }
+  return job.done;
+}
+let statsJob = null, wordsJob = null;
+// Keyed on the time index: a new conversation OR a new zone starts a new sweep.
+function statsJobFor() {
+  const TI = timeIndex();
+  if (!statsJob || statsJob.key !== TI) statsJob = makeJob(TI, statsGen);
+  return statsJob;
+}
+function wordsJobFor() {
+  if (!wordsJob || wordsJob.key !== MSGS) wordsJob = makeJob(MSGS, wordsGen);
+  return wordsJob;
+}
+
 function computeStats() {
   if (STATS) return STATS;
   // Every sender in this conversation is ignored (P1-4) — MSGS[0]/MSGS[N-1]
   // below would throw. Nothing to compute; renderStats() shows an empty panel.
   if (!N) return (STATS = { empty: true });
-  const perPerson = {}, months = {}, days = {}, emojis = {}, hourCount = new Array(24).fill(0);
-  const weekdayCount = new Array(7).fill(0);
+  const job = statsJobFor();
+  runJob(job, Infinity);
+  STATS = job.value;
+  return STATS;
+}
+function* statsGen() {
+  const perPerson = {}, emojis = {};
   
   // Superlative counters
   const nightCount = {};      // user -> late night msg count
@@ -1905,17 +2053,18 @@ function computeStats() {
 
   let prevDay = null;
   let prevMsgUser = null;
+  // Every date/hour bucket below reads the configured-zone time index (UX-4 /
+  // AN-13), so they agree with the DT/DAY labels the same message renders with.
+  // The per-day / per-month / hour / weekday tallies come ready-made from
+  // timeAgg() (shared with the first Stats paint and the milestones).
+  const TI = timeIndex();
+  const agg = timeAgg();
 
   for (let i = 0; i < N; i++) {
+    if ((i & 1023) === 1023 && performance.now() > sliceEnd) yield;
     const m = MSGS[i];
     perPerson[m.s] = (perPerson[m.s] || 0) + 1;
-    // Every date/hour bucket below reads the message's parts in the configured
-    // zone, so they agree with the DT/DAY labels the same message renders with.
-    const zp = zonedParts(m.t);
-    const ym = zp.key.slice(0, 7);   // "YYYY-MM"
-    months[ym] = (months[ym] || 0) + 1;
-    const dk = zp.key;               // "YYYY-MM-DD"
-    days[dk] = (days[dk] || 0) + 1;
+    const dk = TI.day[i];            // zoned day number
 
     // Day Starter & Killer Tracking
     if (dk !== prevDay) {
@@ -1933,15 +2082,12 @@ function computeStats() {
     }
     lastMsgTime[m.s] = m.t;
     
-    hourCount[zp.h]++;
-    weekdayCount[zp.dow]++;
+    const hr = TI.hour[i], dayOfWeek = TI.dow[i];
 
     // Slacker & Weekend checks
-    const dayOfWeek = zp.dow;
     if (dayOfWeek === 0 || dayOfWeek === 6) {
       weekendCount[m.s] = (weekendCount[m.s] || 0) + 1;
     }
-    const hr = zp.h;
     if (dayOfWeek >= 1 && dayOfWeek <= 5 && hr >= 9 && hr < 17) {
       slackerCount[m.s] = (slackerCount[m.s] || 0) + 1;
     }
@@ -1955,8 +2101,7 @@ function computeStats() {
     if (hr >= 3 && hr < 5) vampiricOwlCount[m.s] = (vampiricOwlCount[m.s] || 0) + 1;
 
     // Specific times
-    const min = zp.mi;
-    if (hr === 0 && min === 0) midnightSniperCount[m.s] = (midnightSniperCount[m.s] || 0) + 1;
+    if (hr === 0 && TI.minute[i] === 0) midnightSniperCount[m.s] = (midnightSniperCount[m.s] || 0) + 1;
 
     // Media check
     if (m.m) {
@@ -2082,11 +2227,6 @@ function computeStats() {
     }
   }
 
-  let busy = ["", 0];
-  for (const k in days) {
-    if (days[k] > busy[1]) busy = [k, days[k]];
-  }
-
   const yapperStats = {};
   const doubleTextStats = {};
   const reactionGenerosity = {};
@@ -2191,16 +2331,16 @@ function computeStats() {
       return { fromId, toId, count };
     });
 
-  STATS = {
+  return {
     perPerson,
-    days,
-    monthArr: Object.entries(months).sort((a, b) => (a[0] < b[0] ? -1 : 1)),
-    daysActive: Object.keys(days).length,
-    busy,
+    days: agg.days,
+    monthArr: agg.monthArr,
+    daysActive: agg.daysActive,
+    busy: agg.busy,
     first: MSGS[0].t,
     last: MSGS[N - 1].t,
-    hourCount,
-    weekdayCount,
+    hourCount: agg.hourCount,
+    weekdayCount: agg.weekdayCount,
     emojis: Object.entries(emojis).sort((a,b)=>b[1]-a[1]).slice(0, 15),
     // Each SUPERLATIVES row becomes an `<key>Winner` field here — the same names
     // the render grid and profile badges read (e.g. owlWinner, haterWinner, …).
@@ -2210,22 +2350,27 @@ function computeStats() {
     responseStats,
     topPairs
   };
-  return STATS;
 }
 function computeWords() {
   if (WORDS) return WORDS;
+  const job = wordsJobFor();
+  runJob(job, Infinity);
+  WORDS = job.value;
+  return WORDS;
+}
+function* wordsGen() {
   // STOPWORDS is declared further down (search "SHARED STOPWORDS") — safe to
   // reference here since this function only runs after the whole module has
   // parsed, not at declaration time. Kept as one Set so the word cloud and the
   // wrapped top-word stat can never drift out of sync with each other.
   const counts = {};
   for (let i = 0; i < N; i++) {
+    if ((i & 1023) === 1023 && performance.now() > sliceEnd) yield;
     const x = MSGS[i].x; if (!x) continue;
     const toks = x.toLowerCase().replace(/https?:\/\/\S+/g, " ").replace(/[^a-z0-9']+/g, " ").split(" ");
     for (const t of toks) { if (t.length < 3 || t.length > 18) continue; if (STOPWORDS.has(t)) continue; counts[t] = (counts[t] || 0) + 1; }
   }
-  WORDS = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 42);
-  return WORDS;
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 42);
 }
 let trendChart = null;
 // P2-2: the months/hours/weekdays Chart.js instances of the current Stats
@@ -2236,20 +2381,16 @@ function computeKeywordTrend(word) {
   const wordLower = word.toLowerCase();
   const monthCounts = {};
   
-  if (STATS && STATS.monthArr) {
-     STATS.monthArr.forEach(m => monthCounts[m[0]] = 0);
-  }
+  timeAgg().monthArr.forEach(m => monthCounts[m[0]] = 0);
 
+  // Same zoned "YYYY-MM" keys as timeAgg().monthArr so the trend chart aligns.
+  const TI = timeIndex(), hits = new Map();
   for (let i = 0; i < N; i++) {
-    if (LOWER[i].includes(wordLower)) {
-       // Same zoned "YYYY-MM" keys as STATS.monthArr so the trend chart aligns.
-       const ym = zonedParts(MSGS[i].t).key.slice(0, 7);
-       if (monthCounts[ym] !== undefined) {
-          monthCounts[ym]++;
-       } else {
-          monthCounts[ym] = 1;
-       }
-    }
+    if (LOWER[i].includes(wordLower)) hits.set(TI.monthKey[i], (hits.get(TI.monthKey[i]) || 0) + 1);
+  }
+  for (const [mk, c] of hits) {
+    const ym = monthKeyStr(mk);
+    monthCounts[ym] = (monthCounts[ym] || 0) + c;
   }
 
   return Object.entries(monthCounts).sort((a,b) => a[0] < b[0] ? -1 : 1);
@@ -2257,6 +2398,7 @@ function computeKeywordTrend(word) {
 
 function updateTrendChart(word) {
   if (!word.trim()) return;
+  trendWord = word.trim();
   const trendData = computeKeywordTrend(word);
   const labels = trendData.map(m => m[0]);
   const data = trendData.map(m => m[1]);
@@ -2285,36 +2427,40 @@ function computeMilestones() {
   if (MILES) return MILES;
   // Same empty-conversation guard as computeStats() — MSGS[N-1]/MSGS[0] would throw.
   if (!N) return (MILES = { empty: true });
-  const dayCount = new Map();   // dayKey -> msg count
-  const hourCount = new Array(24).fill(0);
   let totalWords = 0, totalReacts = 0;
+  // Word count = whitespace-separated runs of the trimmed text (the old
+  // `t.split(/\s+/).length`), counted with one test per char instead of
+  // allocating a split array per message.
+  const RE_WS = /\s/;
   for (let i = 0; i < N; i++) {
     const m = MSGS[i];
-    const zp = zonedParts(m.t);
-    dayCount.set(zp.key, (dayCount.get(zp.key) || 0) + 1);
-    hourCount[zp.h]++;
-    const t = (m.x || "").trim();
-    if (t) totalWords += t.split(/\s+/).length;
+    const x = m.x;
+    if (x) {
+      let inWord = false;
+      for (let k = 0; k < x.length; k++) {
+        const c = x.charCodeAt(k);
+        const ws = c === 32 || (c <= 13 && c >= 9) || (c > 127 && RE_WS.test(x[k]));
+        if (!ws && !inWord) totalWords++;
+        inWord = !ws;
+      }
+    }
     if (m.r) totalReacts += m.r.length;
   }
-  // Busiest single day
-  let busiestDay = "", busiestCount = 0;
-  dayCount.forEach((c, dk) => { if (c > busiestCount) { busiestCount = c; busiestDay = dk; } });
-  // Longest streak of consecutive active days. Day keys are "YYYY-MM-DD" in the
-  // configured zone; parse them at UTC midnight (uniform 86400000 spacing, so the
-  // consecutive-day gap check is exact and DST-proof) for the streak math, then
-  // format the winning ends via keyLabel() so the shown dates match the buckets.
-  const keyTime = (k) => Date.parse(k + "T00:00:00Z");
+  // Day / hour tallies come from the zoned time index aggregate: dayCounts is
+  // indexed by zoned day number, so "consecutive days" is just adjacent slots
+  // (exact and DST-proof), and the busiest day is the earliest maximum.
+  const agg = timeAgg();
+  const hourCount = agg.hourCount;
   const keyLabel = (fmt, k) => fmt.format(dayKeyBoundInstant(k));
-  const dayKeysSorted = [...dayCount.keys()].sort();
-  let streak = dayKeysSorted.length ? 1 : 0, best = streak;
-  let bestEndKey = dayKeysSorted[0] || "";
-  for (let i = 1; i < dayKeysSorted.length; i++) {
-    const gap = Math.round((keyTime(dayKeysSorted[i]) - keyTime(dayKeysSorted[i - 1])) / 86400000);
-    if (gap === 1) { streak++; if (streak > best) { best = streak; bestEndKey = dayKeysSorted[i]; } }
-    else streak = 1;
+  const busiestDay = agg.busy[0], busiestCount = agg.busy[1];
+  // Longest streak of consecutive active days (first longest wins).
+  let streak = 0, best = 0, bestEnd = -1;
+  for (let k = 0; k < agg.dayCounts.length; k++) {
+    if (agg.dayCounts[k]) { streak++; if (streak > best) { best = streak; bestEnd = k; } }
+    else streak = 0;
   }
-  const bestStartKey = bestEndKey ? isoDayKeyMinus(bestEndKey, best - 1) : "";
+  const bestEndKey = bestEnd >= 0 ? dayNumKey(agg.dayMin + bestEnd) : "";
+  const bestStartKey = bestEnd >= 0 ? dayNumKey(agg.dayMin + bestEnd - best + 1) : "";
   const streakRange = best > 1 ? keyLabel(dShort, bestStartKey) + " → " + keyLabel(dShort, bestEndKey) : "—";
   // Peak hour
   let peakHour = 0; for (let h = 1; h < 24; h++) if (hourCount[h] > hourCount[peakHour]) peakHour = h;
@@ -2331,64 +2477,53 @@ function computeMilestones() {
   return MILES;
 }
 
+// SP3: Stats renders in two stages so the first paint never waits on the text
+// sweep (~0.5 s of regexes at 100k messages):
+//   1. synchronously — hero, milestones, per-person bars, the month / keyword-
+//      trend / hour / weekday charts — all from the zoned time-index aggregate
+//      (timeAgg) plus computeMilestones();
+//   2. deferred — superlatives, latency & pairings, yapping, double-texting,
+//      generosity, vocabulary, platforms, top emojis and the word cloud. Their
+//      slots render as pulsing placeholders; the computeStats()/computeWords()
+//      jobs are stepped in SLICE_MS tasks and the slots are swapped for the real
+//      sections in one go, after which #view-stats gets data-ready="1".
+// statsRenderSeq cancels a pending stage 2 when Stats re-renders, the
+// conversation changes (resetDerived) or the view is left and re-entered.
+let statsRenderSeq = 0;
+// The keyword-trend word survives re-renders (tz change, revisits, other
+// conversations) — it used to reset to "lol" with an empty input every time.
+let trendWord = "lol";
+const deferSlot = (key) => `<div class="st-pending" data-defer="${key}" aria-busy="true" aria-label="Loading"></div>`;
+
 function renderStats() {
   const v = document.getElementById("view-stats");
   // P2-2: the innerHTML writes below detach the previous render's canvases —
   // destroy their charts first or every re-render leaks three instances.
   statCharts.forEach((c) => { try { c.destroy(); } catch (e) {} });
   statCharts = [];
-  const s = computeStats();
-  if (s.empty) {
+  const seq = ++statsRenderSeq;
+  delete v.dataset.ready;
+  if (!N) {
+    // Every sender in this conversation is ignored (P1-4).
     v.innerHTML = '<div class="page"><div class="empty"><div class="big">' + cmdIco("stats") + '</div><div>No messages in this group — every sender is ignored.</div></div></div>';
+    v.dataset.ready = "1";
     return;
   }
-  const days = Math.max(1, Math.round((s.last - s.first) / 86400000));
+  const a = timeAgg();
+  const first = MSGS[0].t, last = MSGS[N - 1].t;
+  const days = Math.max(1, Math.round((last - first) / 86400000));
   const maxPP = Math.max(...PARTS.map((p) => p.count));
 
   // ---- Milestones (longest active streak, busiest single day, anniversary) ----
   const ms = computeMilestones();
-
-  // Compute latency rows
-  let latencyRows = "";
-  PARTS.forEach(p => {
-    const stat = s.responseStats[p.id];
-    if (stat && stat.count > 0) {
-      const avgMs = stat.avg;
-      let displayTime;
-      if (avgMs < 60000) {
-        displayTime = Math.round(avgMs / 1000) + "s";
-      } else {
-        displayTime = (avgMs / 60000).toFixed(1) + "m";
-      }
-      latencyRows += `<div class="bar-row">
-        <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
-        <div class="bar-val" style="text-align:left; color:var(--text); font-weight:600;">${displayTime}</div>
-        <div class="bar-val" style="font-size:11px;color:var(--text-faint);">${stat.count} responses</div>
-      </div>`;
-    }
-  });
-
-  // Compute pairing rows
-  let pairRows = "";
-  s.topPairs.forEach(pair => {
-    pairRows += `<div class="bar-row" style="grid-template-columns: 1fr auto;">
-      <div class="bar-name">
-        ${pfpHtml(pair.fromId, "width:22px;height:22px;font-size:10px")}
-        <span style="color:var(--text-dim); margin:0 4px;">→</span>
-        ${pfpHtml(pair.toId, "width:22px;height:22px;font-size:10px")}
-        <span style="margin-left:8px; font-weight:500;">${esc(nameOf(pair.toId))} replied to ${esc(nameOf(pair.fromId))}</span>
-      </div>
-      <div class="bar-val" style="font-weight:600;color:var(--accent);">${pair.count} times</div>
-    </div>`;
-  });
 
   // ---- Hero sparkline (mock-stats .spark): monthly message volume ----------
   // monthArr is [["YYYY-MM", count], …] sorted ascending. Fewer than 2 months →
   // no trend to draw, skip the block entirely. Fixed gradient id is safe: only
   // one stats view exists per document and Chart.js paints to canvas, not SVG.
   let sparkHtml = "";
-  if (s.monthArr.length >= 2) {
-    const counts = s.monthArr.map((m) => m[1]);
+  if (a.monthArr.length >= 2) {
+    const counts = a.monthArr.map((m) => m[1]);
     const max = Math.max(...counts);
     const SW = 280, SH = 96;
     const stepX = SW / (counts.length - 1);
@@ -2408,26 +2543,27 @@ function renderStats() {
             <path d="${lineD}" stroke="var(--accent-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="${lx}" cy="${ly}" r="3.5" fill="#fff"/>
           </svg>
-          <div class="cap">messages / month · ${zonedParts(s.first).y} → ${zonedParts(s.last).y}</div>
+          <div class="cap">messages / month · ${zonedParts(first).y} → ${zonedParts(last).y}</div>
         </div>`;
   }
 
   // P2-6: compute the whole-archive media count once — it's used twice below
   // (data-count + the formatted label) and is an O(N) scan over all messages.
-  const mediaMsgCount = MSGS.filter((m) => m.m).length;
+  let mediaMsgCount = 0;
+  for (let i = 0; i < N; i++) if (MSGS[i].m) mediaMsgCount++;
 
   let html = `<div class="page"><div class="page-head"><div class="page-title">Stats & overview</div>
-    <div class="page-sub">${esc(DAY.format(s.first))} → ${esc(DAY.format(s.last))}</div></div>
+    <div class="page-sub">${esc(DAY.format(first))} → ${esc(DAY.format(last))}</div></div>
     <div class="page-body">
       <div class="hero">
         <div class="h-main">
           <div class="h-eyebrow">Overview</div>
           <div class="h-num" data-count="${N}">${fmtNum(N)}</div>
-          <div class="h-sub">messages · ${esc(DAY.format(s.first))} → ${esc(DAY.format(s.last))}</div>
+          <div class="h-sub">messages · ${esc(DAY.format(first))} → ${esc(DAY.format(last))}</div>
           <div class="h-inline">
             <div class="it"><span class="v" data-count="${PARTS.length}">${PARTS.length}</span><span class="l">People</span></div>
-            <div class="it"><span class="v" data-count="${s.daysActive}">${fmtNum(s.daysActive)}</span><span class="l">Active days</span></div>
-            <div class="it"><span class="v" data-count="${Math.round(N / s.daysActive)}">${fmtNum(Math.round(N / s.daysActive))}</span><span class="l">Msgs / day</span></div>
+            <div class="it"><span class="v" data-count="${a.daysActive}">${fmtNum(a.daysActive)}</span><span class="l">Active days</span></div>
+            <div class="it"><span class="v" data-count="${Math.round(N / a.daysActive)}">${fmtNum(Math.round(N / a.daysActive))}</span><span class="l">Msgs / day</span></div>
             <div class="it"><span class="v" data-count="${mediaMsgCount}">${fmtNum(mediaMsgCount)}</span><span class="l">Media</span></div>
             <div class="it"><span class="v" data-count="${days}">${fmtNum(days)}</span><span class="l">Days span</span></div>
           </div>
@@ -2445,8 +2581,145 @@ function renderStats() {
         <div class="card mile"><div class="stat-num">${esc(ms.peakHourLabel)}</div><div class="stat-lbl">Peak hour</div><div class="mile-sub">${fmtNum(ms.peakHourCount)} msgs all-time</div></div>
       </div></div>
 
-      <div class="section"><div class="section-h">Superlatives & Fun Stats</div>
-      <div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+      <div class="section"><div class="section-h">Superlatives & Fun Stats</div>${deferSlot("supers")}</div>
+
+      ${deferSlot("latency")}
+
+      <div class="section"><div class="section-h">Messages per person</div><div class="bars">`;
+
+  PARTS.forEach((p) => {
+    html += `<div class="bar-row bar-clickable" data-person-id="${esc(p.id)}">
+      <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${(p.count / maxPP * 100).toFixed(1)}%"></div></div>
+      <div class="bar-val">${fmtNum(p.count)}</div></div>`;
+  });
+  html += `</div></div>
+
+      ${deferSlot("yapping")}
+      ${deferSlot("generosity")}
+      ${deferSlot("vocab")}
+
+      <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(a.busy[0] ? DAY.format(dayKeyBoundInstant(a.busy[0])) : "—")} (${fmtNum(a.busy[1])} msgs)</div>
+      <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months"></canvas></div></div>
+
+      <div class="section">
+        <div class="section-h">Keyword Trends (Google Trends Style)</div>
+        <div style="display:flex; gap:10px; margin-bottom:12px;">
+          <input type="text" id="trend-input" placeholder="Type a word (e.g. 'lol', 'good')" class="person-name-input" style="flex:1; max-width:300px;" value="${esc(trendWord)}">
+          <button class="btn" id="trend-btn">Graph</button>
+        </div>
+        <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-trends"></canvas></div>
+      </div>
+
+      <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
+          <div class="section-h">Activity by time of day</div>
+          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-hours"></canvas></div>
+        </div>
+        <div>
+          <div class="section-h">Activity by Day of Week</div>
+          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-weekdays"></canvas></div>
+        </div>
+      </div>
+
+      <div class="section"><div class="section-h">Top Emojis</div><div class="words" id="top-emojis">${deferSlot("emojis")}</div></div>
+
+      <div class="section"><div class="section-h">Most-used words — click to search</div><div class="words cloud" id="words">${deferSlot("words")}</div></div>
+    </div></div>`;
+  v.innerHTML = html;
+
+  // Clickable person bars → filter search by person
+  v.querySelectorAll(".bar-clickable").forEach(row => {
+    row.style.cursor = "pointer";
+    row.addEventListener("click", () => {
+      const pid = row.dataset.personId;
+      if (pid) {
+        setView("search");
+        clearAllFilters();
+        F.people.add(pid);
+        updatePeopleBadge();
+        runSearch();
+      }
+    });
+  });
+
+  if (window.Chart) {
+    // Theme-aware chart text + gridlines (read the resolved tokens so charts work
+    // in light/dim/lightsout; they refresh to the current theme on each re-render).
+    const cs = getComputedStyle(document.documentElement);
+    Chart.defaults.color = cs.getPropertyValue('--text-dim').trim() || 'rgba(255,255,255,0.6)';
+    Chart.defaults.borderColor = cs.getPropertyValue('--border').trim() || 'rgba(255,255,255,0.1)';
+    const ctxM = document.getElementById("chart-months").getContext("2d");
+    statCharts.push(new Chart(ctxM, {
+      type: 'bar',
+      data: {
+        labels: a.monthArr.map(m => m[0]),
+        datasets: [{ label: 'Messages', data: a.monthArr.map(m => m[1]), backgroundColor: settings.accent, borderRadius: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    }));
+    const ctxH = document.getElementById("chart-hours").getContext("2d");
+    statCharts.push(new Chart(ctxH, {
+      type: 'line',
+      data: {
+        labels: Array.from({length: 24}, (_, i) => i + ":00"),
+        datasets: [{ label: 'Messages', data: a.hourCount.slice(), borderColor: settings.accent, backgroundColor: hexA(settings.accent, 0.2), fill: true, tension: 0.4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    }));
+    const ctxW = document.getElementById("chart-weekdays").getContext("2d");
+    statCharts.push(new Chart(ctxW, {
+      type: 'bar',
+      data: {
+        labels: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        datasets: [{ label: 'Messages', data: a.weekdayCount.slice(), backgroundColor: settings.accent, borderRadius: 4 }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+    }));
+  }
+
+  const tInput = v.querySelector("#trend-input");
+  const tBtn = v.querySelector("#trend-btn");
+  if (tInput && tBtn) {
+    tBtn.onclick = () => updateTrendChart(tInput.value);
+    tInput.onkeydown = (e) => { if (e.key === "Enter") updateTrendChart(tInput.value); };
+    // Destroy any prior Chart.js instance so re-rendering stats (same
+    // conversation) can't leak a detached chart bound to the old canvas.
+    if (trendChart) { try { trendChart.destroy(); } catch (e) {} }
+    trendChart = null;
+    updateTrendChart(trendWord);
+  }
+
+  animateCounts(v); // count-up the hero + milestone numbers (mock-stats liveliness)
+  scheduleStatsStage2(v, seq);
+}
+
+// Stage 2 driver: step the stats / words jobs in SLICE_MS tasks, then fill the
+// deferred slots. Starts after the first paint (rAF → task) when the page is
+// visible; a hidden page never runs rAF, so it goes straight to a task.
+function scheduleStatsStage2(v, seq) {
+  const live = () => seq === statsRenderSeq && v.isConnected;
+  const tick = () => {
+    if (!live()) return;
+    if (!STATS && !runJob(statsJobFor(), SLICE_MS)) { setTimeout(tick, 0); return; }
+    if (!WORDS && !runJob(wordsJobFor(), SLICE_MS)) { setTimeout(tick, 0); return; }
+    fillStatsDeferred(v, computeStats(), computeWords());
+    v.dataset.ready = "1";
+  };
+  if (document.hidden) setTimeout(tick, 0);
+  else requestAnimationFrame(() => setTimeout(tick, 0));
+}
+
+function fillStatsDeferred(v, s, cloudWords) {
+  const slot = (key, markup) => {
+    const node = v.querySelector('.st-pending[data-defer="' + key + '"]');
+    if (node) node.outerHTML = markup;
+  };
+  const panel = 'background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;';
+  const av = (id) => pfpHtml(id, "width:22px;height:22px;font-size:10px");
+
+  // ---- Superlatives -----------------------------------------------------------
+  slot("supers", `<div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
         ${[
           { win: s.owlWinner, title: "Late Night Owl", desc: fmtNum(s.owlWinner.val) + " msgs (12AM-5AM)" },
           { win: s.reactsWinner, title: "Reaction Magnet", desc: fmtNum(s.reactsWinner.val) + " reactions" },
@@ -2502,80 +2775,93 @@ function renderStats() {
             </div>
           </div>
         `).join("")}
-      </div></div>
+      </div>`);
 
-      <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  // ---- Latency + pairings -----------------------------------------------------
+  let latencyRows = "";
+  PARTS.forEach(p => {
+    const stat = s.responseStats[p.id];
+    if (stat && stat.count > 0) {
+      const avgMs = stat.avg;
+      const displayTime = avgMs < 60000 ? Math.round(avgMs / 1000) + "s" : (avgMs / 60000).toFixed(1) + "m";
+      latencyRows += `<div class="bar-row">
+        <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
+        <div class="bar-val" style="text-align:left; color:var(--text); font-weight:600;">${displayTime}</div>
+        <div class="bar-val" style="font-size:11px;color:var(--text-faint);">${stat.count} responses</div>
+      </div>`;
+    }
+  });
+  let pairRows = "";
+  s.topPairs.forEach(pair => {
+    pairRows += `<div class="bar-row" style="grid-template-columns: 1fr auto;">
+      <div class="bar-name">
+        ${av(pair.fromId)}
+        <span style="color:var(--text-dim); margin:0 4px;">→</span>
+        ${av(pair.toId)}
+        <span style="margin-left:8px; font-weight:500;">${esc(nameOf(pair.toId))} replied to ${esc(nameOf(pair.fromId))}</span>
+      </div>
+      <div class="bar-val" style="font-weight:600;color:var(--accent);">${pair.count} times</div>
+    </div>`;
+  });
+  slot("latency", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
           <div class="section-h">Average Response Latency</div>
-          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="${panel}">
             ${latencyRows || '<div class="pop-empty">No response latency data yet.</div>'}
           </div>
         </div>
         <div>
           <div class="section-h">Top Interaction Pairings</div>
-          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
+          <div class="bars" style="${panel}">
             ${pairRows || '<div class="pop-empty">No pairing data yet.</div>'}
           </div>
         </div>
-      </div>
+      </div>`);
 
-      <div class="section"><div class="section-h">Messages per person</div><div class="bars">`;
-
-  PARTS.forEach((p) => {
-    html += `<div class="bar-row bar-clickable" data-person-id="${esc(p.id)}">
-      <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
-      <div class="bar-track"><div class="bar-fill" style="width:${(p.count / maxPP * 100).toFixed(1)}%"></div></div>
-      <div class="bar-val">${fmtNum(p.count)}</div></div>`;
-  });
-  html += `</div></div>
-
-      <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-          <div class="section-h">The Yapping Index (Avg Words / Message)</div>
-          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
-`;
+  // ---- Yapping index + double texting ----------------------------------------
+  let yapRows = "";
   const maxYap = Math.max(1, ...PARTS.map(p => s.yapperStats[p.id] || 0));
   PARTS.forEach(p => {
     const yap = s.yapperStats[p.id] || 0;
     if (yap > 0) {
-      html += `<div class="bar-row">
-        <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
+      yapRows += `<div class="bar-row">
+        <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${(yap / maxYap * 100).toFixed(1)}%; background:var(--accent)"></div></div>
         <div class="bar-val" style="width:40px; text-align:right;">${yap.toFixed(1)}</div>
       </div>`;
     }
   });
-  html += `</div>
-        </div>
-        <div>
-          <div class="section-h">Double Texting Leaderboard</div>
-          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
-`;
+  let dtRows = "";
   const maxDT = Math.max(1, ...PARTS.map(p => s.doubleTextStats[p.id] || 0));
   PARTS.forEach(p => {
     const dt = s.doubleTextStats[p.id] || 0;
     if (dt > 0) {
-      html += `<div class="bar-row">
-        <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
+      dtRows += `<div class="bar-row">
+        <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${(dt / maxDT * 100).toFixed(1)}%; background:var(--accent-2)"></div></div>
         <div class="bar-val" style="width:40px; text-align:right;">${fmtNum(dt)}</div>
       </div>`;
     }
   });
-  html += `</div>
+  slot("yapping", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+        <div>
+          <div class="section-h">The Yapping Index (Avg Words / Message)</div>
+          <div class="bars" style="${panel}">${yapRows}</div>
         </div>
-      </div>
+        <div>
+          <div class="section-h">Double Texting Leaderboard</div>
+          <div class="bars" style="${panel}">${dtRows}</div>
+        </div>
+      </div>`);
 
-      <div class="section">
-        <div class="section-h">Reaction Generosity (Given vs. Received)</div>
-        <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; display:flex; flex-direction:column; gap:12px;">
-`;
+  // ---- Reaction generosity ----------------------------------------------------
+  let genRows = "";
   const maxReactTotal = Math.max(1, ...PARTS.map(p => (s.reactionGenerosity[p.id]?.given || 0) + (s.reactionGenerosity[p.id]?.received || 0)));
   PARTS.forEach(p => {
     const r = s.reactionGenerosity[p.id] || { given: 0, received: 0 };
     if (r.given > 0 || r.received > 0) {
-      html += `<div class="bar-row" style="align-items:center;">
-        <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
+      genRows += `<div class="bar-row" style="align-items:center;">
+        <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
         <div style="flex:1; display:flex; gap:4px; font-size:11px; align-items:center;">
           <div style="width:${(r.given / maxReactTotal * 100).toFixed(1)}%; background:var(--accent); height:8px; border-radius:4px;" title="Given: ${fmtNum(r.given)}"></div>
           <span style="color:var(--accent); font-weight:600; width:30px">${fmtNum(r.given)}</span>
@@ -2585,31 +2871,25 @@ function renderStats() {
       </div>`;
     }
   });
-  html += `</div>
-      </div>
+  slot("generosity", `<div class="section">
+        <div class="section-h">Reaction Generosity (Given vs. Received)</div>
+        <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; display:flex; flex-direction:column; gap:12px;">${genRows}</div>
+      </div>`);
 
-      <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-          <div class="section-h">Vocabulary Size (Unique Words)</div>
-          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
-`;
+  // ---- Vocabulary + platform links -------------------------------------------
+  let vocabRows = "";
   const maxVocab = Math.max(1, ...PARTS.map(p => s.scholarStats[p.id] || 0));
   PARTS.forEach(p => {
     const vcb = s.scholarStats[p.id] || 0;
     if (vcb > 0) {
-      html += `<div class="bar-row">
-        <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
+      vocabRows += `<div class="bar-row">
+        <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${(vcb / maxVocab * 100).toFixed(1)}%; background:var(--accent)"></div></div>
         <div class="bar-val" style="width:40px; text-align:right;">${fmtNum(vcb)}</div>
       </div>`;
     }
   });
-  html += `</div>
-        </div>
-        <div>
-          <div class="section-h">Platform Links Shared</div>
-          <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;">
-`;
+  let platRows = "";
   const maxPlat = Math.max(1, ...PARTS.map(p => {
     const pt = s.platformStats[p.id];
     return pt ? pt.tt + pt.yt + pt.tw + pt.ig : 0;
@@ -2618,8 +2898,8 @@ function renderStats() {
     const pt = s.platformStats[p.id] || {tt:0, yt:0, tw:0, ig:0};
     const total = pt.tt + pt.yt + pt.tw + pt.ig;
     if (total > 0) {
-      html += `<div class="bar-row" style="align-items:center;">
-        <div class="bar-name">${pfpHtml(p.id, "width:22px;height:22px;font-size:10px")}${esc(nameOf(p.id))}</div>
+      platRows += `<div class="bar-row" style="align-items:center;">
+        <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
         <div style="flex:1; display:flex; font-size:11px; align-items:center; height:12px;">
           ${pt.tt ? `<div style="width:${(pt.tt/maxPlat*100).toFixed(1)}%; background:#222; height:100%; border:1px solid #444;" title="TikTok: ${pt.tt}"></div>` : ''}
           ${pt.yt ? `<div style="width:${(pt.yt/maxPlat*100).toFixed(1)}%; background:#FF0000; height:100%;" title="YouTube: ${pt.yt}"></div>` : ''}
@@ -2630,128 +2910,43 @@ function renderStats() {
       </div>`;
     }
   });
-  html += `</div>
-        </div>
-      </div>
-
-      <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(s.busy[0] ? DAY.format(dayKeyBoundInstant(s.busy[0])) : "—")} (${fmtNum(s.busy[1])} msgs)</div>
-      <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months"></canvas></div></div>
-
-      <div class="section">
-        <div class="section-h">Keyword Trends (Google Trends Style)</div>
-        <div style="display:flex; gap:10px; margin-bottom:12px;">
-          <input type="text" id="trend-input" placeholder="Type a word (e.g. 'lol', 'good')" class="person-name-input" style="flex:1; max-width:300px;">
-          <button class="btn" id="trend-btn">Graph</button>
-        </div>
-        <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-trends"></canvas></div>
-      </div>
-
-      <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  slot("vocab", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
-          <div class="section-h">Activity by time of day</div>
-          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-hours"></canvas></div>
+          <div class="section-h">Vocabulary Size (Unique Words)</div>
+          <div class="bars" style="${panel}">${vocabRows}</div>
         </div>
         <div>
-          <div class="section-h">Activity by Day of Week</div>
-          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-weekdays"></canvas></div>
+          <div class="section-h">Platform Links Shared</div>
+          <div class="bars" style="${panel}">${platRows}</div>
         </div>
-      </div>
+      </div>`);
 
-      <div class="section"><div class="section-h">Top Emojis</div><div class="words" id="top-emojis"></div></div>
-
-      <div class="section"><div class="section-h">Most-used words — click to search</div><div class="words" id="words"></div></div>
-    </div></div>`;
-  v.innerHTML = html;
-
+  // ---- Top emojis + word cloud ------------------------------------------------
   const emc = v.querySelector("#top-emojis");
-  s.emojis.forEach(([e, c]) => {
-     const chip = el("div", "word", e + "<b>" + fmtNum(c) + "</b>");
-     emc.appendChild(chip);
-  });
-
+  if (emc) {
+    emc.textContent = "";
+    s.emojis.forEach(([e, c]) => emc.appendChild(el("div", "word", e + "<b>" + fmtNum(c) + "</b>")));
+  }
   const wc = v.querySelector("#words");
-  wc.classList.add("cloud");
-  const cloudWords = computeWords();
-  if (cloudWords.length) {
-    const counts = cloudWords.map((x) => x[1]);
-    const cmin = Math.min(...counts), cmax = Math.max(...counts);
-    const span = Math.max(1, cmax - cmin);
-    cloudWords.forEach(([w, c]) => {
-      const t = (c - cmin) / span;                 // 0..1
-      const size = (13 + t * 23).toFixed(1);       // 13px → 36px
-      const op = (0.6 + t * 0.4).toFixed(2);
-      const chip = el("div", "word cloud-word", esc(w) + "<b>" + fmtNum(c) + "</b>");
-      chip.style.fontSize = size + "px";
-      chip.style.opacity = op;
-      chip.title = fmtNum(c) + " uses — click to search";
-      chip.onclick = () => { setView("search"); clearAllFilters(); sEls.input.value = w; sEls.clear.hidden = false; runSearch(); };
-      wc.appendChild(chip);
-    });
+  if (wc) {
+    wc.textContent = "";
+    if (cloudWords.length) {
+      const counts = cloudWords.map((x) => x[1]);
+      const cmin = Math.min(...counts), cmax = Math.max(...counts);
+      const span = Math.max(1, cmax - cmin);
+      cloudWords.forEach(([w, c]) => {
+        const t = (c - cmin) / span;                 // 0..1
+        const size = (13 + t * 23).toFixed(1);       // 13px → 36px
+        const op = (0.6 + t * 0.4).toFixed(2);
+        const chip = el("div", "word cloud-word", esc(w) + "<b>" + fmtNum(c) + "</b>");
+        chip.style.fontSize = size + "px";
+        chip.style.opacity = op;
+        chip.title = fmtNum(c) + " uses — click to search";
+        chip.onclick = () => { setView("search"); clearAllFilters(); sEls.input.value = w; sEls.clear.hidden = false; runSearch(); };
+        wc.appendChild(chip);
+      });
+    }
   }
-
-  // Clickable person bars → filter search by person
-  v.querySelectorAll(".bar-clickable").forEach(row => {
-    row.style.cursor = "pointer";
-    row.addEventListener("click", () => {
-      const pid = row.dataset.personId;
-      if (pid) {
-        setView("search");
-        clearAllFilters();
-        F.people.add(pid);
-        updatePeopleBadge();
-        runSearch();
-      }
-    });
-  });
-
-  if (window.Chart) {
-    // Theme-aware chart text + gridlines (read the resolved tokens so charts work
-    // in light/dim/lightsout; they refresh to the current theme on each re-render).
-    const _cv = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-    Chart.defaults.color = _cv('--text-dim') || 'rgba(255,255,255,0.6)';
-    Chart.defaults.borderColor = _cv('--border') || 'rgba(255,255,255,0.1)';
-    const ctxM = document.getElementById("chart-months").getContext("2d");
-    statCharts.push(new Chart(ctxM, {
-      type: 'bar',
-      data: {
-        labels: s.monthArr.map(m => m[0]),
-        datasets: [{ label: 'Messages', data: s.monthArr.map(m => m[1]), backgroundColor: settings.accent, borderRadius: 4 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-    }));
-    const ctxH = document.getElementById("chart-hours").getContext("2d");
-    statCharts.push(new Chart(ctxH, {
-      type: 'line',
-      data: {
-        labels: Array.from({length: 24}, (_, i) => i + ":00"),
-        datasets: [{ label: 'Messages', data: s.hourCount, borderColor: settings.accent, backgroundColor: hexA(settings.accent, 0.2), fill: true, tension: 0.4 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    }));
-    const ctxW = document.getElementById("chart-weekdays").getContext("2d");
-    statCharts.push(new Chart(ctxW, {
-      type: 'bar',
-      data: {
-        labels: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-        datasets: [{ label: 'Messages', data: s.weekdayCount, backgroundColor: settings.accent, borderRadius: 4 }]
-      },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-    }));
-  }
-
-  const tInput = v.querySelector("#trend-input");
-  const tBtn = v.querySelector("#trend-btn");
-  if (tInput && tBtn) {
-    tBtn.onclick = () => updateTrendChart(tInput.value);
-    tInput.onkeydown = (e) => { if (e.key === "Enter") updateTrendChart(tInput.value); };
-    // Destroy any prior Chart.js instance so re-rendering stats (same
-    // conversation) can't leak a detached chart bound to the old canvas.
-    if (trendChart) { try { trendChart.destroy(); } catch (e) {} }
-    trendChart = null;
-    updateTrendChart("lol"); // default word
-  }
-
-  animateCounts(v); // count-up the hero + milestone numbers (mock-stats liveliness)
 }
 
 /* ===========================================================================
@@ -3405,10 +3600,10 @@ function renderCapsule() {
 
   const matchesByYear = {};
 
+  const TI = timeIndex();
   for (let i = 0; i < N; i++) {
-    const z = zonedParts(MSGS[i].t);
-    if (z.mo === tMonth && z.d === tDate) {
-      const yr = z.y;
+    if (TI.month[i] === tMonth && TI.mday[i] === tDate) {
+      const yr = TI.year[i];
       // Only past years qualify (>= guards against a future year ever rendering
       // "0 years ago" if this filter is loosened later).
       if (yr >= tYear) continue;
@@ -3532,12 +3727,11 @@ function buildSidebarSparkline() {
   const foot = document.getElementById("sidebar-spark");
   if (!foot) return;
   foot.innerHTML = "";
-  const months = {};
-  for (let i = 0; i < N; i++) {
-    const ym = zonedParts(MSGS[i].t).key.slice(0, 7);   // "YYYY-MM" in the configured zone
-    months[ym] = (months[ym] || 0) + 1;
-  }
-  const vals = Object.keys(months).sort().map((k) => months[k]);
+  // Monthly counts on the zoned time index's year*12+month keys, which sort
+  // chronologically as plain numbers.
+  const TI = timeIndex(), months = new Map();
+  for (let i = 0; i < N; i++) months.set(TI.monthKey[i], (months.get(TI.monthKey[i]) || 0) + 1);
+  const vals = [...months.keys()].sort((a, b) => a - b).map((k) => months.get(k));
   if (vals.length < 2) return;
   const W = 240, H = 38, max = Math.max(...vals);
   const step = W / (vals.length - 1);
@@ -3568,7 +3762,9 @@ function computeHOF() {
     if (rc > 0) arr.push({ i, rc, t: m.t, media: !!m.m });
   }
   arr.sort((a, b) => b.rc - a.rc || b.t - a.t);
-  const years = [...new Set(arr.map((x) => zonedParts(x.t).y))].sort((a, b) => b - a);
+  const TI = timeIndex();
+  arr.forEach((x) => { x.y = TI.year[x.i]; });   // zoned year, read by the year chips
+  const years = [...new Set(arr.map((x) => x.y))].sort((a, b) => b - a);
   HOF = { arr, years };
   return HOF;
 }
@@ -3576,7 +3772,7 @@ function renderHallOfFame() {
   const v = document.getElementById("view-hof");
   const h = computeHOF();
   if (!hofYear || (hofYear !== "all" && h.years.indexOf(+hofYear) < 0)) hofYear = "all";
-  const inYear = (x) => hofYear === "all" || zonedParts(x.t).y === +hofYear;
+  const inYear = (x) => hofYear === "all" || x.y === +hofYear;
   const items = h.arr.filter(inYear);
 
   const yearChips = ['<button class="pill hof-yr' + (hofYear === "all" ? " active" : "") + '" data-yr="all">All time</button>']
@@ -3657,8 +3853,8 @@ let wrappedYear = null, wrappedSlide = 0;
 const wrappedCache = {};
 function wrappedYears() {
   if (wrappedCache.__years) return wrappedCache.__years;
-  const set = new Set();
-  for (let i = 0; i < N; i++) set.add(zonedParts(MSGS[i].t).y);
+  const set = new Set(), TI = timeIndex();
+  for (let i = 0; i < N; i++) set.add(TI.year[i]);
   wrappedCache.__years = [...set].sort((a, b) => a - b);
   return wrappedCache.__years;
 }
@@ -3667,13 +3863,14 @@ function computeWrapped(year) {
   const perPerson = {}, dayCount = {}, emojis = {}, words = {};
   let total = 0, media = 0, reacts = 0, chars = 0;
   let topMsg = { i: -1, rc: -1 };
+  const TI = timeIndex();
   for (let i = 0; i < N; i++) {
+    if (TI.year[i] !== year) continue;
     const m = MSGS[i];
-    const zp = zonedParts(m.t);
-    if (zp.y !== year) continue;
     total++;
     perPerson[m.s] = (perPerson[m.s] || 0) + 1;
-    dayCount[zp.key] = (dayCount[zp.key] || 0) + 1;
+    const dk = dayNumKey(TI.day[i]);
+    dayCount[dk] = (dayCount[dk] || 0) + 1;
     if (m.m) media++;
     const rc = m.r ? m.r.length : 0;
     reacts += rc;
@@ -4493,17 +4690,16 @@ function showOnThisDayToast() {
   // Same-zone "on this day" match as the Capsule view (configured timezone).
   const todayZ = zonedParts(Date.now());
   const tMonth = todayZ.mo, tDate = todayZ.d, tYear = todayZ.y;
-  const samples = [];
+  const samples = [], TI = timeIndex();
   for (let i = 0; i < N && samples.length < 20; i++) {
-    const z = zonedParts(MSGS[i].t);
-    if (z.mo === tMonth && z.d === tDate && z.y !== tYear) {
+    if (TI.month[i] === tMonth && TI.mday[i] === tDate && TI.year[i] !== tYear) {
       samples.push(i);
     }
   }
   if (samples.length === 0) return;
   const pick = samples[Math.floor(Math.random() * samples.length)];
   const m = MSGS[pick];
-  const yr = zonedParts(m.t).y;
+  const yr = TI.year[pick];
   const ago = tYear - yr;
   const snippet = (m.x || "").trim().slice(0, 60) || "[media]";
   // Mock .toast structure: header (clock icon + "On This Day" + "N years ago"),
@@ -4575,13 +4771,14 @@ function renderThreads() {
   const threads = computeThreads();
   // AN-17: a year chosen for another conversation / zone that has no threads
   // here falls back to "All" (same guard renderHallOfFame uses).
-  if (threadFilter !== "all" && !threads.some((t) => String(zonedParts(t.startT).y) === threadFilter)) threadFilter = "all";
+  const TI = timeIndex();
+  const yearOf = (t) => TI.year[t.startIdx];   // zoned year the thread starts in
+  if (threadFilter !== "all" && !threads.some((t) => String(yearOf(t)) === threadFilter)) threadFilter = "all";
 
   let filtered = threads;
   if (threadFilter !== "all") {
     filtered = threads.filter(t => {
-      const yr = zonedParts(t.startT).y;
-      return String(yr) === threadFilter;
+      return String(yearOf(t)) === threadFilter;
     });
   }
 
@@ -4591,7 +4788,7 @@ function renderThreads() {
   else if (threadSort === "oldest") filtered.sort((a, b) => a.startT - b.startT);
   else if (threadSort === "liveliest") filtered.sort((a, b) => b.people.length - a.people.length);
 
-  const years = [...new Set(threads.map(t => zonedParts(t.startT).y))].sort((a, b) => b - a);
+  const years = [...new Set(threads.map(yearOf))].sort((a, b) => b - a);
   const yearChips = ['<button class="pill thr-yr' + (threadFilter === "all" ? " active" : "") + '" data-yr="all">All</button>']
     .concat(years.map(y => '<button class="pill thr-yr' + (threadFilter === String(y) ? " active" : "") + '" data-yr="' + y + '">' + y + '</button>')).join("");
 

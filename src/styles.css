@@ -122,6 +122,10 @@ button, input, select, textarea { font-family: inherit; }
 .skeleton-bubble { height: 60px; width: 60%; background: var(--bg-card); border-radius: 14px; animation: pulse 1.5s infinite; }
 .skeleton-msg.me .skeleton-bubble { background: var(--bg-hover); }
 @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+/* SP3: a deferred Stats section's slot while its (time-sliced) sweep runs.
+   The global reduced-motion rule collapses the pulse to a static block. */
+.st-pending { min-height: 150px; margin-top: 38px; border-radius: var(--radius-card); background: var(--bg-card); border: 1px solid var(--border); animation: pulse 1.5s infinite; }
+.words > .st-pending { flex: 1 1 100%; min-height: 44px; margin-top: 0; }
 
 /* ---- App shell ----------------------------------------------------------- */
 .app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }

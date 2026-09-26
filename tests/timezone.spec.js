@@ -113,3 +113,19 @@ test("date-range search: America/New_York excludes the boundary from after:2024-
   await expect(page.locator("#s-meta")).toContainText("0 messages found");
   await expect(page.locator("#s-list .msg", { hasText: "boundary message" })).toHaveCount(0);
 });
+
+// SP3 (UX-4 / AN-13): Stats reads the CACHED per-conversation time index; a
+// zone change must drop it, so an already-rendered Stats view re-buckets.
+test("changing the zone after Stats rendered rebuilds the cached time index", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e));
+  await boot(page, "UTC");
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await expect(page.locator("#view-stats .mile", { hasText: "Busiest single day" })).toContainText("January 1, 2024");
+  await page.locator('.nav-item[data-view="settings"]').click();
+  await page.locator("#set-tz").selectOption("America/New_York");
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await expect(page.locator("#view-stats .mile", { hasText: "Busiest single day" })).toContainText("December 31, 2023");
+  await expect(page.locator("#view-stats .section-h", { hasText: "busiest day" })).toContainText("December 31, 2023");
+  expect(errors).toEqual([]);
+});
