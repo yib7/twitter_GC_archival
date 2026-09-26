@@ -60,4 +60,29 @@ async function afterSearchRun(page, fn) {
   await expect(page.locator("#s-meta")).not.toHaveAttribute("data-gen", before || "");
 }
 
-module.exports = { bootViewer, msgs, conv, collectErrors, afterSearchRun };
+// Timeline reading position: scrollTop + index of the first message whose top
+// is inside the scroller.
+function timelineSnap(page) {
+  return page.evaluate(() => {
+    const s = document.getElementById("tl-scroll"); const sr = s.getBoundingClientRect();
+    const vis = [...document.querySelectorAll("#view-timeline .msg")].filter((m) => { const r = m.getBoundingClientRect(); return r.top >= sr.top && r.top < sr.bottom; });
+    return { scrollTop: Math.round(s.scrollTop), first: vis.length ? +vis[0].dataset.idx : null,
+      heights: [...document.querySelectorAll("#tl-list .tl-chunk")].slice(0, 3).map((c) => c.getBoundingClientRect().height) };
+  });
+}
+// Poll `read` until two consecutive reads agree (layout + virtualization have
+// settled) and `ok(value)` holds; returns the settled value. Replaces fixed
+// sleeps after a scroll / view switch.
+async function settled(read, ok = () => true, same = (a, b) => JSON.stringify(a) === JSON.stringify(b)) {
+  let prev, cur;
+  await expect.poll(async () => {
+    cur = await read();
+    const done = prev !== undefined && same(prev, cur) && ok(cur);
+    prev = cur;
+    return done;
+  }, { intervals: [50, 100, 100, 150, 200, 250], timeout: 10000 }).toBe(true);
+  return cur;
+}
+const settledTimeline = (page) => settled(() => timelineSnap(page), (v) => v.first !== null, (a, b) => a.first === b.first && a.scrollTop === b.scrollTop);
+
+module.exports = { bootViewer, msgs, conv, collectErrors, afterSearchRun, timelineSnap, settled, settledTimeline };

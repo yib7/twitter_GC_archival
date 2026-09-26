@@ -70,7 +70,7 @@ function resetDerived() {
   STATS = null; WORDS = null; MILES = null; HOF = null; fuseIndex = null;
   threadsCache = null;
   searchBuilt = false; sEls = {};
-  tlBuilt = false; if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
+  invalidateTimeline(); tlResume = null;   // a new conversation starts at the top
   galleryState = { items: [], page: 0 }; galEls = {};
   if (galleryObserver) { try { galleryObserver.disconnect(); } catch (e) {} galleryObserver = null; }
   // P1-1: renderGallery() only rebuilds when the view is empty — clear it here
@@ -1665,6 +1665,26 @@ document.addEventListener("click", (e) => { if (!e.target.closest(".popwrap")) c
    TIMELINE VIEW & VIRTUAL SCROLLER
    ======================================================================== */
 let tlBuilt = false, tlEls = {}, virtObs = null;
+// { idx, off }: the message to reopen a rebuilt timeline on and its offset
+// from the scroller top (set when leaving the view).
+let tlResume = null;
+// Drop the built timeline so the next visit rebuilds it (new zone labels,
+// new conversation). Shared by resetDerived() and the timezone handler.
+function invalidateTimeline() {
+  tlBuilt = false;
+  if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
+}
+// The first message whose top is inside the timeline scroller, and how far
+// below the scroller's top edge it sits.
+function timelineFirstVisible() {
+  if (!tlBuilt || !tlEls.scroll) return null;
+  const top = tlEls.scroll.getBoundingClientRect().top;
+  for (const n of tlEls.list.querySelectorAll(".msg")) {
+    const t = n.getBoundingClientRect().top;
+    if (t >= top) return { idx: +n.dataset.idx, off: t - top };
+  }
+  return null;
+}
 const CHUNK_SIZE = 50;
 let numChunks = 0, chunkHeights = [], chunkRendered = [], eventBuckets = [];
 
@@ -1721,7 +1741,10 @@ function ensureTimelineShell() {
   }, { root: tlEls.scroll, rootMargin: "1500px" });
 }
 
-function openTimeline(anchor) {
+// opts.quiet: restore a reading position — no flash; the anchor goes back to
+// opts.off px below the scroller top.
+function openTimeline(anchor, opts) {
+  opts = opts || {};
   ensureTimelineShell();
   // Every sender ignored (P1-4): no chunks to build, and renderChunk() would
   // dereference MSGS[start]/MSGS[N-1] on an empty array. Show a panel instead.
@@ -1775,8 +1798,12 @@ function openTimeline(anchor) {
   
   const target = tlEls.list.querySelector('[data-idx="' + anchor + '"]');
   if (target) {
-    target.scrollIntoView({ block: "center", behavior: "auto" });
-    target.classList.add("flash"); setTimeout(() => target.classList.remove("flash"), 1700);
+    if (opts.quiet) {
+      tlEls.scroll.scrollTop += target.getBoundingClientRect().top - tlEls.scroll.getBoundingClientRect().top - (opts.off || 0);
+    } else {
+      target.scrollIntoView({ block: "center", behavior: "auto" });
+      target.classList.add("flash"); setTimeout(() => target.classList.remove("flash"), 1700);
+    }
   }
   
   // Re-enable smooth scrolling after jumping
@@ -3034,11 +3061,12 @@ function renderSettings() {
     for (const k in wrappedCache) delete wrappedCache[k];
     // VC-22: already-rendered Search results / Timeline rows carry old-zone
     // labels, and the From/To bounds were computed for the old zone. Recompute
-    // the bounds from the picked dates, re-run the search, and let the
-    // timeline rebuild on its next visit.
+    // the bounds from the picked dates and re-run the search.
     syncDateBounds();
     if (searchBuilt) runSearch();
-    tlBuilt = false; if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
+    // The timeline rebuilds on its next visit, reopening on the message that
+    // was first in view when the user left it (recorded by setView).
+    invalidateTimeline();
     updateBrand();   // the sidebar year range is zone-dependent too
     buildSidebarSparkline();
     if (curView && curView !== "settings") setView(curView);
@@ -3206,6 +3234,9 @@ function segWire(seg, cur, cb) {
    ======================================================================== */
 let curView = null;
 function setView(name) {
+  // Remember where the timeline was being read, so a rebuild (timezone
+  // change) can reopen there instead of at the top.
+  if (curView === "timeline" && name !== "timeline") tlResume = timelineFirstVisible();
   curView = name;
   try { localStorage.setItem("gca.lastView", name); } catch(e) {}
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
@@ -3216,7 +3247,12 @@ function setView(name) {
   });
   reflectMobileNav(name);
   if (name === "search") { ensureSearch(); setTimeout(() => sEls.input && sEls.input.focus(), 0); }
-  else if (name === "timeline") { if (!tlBuilt) openTimeline(0); }
+  else if (name === "timeline") {
+    if (!tlBuilt) {
+      if (tlResume) openTimeline(Math.min(tlResume.idx, Math.max(0, N - 1)), { quiet: true, off: tlResume.off });
+      else openTimeline(0);
+    }
+  }
   else if (name === "stats") renderStats();
   else if (name === "people") renderPeople();
   else if (name === "settings") renderSettings();
