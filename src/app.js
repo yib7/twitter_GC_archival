@@ -1389,7 +1389,7 @@ function runSearch() {
   F.needles = parseQuery(q);
   updateClearAllBtn();
 
-  const out = [];
+  let out = [];
   if (F.needles.length > 0) {
     // Fuzzy (default): Fuse.js typo-tolerant ranking. Exact: literal substring AND-match.
     const useFuzzy = F.fuzzy && window.Fuse;
@@ -1431,6 +1431,11 @@ function runSearch() {
   else if (F.sort === "reactions") out.sort((a, b) => ((MSGS[b].r ? MSGS[b].r.length : 0) - (MSGS[a].r ? MSGS[a].r.length : 0)) || (MSGS[b].t - MSGS[a].t));
   else if (F.sort === "longest") out.sort((a, b) => ((MSGS[b].x || "").length - (MSGS[a].x || "").length) || (MSGS[b].t - MSGS[a].t));
 
+  // VC-16: grid mode renders only messages with media, so the result set it
+  // counts, pages and empty-states over must be that subset too.
+  const matched = out.length;
+  if (F.grid) out = out.filter((i) => MSGS[i].m);
+
   resState.idx = out; resState.page = 0;
   sEls.list.className = F.grid ? "gallery" : "list";
   sEls.list.innerHTML = "";
@@ -1438,9 +1443,10 @@ function runSearch() {
 
   const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts || opPeople || opFrom || opTo || opMedia || opLinks || opReacts;
   const sortLbl = { relevance: F.needles.length && F.fuzzy && window.Fuse ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
+  const noun = (F.grid ? " media message" : " message") + (out.length === 1 ? "" : "s");
   sEls.meta.textContent = hasFilter
-    ? fmtNum(out.length) + (out.length === 1 ? " message" : " messages") + " found" + (F.grid ? " · showing media only" : "") + " · sorted by " + sortLbl
-    : "Showing all " + fmtNum(out.length) + " messages, newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'";
+    ? fmtNum(out.length) + noun + " found · sorted by " + sortLbl
+    : "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'";
   // QA-15: bumped on every completed run (debounced or not), so tests can wait
   // for "the search actually re-ran" instead of a fixed sleep timed to the
   // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
@@ -1449,7 +1455,9 @@ function runSearch() {
 
   if (!out.length) {
     sEls.list.className = "list";
-    sEls.list.appendChild(el("div", "empty", '<div class="big">' + cmdIco("search") + '</div><div>No messages match your search.</div><div class="hint">Try fewer words or clear a filter.</div>'));
+    sEls.list.appendChild(matched && F.grid
+      ? el("div", "empty", '<div class="big">' + cmdIco("camera") + '</div><div>No media in these results.</div><div class="hint">' + fmtNum(matched) + (matched === 1 ? " message matches" : " messages match") + ' — switch to List to see ' + (matched === 1 ? "it" : "them") + '.</div>')
+      : el("div", "empty", '<div class="big">' + cmdIco("search") + '</div><div>No messages match your search.</div><div class="hint">Try fewer words or clear a filter.</div>'));
     return;
   }
   appendResultsPage();
@@ -1461,7 +1469,7 @@ function appendResultsPage() {
   const slice = idx.slice(start, start + PAGE);
   const frag = document.createDocumentFragment();
   for (const i of slice) {
-    if (F.grid) { if (MSGS[i].m) frag.appendChild(galleryCell(i)); }
+    if (F.grid) frag.appendChild(galleryCell(i));   // idx is already the media subset (VC-16)
     else frag.appendChild(renderMsg(i, { clickable: true, needles: F.needles, ranges: fuzzyRanges ? fuzzyRanges.get(i) : null }));
   }
   sEls.list.appendChild(frag);
