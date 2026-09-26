@@ -415,6 +415,20 @@ button, input, select, textarea { font-family: inherit; }
   padding: 6px 15px; border-radius: var(--radius-pill); box-shadow: var(--el2);
 }
 .daysep .daypill b { color: var(--text); }
+/* VC-13: continuation pill at the top of a chunk that continues the previous
+   chunk's day. Zero height (the -gap cancels the flex gap it would add), the
+   pill hangs ABOVE its box: at rest that is outside the chunk and clipped by
+   the chunk's paint containment; once the chunk top scrolls under the header
+   the box sticks at 6px + pill height and the pill shows exactly where the
+   regular sticky pill does. */
+.daysep.cont {
+  --daypill-h: 30px;
+  height: 0; margin: 0 auto calc(-1 * var(--gap)); top: calc(6px + var(--daypill-h));
+}
+.daysep.cont .daypill {
+  position: absolute; bottom: 0; box-sizing: border-box;
+  height: var(--daypill-h); line-height: 16px; white-space: nowrap;
+}
 
 /* load-more buttons (timeline) */
 .loadmore { display: none; }
@@ -855,6 +869,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   .msg { page-break-inside: avoid; margin-bottom: 15px !important; }
   .msg-time { color: #666 !important; }
   .tl-chunk { contain: none !important; height: auto !important; }
+  .daysep.cont { display: none !important; }
   .media img, .media video { max-height: 300px !important; }
   .list { margin: 0 !important; max-width: 100% !important; }
 }

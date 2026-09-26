@@ -883,13 +883,18 @@ function renderText(raw, urls) {
 /* ---- Timeline liveliness helpers (mock-timeline.html parity) -------------- */
 // Sticky day pill: "Saturday, <b>May 23, 2020</b>" — weekday plain, date bold
 // (split on the first comma of the DAY format). Outer class stays `daysep`.
-function renderDaySep(t) {
+function renderDaySep(t, cont) {
   const label = DAY.format(t);
   const ci = label.indexOf(",");
   const inner = ci > 0
     ? esc(label.slice(0, ci + 1)) + " <b>" + esc(label.slice(ci + 1).trim()) + "</b>"
     : "<b>" + esc(label) + "</b>";
-  return el("div", "daysep", '<span class="daypill">' + inner + "</span>");
+  const d = el("div", "daysep" + (cont ? " cont" : ""), '<span class="daypill">' + inner + "</span>");
+  // VC-13: a continuation pill repeats the day already announced in an earlier
+  // chunk purely so the sticky header survives the chunk seam — zero height,
+  // and hidden from assistive tech so the day isn't read out twice.
+  if (cont) d.setAttribute("aria-hidden", "true");
+  return d;
 }
 
 // Rich link chip (mock .linkchip structure; class stays `urlchip`): icon box +
@@ -1740,10 +1745,22 @@ function renderChunk(idx, container) {
   (eventBuckets[idx] || []).forEach((e) => items.push({ t: e.t, kind: "e", e }));
   items.sort((a, b) => a.t - b.t);
 
+  // VC-13: continue the day / sender-run state from the previous chunk instead
+  // of restarting it at every 50-message seam. Events are bucketed to the
+  // chunk of the first message at-or-after them, so the previous chunk ends
+  // with an event (which breaks a run) only if one is at/after MSGS[start-1].
   let prevDay = null;
   let prevSenderId = null;
   let prevTimestamp = 0;
   const frag = document.createDocumentFragment();
+  if (start > 0) {
+    const pm = MSGS[start - 1];
+    prevDay = dayKey(pm.t);
+    if (!(eventBuckets[idx - 1] || []).some((e) => e.t >= pm.t)) { prevSenderId = pm.s; prevTimestamp = pm.t; }
+    // Same day continues: in-flow pill suppressed, sticky-only continuation pill
+    // (chunks are contain:paint, so the earlier chunk's sticky pill can't follow).
+    if (items.length && dayKey(items[0].t) === prevDay) frag.appendChild(renderDaySep(items[0].t, true));
+  }
   items.forEach((it) => {
     const dk = dayKey(it.t);
     if (dk !== prevDay) {
