@@ -122,6 +122,47 @@
     return { zone: tz, mode, offset, stats: () => ({ exact: exactCalls, days: perDay.size }) };
   }
 
+  /* ---- Time index (UX-4 / AN-13) ---------------------------------------------
+     buildTimeIndex(msgs, clock) -> TI: zoned calendar fields for every message,
+     as typed arrays parallel to msgs (index i = msgs[i]), in clock's zone:
+       TI.n                    number of messages
+       TI.day      Int32Array  zoned day number: days since 1970-01-01 (so
+                               consecutive days differ by exactly 1)
+       TI.year     Uint16Array calendar year
+       TI.month    Uint8Array  month 0-11
+       TI.mday     Uint8Array  day of month 1-31
+       TI.hour     Uint8Array  hour 0-23
+       TI.minute   Uint8Array  minute 0-59
+       TI.dow      Uint8Array  weekday 0=Sun … 6=Sat
+       TI.monthKey Int32Array  year*12 + month (sorts chronologically)
+     Pure (no globals, no DOM): the viewer's timeIndex() memoizes it per
+     (conversation, zone). clock is a createZoneClock() result. */
+  function buildTimeIndex(msgs, clock) {
+    const n = msgs.length;
+    const TI = {
+      n,
+      day: new Int32Array(n), year: new Uint16Array(n), month: new Uint8Array(n), mday: new Uint8Array(n),
+      hour: new Uint8Array(n), minute: new Uint8Array(n), dow: new Uint8Array(n), monthKey: new Int32Array(n),
+    };
+    let lastDn = NaN, y = 0, mo = 0, md = 0, wd = 0;
+    for (let i = 0; i < n; i++) {
+      const t = msgs[i].t;
+      const w = t + clock.offset(t);
+      const dn = Math.floor(w / DAY_MS);
+      const msOfDay = w - dn * DAY_MS;
+      if (dn !== lastDn) {   // calendar fields change only once per day
+        const d = new Date(dn * DAY_MS);
+        y = d.getUTCFullYear(); mo = d.getUTCMonth(); md = d.getUTCDate(); wd = d.getUTCDay();
+        lastDn = dn;
+      }
+      TI.day[i] = dn; TI.year[i] = y; TI.month[i] = mo; TI.mday[i] = md; TI.dow[i] = wd;
+      TI.monthKey[i] = y * 12 + mo;
+      TI.hour[i] = Math.floor(msOfDay / 3600000);
+      TI.minute[i] = Math.floor(msOfDay / 60000) % 60;
+    }
+    return TI;
+  }
+
   /* ---- Fuzzy-search prefilter (VC-18 / SP3) ----------------------------------
      Fuse.js (threshold t, ignoreLocation) matches a text when some substring of
      it is within k = max{e < m : e/m <= t} edits of the length-m pattern (Bitap,
@@ -308,7 +349,7 @@
   }
   return {
     PALETTE, X_LINK, hashId, initials, paletteColor,
-    PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock,
+    PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock, buildTimeIndex,
     createBigramIndex, fuzzyCandidates,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };

@@ -219,34 +219,17 @@ function zonedParts(t) {
      TI.dow   Uint8Array  weekday 0=Sun … 6=Sat
      TI.monthKey Int32Array  year*12 + month (monthKeyStr() -> "YYYY-MM"); sorts
                           chronologically as a plain number
-   Invalidated by resetDerived() (conversation switch / settings replaced) and
-   initDateFormatters() (timezone change); it also re-checks MSGS identity and
-   the zone, so a stale index can never be served. Read-only for consumers. */
+   The arrays come from GCAShared.buildTimeIndex (src/shared-core.js, pure and
+   unit-tested against Intl in tests/time-index.test.js); this accessor only
+   memoizes it. Invalidated by resetDerived() (conversation switch / settings
+   replaced) and initDateFormatters() (timezone change); it also re-checks MSGS
+   identity and the zone, so a stale index can never be served. Read-only for
+   consumers. */
 let TIDX = null;
 function timeIndex() {
   if (TIDX && TIDX.msgs === MSGS && TIDX.zone === ZONE_ID) return TIDX;
-  const n = MSGS.length;
-  const TI = {
-    msgs: MSGS, zone: ZONE_ID, n,
-    day: new Int32Array(n), year: new Uint16Array(n), month: new Uint8Array(n), mday: new Uint8Array(n),
-    hour: new Uint8Array(n), minute: new Uint8Array(n), dow: new Uint8Array(n), monthKey: new Int32Array(n),
-  };
-  let lastDn = NaN, y = 0, mo = 0, md = 0, wd = 0;
-  for (let i = 0; i < n; i++) {
-    const t = MSGS[i].t;
-    const w = t + zoneOffset(t);
-    const dn = Math.floor(w / DAY_MS);
-    const msOfDay = w - dn * DAY_MS;
-    if (dn !== lastDn) {   // calendar fields change only once per day
-      const d = new Date(dn * DAY_MS);
-      y = d.getUTCFullYear(); mo = d.getUTCMonth(); md = d.getUTCDate(); wd = d.getUTCDay();
-      lastDn = dn;
-    }
-    TI.day[i] = dn; TI.year[i] = y; TI.month[i] = mo; TI.mday[i] = md; TI.dow[i] = wd;
-    TI.monthKey[i] = y * 12 + mo;
-    TI.hour[i] = Math.floor(msOfDay / 3600000);
-    TI.minute[i] = Math.floor(msOfDay / 60000) % 60;
-  }
+  const TI = GCAShared.buildTimeIndex(MSGS, CLOCK);
+  TI.msgs = MSGS; TI.zone = ZONE_ID;
   TIDX = TI;
   return TI;
 }
