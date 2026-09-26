@@ -965,6 +965,7 @@ function renderMsg(i, opts) {
   const txt = (m.x || "").trim();
   if (txt) {
     const bubbleEl = el("div", "bubble");
+    bubbleEl.dir = "auto";   // VC-26: Arabic/Hebrew lines take their own base direction
     bubbleEl.innerHTML = renderText(m.x, m.u);
     if (isConsecutive) bubbleEl.dataset.time = DT.format(m.t);
     // P2-6: fuzzy match ranges (when present) index into LOWER[i], which maps
@@ -2864,7 +2865,7 @@ function personCard(p) {
 
   if (p.samples.length) {
     const sw = el("div", "samples");
-    p.samples.forEach((s) => sw.appendChild(el("div", "sample", esc(s))));
+    p.samples.forEach((s) => { const d = el("div", "sample", esc(s)); d.dir = "auto"; sw.appendChild(d); });
     main.appendChild(sw);
   }
 
@@ -4126,7 +4127,7 @@ function renderForeignPin(conv, m) {
   body.appendChild(acts);
 
   const txt = (m.x || "").trim();
-  if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.innerHTML = renderText(m.x, m.u); body.appendChild(bubbleEl); }
+  if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.dir = "auto"; bubbleEl.innerHTML = renderText(m.x, m.u); body.appendChild(bubbleEl); }
   if (m.m) {
     // no cross-conversation lightbox — media clicks just travel to the message
     const d = el("div", "media");
@@ -4201,6 +4202,7 @@ function openContextPeek(center) {
 /* ===========================================================================
    QUOTE CARD — render a message to a shareable PNG (offline, canvas)
    ======================================================================== */
+const RE_RTL_FIRST = /^[^\p{L}]*[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}]/u;
 function exportQuoteCard(i) {
   const m = MSGS[i];
   const text = (m.x || "").trim();
@@ -4265,9 +4267,13 @@ function exportQuoteCard(i) {
     ctx.fillStyle = dim; ctx.font = '400 17px ' + FONT;
     ctx.fillText(DT.format(m.t), contentX, headY + 50);
 
-    // Body
+    // Body. VC-26: text whose first letter is RTL (Hebrew, Arabic, …) is
+    // drawn right-to-left from the right edge, as dir="auto" does in the page.
     ctx.fillStyle = txtCol; ctx.font = '400 26px ' + FONT;
-    shown.forEach((ln, k) => ctx.fillText(ln, contentX, bodyTop + 26 + k * lineH));
+    const rtl = RE_RTL_FIRST.test(text);
+    if (rtl) { ctx.direction = "rtl"; ctx.textAlign = "right"; }
+    shown.forEach((ln, k) => ctx.fillText(ln, rtl ? contentX + contentW : contentX, bodyTop + 26 + k * lineH));
+    ctx.direction = "ltr"; ctx.textAlign = "left";
 
     // Footer watermark
     ctx.fillStyle = dim; ctx.font = '500 15px ' + FONT;
