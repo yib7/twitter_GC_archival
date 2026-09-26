@@ -975,7 +975,14 @@ function renderMsg(i, opts) {
     }
     body.appendChild(bubbleEl);
   }
-  if (m.m) body.appendChild(renderMedia(m, i));
+  if (m.m) {
+    const md = renderMedia(m, i);
+    // VC-24: a consecutive message hides its header and shows its time as a
+    // hover tooltip on the bubble; a media-only one has no bubble, so the
+    // media block carries the time instead.
+    if (isConsecutive && !txt) md.title = DT.format(m.t);
+    body.appendChild(md);
+  }
   if (m.r) body.appendChild(renderReacts(m.r));
   wrap.appendChild(body);
 
