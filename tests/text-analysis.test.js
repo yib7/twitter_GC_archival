@@ -119,6 +119,14 @@ test("isCloudWord drops stopwords, fragments and numbers but keeps real words in
   for (const w of ["pizza", "привет", "café", "喜欢", "사랑"]) assert.ok(S.isCloudWord(w), w);
 });
 
+test("topCloudWords groups spellings by wordKey and shows the commonest (review fix 7)", () => {
+  const counts = new Map([["y'all", 2], ["yall", 3], ["pizza", 4], ["the", 9], ["i'm", 5]]);
+  assert.deepStrictEqual(S.topCloudWords(counts, 5), [["yall", 5], ["pizza", 4]]);
+  // Equal counts: the first-seen spelling wins; order is count, then key.
+  assert.deepStrictEqual(S.topCloudWords(new Map([["y'all", 2], ["yall", 2], ["zebra", 4]]), 5), [["y'all", 4], ["zebra", 4]]);
+  assert.deepStrictEqual(S.topCloudWords(new Map([["pizza", 1], ["movie", 2]]), 1), [["movie", 2]]);
+});
+
 test("wordKey folds apostrophes so don't / dont / don’t are one word", () => {
   assert.equal(S.wordKey("don't"), "dont");
   assert.equal(S.wordKey(S.tokenize("DON’T")[0]), "dont");

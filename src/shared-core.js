@@ -403,6 +403,24 @@
     if (/^[\p{N}']+$/u.test(t)) return false;
     return !isStopword(t);
   }
+  // Word cloud / word of the year from a Map of token -> count: spellings that
+  // fold to one wordKey (y'all / yall) are ONE word, shown in its commonest
+  // spelling (the first seen on a tie). Stopwords, numbers and fragments are
+  // skipped (isCloudWord). Sorted by count, then by key; the top `n`.
+  function topCloudWords(counts, n) {
+    const groups = new Map();   // key -> { total, form, formN }
+    for (const [w, c] of counts) {
+      if (!isCloudWord(w)) continue;
+      const k = wordKey(w);
+      const g = groups.get(k);
+      if (!g) groups.set(k, { k, total: c, form: w, formN: c });
+      else { g.total += c; if (c > g.formN) { g.form = w; g.formN = c; } }
+    }
+    return [...groups.values()]
+      .sort((a, b) => b.total - a.total || (a.k < b.k ? -1 : a.k > b.k ? 1 : 0))
+      .slice(0, n)
+      .map((g) => [g.form, g.total]);
+  }
   // Whole-token occurrences of `word` (which may be a phrase) in `text`,
   // apostrophe- and case-insensitive: "man" never matches "many"/"humans",
   // "dont" matches "don’t". Used by Word Battles and the keyword trend (AN-10).
@@ -581,7 +599,7 @@
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant,
     createBigramIndex, fuzzyCandidates,
-    extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, countWord, wordKeys, countKeys, mayContainKey,
+    extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, plainText, urlHost, linkPlatform, plural,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };

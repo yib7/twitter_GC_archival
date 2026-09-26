@@ -100,3 +100,25 @@ test("the keyword trend counts whole-word uses, not substrings", async ({ page }
   });
   await expect.poll(total).toBe(3);
 });
+
+// Review fix 7: the word cloud and the Wrapped word of the year count a word
+// once across its spellings (y'all / y’all / yall), shown in the commonest one.
+test("word cloud and word of the year merge apostrophe spellings", async ({ page }) => {
+  const lines = ["y'all ready", "y'all coming", "y’all here", "yall sure", "pizza night", "pizza again", "pizza time"];
+  const msgs = lines.map((x, k) => ({ i: "y" + k, s: k % 2 ? "u2" : "u1", t: T0 + k * 3600000, x }));
+  const data = { conversations: [{ id: "G", type: "group", title: "Yall", participants: ["u1", "u2"], count: msgs.length, msgs, events: [] }] };
+  await bootViewer(page, data);
+  await openStats(page);
+  const cloud = await page.locator("#words .cloud-word").evaluateAll((els) => els.map((e) => [e.firstChild.textContent, e.querySelector("b") ? e.querySelector("b").textContent : ""]));
+  expect(cloud.filter(([w]) => w.replace(/['’]/g, "") === "yall")).toEqual([["y'all", "4"]]);
+  await page.locator('.nav-item[data-view="wrapped"]').click();
+  const slide = page.locator("#wr-slide");
+  let word = "";
+  for (let k = 0; k < 12 && !word; k++) {
+    const txt = await slide.textContent();
+    if (/word of the year/.test(txt)) word = txt;
+    else await page.locator("#wr-next").click();
+  }
+  expect(word).toContain('"y\'all"');
+  expect(word).toContain("used 4 times");
+});

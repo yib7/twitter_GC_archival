@@ -15,7 +15,7 @@ const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "C
 const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
-const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, isCloudWord, KEYWORDS, countMatches,
+const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
   countLaughs, isLaughOnly, isProfane, isKeysmash, plainText, linkPlatform, plural } = GCAShared;
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
@@ -2499,12 +2499,9 @@ function* statsGen() {
       return { fromId, toId, count };
     });
 
-  const cloud = [];
-  for (const [w, c] of tokenCounts) if (isCloudWord(w)) cloud.push([w, c]);
-  cloud.sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
-
   return {
-    words: cloud.slice(0, 42),
+    // One entry per word across spellings (y'all / yall), in its commonest one.
+    words: topCloudWords(tokenCounts, 42),
     totalWords,
     emojis: Object.entries(emojis).sort((a, b) => b[1] - a[1]).slice(0, 15),
     awards, minMsgs, scholarW,
@@ -4083,7 +4080,7 @@ function computeWrapped(year) {
   let busyDay = "", busyN = 0;
   for (const k in dayCount) if (dayCount[k] > busyN) { busyN = dayCount[k]; busyDay = k; }
   const topEmoji = Object.entries(emojis).sort((a, b) => b[1] - a[1])[0] || null;
-  const topWords = [...words].filter(([t]) => isCloudWord(t)).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).slice(0, 5);
+  const topWords = topCloudWords(words, 5);   // spellings merged, like the Stats word cloud
   wrappedCache[year] = {
     year, total, media, reacts, chars,
     people, activeDays: Object.keys(dayCount).length,
