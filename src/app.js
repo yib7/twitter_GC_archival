@@ -8,6 +8,8 @@
 // loaded as a <script> before this one (index.html) — see src/shared-core.js.
 /* global GCAShared */
 const { PALETTE, X_LINK, hashId, initials, paletteColor } = GCAShared;
+// Pure settings validators (VC-5/VC-6) — also unit-tested under Node.
+const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
@@ -131,11 +133,7 @@ let DT, DAY, dShort;
 // Rebuilt (not per-call) whenever the timezone changes — 134k msgs each call a
 // formatToParts, so constructing a formatter per call is not acceptable.
 let ZP = null, ZP_LOCAL = false;
-// True if `tz` is a zone Intl can build a formatter for; used to keep a
-// corrupt/ported gca.settings.timezone from reaching initDateFormatters (P1-4).
-function isValidTimeZone(tz) {
-  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch (e) { return false; }
-}
+// isValidTimeZone (P1-4) lives in src/shared-core.js, used by validateSettings.
 function initDateFormatters() {
   const isLocal = !!(settings && settings.timezone === 'local');
   // 'local' uses native Date accessors (no formatter); every other zone shares
@@ -257,86 +255,13 @@ const FONT_MIN = 13, FONT_MAX = 19;   // the Settings slider's range
 function deepFreeze(o) { Object.values(o).forEach((v) => { if (v && typeof v === "object") deepFreeze(v); }); return Object.freeze(o); }
 function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULTS)); }
 
-// P1-3: pfp/gc photo values reach the DOM as raw style="...url('...')" string
-// interpolation (pfpHtml) or as a CSSOM background-image (applyPfp/updateBrand).
-// Values written by the app itself (base64 data URLs, wizard-saved slug paths)
-// are always one of these two shapes; Import Settings / a hand-edited
-// gca.settings can carry anything, so validate the shape before a value is
-// trusted anywhere. Anything else collapses to "" (falsy), which every call
-// site already treats as "no photo" (initials fallback). Declared up here
-// (not next to the Settings view) because validateSettings() runs at boot.
-const PHOTO_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]*$/i;
-const PHOTO_PATH_RE = /^(?:personal_data|sample_media)\/[A-Za-z0-9._/-]+$/;
-function sanitizePhoto(v) {
-  if (typeof v !== "string") return "";
-  return (PHOTO_RE.test(v) || PHOTO_PATH_RE.test(v)) ? v : "";
-}
-// VC-5: colours are interpolated into style="…" attributes, so only a plain
-// hex colour (#rgb / #rrggbb / #rrggbbaa) is ever accepted; anything else is "".
-function sanitizeColor(v) {
-  if (typeof v !== "string") return "";
-  const s = v.trim();
-  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(s) ? s : "";
-}
-
-// VC-5/VC-6: the ONE gate every settings object passes through — the persisted
-// gca.settings blob at boot (loadSettings) and an imported JSON file (Import).
-// Builds a fresh object from cloneDefaults() and copies over only fields whose
-// type/shape is valid, field by field; an invalid field falls back to its
-// default instead of throwing, so a malformed file can never brick boot
-// (applyTheme/shade used to throw on `accent: 123`) or inject markup.
-function validateSettings(raw) {
-  const src = isPlainObj(raw) ? raw : {};
-  const s = cloneDefaults();
-  s.names = cleanMap(src.names, (v) => (typeof v === "string" && v.trim() ? v : ""));
-  s.colors = cleanMap(src.colors, sanitizeColor);
-  s.pfps = cleanMap(src.pfps, sanitizePhoto);
-  s.gc = cleanMap(src.gc, (e) => {
-    if (!isPlainObj(e)) return null;
-    const out = {};
-    if (typeof e.name === "string" && e.name.trim()) out.name = e.name;
-    const p = sanitizePhoto(e.photo); if (p) out.photo = p;
-    return out;
-  });
-  s.gcName = typeof src.gcName === "string" ? src.gcName : "";
-  s.gcPhoto = sanitizePhoto(src.gcPhoto);
-  s.accent = sanitizeColor(src.accent) || DEFAULTS.accent;
-  const fs = typeof src.fontSize === "number" ? src.fontSize : (typeof src.fontSize === "string" && src.fontSize.trim() ? Number(src.fontSize) : NaN);
-  s.fontSize = isFinite(fs) ? Math.min(FONT_MAX, Math.max(FONT_MIN, Math.round(fs))) : DEFAULTS.fontSize;
-  s.density = (typeof src.density === "string" && Object.prototype.hasOwnProperty.call(DENSITY, src.density)) ? src.density : DEFAULTS.density;
-  s.avatars = typeof src.avatars === "boolean" ? src.avatars : DEFAULTS.avatars;
-  s.timestamps = typeof src.timestamps === "boolean" ? src.timestamps : DEFAULTS.timestamps;
-  s.me = (typeof src.me === "string" && src.me) || typeof src.me === "number" ? String(src.me) : null;
-  s.timezone = (typeof src.timezone === "string" && (src.timezone === "local" || isValidTimeZone(src.timezone))) ? src.timezone : DEFAULTS.timezone;
-  s.pins = Array.isArray(src.pins) ? src.pins.filter((p) => (typeof p === "string" && p) || typeof p === "number") : [];
-  s.ignoredUsers = idList(src.ignoredUsers);
-  s.ignoredGroups = idList(src.ignoredGroups);
-  s.saved = Array.isArray(src.saved) ? src.saved.map(cleanSaved).filter(Boolean) : [];
-  return s;
-}
-function isPlainObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
-// Copy an object map keeping only entries `fn` maps to a truthy value; never
-// copies prototype-polluting keys.
-function cleanMap(v, fn) {
-  const out = {};
-  if (!isPlainObj(v)) return out;
-  for (const k of Object.keys(v)) {
-    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
-    const val = fn(v[k]);
-    if (val) out[k] = val;
-  }
-  return out;
-}
-function idList(v) { return Array.isArray(v) ? v.filter((x) => (typeof x === "string" && x) || typeof x === "number").map(String) : []; }
-function cleanSaved(e) {
-  if (!isPlainObj(e) || typeof e.name !== "string" || !e.name.trim()) return null;
-  const f = isPlainObj(e.f) ? e.f : {};
-  const day = (d) => (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "");
-  return {
-    name: e.name, q: typeof e.q === "string" ? e.q : "",
-    f: { people: idList(f.people), from: day(f.from), to: day(f.to), media: f.media === true, links: f.links === true, reacts: f.reacts === true },
-  };
-}
+// VC-5/VC-6: every settings object — the persisted gca.settings blob at boot
+// (loadSettings) and an imported JSON file (Import) — passes through ONE gate.
+// The validators are pure and live in src/shared-core.js (validateSettings,
+// sanitizePhoto, sanitizeColor, cleanMap, cleanSaved, …); this wrapper only
+// supplies the viewer's rules. Declared up here because it runs at boot.
+const SETTINGS_RULES = { defaults: DEFAULTS, fontMin: FONT_MIN, fontMax: FONT_MAX, densities: Object.keys(DENSITY) };
+function validateSettings(raw) { return GCAShared.validateSettings(raw, SETTINGS_RULES); }
 
 let settings = loadSettings();
 migratePfpsKey();

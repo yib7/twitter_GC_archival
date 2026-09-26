@@ -31,7 +31,9 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 /* ---- API surface --------------------------------------------------------- */
 
 test("shared-core exports the full API", () => {
-  for (const k of ["PALETTE", "X_LINK", "hashId", "initials", "paletteColor"]) {
+  for (const k of ["PALETTE", "X_LINK", "hashId", "initials", "paletteColor",
+    "PHOTO_RE", "PHOTO_PATH_RE", "sanitizePhoto", "sanitizeColor", "isValidTimeZone",
+    "isPlainObj", "cleanMap", "idList", "cleanSaved", "validateSettings"]) {
     assert.ok(k in shared, `src/shared-core.js must export ${k}`);
   }
   assert.ok(Array.isArray(shared.PALETTE) && shared.PALETTE.length === 12, "PALETTE is the 12-color array");
@@ -121,6 +123,15 @@ const NO_LOCAL_DECL = [
   { file: "src/setup.js", name: "hashId", re: /^\s*function\s+hashId\b/m },
   { file: "src/setup.js", name: "initials", re: /^\s*function\s+initials\b/m },
   { file: "scripts/build-core.js", name: "X_LINK", re: /^\s*const\s+X_LINK\s*=/m },
+  { file: "src/app.js", name: "PHOTO_RE", re: /^\s*const\s+PHOTO_RE\b/m },
+  { file: "src/app.js", name: "PHOTO_PATH_RE", re: /^\s*const\s+PHOTO_PATH_RE\b/m },
+  { file: "src/app.js", name: "sanitizePhoto", re: /^\s*function\s+sanitizePhoto\b/m },
+  { file: "src/app.js", name: "sanitizeColor", re: /^\s*function\s+sanitizeColor\b/m },
+  { file: "src/app.js", name: "isValidTimeZone", re: /^\s*function\s+isValidTimeZone\b/m },
+  { file: "src/app.js", name: "isPlainObj", re: /^\s*function\s+isPlainObj\b/m },
+  { file: "src/app.js", name: "cleanMap", re: /^\s*function\s+cleanMap\b/m },
+  { file: "src/app.js", name: "idList", re: /^\s*function\s+idList\b/m },
+  { file: "src/app.js", name: "cleanSaved", re: /^\s*function\s+cleanSaved\b/m },
 ];
 
 test("no consumer redeclares a shared constant/helper (single source of truth)", () => {
