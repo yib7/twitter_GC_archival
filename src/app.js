@@ -97,9 +97,13 @@ function resetDerived() {
   // (now detached) canvases.
   statCharts.forEach((c) => { try { c.destroy(); } catch (e) {} });
   statCharts = [];
-  // SP3: drop the half-stepped stats/word sweeps, cancel a pending deferred
-  // Stats stage, and clear the (hidden) Stats DOM so the previous
-  // conversation's numbers never linger — setView re-renders it on entry.
+  cancelStatsRender();
+}
+// SP3: drop the half-stepped stats/word sweeps, cancel a pending deferred Stats
+// stage, and clear the (hidden) Stats DOM so numbers derived from the previous
+// conversation or zone never linger or get mixed — setView re-renders Stats on
+// entry. Called on a conversation switch (resetDerived) and a timezone change.
+function cancelStatsRender() {
   statsJob = null; wordsJob = null; statsRenderSeq++;
   const sv = document.getElementById("view-stats"); if (sv) { sv.innerHTML = ""; delete sv.dataset.ready; }
 }
@@ -3307,6 +3311,7 @@ function renderSettings() {
     // months, milestones, Hall of Fame years, threads, and each Wrapped year.
     STATS = null; WORDS = null; MILES = null; HOF = null; threadsCache = null;
     for (const k in wrappedCache) delete wrappedCache[k];
+    cancelStatsRender();   // a pending stage 2 would fill old-zone DOM with new-zone numbers
     // VC-22: already-rendered Search results / Timeline rows carry old-zone
     // labels, and the From/To bounds were computed for the old zone. Recompute
     // the bounds from the picked dates and re-run the search.

@@ -105,3 +105,31 @@ test("switching conversation while Stats is hidden leaves no stale Stats DOM", a
   await expect(page.locator("#view-stats .h-num")).toHaveAttribute("data-count", "2");
   await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");
 });
+
+// SP3 review: a timezone change must cancel a pending Stats stage 2 (like a
+// conversation switch does) — otherwise the old-zone stage-1 DOM gets filled
+// with new-zone stage-2 numbers and marked ready.
+test("a timezone change cancels a pending deferred Stats stage", async ({ page }) => {
+  await boot(page);
+  // Open Stats and, in the same task (before stage 2's rAF+timeout can run),
+  // go to Settings and change the zone.
+  const pending = await page.evaluate(() => {
+    document.querySelector('.nav-item[data-view="stats"]').click();
+    const had = document.querySelectorAll("#view-stats .st-pending").length;
+    document.querySelector('.nav-item[data-view="settings"]').click();
+    const sel = document.getElementById("set-tz");
+    sel.value = "Asia/Tokyo"; sel.dispatchEvent(new Event("change"));
+    return had;
+  });
+  expect(pending).toBeGreaterThan(0);
+  // Give a stale stage 2 every chance to run.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 300))));
+  const v = await page.evaluate(() => {
+    const el = document.getElementById("view-stats");
+    return { ready: el.dataset.ready || "", html: el.innerHTML.length };
+  });
+  expect(v).toEqual({ ready: "", html: 0 });
+  // Re-entering Stats renders fresh, in the new zone, to completion.
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");
+});
