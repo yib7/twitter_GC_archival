@@ -90,3 +90,41 @@ test("profile badges are exactly the grid cards the person wins (AN-3)", async (
   expect(badges).toEqual(won);
   expect(badges).not.toContain("The Sailor");
 });
+
+// Timing / vocabulary awards on a second fixture:
+//  - The Flash / The Ghoster compare the MEDIAN reply (answers within 12 h);
+//  - The Deserter is the longest run of others' messages between two of yours
+//    (or after your last one);
+//  - The Scholar compares distinct words among each person's first N words
+//    (the same N for everyone), so the chattier person has no volume edge.
+function fixture2() {
+  const out = [];
+  let t = Date.UTC(2024, 4, 1, 10, 0);
+  const word = (k) => "w" + String.fromCharCode(97 + (k % 26)) + String.fromCharCode(97 + Math.floor(k / 26) % 26) + String.fromCharCode(97 + Math.floor(k / 676) % 26);
+  let u1k = 0;
+  const u1 = () => { const x = word(u1k++) + " " + word(u1k++); return x; };
+  for (let k = 0; k < 40; k++) {
+    if (k % 2 === 0) { t += 60000; out.push({ s: "u1", t, x: u1() }); }        // u1 answers after 1 min
+    else { t += 600000; out.push({ s: "u2", t, x: "same thing again" }); }      // u2 answers after 10 min
+  }
+  for (let k = 0; k < 60; k++) { t += 60000; out.push({ s: "u1", t, x: u1() }); } // u2 silent for 60
+  for (let k = 0; k < 40; k++) { t += 60000; out.push({ s: "u2", t, x: "same thing again" }); } // u1 trailing 40
+  out.forEach((m, k) => { m.i = "q" + k; });
+  return { conversations: [{ id: "G2", type: "group", title: "Timing", participants: ["u1", "u2"], count: out.length, msgs: out, events: [] }] };
+}
+
+test("Flash / Ghoster medians, Deserter silence, Scholar at a common N", async ({ page }) => {
+  await bootViewer(page, fixture2());
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");
+  // u1 (User 1, 80 msgs) and u2 (User 2, 60 msgs).
+  await expect(card(page, "The Flash").locator(".s-name")).toHaveText("User 1");
+  await expect(card(page, "The Flash").locator(".s-stat")).toHaveText("1.0m median reply");
+  await expect(card(page, "The Ghoster").locator(".s-name")).toHaveText("User 2");
+  await expect(card(page, "The Ghoster").locator(".s-stat")).toHaveText("10.0m median reply");
+  await expect(card(page, "The Deserter").locator(".s-name")).toHaveText("User 2");
+  await expect(card(page, "The Deserter").locator(".s-stat")).toContainText("60 messages from others");
+  await expect(card(page, "The Scholar").locator(".s-name")).toHaveText("User 1");
+  await expect(card(page, "The Scholar").locator(".s-stat")).toHaveText("100 different words in first 100");
+  await expect(card(page, "The Scholar").locator(".s-def")).toContainText("first 100 words");
+});
