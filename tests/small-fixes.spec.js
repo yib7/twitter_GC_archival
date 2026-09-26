@@ -99,7 +99,7 @@ test("stats busiest-day header shows the formatted date, not the raw ISO key", a
   // …but the same zone-aware long-form date Milestones uses (DAY formatter:
   // "Tuesday, March 5, 2024"), with the count intact. Case-insensitive: the
   // section header is uppercased by CSS text-transform.
-  expect(txt).toMatch(/busiest day: [a-z]+day, March \d{1,2}, 2024 \(3 msgs\)/i);
+  expect(txt).toMatch(/busiest day: [a-z]+day, March \d{1,2}, 2024 \(3 messages\)/i);
 
   expect(errors).toEqual([]);
 });

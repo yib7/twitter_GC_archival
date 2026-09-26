@@ -8,6 +8,9 @@
 // loaded as a <script> before this one (index.html) — see src/shared-core.js.
 /* global GCAShared */
 const { PALETTE, X_LINK, hashId, initials } = GCAShared;
+// UX-31: the platform's modifier — ⌘ on Apple devices, Ctrl elsewhere — shared
+// by the timeline's palette button and the keyboard help.
+const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators (VC-5/VC-6) — also unit-tested under Node.
 const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
@@ -1900,7 +1903,7 @@ function ensureTimelineShell() {
   const v = document.getElementById("view-timeline");
   // Toolbar (mock .toolbar): rebuilt with the shell on every conversation
   // switch (tlBuilt is reset by resetDerived()), so the count stays fresh.
-  const kbd = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘K" : "Ctrl K";
+  const kbd = MOD_KEY === "⌘" ? "⌘K" : "Ctrl K";
   v.innerHTML = `
     <div class="tl-toolbar">
       <span class="tt">Timeline</span>
@@ -2126,7 +2129,18 @@ function fmtDur(ms) {
   if (ms >= 86400000) return plural(+(ms / 86400000).toFixed(1), "day");
   if (ms >= 3600000) return (ms / 3600000).toFixed(1) + "h";
   if (ms >= 60000) return (ms / 60000).toFixed(1) + "m";
+  if (ms > 0 && ms < 1000) return "<1s";      // AN-20: not "0s" for a quick reply
   return Math.round(ms / 1000) + "s";
+}
+// AN-20: a chat's age in the unit that reads naturally — "3 days", "5 months",
+// "2.4 years" — never "0.0 yrs" for a young chat. `days` is whole calendar
+// days in the configured zone (first message day → last message day).
+function fmtAge(days) {
+  if (days < 1) return "Under a day";
+  if (days < 61) return plural(days, "day");
+  const months = Math.floor(days / 30.4375);
+  if (months < 24) return plural(months, "month");
+  return (days / 365.25).toFixed(1) + " years";
 }
 const SUPERLATIVES = [
   { key: "owl", icon: "🦉", title: "Late Night Owl", need: "msgs", value: (P) => share(P.night, P),
@@ -2620,12 +2634,11 @@ function computeMilestones() {
   // Peak hour
   let peakHour = 0; for (let h = 1; h < 24; h++) if (hourCount[h] > hourCount[peakHour]) peakHour = h;
   const fmtH = (h) => (h % 12 === 0 ? 12 : h % 12) + (h < 12 ? "am" : "pm");
-  const ageMs = MSGS[N - 1].t - MSGS[0].t;
   MILES = {
     streak: fmtNum(best) + (best === 1 ? " day" : " days"), streakDays: best, streakRange,
     busiestDay: busiestDay ? keyLabel(DAY, busiestDay) : "—", busiestCount,
     totalReacts,
-    ageYears: (ageMs / (365.25 * 86400000)).toFixed(1) + " yrs",
+    age: fmtAge(agg.dayCounts.length - 1),
     firstDay: dShort.format(MSGS[0].t),
     peakHourLabel: fmtH(peakHour), peakHourCount: hourCount[peakHour],
   };
@@ -2707,6 +2720,16 @@ function renderStats() {
   let mediaMsgCount = 0;
   for (let i = 0; i < N; i++) if (MSGS[i].m) mediaMsgCount++;
 
+  // AN-21: each chart canvas is role=img with a text summary of its peak.
+  const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const peakOf = (arr) => arr.reduce((b, v, k) => (v > arr[b] ? k : b), 0);
+  const pm = peakOf(a.monthArr.map((m) => m[1])), pw = peakOf(a.weekdayCount);
+  const monthsLabel = a.monthArr.length
+    ? "Bar chart: messages per month, " + a.monthArr[0][0] + " to " + a.monthArr[a.monthArr.length - 1][0] + "; busiest " + a.monthArr[pm][0] + " (" + plural(a.monthArr[pm][1], "message") + ")"
+    : "Bar chart: messages per month";
+  const hoursLabel = "Line chart: messages by hour of day; peak " + ms.peakHourLabel + " (" + plural(ms.peakHourCount, "message") + ")";
+  const weekdaysLabel = "Bar chart: messages by day of week; busiest " + WEEKDAYS[pw] + " (" + plural(a.weekdayCount[pw], "message") + ")";
+
   let html = `<div class="page"><div class="page-head"><div class="page-title">Stats & overview</div>
     <div class="page-sub">${esc(DAY.format(first))} → ${esc(DAY.format(last))}</div></div>
     <div class="page-body">
@@ -2718,7 +2741,7 @@ function renderStats() {
           <div class="h-inline">
             <div class="it"><span class="v" data-count="${PARTS.length}">${PARTS.length}</span><span class="l">People</span></div>
             <div class="it"><span class="v" data-count="${a.daysActive}">${fmtNum(a.daysActive)}</span><span class="l">Active days</span></div>
-            <div class="it"><span class="v" data-count="${Math.round(N / a.daysActive)}">${fmtNum(Math.round(N / a.daysActive))}</span><span class="l">Msgs / day</span></div>
+            <div class="it"><span class="v" data-count="${Math.round(N / a.daysActive)}">${fmtNum(Math.round(N / a.daysActive))}</span><span class="l" title="Messages per day with at least one message">Msgs / active day</span></div>
             <div class="it"><span class="v" data-count="${mediaMsgCount}">${fmtNum(mediaMsgCount)}</span><span class="l">Media</span></div>
             <div class="it"><span class="v" data-count="${days}">${fmtNum(days)}</span><span class="l">Days span</span></div>
           </div>
@@ -2732,8 +2755,8 @@ function renderStats() {
         <div class="card mile"><div class="stat-num" data-count="${ms.busiestCount}">${fmtNum(ms.busiestCount)}</div><div class="stat-lbl">Busiest single day</div><div class="mile-sub">${esc(ms.busiestDay)}</div></div>
         <div class="card mile" data-mile="words"><div class="stat-num">${deferSlot("words-total")}</div><div class="stat-lbl">Total words sent</div><div class="mile-sub">&nbsp;</div></div>
         <div class="card mile"><div class="stat-num" data-count="${ms.totalReacts}">${fmtNum(ms.totalReacts)}</div><div class="stat-lbl">Reactions given</div><div class="mile-sub">across the whole chat</div></div>
-        <div class="card mile"><div class="stat-num">${ms.ageYears}</div><div class="stat-lbl">Chat age</div><div class="mile-sub">since ${esc(ms.firstDay)}</div></div>
-        <div class="card mile"><div class="stat-num">${esc(ms.peakHourLabel)}</div><div class="stat-lbl">Peak hour</div><div class="mile-sub">${fmtNum(ms.peakHourCount)} msgs all-time</div></div>
+        <div class="card mile"><div class="stat-num">${esc(ms.age)}</div><div class="stat-lbl">Chat age</div><div class="mile-sub">since ${esc(ms.firstDay)}</div></div>
+        <div class="card mile"><div class="stat-num">${esc(ms.peakHourLabel)}</div><div class="stat-lbl">Peak hour</div><div class="mile-sub">${plural(ms.peakHourCount, "message")} all-time</div></div>
       </div></div>
 
       <div class="section"><div class="section-h">Superlatives & Fun Stats</div>${deferSlot("supers")}</div>
@@ -2754,8 +2777,8 @@ function renderStats() {
       ${deferSlot("generosity")}
       ${deferSlot("vocab")}
 
-      <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(a.busy[0] ? DAY.format(dayKeyBoundInstant(a.busy[0])) : "—")} (${fmtNum(a.busy[1])} msgs)</div>
-      <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months" role="img" aria-label="Bar chart: messages per month"></canvas></div></div>
+      <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(a.busy[0] ? DAY.format(dayKeyBoundInstant(a.busy[0])) : "—")} (${plural(a.busy[1], "message")})</div>
+      <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months" role="img" aria-label="${esc(monthsLabel)}"></canvas></div></div>
 
       <div class="section">
         <div class="section-h">Keyword Trends (Google Trends Style)</div>
@@ -2769,11 +2792,11 @@ function renderStats() {
       <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
           <div class="section-h">Activity by time of day</div>
-          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-hours" role="img" aria-label="Line chart: messages by hour of day"></canvas></div>
+          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-hours" role="img" aria-label="${esc(hoursLabel)}"></canvas></div>
         </div>
         <div>
           <div class="section-h">Activity by Day of Week</div>
-          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-weekdays" role="img" aria-label="Bar chart: messages by day of week"></canvas></div>
+          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-weekdays" role="img" aria-label="${esc(weekdaysLabel)}"></canvas></div>
         </div>
       </div>
 
@@ -2822,7 +2845,7 @@ function renderStats() {
     statCharts.push(makeChart(document.getElementById("chart-weekdays"), {
       type: 'bar',
       data: {
-        labels: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+        labels: WEEKDAYS,
         datasets: [{ label: 'Messages', data: a.weekdayCount.slice(), borderRadius: 4 }]
       },
       options: opts()
@@ -2867,6 +2890,16 @@ function fillStatsDeferred(v, s, cloudWords) {
   };
   const panel = 'background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;';
   const av = (id) => pfpHtml(id, "width:22px;height:22px;font-size:10px");
+  // AN-20: a panel with no rows is not drawn (it used to be an empty bordered
+  // box); a two-panel row collapses to one column, or vanishes when both are
+  // empty.
+  const panels = (list) => {
+    const shown = list.filter((p) => p.rows);
+    if (!shown.length) return "";
+    return `<div class="section" style="display: grid; grid-template-columns: ${shown.length > 1 ? "1fr 1fr" : "1fr"}; gap: 20px;">` +
+      shown.map((p) => `<div data-panel="${p.key}"><div class="section-h">${p.title}</div>${p.extra || ""}<div class="bars" style="${p.style || panel}">${p.rows}</div></div>`).join("") +
+      "</div>";
+  };
 
   // ---- Superlatives -----------------------------------------------------------
   // One card per award in STATS.awards (already filtered: shown winners only).
@@ -2913,7 +2946,7 @@ function fillStatsDeferred(v, s, cloudWords) {
         ${av(pair.toId)}
         <span style="margin-left:8px; font-weight:500;">${esc(nameOf(pair.toId))} replied to ${esc(nameOf(pair.fromId))}</span>
       </div>
-      <div class="bar-val" style="font-weight:600;color:var(--accent);">${pair.count} times</div>
+      <div class="bar-val" style="font-weight:600;color:var(--accent);">${plural(pair.count, "time")}</div>
     </div>`;
   });
   slot("latency", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -2924,7 +2957,7 @@ function fillStatsDeferred(v, s, cloudWords) {
           </div>
         </div>
         <div>
-          <div class="section-h">Top Interaction Pairings</div>
+          <div class="section-h">Top Interaction Pairings (answers within 30 min)</div>
           <div class="bars" style="${panel}">
             ${pairRows || '<div class="pop-empty">No pairing data yet.</div>'}
           </div>
@@ -2956,16 +2989,10 @@ function fillStatsDeferred(v, s, cloudWords) {
       </div>`;
     }
   });
-  slot("yapping", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-          <div class="section-h">The Yapping Index (Avg Words / Message)</div>
-          <div class="bars" style="${panel}">${yapRows}</div>
-        </div>
-        <div>
-          <div class="section-h">Double Texting Leaderboard</div>
-          <div class="bars" style="${panel}">${dtRows}</div>
-        </div>
-      </div>`);
+  slot("yapping", panels([
+    { key: "yapping", title: "The Yapping Index (average words per message)", rows: yapRows },
+    { key: "double-text", title: "Double Texting Leaderboard (back-to-back messages within 1 h)", rows: dtRows },
+  ]));
 
   // ---- Reaction generosity ----------------------------------------------------
   let genRows = "";
@@ -2984,10 +3011,10 @@ function fillStatsDeferred(v, s, cloudWords) {
       </div>`;
     }
   });
-  slot("generosity", `<div class="section">
-        <div class="section-h">Reaction Generosity (Given vs. Received)</div>
-        <div class="bars" style="background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; display:flex; flex-direction:column; gap:12px;">${genRows}</div>
-      </div>`);
+  slot("generosity", panels([
+    { key: "generosity", title: "Reaction Generosity (given vs. received)", rows: genRows,
+      style: "background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; display:flex; flex-direction:column; gap:12px;" },
+  ]));
 
   // ---- Vocabulary + platform links -------------------------------------------
   let vocabRows = "";
@@ -3023,17 +3050,11 @@ function fillStatsDeferred(v, s, cloudWords) {
       </div>`;
     }
   });
-  slot("vocab", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-        <div>
-          <div class="section-h">Vocabulary Size (Unique Words)</div>
-          <div class="bars" style="${panel}">${vocabRows}</div>
-        </div>
-        <div>
-          <div class="section-h">Platform Links Shared</div>
-          <div class="plat-legend"><span><i class="plat plat-tt"></i>TikTok</span><span><i class="plat plat-yt"></i>YouTube</span><span><i class="plat plat-tw"></i>X / Twitter</span><span><i class="plat plat-ig"></i>Instagram</span></div>
-          <div class="bars" style="${panel}">${platRows}</div>
-        </div>
-      </div>`);
+  slot("vocab", panels([
+    { key: "vocab", title: "Vocabulary Size (distinct words)", rows: vocabRows },
+    { key: "platforms", title: "Platform Links Shared", rows: platRows,
+      extra: '<div class="plat-legend"><span><i class="plat plat-tt"></i>TikTok</span><span><i class="plat plat-yt"></i>YouTube</span><span><i class="plat plat-tw"></i>X / Twitter</span><span><i class="plat plat-ig"></i>Instagram</span></div>' },
+  ]));
 
   // ---- Total words milestone (shared tokenizer count) -------------------------
   const wm = v.querySelector('.mile[data-mile="words"]');
@@ -3835,6 +3856,10 @@ function renderGallery() {
     // MSGS is oldest-first; reverse in place so the gallery shows newest media
     // first (matches the lazy-loaded page order below).
     galleryState.items = items.reverse();
+    // AN-20: no media → say so, not a blank grid.
+    if (!items.length) {
+      galEls.list.innerHTML = '<div class="empty"><div class="big">' + cmdIco("gallery") + '</div><div>No photos or videos in this conversation yet.</div></div>';
+    }
 
     galleryObserver = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting) appendGalleryPage();
@@ -4246,7 +4271,7 @@ function toggleKeyboardHelp() {
         <button class="kb-close">✕</button>
       </div>
       <div class="kb-body">
-        <div class="kb-row"><kbd>Ctrl</kbd> <kbd>K</kbd><span>Command palette (jump anywhere)</span></div>
+        <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette (jump anywhere)</span></div>
         <div class="kb-row"><kbd>/</kbd><span>Focus search</span></div>
         <div class="kb-row"><kbd>?</kbd><span>Show this help</span></div>
         <div class="kb-row"><kbd>Esc</kbd><span>Close palette / modal / lightbox / popover</span></div>
@@ -4963,7 +4988,7 @@ function renderThreads() {
 
   v.innerHTML = `<div class="page"><div class="page-head">
       <div class="page-title">Conversation Threads</div>
-      <div class="page-sub">Activity bursts detected: ${fmtNum(threads.length)} threads with 8+ messages, separated by 1-hour gaps. Browse the conversations that brought the group alive.</div></div>
+      <div class="page-sub">Activity bursts detected: ${plural(threads.length, "thread")} with 8+ messages, separated by 1-hour gaps. Browse the conversations that brought the group alive.</div></div>
     <div class="page-body">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
         <div class="thr-years">${yearChips}</div>
@@ -4971,7 +4996,7 @@ function renderThreads() {
         <label class="pill sortpill">↕ <select id="thr-sort">${sortOpts}</select></label>
       </div>
       <div class="thr-grid" id="thr-grid"></div>
-      <div class="result-meta" style="margin-top:14px;">${fmtNum(filtered.length)} threads shown</div>
+      <div class="result-meta" style="margin-top:14px;">${plural(filtered.length, "thread")} shown</div>
     </div></div>`;
 
   v.querySelectorAll(".thr-yr").forEach(b => {
