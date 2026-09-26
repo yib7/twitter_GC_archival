@@ -1555,21 +1555,30 @@ function runSearch() {
     const canFuzzy = F.fuzzy && window.Fuse;
     const qKey = F.needles.join("\u0001");
     if (fuzzyForceQ !== qKey) fuzzyForceQ = null;   // the opt-in is per query
-    if (!(canFuzzy && fuzzyForceQ)) {
-      // Literal substring AND-match, newest first.
-      for (let i = N - 1; i >= 0; i--) {
-        const L = LOWER[i];
-        let match = true;
-        for (const n of F.needles) if (L.indexOf(n) < 0) { match = false; break; }
-        if (match && testMsgNoNeedle(i)) out.push(i);
-      }
-      searchKind = canFuzzy ? "exact-first" : "exact";
+    // Literal substring AND-match, newest first — always the first tier.
+    for (let i = N - 1; i >= 0; i--) {
+      const L = LOWER[i];
+      let match = true;
+      for (const n of F.needles) if (L.indexOf(n) < 0) { match = false; break; }
+      if (match && testMsgNoNeedle(i)) out.push(i);
     }
+    searchKind = canFuzzy ? "exact-first" : "exact";
     if (canFuzzy && (fuzzyForceQ || !out.length)) {
+      const lit = out;
       fuzzyPattern = F.needles.join(" ");
       fuzzyRanges = new Map();
-      out = fuzzyMatch(fuzzyPattern).filter(testMsgNoNeedle);
-      searchKind = fuzzyForceQ ? "forced" : "fallback";
+      const fz = fuzzyMatch(fuzzyPattern).filter(testMsgNoNeedle);
+      if (fuzzyForceQ) {
+        // Opted in: literal hits first, then Fuse's close matches. A literal
+        // AND-hit Fuse can't score (reordered words, patterns over 32 chars)
+        // must never vanish because the user asked for MORE results.
+        const seen = new Set(lit);
+        out = lit.concat(fz.filter((i) => !seen.has(i)));
+        searchKind = "forced";
+      } else {
+        out = fz;
+        searchKind = "fallback";
+      }
     }
   } else {
     for (let i = N - 1; i >= 0; i--) if (testMsgNoNeedle(i)) out.push(i);

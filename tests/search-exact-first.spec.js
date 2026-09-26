@@ -20,13 +20,13 @@ const DATA = {
   }],
 };
 
-async function boot(page) {
+async function boot(page, data) {
   await page.addInitScript(() => {
     localStorage.setItem("gca.onboarded", "1");
     localStorage.removeItem("gca.lastView");
   });
   await page.route("**/data.sample.js", (route) =>
-    route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(DATA) + ";" }));
+    route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(data || DATA) + ";" }));
   await page.route("**/data.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
   await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
   await page.goto("/");
@@ -87,4 +87,32 @@ test("Exact mode never offers or runs fuzzy", async ({ page }) => {
   await expect(page.locator("#s-fuzzy-toggle")).toHaveCount(0);
   await search(page, "refrigirator");
   await expect(page.locator("#s-meta")).toContainText("0 messages found");
+});
+
+// SP3 review: "incl. close matches" must be literal hits PLUS Fuse's, not Fuse's
+// alone — a literal AND-hit Fuse can't score (reordered words, >32-char
+// patterns) used to vanish when the user opted in.
+const REORDER = {
+  __sample: true,
+  conversations: [{
+    id: "G", type: "group", title: "Ops", participants: ["u1", "u2"], count: 3,
+    msgs: [
+      { i: "r1", s: "u1", t: Date.parse("2024-03-01T10:00:00Z"), x: "the night we watched a movie outside" },
+      { i: "r2", s: "u2", t: Date.parse("2024-03-02T10:00:00Z"), x: "movie nite at mine" },
+      { i: "r3", s: "u1", t: Date.parse("2024-03-03T10:00:00Z"), x: "unrelated chatter" },
+    ],
+    events: [],
+  }],
+};
+test("forced close matches keep every literal hit, literal first", async ({ page }) => {
+  await boot(page, REORDER);
+  await search(page, "movie night");
+  await expect(page.locator("#s-list .msg")).toHaveCount(1);
+  await expect(page.locator("#s-list .msg")).toContainText("the night we watched a movie");
+  await page.locator("#s-fuzzy-toggle").click();
+  await expect(page.locator("#s-meta")).toContainText("incl. close matches");
+  // The reordered literal hit stays (first), and the close match joins it.
+  await expect(page.locator("#s-list .msg")).toHaveCount(2);
+  await expect(page.locator("#s-list .msg").first()).toContainText("the night we watched a movie");
+  await expect(page.locator("#s-list .msg").nth(1)).toContainText("movie nite");
 });
