@@ -238,34 +238,110 @@ const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
 // silently dropped on reload.
 const PFPS_KEY = "gca.pfps";
 const GC_KEY = "gca.gc";
-const DEFAULTS = {
+// Deep-frozen: every consumer gets its own copy via cloneDefaults(), so a
+// settings object can never alias (and later mutate) these arrays/maps — the
+// old Reset did `Object.assign({}, DEFAULTS, …)` and bookmarking afterwards
+// pushed straight into DEFAULTS.pins (VC-3).
+const DEFAULTS = deepFreeze({
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
   colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "UTC"
-};
+});
+const FONT_MIN = 13, FONT_MAX = 19;   // the Settings slider's range
+function deepFreeze(o) { Object.values(o).forEach((v) => { if (v && typeof v === "object") deepFreeze(v); }); return Object.freeze(o); }
+function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULTS)); }
+
+// P1-3: pfp/gc photo values reach the DOM as raw style="...url('...')" string
+// interpolation (pfpHtml) or as a CSSOM background-image (applyPfp/updateBrand).
+// Values written by the app itself (base64 data URLs, wizard-saved slug paths)
+// are always one of these two shapes; Import Settings / a hand-edited
+// gca.settings can carry anything, so validate the shape before a value is
+// trusted anywhere. Anything else collapses to "" (falsy), which every call
+// site already treats as "no photo" (initials fallback). Declared up here
+// (not next to the Settings view) because validateSettings() runs at boot.
+const PHOTO_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]*$/i;
+const PHOTO_PATH_RE = /^(?:personal_data|sample_media)\/[A-Za-z0-9._/-]+$/;
+function sanitizePhoto(v) {
+  if (typeof v !== "string") return "";
+  return (PHOTO_RE.test(v) || PHOTO_PATH_RE.test(v)) ? v : "";
+}
+// VC-5: colours are interpolated into style="…" attributes, so only a plain
+// hex colour (#rgb / #rrggbb / #rrggbbaa) is ever accepted; anything else is "".
+function sanitizeColor(v) {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(s) ? s : "";
+}
+
+// VC-5/VC-6: the ONE gate every settings object passes through — the persisted
+// gca.settings blob at boot (loadSettings) and an imported JSON file (Import).
+// Builds a fresh object from cloneDefaults() and copies over only fields whose
+// type/shape is valid, field by field; an invalid field falls back to its
+// default instead of throwing, so a malformed file can never brick boot
+// (applyTheme/shade used to throw on `accent: 123`) or inject markup.
+function validateSettings(raw) {
+  const src = isPlainObj(raw) ? raw : {};
+  const s = cloneDefaults();
+  s.names = cleanMap(src.names, (v) => (typeof v === "string" && v.trim() ? v : ""));
+  s.colors = cleanMap(src.colors, sanitizeColor);
+  s.pfps = cleanMap(src.pfps, sanitizePhoto);
+  s.gc = cleanMap(src.gc, (e) => {
+    if (!isPlainObj(e)) return null;
+    const out = {};
+    if (typeof e.name === "string" && e.name.trim()) out.name = e.name;
+    const p = sanitizePhoto(e.photo); if (p) out.photo = p;
+    return out;
+  });
+  s.gcName = typeof src.gcName === "string" ? src.gcName : "";
+  s.gcPhoto = sanitizePhoto(src.gcPhoto);
+  s.accent = sanitizeColor(src.accent) || DEFAULTS.accent;
+  const fs = typeof src.fontSize === "number" ? src.fontSize : (typeof src.fontSize === "string" && src.fontSize.trim() ? Number(src.fontSize) : NaN);
+  s.fontSize = isFinite(fs) ? Math.min(FONT_MAX, Math.max(FONT_MIN, Math.round(fs))) : DEFAULTS.fontSize;
+  s.density = (typeof src.density === "string" && Object.prototype.hasOwnProperty.call(DENSITY, src.density)) ? src.density : DEFAULTS.density;
+  s.avatars = typeof src.avatars === "boolean" ? src.avatars : DEFAULTS.avatars;
+  s.timestamps = typeof src.timestamps === "boolean" ? src.timestamps : DEFAULTS.timestamps;
+  s.me = (typeof src.me === "string" && src.me) || typeof src.me === "number" ? String(src.me) : null;
+  s.timezone = (typeof src.timezone === "string" && (src.timezone === "local" || isValidTimeZone(src.timezone))) ? src.timezone : DEFAULTS.timezone;
+  s.pins = Array.isArray(src.pins) ? src.pins.filter((p) => (typeof p === "string" && p) || typeof p === "number") : [];
+  s.ignoredUsers = idList(src.ignoredUsers);
+  s.ignoredGroups = idList(src.ignoredGroups);
+  s.saved = Array.isArray(src.saved) ? src.saved.map(cleanSaved).filter(Boolean) : [];
+  return s;
+}
+function isPlainObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
+// Copy an object map keeping only entries `fn` maps to a truthy value; never
+// copies prototype-polluting keys.
+function cleanMap(v, fn) {
+  const out = {};
+  if (!isPlainObj(v)) return out;
+  for (const k of Object.keys(v)) {
+    if (k === "__proto__" || k === "constructor" || k === "prototype") continue;
+    const val = fn(v[k]);
+    if (val) out[k] = val;
+  }
+  return out;
+}
+function idList(v) { return Array.isArray(v) ? v.filter((x) => (typeof x === "string" && x) || typeof x === "number").map(String) : []; }
+function cleanSaved(e) {
+  if (!isPlainObj(e) || typeof e.name !== "string" || !e.name.trim()) return null;
+  const f = isPlainObj(e.f) ? e.f : {};
+  const day = (d) => (typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : "");
+  return {
+    name: e.name, q: typeof e.q === "string" ? e.q : "",
+    f: { people: idList(f.people), from: day(f.from), to: day(f.to), media: f.media === true, links: f.links === true, reacts: f.reacts === true },
+  };
+}
+
 let settings = loadSettings();
 migratePfpsKey();
 initDateFormatters();
 function loadSettings() {
-  try {
-    const saved = JSON.parse(localStorage.getItem("gca.settings") || "{}");
-    const s = Object.assign({}, DEFAULTS, saved);
-    s.names = Object.assign({}, DEFAULTS.names, saved.names || {});
-    s.pfps = loadPfps(saved.pfps);
-    s.gc = loadGc(saved.gc);
-    s.colors = Object.assign({}, DEFAULTS.colors, saved.colors || {});
-    if (!s.me && LOCAL_ME) s.me = LOCAL_ME;   // honor the wizard's "this is you"
-    s.pins = Array.isArray(saved.pins) ? saved.pins.slice() : [];   // own array, never share DEFAULTS.pins
-    s.ignoredUsers = Array.isArray(saved.ignoredUsers) ? saved.ignoredUsers.map(String) : [];
-    s.ignoredGroups = Array.isArray(saved.ignoredGroups) ? saved.ignoredGroups.map(String) : [];
-    if (!Array.isArray(s.saved)) s.saved = [];
-    // A corrupt/ported settings blob can carry an unusable timezone; correct it
-    // here so both initDateFormatters and the settings UI see a sane value (P1-4).
-    if (s.timezone !== "local" && !isValidTimeZone(s.timezone)) s.timezone = "UTC";
-    return s;
-  } catch (e) { 
-    // clone deeply to prevent mutation
-    return JSON.parse(JSON.stringify(DEFAULTS)); 
-  }
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem("gca.settings") || "{}"); } catch (e) { saved = {}; }
+  if (!isPlainObj(saved)) saved = {};
+  // pfps + gc live under their own keys (legacy blobs kept them inline).
+  const s = validateSettings(Object.assign({}, saved, { pfps: loadPfps(saved.pfps), gc: loadGc(saved.gc) }));
+  if (!s.me && LOCAL_ME) s.me = LOCAL_ME;   // honor the wizard's "this is you"
+  return s;
 }
 // Profile-picture data URLs are bulky; persist them under their OWN localStorage
 // key so an over-quota photo can never block names/pins/saved searches from
@@ -432,7 +508,7 @@ function highlightRangesDOM(element, ranges) {
     parent.replaceChild(frag, textNode);
   });
 }
-function hexToRgb(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function hexToRgb(h) { h = String(h).replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); if (h.length === 8) h = h.slice(0, 6); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function hexA(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; const f = Math.abs(p) / 100; r = Math.round((t - r) * f + r); g = Math.round((t - g) * f + g); b = Math.round((t - b) * f + b); return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
 // hashId moved to src/shared-core.js (destructured at the top of this IIFE).
@@ -482,13 +558,13 @@ function animateCounts(rootEl) {
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
 // The viewer's colorOf honors a user-picked settings.colors override first, then
 // falls back to the shared palette lookup (paletteColor, from src/shared-core.js).
-function colorOf(id) { return settings.colors[id] || paletteColor(id); }
+function colorOf(id) { return sanitizeColor(settings.colors[id]) || paletteColor(id); }
 // X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
 // A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
 // (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
 const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
 function hueOf(id) {
-  const c = settings.colors[id];
+  const c = sanitizeColor(settings.colors[id]);
   if (c) return { p: c, f: shade(c, -20) };
   const h = HUES[hashId(id) % HUES.length];
   return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" };
@@ -610,7 +686,7 @@ function pfpHtml(id, styleStr) {
     return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background-image:url('${esc(photo)}');background-size:cover;background-position:center;background-repeat:no-repeat;"></span>`;
   }
   const hue = hueOf(id);
-  return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};--p:${hue.p};--f:${hue.f}">${esc(initials(nameOf(id)))}</span>`;
+  return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};--p:${esc(hue.p)};--f:${esc(hue.f)}">${esc(initials(nameOf(id)))}</span>`;
 }
 
 /* ---- Participants & derived stats (computed once) ------------------------ */
@@ -645,12 +721,16 @@ function applyTheme() {
   // Surfaces (bg/border/text) come from the html[data-theme] block in styles.css.
   // applyTheme only layers the user's customizable accent + font-size + density.
   const r = document.documentElement.style;
-  r.setProperty("--accent", settings.accent);
-  r.setProperty("--accent-hover", shade(settings.accent, -8));   // slightly darker (hover)
-  r.setProperty("--accent-deep", shade(settings.accent, -20));   // gradient deep end
-  r.setProperty("--accent-soft", shade(settings.accent, 25));    // lighter tint
-  r.setProperty("--accent-glow", hexA(settings.accent, 0.35));
-  r.setProperty("--font-size", settings.fontSize + "px");
+  // Defense in depth (VC-6): settings are validated on load/import, but never
+  // let a non-hex accent reach shade()/hexA() — they would throw and brick boot.
+  const accent = sanitizeColor(settings.accent) || DEFAULTS.accent;
+  r.setProperty("--accent", accent);
+  r.setProperty("--accent-hover", shade(accent, -8));   // slightly darker (hover)
+  r.setProperty("--accent-deep", shade(accent, -20));   // gradient deep end
+  r.setProperty("--accent-soft", shade(accent, 25));    // lighter tint
+  r.setProperty("--accent-glow", hexA(accent, 0.35));
+  const fs = +settings.fontSize;
+  r.setProperty("--font-size", (isFinite(fs) ? Math.min(FONT_MAX, Math.max(FONT_MIN, fs)) : DEFAULTS.fontSize) + "px");
   const dc = DENSITY[settings.density] || DENSITY.comfortable;
   r.setProperty("--gap", dc.gap); r.setProperty("--bubble-pad", dc.pad);
   const app = document.getElementById("app");
@@ -2344,7 +2424,7 @@ function renderStats() {
           { win: s.gamerWinner, title: "The Gamer", desc: fmtNum(s.gamerWinner.val) + " gamer terms" },
           { win: s.financeBroWinner, title: "Finance Bro", desc: fmtNum(s.financeBroWinner.val) + " crypto/stock terms" },
         ].filter(x => x.win && x.win.id && x.win.val > 0).map(x => `
-          <div class="card super" style="--p:${hueOf(x.win.id).p}">
+          <div class="card super" style="--p:${esc(hueOf(x.win.id).p)}">
             ${pfpHtml(x.win.id, "width:40px;height:40px;font-size:16px")}
             <div class="s-body">
               <div class="s-name">${esc(nameOf(x.win.id))}</div>
@@ -2746,20 +2826,6 @@ function buildExportPayload() {
   });
 }
 
-// P1-3: pfp/gc photo values reach the DOM as raw style="...url('...')" string
-// interpolation (pfpHtml) or as a CSSOM background-image (applyPfp/updateBrand).
-// Values written by the app itself (base64 data URLs, wizard-saved slug paths)
-// are always one of these two shapes; Import Settings assigns settings.pfps/
-// settings.gc verbatim from an arbitrary JSON file, so validate the shape
-// before a value is trusted anywhere. Anything else collapses to "" (falsy),
-// which every call site already treats as "no photo" (initials fallback).
-const PHOTO_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]*$/i;
-const PHOTO_PATH_RE = /^(?:personal_data|sample_media)\/[A-Za-z0-9._/-]+$/;
-function sanitizePhoto(v) {
-  if (typeof v !== "string") return "";
-  return (PHOTO_RE.test(v) || PHOTO_PATH_RE.test(v)) ? v : "";
-}
-
 function renderSettings() {
   const v = document.getElementById("view-settings");
   v.innerHTML = `<div class="page"><div class="page-head"><div class="page-title">Settings</div>
@@ -2768,7 +2834,7 @@ function renderSettings() {
 
       <div class="set-group">
         <div class="set-row"><div><div class="set-label">Accent color</div><div class="set-desc">Pick a preset shade or a custom color.</div></div>
-          <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" aria-label="Custom accent color" value="${esc(settings.accent)}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">${cmdIco("random")} Shuffle</button></div></div>
+          <div class="set-control"><div class="preset-swatches" id="set-accents"></div><input type="color" id="set-accent-custom" aria-label="Custom accent color" value="${esc(shade(sanitizeColor(settings.accent) || DEFAULTS.accent, 0))}"><button class="btn ghost sm" id="set-shuffle" title="Surprise me">${cmdIco("random")} Shuffle</button></div></div>
         <div class="set-row"><div><div class="set-label">Theme</div><div class="set-desc">X's Light, Dim, or Lights out.</div></div>
           <div class="set-control"><div class="seg" id="set-theme">
             <button data-v="light">Light</button><button data-v="dim">Dim</button><button data-v="lightsout">Lights out</button>
@@ -2938,63 +3004,49 @@ function renderSettings() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
-      try {
-        const imported = JSON.parse(ev.target.result);
-        if (imported && (imported.names || imported.colors || imported.accent || imported.gc)) {
-          // This replaces the current names, colors, saved searches and pins with
-          // no undo, so confirm before clobbering existing customizations.
-          if (!confirm("Import settings? This replaces your current names, colors, saved searches and pins.")) {
-            importFile.value = "";
-            return;
-          }
-          settings = Object.assign({}, DEFAULTS, imported);
-          settings.names = Object.assign({}, imported.names || {});
-          settings.colors = Object.assign({}, imported.colors || {});
-          // Untrusted file: validate every photo value's shape before it can ever
-          // reach a style="...url('...')" sink (P1-3). Anything that isn't a
-          // data: URL or a personal_data/sample_media-relative path is dropped.
-          const importedPfps = (imported.pfps && typeof imported.pfps === "object") ? imported.pfps : {};
-          settings.pfps = {};
-          for (const uid in importedPfps) {
-            const p = sanitizePhoto(importedPfps[uid]);
-            if (p) settings.pfps[uid] = p;
-          }
-          const importedGc = (imported.gc && typeof imported.gc === "object") ? imported.gc : {};
-          settings.gc = {};
-          for (const cid in importedGc) {
-            const entry = importedGc[cid] && typeof importedGc[cid] === "object" ? Object.assign({}, importedGc[cid]) : {};
-            const p = sanitizePhoto(entry.photo);
-            if (p) entry.photo = p; else delete entry.photo;
-            settings.gc[cid] = entry;
-          }
-          settings.ignoredUsers = Array.isArray(imported.ignoredUsers) ? imported.ignoredUsers.map(String) : [];
-          settings.ignoredGroups = Array.isArray(imported.ignoredGroups) ? imported.ignoredGroups.map(String) : [];
-          settings.saved = Array.isArray(imported.saved) ? imported.saved : [];
-          settings.pins = Array.isArray(imported.pins) ? imported.pins.slice() : [];
-          saveSettings(); savePfps(); saveGc();   // bulky photos live under their own keys
-          // rebuild the in-place PFPS map (a const reference used across the app)
-          for (const k in PFPS) delete PFPS[k];
-          Object.assign(PFPS, (typeof window !== "undefined" && window.LOCAL_PFPS) || {}, settings.pfps);
-          // if the active conversation was just hidden by an imported ignoredGroups,
-          // jump to a still-visible one so the viewer doesn't show a removed chat
-          if (CONV && ignoredGroupIds().has(String(CONV.id))) {
-            const vis = visibleConvos();
-            if (vis[0]) activateConversation(vis[0].id, true);
-          }
-          applyTheme();
-          renderConvPicker();
-          if (typeof updateBrand === "function") updateBrand();
-          renderSettings();
-          toast("Settings imported successfully");
-        } else {
-          toast("Invalid settings file");
-        }
-      } catch (err) {
-        toast("Error parsing settings file");
+      let imported;
+      try { imported = JSON.parse(ev.target.result); }
+      catch (err) { toast("Error parsing settings file"); importFile.value = ""; return; }
+      if (!(isPlainObj(imported) && (imported.names || imported.colors || imported.accent || imported.gc))) {
+        toast("Invalid settings file"); importFile.value = ""; return;
       }
+      // This replaces the current customizations with no undo, so confirm
+      // before clobbering them.
+      if (!confirm("Import settings? This replaces your current names, colors, saved searches, bookmarks, timezone and hidden people/groups.")) {
+        importFile.value = "";
+        return;
+      }
+      // VC-5/VC-6: validate BEFORE anything is saved or applied — an invalid
+      // field falls back to its default (never throws), a crafted colour or
+      // photo is dropped, so nothing bad ever reaches storage or the DOM.
+      settings = validateSettings(imported);
+      if (!settings.me && LOCAL_ME) settings.me = LOCAL_ME;   // same rule as loadSettings
+      saveSettings(); savePfps(); saveGc();   // bulky photos live under their own keys
+      importFile.value = "";
+      applySettingsChange();   // imported timezone + ignored people/groups take effect now
+      toast("Settings imported successfully");
     };
     reader.readAsText(file);
   };
+}
+// Settings were replaced wholesale (Import / Reset): re-derive everything that
+// reads them — photo map, date formatters (timezone), theme vars — then
+// re-activate the conversation, which re-filters MSGS for ignored people,
+// drops every derived cache, rebuilds brand / picker / sparkline and
+// re-renders the current view. A conversation that is now hidden is swapped
+// for the first still-visible one.
+function applySettingsChange() {
+  rebuildPfps();
+  initDateFormatters();
+  applyTheme();
+  let id = CONV && CONV.id;
+  if (id == null || ignoredGroupIds().has(String(id))) { const vis = visibleConvos(); id = vis[0] ? vis[0].id : id; }
+  activateConversation(id, true);
+}
+// PFPS is a const map used across the app; refill it in place.
+function rebuildPfps() {
+  for (const k in PFPS) delete PFPS[k];
+  Object.assign(PFPS, (typeof window !== "undefined" && window.LOCAL_PFPS) || {}, settings.pfps);
 }
 function segWire(seg, cur, cb) {
   seg.querySelectorAll("button").forEach((b) => {
@@ -3592,8 +3644,8 @@ function drawWrappedSlide() {
       const hue = hueOf(id);
       return `<div class="pl-row st"><span class="pl-rank">0${k + 1}</span>
         ${pfpHtml(id, "width:46px;height:46px;font-size:16px")}
-        <div class="pl-main"><div class="pl-name" style="--p:${hue.p}">${esc(nameOf(id))}</div>
-          <div class="pl-track"><div class="pl-fill" data-w="${Math.round((c / max) * 100)}" style="--p:${hue.p};--f:${hue.f}"></div></div></div>
+        <div class="pl-main"><div class="pl-name" style="--p:${esc(hue.p)}">${esc(nameOf(id))}</div>
+          <div class="pl-track"><div class="pl-fill" data-w="${Math.round((c / max) * 100)}" style="--p:${esc(hue.p)};--f:${esc(hue.f)}"></div></div></div>
         <div class="pl-val" data-count="${c}">${fmtNum(c)}</div></div>`;
     }).join("");
     inner = `<div class="wr-eyebrow st">Your loudest voices</div>${big}
@@ -4304,7 +4356,7 @@ function showOnThisDayToast() {
   otdToast.innerHTML = `
     <button class="otd-close" type="button" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="otd-head"><span class="otd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9a9 9 0 113 8.5M3.5 9V4.5M3.5 9H8M12 8v4.5l3 2"/></svg></span><span class="otd-title">On This Day</span><span class="otd-yr">${ago} year${ago > 1 ? "s" : ""} ago</span></div>
-    <div class="otd-body">${pfpHtml(m.s, "width:30px;height:30px;font-size:11px")}<div class="otd-q"><span class="otd-name" style="color:${hue.p}">${esc(nameOf(m.s))}</span> · “${esc(snippet)}${snippet.length >= 60 ? "…" : ""}”</div></div>
+    <div class="otd-body">${pfpHtml(m.s, "width:30px;height:30px;font-size:11px")}<div class="otd-q"><span class="otd-name" style="color:${esc(hue.p)}">${esc(nameOf(m.s))}</span> · “${esc(snippet)}${snippet.length >= 60 ? "…" : ""}”</div></div>
     <div class="otd-cta">Open Time Capsule <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>`;
   // The whole toast is one click target (→ Capsule); don't let the avatar's
   // global av-clickable handler stack a profile modal on top of the navigation.
@@ -4535,9 +4587,9 @@ function drawBattleResults() {
     else if (c2 > c1) wins2++;
   });
   html += `<div class="battle-summary">
-    <span style="color:${colorOf(battleP1)};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} wins</span>
+    <span style="color:${esc(colorOf(battleP1))};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} wins</span>
     <span style="color:var(--text-faint)">•</span>
-    <span style="color:${colorOf(battleP2)};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} wins</span>
+    <span style="color:${esc(colorOf(battleP2))};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} wins</span>
   </div>`;
 
   container.innerHTML = html;

@@ -1,0 +1,117 @@
+const { test, expect } = require("@playwright/test");
+const { bootViewer, msgs, conv, collectErrors } = require("./_viewer-fixture.js");
+
+// VC-5 / VC-6: settings reach the app from two untrusted places — the
+// persisted gca.settings blob and an imported JSON file — and neither was
+// validated. A crafted colour value was interpolated raw into style="…"
+// (markup injection into Hall of Fame / Threads / Battles / Cmd-K), and a
+// merely malformed value (accent: 123, colors: {u1: 5}) threw inside
+// applyTheme/shade and bricked boot permanently. Import also saved BEFORE the
+// throwing applyTheme ran, persisting the bad value, and never applied an
+// imported timezone or ignored-user list.
+
+const B = Date.parse("2024-03-10T02:30:00Z");   // 02:30 UTC = 22:30 on Mar 9 in New York
+const LIST = msgs("m", 12, { t0: B, extra: (k) => (k === 3 ? { r: [{ k: "funny", s: "u2" }] } : null) });
+const DATA = { conversations: [conv("A", "Alpha", LIST)] };
+const EVIL = 'red"><b id="injected">INJECTED</b><img src="x" onerror="window.__pwned=1" x="';
+
+async function importJson(page, doc) {
+  await page.locator('.nav-item[data-view="settings"]').click();
+  await page.locator("#set-import-file").setInputFiles({
+    name: "settings.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(doc)),
+  });
+}
+
+test("VC-5: an imported colour payload cannot inject markup into any view", async ({ page }) => {
+  page.on("dialog", (d) => d.accept());
+  await bootViewer(page, DATA);
+  await importJson(page, { names: { u1: "Bob" }, colors: { u1: EVIL, u2: "#ff0000" } });
+  await expect(page.locator(".toast")).toContainText("imported");
+  for (const v of ["hof", "threads", "battles", "stats", "people", "timeline"]) {
+    await page.locator('.nav-item[data-view="' + v + '"]').click();
+    await expect(page.locator("#view-" + v)).toBeVisible();
+    await expect(page.locator("#injected"), "view " + v).toHaveCount(0);
+  }
+  await page.keyboard.press("Control+k");
+  await expect(page.locator(".cmdk")).toBeVisible();
+  await expect(page.locator("#injected")).toHaveCount(0);
+  // The invalid colour never reached storage; the valid one did.
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("gca.settings")).colors);
+  expect(stored.u1).toBeUndefined();
+  expect(stored.u2).toBe("#ff0000");
+  expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+});
+
+test("VC-5: a crafted colour already in gca.settings is dropped on load", async ({ page }) => {
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "hof", "gca.settings": JSON.stringify({ colors: { u1: EVIL, u2: EVIL } }) } });
+  for (const v of ["hof", "threads", "battles"]) {
+    await page.locator('.nav-item[data-view="' + v + '"]').click();
+    await expect(page.locator("#view-" + v)).toBeVisible();
+    await expect(page.locator("#injected"), "view " + v).toHaveCount(0);
+  }
+});
+
+for (const bad of [{ accent: 123 }, { colors: { u1: 5 } }, { fontSize: "big" }, { density: "cosy", avatars: "yes" }, { saved: "nope", pins: { a: 1 } }, { names: ["x"], colors: null }]) {
+  test("VC-6: malformed persisted settings " + JSON.stringify(bad) + " fall back field-by-field instead of bricking boot", async ({ page }) => {
+    const errors = collectErrors(page);
+    await bootViewer(page, DATA, { ls: { "gca.settings": JSON.stringify(bad) } });
+    await expect(page.locator("#s-list .msg").first()).toBeVisible();
+    expect(errors).toEqual([]);
+    const acc = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--accent").trim());
+    expect(acc).toMatch(/^#[0-9a-f]{3,8}$/i);
+  });
+}
+
+test("VC-6: valid fields survive next to invalid ones", async ({ page }) => {
+  await bootViewer(page, DATA, { local: 'window.LOCAL_NAMES = {"u1":"Alice","u2":"Bob"};',
+    ls: { "gca.settings": JSON.stringify({ accent: "nope", names: { u1: "Zed" }, fontSize: 99, pins: ["m1"] }) } });
+  await expect(page.locator("#s-list .msg-name", { hasText: "Zed" }).first()).toBeVisible();
+  const fs = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--font-size").trim());
+  expect(fs).toBe("19px");   // clamped to the slider's max, not dropped
+  await page.locator('.nav-item[data-view="pins"]').click();
+  await expect(page.locator("#view-pins .msg")).toHaveCount(1);
+});
+
+test("VC-6: a malformed import is validated BEFORE it is saved, and the app keeps working", async ({ page }) => {
+  const errors = collectErrors(page);
+  page.on("dialog", (d) => d.accept());
+  await bootViewer(page, DATA);
+  await importJson(page, { accent: 123, colors: { u1: 5 }, names: { u1: "Imported" }, fontSize: "big" });
+  await expect(page.locator(".toast")).toContainText("imported");
+  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("gca.settings")));
+  expect(stored.accent).toBe("#1d9bf0");
+  expect(stored.colors).toEqual({});
+  expect(stored.fontSize).toBe(15);
+  expect(stored.names.u1).toBe("Imported");
+  await page.reload();
+  await expect(page.locator("#app")).toBeVisible();
+  await page.locator('.nav-item[data-view="search"]').click();
+  await expect(page.locator("#s-list .msg").first()).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("VC-6: an imported timezone is validated and applied immediately", async ({ page }) => {
+  page.on("dialog", (d) => d.accept());
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "search" } });
+  await expect(page.locator("#s-list .msg-time").first()).toContainText("Mar 10, 2024");
+  await importJson(page, { names: {}, timezone: "America/New_York" });
+  await expect(page.locator(".toast")).toContainText("imported");
+  await expect(page.locator("#set-tz")).toHaveValue("America/New_York");
+  await page.locator('.nav-item[data-view="search"]').click();
+  await expect(page.locator("#s-list .msg-time").first()).toContainText("Mar 9, 2024");
+
+  await importJson(page, { names: {}, timezone: "Not/AZone" });
+  await expect(page.locator("#set-tz")).toHaveValue("UTC");
+});
+
+test("VC-6: imported ignored users are filtered out right away", async ({ page }) => {
+  page.on("dialog", (d) => d.accept());
+  await bootViewer(page, DATA, { local: 'window.LOCAL_NAMES = {"u1":"Alice","u2":"Bob"};' });
+  await expect(page.locator("#s-list .msg-name", { hasText: "Bob" }).first()).toBeVisible();
+  await importJson(page, { names: { u1: "Alice", u2: "Bob" }, ignoredUsers: ["u2"] });
+  await expect(page.locator(".toast")).toContainText("imported");
+  await page.locator('.nav-item[data-view="search"]').click();
+  await expect(page.locator("#s-list .msg").first()).toBeVisible();
+  await expect(page.locator("#s-list .msg-name", { hasText: "Bob" })).toHaveCount(0);
+});
+
