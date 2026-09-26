@@ -1,10 +1,11 @@
+require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout — required first, consistently
 const { test, after } = require("node:test");
 const assert = require("node:assert");
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-require("./_real-data-guard.js");
+const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — see that file
 
 // QA-1: the host-guard/prefill test harness used to pick a RANDOM port from a
 // range that includes ports a real user (or Playwright's own webServer) might
@@ -25,19 +26,6 @@ require("./_real-data-guard.js");
 // startup line still prints the literal "0" the env var was set to, and (b)
 // every request the test would then send gets rejected 403 by the Host guard,
 // which compares the incoming Host header's port against that same wrong "0".
-function waitForBootLine(child, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    let out = "";
-    const timer = setTimeout(() => reject(new Error("server did not print its bound port within " + timeoutMs + "ms; stdout so far:\n" + out)), timeoutMs);
-    child.stdout.on("data", (chunk) => {
-      out += chunk.toString("utf8");
-      const m = /Group Chat Archive running at\s+http:\/\/127\.0\.0\.1:(\d+)/.exec(out);
-      if (m) { clearTimeout(timer); resolve(Number(m[1])); }
-    });
-    child.on("exit", (code) => { clearTimeout(timer); reject(new Error("server exited early with code " + code + "; stdout:\n" + out)); });
-  });
-}
-
 let tmpDir;
 let serverProc;
 

@@ -1,8 +1,10 @@
+require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout — required first, consistently, even though Playwright already ran it once at the top of playwright.config.js in this same worker process
 const { test, expect } = require("@playwright/test");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — see that file
 
 // Regression coverage for P1-1: apiIdentity used to overwrite cfg.names/local.js
 // verbatim from the POST body, so reopening the wizard and saving again (with
@@ -31,20 +33,6 @@ let BASE;
 let tmpDir;
 let exportDir;
 let serverProc;
-
-function waitForBootLine(child, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    let out = "";
-    const timer = setTimeout(() => reject(new Error("server did not print its bound port within " + timeoutMs + "ms; stdout so far:\n" + out)), timeoutMs);
-    const onData = (chunk) => {
-      out += chunk.toString("utf8");
-      const m = /Group Chat Archive running at\s+http:\/\/127\.0\.0\.1:(\d+)/.exec(out);
-      if (m) { clearTimeout(timer); child.stdout.off("data", onData); resolve(Number(m[1])); }
-    };
-    child.stdout.on("data", onData);
-    child.on("exit", (code) => { clearTimeout(timer); reject(new Error("server exited early with code " + code + "; stdout:\n" + out)); });
-  });
-}
 
 test.beforeAll(async () => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "gca-prefill-"));

@@ -88,7 +88,7 @@ function sendJSON(res, code, obj) {
   res.writeHead(code, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
   res.end(body);
 }
-function readBody(req) {
+function readBody(req, res) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
@@ -107,6 +107,17 @@ function readBody(req) {
         // draining the rest of the oversized body, so the response actually
         // reaches the client. Bounded memory is still guaranteed: nothing past
         // the cap is ever pushed onto `chunks`.
+        //
+        // Review fix: draining is only meant to last long enough for the 413
+        // to reach the client — a slow/unbounded/never-ending body (a stalled
+        // upload, or deliberately, a slowloris-style client that just never
+        // sends 'end') would otherwise keep this connection — and its socket —
+        // open forever, even though the response was fully sent ages ago.
+        // res's "finish" event fires only once the 413 has actually been
+        // flushed to the client (unlike destroying req synchronously here,
+        // which is the exact bug the note above describes), so closing the
+        // connection there is safe and bounds the connection's lifetime too.
+        if (res) res.once("finish", () => req.destroy());
         reject(httpError(413, "Request body is too large."));
         return;
       }
@@ -543,9 +554,9 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/ping") { notePing(); return sendJSON(res, 200, { ok: true }); }
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
-    if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req), res);
+    if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
-    if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req), res);
+    if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/status") return apiStatus(res);
     if (req.method === "POST" && url === "/api/reset") return apiReset(res);
   } catch (e) {
