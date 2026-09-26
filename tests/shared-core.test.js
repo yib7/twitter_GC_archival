@@ -17,6 +17,7 @@
 // implementation of the (fixed, deterministic) algorithm — not from the module
 // under test — so they genuinely constrain its behavior.
 
+require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");

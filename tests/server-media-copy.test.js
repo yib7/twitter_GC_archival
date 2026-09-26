@@ -1,3 +1,4 @@
+require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
