@@ -303,7 +303,10 @@ function timeAgg() {
     if (c > busy[1]) busy = [key, c];
   }
   const monthArr = [];
-  for (let k = 0; k < monthCounts.length; k++) if (monthCounts[k]) monthArr.push([monthKeyStr(mMin + k), monthCounts[k]]);
+  // AN-6: every month from the first to the last, silent months as 0 — the
+  // months chart, hero / sidebar sparklines and keyword trend all read this,
+  // so a gap never draws as consecutive months.
+  for (let k = 0; k < monthCounts.length; k++) monthArr.push([monthKeyStr(mMin + k), monthCounts[k]]);
   TI.agg = { dayMin: n ? dMin : 0, dayCounts, days, daysActive, busy, monthArr, hourCount, weekdayCount };
   return TI.agg;
 }
@@ -3839,11 +3842,9 @@ function buildSidebarSparkline() {
   const foot = document.getElementById("sidebar-spark");
   if (!foot) return;
   foot.innerHTML = "";
-  // Monthly counts on the zoned time index's year*12+month keys, which sort
-  // chronologically as plain numbers.
-  const TI = timeIndex(), months = new Map();
-  for (let i = 0; i < N; i++) months.set(TI.monthKey[i], (months.get(TI.monthKey[i]) || 0) + 1);
-  const vals = [...months.keys()].sort((a, b) => a - b).map((k) => months.get(k));
+  // Monthly counts from the zoned time-index aggregate — zero-filled (AN-6),
+  // the same series as the Stats months chart.
+  const vals = timeAgg().monthArr.map((m) => m[1]);
   if (vals.length < 2) return;
   const W = 240, H = 38, max = Math.max(...vals);
   const step = W / (vals.length - 1);
