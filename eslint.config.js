@@ -54,9 +54,19 @@ module.exports = [
       // — but Playwright's forbidOnly (playwright.config.js) only fires in CI,
       // and either way a reviewer scanning a diff should never have to notice
       // a stray `.only` by eye. Fail lint on it everywhere, always.
-      "no-restricted-properties": ["error",
-        { object: "test", property: "only", message: "Remove .only before committing — it silently narrows the suite (see QA-10)." },
-        { object: "describe", property: "only", message: "Remove .only before committing — it silently narrows the suite (see QA-10)." },
+      //
+      // Review fix: no-restricted-properties only matches a simple
+      // `Identifier.property` shape (a bare `object` name) — it cannot see
+      // `test.describe.only`, because the "object" side of that `.only`
+      // access is itself the MemberExpression `test.describe`, not a plain
+      // identifier. no-restricted-syntax with an AST selector matches the
+      // `.only` MemberExpression directly, regardless of what's on its left,
+      // so test.only / describe.only / test.describe.only are all caught.
+      "no-restricted-syntax": ["error",
+        {
+          selector: "MemberExpression[property.name='only']",
+          message: "Remove .only before committing — it silently narrows the suite (see QA-10).",
+        },
       ],
     },
   },
