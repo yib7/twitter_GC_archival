@@ -986,13 +986,23 @@ function renderMsg(i, opts) {
   if (m.r) body.appendChild(renderReacts(m.r));
   wrap.appendChild(body);
 
-  if (opts.clickable) {
-    wrap.tabIndex = 0;
-    wrap.setAttribute("role", "button");
-    wrap.addEventListener("click", () => jumpTo(i));
-    wrap.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); jumpTo(i); } });
-  }
+  if (opts.clickable) cardActivation(wrap, () => jumpTo(i));
   return wrap;
+}
+// VC-8: a whole-card click/Enter target (Search results, bookmark cards) must
+// not hijack its interactive children — a link opens only the link, an avatar
+// only the profile, a video only plays, and Enter on a focused link follows
+// the link. The card acts on clicks that land on its own non-interactive
+// parts, and on Enter/Space only while the card itself has focus.
+const CARD_CHILD_SEL = "a, button, input, select, textarea, video, .av-clickable";
+function cardActivation(wrap, go) {
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "button");
+  wrap.addEventListener("click", (e) => { if (e.target.closest(CARD_CHILD_SEL)) return; go(); });
+  wrap.addEventListener("keydown", (e) => {
+    if (e.target !== wrap) return;
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+  });
 }
 function renderMedia(m, i) {
   const d = el("div", "media");
@@ -4128,10 +4138,7 @@ function renderForeignPin(conv, m) {
   if (m.r) body.appendChild(renderReacts(m.r));
   wrap.appendChild(body);
 
-  wrap.tabIndex = 0;
-  wrap.setAttribute("role", "button");
-  wrap.addEventListener("click", go);
-  wrap.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+  cardActivation(wrap, go);
   return wrap;
 }
 
