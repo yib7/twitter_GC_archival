@@ -651,15 +651,6 @@ function closeTopModal() {
 }
 
 /* ---- Time → index (binary search; MSGS is sorted ascending by t) --------- */
-function indexForTime(t) {
-  let lo = 0, hi = N - 1, ans = 0;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (MSGS[mid].t <= t) { ans = mid; lo = mid + 1; }
-    else hi = mid - 1;
-  }
-  return ans;
-}
 // First message index on/after the given date string (YYYY-MM-DD), interpreted
 // as start-of-day in the configured zone so it matches the on-screen day labels.
 function indexForDate(dateStr) {
@@ -720,8 +711,10 @@ function computeParticipants() {
   const map = new Map();
   for (let i = 0; i < N; i++) {
     const m = MSGS[i]; let p = map.get(m.s);
-    if (!p) { p = { id: m.s, count: 0, first: m.t, last: m.t, samples: [], media: [] }; map.set(m.s, p); }
-    p.count++; if (m.t < p.first) p.first = m.t; if (m.t > p.last) p.last = m.t;
+    // firstIdx (VC-23): the index of their first message. Looking it up by
+    // time later is wrong when timestamps tie (it lands on whoever is last).
+    if (!p) { p = { id: m.s, count: 0, first: m.t, firstIdx: i, last: m.t, samples: [], media: [] }; map.set(m.s, p); }
+    p.count++; if (m.t < p.first) { p.first = m.t; p.firstIdx = i; } if (m.t > p.last) p.last = m.t;
     if (p.samples.length < 120) { const t = (m.x || "").trim(); if (t.length > 14 && !/^https?:/.test(t) && !X_LINK.test(t)) p.samples.push(t); }
     if (m.m && p.media.length < 6) p.media.push({ m: m.m, k: m.k });
   }
@@ -4370,7 +4363,7 @@ function buildCommands() {
   }});
   cmds.push({ ico: "random", label: "Shuffle theme (surprise me)", sub: "Random theme + accent combo", hint: "Theme", run: () => shuffleTheme() });
   // People → jump to their first message
-  PARTS.forEach((p) => cmds.push({ ico: "people", pid: p.id, label: "Go to " + nameOf(p.id) + "'s first message", sub: "Jump to their first message", hint: "Person", run: () => jumpTo(indexForTime(p.first)) }));
+  PARTS.forEach((p) => cmds.push({ ico: "people", pid: p.id, label: "Go to " + nameOf(p.id) + "'s first message", sub: "Jump to their first message", hint: "Person", run: () => jumpTo(p.firstIdx) }));
   // Saved searches
   (settings.saved || []).forEach((s) => cmds.push({ ico: "saved", label: "Search: " + s.name, sub: s.q || "Filters only", hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
   return cmds;
