@@ -264,30 +264,56 @@ describe("QA-13: destructive & security-sensitive route coverage", () => {
         socket.write(Buffer.alloc(sentLen, 0x61));
       });
       let sawStatus413 = false;
+      let sawConnectionClose = false;
+      let head = "";
       let settled = false;
-      // Deliberately well under Node's own default server.keepAliveTimeout
-      // (5000ms) — that default WILL eventually reap an idle keep-alive
-      // connection on its own, so a generous timeout here would pass even
-      // without the fix (it did, at ~6s, when this was sabotaged for RED
-      // verification). The fix closes the connection as soon as the 413's
-      // res "finish" event fires — well under a second — so 2000ms cleanly
-      // separates "closed because of the fix" from "closed because Node
-      // eventually gave up anyway".
-      const timer = setTimeout(() => {
+      let closeTimer = null;
+      const fail = (err) => {
         if (settled) return;
         settled = true;
-        reject(new Error("server never closed the connection after the 413 — still draining a body declared as " + declaredLen + " bytes"));
-      }, 2000);
+        clearTimeout(uploadTimer);
+        clearTimeout(closeTimer);
+        reject(err);
+      };
+      // SP2 carry-over (review of SP1): the close bound used to be measured
+      // from UPLOAD START, so a slow machine that simply took >2s to push the
+      // 65 MB body would fail even with the fix in place. The upload itself
+      // gets a generous budget; the tight bound below starts only once the
+      // 413 has actually been seen.
+      const uploadTimer = setTimeout(() => {
+        fail(new Error("never saw a 413 while uploading past the 64 MB cap"));
+      }, 30000);
       socket.on("data", (chunk) => {
-        if (chunk.toString("utf8").includes(" 413 ")) sawStatus413 = true;
+        if (sawStatus413) return;
+        head += chunk.toString("latin1");
+        if (!head.includes(" 413 ")) return;
+        sawStatus413 = true;
+        // The 413 must tell the client the connection is going away — without
+        // it, a Linux/macOS peer can see the server's close as a RST that
+        // discards the not-yet-read 413 (the original reset-mid-upload bug).
+        sawConnectionClose = /\r\nconnection:\s*close\r\n/i.test(head.split("\r\n\r\n")[0] + "\r\n");
+        // Deliberately well under Node's own default server.keepAliveTimeout
+        // (5000ms) — that default WILL eventually reap an idle keep-alive
+        // connection on its own, so a generous timeout here would pass even
+        // without the fix (it did, at ~6s, when this was sabotaged for RED
+        // verification). The fix closes the connection within ~1s of the 413
+        // (Connection: close + a short grace timer), so 2500ms measured from
+        // the 413 cleanly separates "closed because of the fix" from "closed
+        // because Node eventually gave up anyway".
+        closeTimer = setTimeout(() => {
+          fail(new Error("server never closed the connection after the 413 — still draining a body declared as " + declaredLen + " bytes"));
+        }, 2500);
       });
-      socket.on("close", () => {
+      const done = () => {
         if (settled) return;
+        if (!sawStatus413) return fail(new Error("connection closed before the 413 response was ever seen"));
+        if (!sawConnectionClose) return fail(new Error("the 413 response did not carry `Connection: close`"));
         settled = true;
-        clearTimeout(timer);
-        if (!sawStatus413) return reject(new Error("connection closed before the 413 response was ever seen"));
+        clearTimeout(uploadTimer);
+        clearTimeout(closeTimer);
         resolve();
-      });
+      };
+      socket.on("close", done);
       // Actively closing a still-open connection (req.destroy(), the fix under
       // test) tears down BOTH directions at once, which can surface here as an
       // abrupt ECONNRESET/EPIPE — this test is still mid-write of its 65 MB
@@ -296,10 +322,8 @@ describe("QA-13: destructive & security-sensitive route coverage", () => {
       // forever), as long as it happened after the 413 was actually seen.
       socket.on("error", (e) => {
         if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        if (sawStatus413 && (e.code === "ECONNRESET" || e.code === "EPIPE")) return resolve();
-        reject(e);
+        if (sawStatus413 && (e.code === "ECONNRESET" || e.code === "EPIPE")) return done();
+        fail(e);
       });
     });
   });

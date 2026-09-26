@@ -117,7 +117,22 @@ function readBody(req, res) {
         // flushed to the client (unlike destroying req synchronously here,
         // which is the exact bug the note above describes), so closing the
         // connection there is safe and bounds the connection's lifetime too.
-        if (res) res.once("finish", () => req.destroy());
+        //
+        // SP2 carry-over: destroying on "finish" itself was still too early
+        // on Linux/macOS — "finish" means handed to the kernel, not read by
+        // the peer, and closing a socket that still has unread request bytes
+        // makes the kernel send a RST, which can discard the 413 before the
+        // client reads it. So: advertise `Connection: close` (Node then
+        // half-closes gracefully with a FIN once the 413 is flushed) and only
+        // hard-destroy after a short grace period, which still bounds a
+        // never-ending upload's lifetime.
+        if (res) {
+          if (!res.headersSent) res.setHeader("Connection", "close");
+          res.once("finish", () => {
+            const t = setTimeout(() => req.destroy(), 1000);
+            if (t.unref) t.unref();
+          });
+        }
         reject(httpError(413, "Request body is too large."));
         return;
       }

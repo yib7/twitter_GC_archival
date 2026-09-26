@@ -11,9 +11,7 @@
 require("./tests/_real-data-guard.js");
 
 const { defineConfig } = require("@playwright/test");
-const fs = require("fs");
-const os = require("os");
-const path = require("path");
+const { ensureE2EPersonalDir } = require("./tests/_e2e-personal-dir.js");
 
 // QA-2/SP-16: the shared webServer used to run on the user's own archive port
 // (8765) with no GCA_PERSONAL and `reuseExistingServer: !process.env.CI` — run
@@ -35,8 +33,10 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL || ("http://127.0.0.1:" + TEST_P
 // into the OS temp dir. `||=` makes only the FIRST evaluation (the test
 // runner's own process, which sets env vars workers inherit) create the dir;
 // every worker's re-evaluation sees GCA_E2E_PERSONAL_DIR already set and reuses it.
-process.env.GCA_E2E_PERSONAL_DIR ||= fs.mkdtempSync(path.join(os.tmpdir(), "gca-e2e-personal-"));
-const testPersonalDir = process.env.GCA_E2E_PERSONAL_DIR;
+// SP2 carry-over: an inherited value is only reused when it is a direct child
+// of os.tmpdir() named gca-e2e-personal-* (see tests/_e2e-personal-dir.js) —
+// a stray GCA_E2E_PERSONAL_DIR pointing anywhere else is never served.
+const testPersonalDir = ensureE2EPersonalDir();
 
 module.exports = defineConfig({
   testDir: "./tests",

@@ -22,10 +22,11 @@ const fs = require("node:fs");
 // GCA_E2E_PERSONAL_DIR (the MINOR leak fix) applies here too and must be
 // cleaned up the same way globalTeardown would.
 const cfg = require("../playwright.config.js");
+const { isOwnE2EPersonalDir } = require("./_e2e-personal-dir.js");
 
 after(() => {
   const dir = process.env.GCA_E2E_PERSONAL_DIR;
-  if (dir) fs.rmSync(dir, { recursive: true, force: true });
+  if (isOwnE2EPersonalDir(dir)) fs.rmSync(dir, { recursive: true, force: true });
 });
 
 test("playwright.config.js never reuses a stray already-running server", () => {
