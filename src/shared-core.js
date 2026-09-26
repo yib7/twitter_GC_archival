@@ -333,11 +333,15 @@
   const RE_APOS = /[\u2018\u2019\u02BC\uFF07]/g, RE_HAS_APOS = /[\u2018\u2019\u02BC\uFF07]/;
   const RE_URL_HINT = /https?:|www\./i;
   // Bare domains ("youtube.com/watch?v=…", "youtu.be/x", "reddit.com") — a
-  // closed list of TLDs that are not everyday words, so "ok.so" / "done.to"
-  // (a missing space after a full stop) stay text.
-  const DOMAIN_TLDS = "com|net|org|io|co|be|tv|gg|ly|app|dev|ai|uk|ca|de|fr|jp|ru|info|biz|xyz|fm|gl|edu|gov";
-  const RE_DOMAIN_HINT = new RegExp("\\.(?:" + DOMAIN_TLDS + ")(?![\\p{L}\\p{N}_-])", "iu");
-  const RE_DOMAIN = new RegExp("(^|[^\\p{L}\\p{N}._-])(?:[\\p{L}\\p{N}-]+\\.)+(?:" + DOMAIN_TLDS + ")(?![\\p{L}\\p{N}_-])(?:\\/\\S*)?", "giu");
+  // closed list of lowercase TLDs, matched case-sensitively, so a missing
+  // space after a full stop stays text: "ok.so", "done.to", "agree.Be". The
+  // 2-letter TLDs are everyday words too ("lol.ai is wild"), so they only
+  // count with a path ("t.co/…", "youtu.be/…"); "www." links go with RE_URL.
+  const DOMAIN_TLDS = "com|net|org|app|dev|info|biz|xyz|edu|gov";
+  const DOMAIN_TLDS_SHORT = "io|co|be|tv|gg|ly|ai|uk|ca|de|fr|jp|ru|fm|gl";
+  const DOMAIN_END = "(?:(?:" + DOMAIN_TLDS + ")(?![\\p{L}\\p{N}_-])(?:\\/\\S*)?|(?:" + DOMAIN_TLDS_SHORT + ")\\/\\S*)";
+  const RE_DOMAIN_HINT = new RegExp("\\.(?:(?:" + DOMAIN_TLDS + ")(?![\\p{L}\\p{N}_-])|(?:" + DOMAIN_TLDS_SHORT + ")\\/)", "u");
+  const RE_DOMAIN = new RegExp("(^|[^\\p{L}\\p{N}._-])(?:[\\p{L}\\p{N}-]+\\.)+" + DOMAIN_END, "gu");
   // @mentions (X handles: letters, digits, underscore) not inside a word, so
   // an email's "me@" survives while its domain goes with RE_DOMAIN.
   const RE_MENTION = /(^|[^\p{L}\p{N}_])@[A-Za-z0-9_]+/gu;

@@ -78,6 +78,17 @@ test("tokenize: @mentions and bare domains are dropped too (review fix 2)", () =
   assert.equal(S.plainText("hi @bob"), "hi  ");
 });
 
+test("tokenize: a missing space before a short TLD-like word keeps both words (review round 2)", () => {
+  assert.deepStrictEqual(S.tokenize("I agree.Be there"), ["i", "agree", "be", "there"]);
+  assert.deepStrictEqual(S.tokenize("sentence.De nada"), ["sentence", "de", "nada"]);
+  assert.deepStrictEqual(S.tokenize("lol.ai is wild"), ["lol", "ai", "is", "wild"]);
+  assert.equal(S.countLaughs(S.plainText("lol.ai is wild")), 1);
+  // Real links still go: long TLDs bare, 2-letter ones with a path.
+  assert.deepStrictEqual(S.tokenize("see youtube.com/watch?v=abc now"), ["see", "now"]);
+  assert.deepStrictEqual(S.tokenize("see reddit.com now"), ["see", "now"]);
+  assert.deepStrictEqual(S.tokenize("go youtu.be/xyz t.co/abc bit.ly/q now"), ["go", "now"]);
+});
+
 test("tokenize: non-Latin scripts and accents survive", () => {
   assert.deepStrictEqual(S.tokenize("привет как дела"), ["привет", "как", "дела"]);
   assert.deepStrictEqual(S.tokenize("café naïve"), ["café", "naïve"]);
