@@ -121,6 +121,112 @@
     }
     return { zone: tz, mode, offset, stats: () => ({ exact: exactCalls, days: perDay.size }) };
   }
+
+  /* ---- Fuzzy-search prefilter (VC-18 / SP3) ----------------------------------
+     Fuse.js (threshold t, ignoreLocation) matches a text when some substring of
+     it is within k = max{e < m : e/m <= t} edits of the length-m pattern (Bitap,
+     insert/delete/substitute). By the q-gram lemma such a text contains at
+     least (m-1) - 2k of the pattern's bigram POSITIONS, since each edit breaks at
+     most two. createBigramIndex builds an inverted index (bigram -> ascending
+     message indices, CSR layout) over the texts; fuzzyCandidates returns the
+     messages that pass that bound, so Fuse only scores texts that can match.
+     Characters are folded to 38 symbols (a-z, 0-9, space, "other"); folding
+     can only let MORE texts through, never fewer, so the filter stays exact.
+     Patterns over 32 chars follow Fuse's own 32-char chunking (a text matches
+     when any chunk does), so the candidate sets are unioned per chunk.
+       createBigramIndex(texts) -> { n, start: Int32Array(B+1), post: Int32Array }
+       createBigramIndex.steps(texts, shouldYield) — the same build as a generator
+         that yields whenever shouldYield() is true (checked every 1024 texts)
+       fuzzyCandidates(index, pattern, threshold) -> Int32Array | null (null = no
+         pruning possible for this pattern, e.g. 1-2 chars: search everything) */
+  const BG_S = 38, BG_B = BG_S * BG_S, FUSE_MAX_BITS = 32;
+  function bgSym(c) {
+    if (c >= 97 && c <= 122) return c - 97;
+    if (c >= 65 && c <= 90) return c - 65;
+    if (c >= 48 && c <= 57) return 26 + c - 48;
+    return c === 32 ? 36 : 37;
+  }
+  function* bigramIndexSteps(texts, shouldYield) {
+    const n = texts.length;
+    const stamp = new Int32Array(BG_B), count = new Int32Array(BG_B);
+    for (let i = 0; i < n; i++) {
+      if ((i & 1023) === 1023 && shouldYield && shouldYield()) yield;
+      const t = texts[i] || "";
+      let prev = t.length ? bgSym(t.charCodeAt(0)) : 0;
+      for (let j = 1; j < t.length; j++) {
+        const cur = bgSym(t.charCodeAt(j)), b = prev * BG_S + cur;
+        if (stamp[b] !== i + 1) { stamp[b] = i + 1; count[b]++; }
+        prev = cur;
+      }
+    }
+    const start = new Int32Array(BG_B + 1);
+    for (let b = 0; b < BG_B; b++) start[b + 1] = start[b] + count[b];
+    const post = new Int32Array(start[BG_B]);
+    const fill = start.slice(0, BG_B);
+    stamp.fill(0);
+    for (let i = 0; i < n; i++) {
+      if ((i & 1023) === 1023 && shouldYield && shouldYield()) yield;
+      const t = texts[i] || "";
+      let prev = t.length ? bgSym(t.charCodeAt(0)) : 0;
+      for (let j = 1; j < t.length; j++) {
+        const cur = bgSym(t.charCodeAt(j)), b = prev * BG_S + cur;
+        if (stamp[b] !== i + 1) { stamp[b] = i + 1; post[fill[b]++] = i; }
+        prev = cur;
+      }
+    }
+    return { n, start, post };
+  }
+  function createBigramIndex(texts) {
+    const g = bigramIndexSteps(texts, null);
+    let r;
+    do { r = g.next(); } while (!r.done);
+    return r.value;
+  }
+  createBigramIndex.steps = bigramIndexSteps;
+  // One Fuse chunk: a Uint8Array membership mask of the candidates, or null.
+  function chunkCandidates(index, p, threshold) {
+    const m = p.length;
+    let k = 0;
+    while (k + 1 < m && (k + 1) / m <= threshold) k++;
+    const need = (m - 1) - 2 * k;
+    if (need <= 0) return null;
+    const w = new Map();
+    for (let j = 0; j + 1 < m; j++) {
+      const b = bgSym(p.charCodeAt(j)) * BG_S + bgSym(p.charCodeAt(j + 1));
+      w.set(b, (w.get(b) || 0) + 1);
+    }
+    const cnt = new Uint8Array(index.n);
+    for (const [b, wt] of w) {
+      const { start, post } = index;
+      for (let q = start[b], e = start[b + 1]; q < e; q++) cnt[post[q]] += wt;
+    }
+    for (let i = 0; i < cnt.length; i++) cnt[i] = cnt[i] >= need ? 1 : 0;
+    return cnt;
+  }
+  function fuzzyCandidates(index, pattern, threshold) {
+    const pat = String(pattern || "").toLowerCase();
+    const m = pat.length;
+    if (!m) return null;
+    // Fuse's chunking (BitapSearch): 32-char chunks from 0, plus the LAST 32
+    // chars when the length isn't a multiple of 32.
+    const chunks = [];
+    if (m > FUSE_MAX_BITS) {
+      const rem = m % FUSE_MAX_BITS, end = m - rem;
+      for (let w = 0; w < end; w += FUSE_MAX_BITS) chunks.push(pat.substr(w, FUSE_MAX_BITS));
+      if (rem) chunks.push(pat.substr(m - FUSE_MAX_BITS));
+    } else chunks.push(pat);
+    let mask = null;
+    for (const c of chunks) {
+      const cm = chunkCandidates(index, c, threshold);
+      if (!cm) return null;
+      if (!mask) mask = cm; else for (let i = 0; i < mask.length; i++) mask[i] |= cm[i];
+    }
+    let total = 0;
+    for (let i = 0; i < mask.length; i++) total += mask[i];
+    const out = new Int32Array(total);
+    for (let i = 0, o = 0; i < mask.length; i++) if (mask[i]) out[o++] = i;
+    return out;
+  }
   function isPlainObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
   // Copy an object map keeping only entries `fn` maps to a truthy value; never
   // copies prototype-polluting keys.
@@ -195,6 +301,7 @@
   return {
     PALETTE, X_LINK, hashId, initials, paletteColor,
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock,
+    createBigramIndex, fuzzyCandidates,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };
 });

@@ -69,7 +69,7 @@ function assignGenericNames() {
 
 // drop derived caches / per-view state so the next render uses the active conversation
 function resetDerived() {
-  STATS = null; WORDS = null; MILES = null; HOF = null; fuseIndex = null;
+  STATS = null; WORDS = null; MILES = null; HOF = null; fuzzyIdxJob = null; fuzzyForceQ = null;
   threadsCache = null;
   TIDX = null;   // the zoned time index is per conversation (UX-4 / AN-13)
   searchBuilt = false; sEls = {};
@@ -1320,6 +1320,7 @@ function ensureSearch() {
     };
   });
   updateMatchHint();
+  warmFuzzyIndex();
 
   // input
   let deb = null;
@@ -1401,16 +1402,60 @@ function testMsgNoNeedle(i) {
   }
   return true;
 }
-let fuseIndex = null;
-// P2-6: per-run fuzzy match ranges, keyed by message INDEX (not list order) so
-// they survive sorting and the paged/virtualized results list — a message
-// rendered on page 5 still finds its own ranges at render time. Null whenever
-// the run wasn't fuzzy (exact mode / empty query), which routes rendering to
-// the literal-needle highlighter.
+/* ---- Fuzzy search: exact-first (VC-18, SP3) ---------------------------------
+   In Fuzzy mode a query first runs the literal AND-match (a few ms at 100k):
+     - literal hits -> only those, newest first, plus a "close matches" button
+       (#s-fuzzy-toggle) that opts THIS query into the typo-tolerant ranking;
+     - no literal hit (after filters) -> falls back to fuzzy on its own, and the
+       meta line says "No exact matches — N close matches".
+   Exact mode is literal-only and never offers fuzzy. A fuzzy run scores only the
+   prefiltered candidates (GCAShared.fuzzyCandidates, a bigram-index q-gram
+   filter that provably keeps everything Fuse would match — see
+   tests/fuzzy-prefilter.test.js), and highlight ranges are computed per
+   rendered page instead of for every hit. */
+const FUSE_OPTS = { threshold: 0.3, ignoreLocation: true };
+// Bigram index over LOWER for the prefilter. Built in background slices once
+// Search opens (warmFuzzyIndex) and drained on demand if a fuzzy run needs it
+// sooner. Keyed on LOWER, which rebuildIndexes() replaces per conversation.
+let fuzzyIdxJob = null;
+function fuzzyIndexJob() {
+  if (!fuzzyIdxJob || fuzzyIdxJob.key !== LOWER) {
+    const texts = LOWER;
+    fuzzyIdxJob = makeJob(texts, () => GCAShared.createBigramIndex.steps(texts, () => performance.now() > sliceEnd));
+  }
+  return fuzzyIdxJob;
+}
+function warmFuzzyIndex() {
+  const step = () => {
+    if (!searchBuilt || !window.Fuse) return;
+    if (!runJob(fuzzyIndexJob(), SLICE_MS)) setTimeout(step, 0);
+  };
+  setTimeout(step, 0);
+}
+// Message indices Fuse matches for `pattern`, best first (Fuse's own order).
+function fuzzyMatch(pattern) {
+  const job = fuzzyIndexJob();
+  runJob(job, Infinity);
+  const cand = GCAShared.fuzzyCandidates(job.value, pattern, FUSE_OPTS.threshold);
+  const texts = cand ? Array.from(cand, (i) => LOWER[i]) : LOWER;
+  return new Fuse(texts, FUSE_OPTS).search(pattern).map((r) => (cand ? cand[r.refIndex] : r.refIndex));
+}
+// The query (needles key) the user opted into close matches for, or null.
+let fuzzyForceQ = null;
+// What the current result set is: "exact" (Exact mode), "exact-first" (Fuzzy
+// mode, literal hits shown), "fallback" (Fuzzy mode, no literal hit), "forced"
+// (Fuzzy mode, user asked for close matches) or "" (no query).
+let searchKind = "";
+// The pattern of a fuzzy run ("fallback"/"forced"), for per-page highlight ranges.
+let fuzzyPattern = null;
+// P2-6: fuzzy match ranges, keyed by message INDEX (not list order) so they
+// survive sorting and paging. Filled per rendered page (appendResultsPage);
+// null whenever the run wasn't fuzzy, which routes rendering to the literal-
+// needle highlighter.
 let fuzzyRanges = null;
 function runSearch() {
   let q = sEls.input.value || "";
-  fuzzyRanges = null;
+  fuzzyRanges = null; fuzzyPattern = null; searchKind = "";
 
   // Reset exclusions and the operator overlay — both re-parsed each run.
   excludeNeedles = [];
@@ -1477,36 +1522,25 @@ function runSearch() {
 
   let out = [];
   if (F.needles.length > 0) {
-    // Fuzzy (default): Fuse.js typo-tolerant ranking. Exact: literal substring AND-match.
-    const useFuzzy = F.fuzzy && window.Fuse;
-    let baseIdx = [];
-    if (useFuzzy) {
-      // includeMatches (P2-6): Fuse reports the char ranges it actually
-      // matched, so typo'd queries can still highlight the near-miss word.
-      // The index is only ever built/searched when there IS a query
-      // (F.needles.length > 0 gates this branch), so the extra match
-      // bookkeeping never runs for the empty-query "show all" path.
-      if (!fuseIndex) fuseIndex = new Fuse(LOWER, { threshold: 0.3, ignoreLocation: true, includeMatches: true });
-      fuzzyRanges = new Map();
-      for (const r of fuseIndex.search(F.needles.join(" "))) {
-        baseIdx.push(r.refIndex);
-        const ranges = [];
-        (r.matches || []).forEach((mt) => (mt.indices || []).forEach(([s, e]) => {
-          // Fuse indices include every scored fragment, down to single chars —
-          // highlighting those degrades into confetti. Keep fragments >= 2 chars.
-          if (e - s + 1 >= 2) ranges.push([s, e]);
-        }));
-        if (ranges.length) fuzzyRanges.set(r.refIndex, ranges);
-      }
-    } else {
+    const canFuzzy = F.fuzzy && window.Fuse;
+    const qKey = F.needles.join("\u0001");
+    if (fuzzyForceQ !== qKey) fuzzyForceQ = null;   // the opt-in is per query
+    if (!(canFuzzy && fuzzyForceQ)) {
+      // Literal substring AND-match, newest first.
       for (let i = N - 1; i >= 0; i--) {
         const L = LOWER[i];
         let match = true;
         for (const n of F.needles) if (L.indexOf(n) < 0) { match = false; break; }
-        if (match) baseIdx.push(i);
+        if (match && testMsgNoNeedle(i)) out.push(i);
       }
+      searchKind = canFuzzy ? "exact-first" : "exact";
     }
-    for (let i of baseIdx) if (testMsgNoNeedle(i)) out.push(i);
+    if (canFuzzy && (fuzzyForceQ || !out.length)) {
+      fuzzyPattern = F.needles.join(" ");
+      fuzzyRanges = new Map();
+      out = fuzzyMatch(fuzzyPattern).filter(testMsgNoNeedle);
+      searchKind = fuzzyForceQ ? "forced" : "fallback";
+    }
   } else {
     for (let i = N - 1; i >= 0; i--) if (testMsgNoNeedle(i)) out.push(i);
   }
@@ -1531,11 +1565,24 @@ function runSearch() {
   if (resObserver) resObserver.disconnect();
 
   const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts || opPeople || opFrom || opTo || opMedia || opLinks || opReacts;
-  const sortLbl = { relevance: F.needles.length && F.fuzzy && window.Fuse ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
+  const fuzzyRun = searchKind === "fallback" || searchKind === "forced";
+  const sortLbl = { relevance: fuzzyRun ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
   const noun = (F.grid ? " media message" : " message") + (out.length === 1 ? "" : "s");
-  sEls.meta.textContent = hasFilter
-    ? fmtNum(out.length) + noun + " found · sorted by " + sortLbl
-    : "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'";
+  sEls.meta.textContent = !hasFilter
+    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'"
+    : searchKind === "fallback" && out.length
+      ? "No exact matches — " + fmtNum(out.length) + " close " + (F.grid ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
+      : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
+  // The per-query opt-in / opt-out for close matches (Fuzzy mode only).
+  if (searchKind === "exact-first" || searchKind === "forced") {
+    const forced = searchKind === "forced";
+    const b = el("button", "meta-act", forced ? "Exact matches only" : "+ Show close matches");
+    b.id = "s-fuzzy-toggle"; b.type = "button";
+    b.title = forced ? "Show only messages that literally contain your words" : "Also show typo-tolerant close matches, ranked by relevance";
+    const key = F.needles.join("\u0001");
+    b.onclick = () => { fuzzyForceQ = forced ? null : key; runSearch(); };
+    sEls.meta.append(" · ", b);
+  }
   // QA-15: bumped on every completed run (debounced or not), so tests can wait
   // for "the search actually re-ran" instead of a fixed sleep timed to the
   // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
@@ -1556,6 +1603,21 @@ function appendResultsPage() {
   const start = page * PAGE;
   if (start >= idx.length) return;
   const slice = idx.slice(start, start + PAGE);
+  // Fuzzy highlight ranges for just this page (P2-6): Fuse's includeMatches is
+  // per text, so scoring the page's texts gives the same ranges the full run
+  // would have, without paying for them on every hit.
+  if (fuzzyPattern && fuzzyRanges && !F.grid) {
+    const hl = new Fuse(slice.map((i) => LOWER[i]), Object.assign({ includeMatches: true }, FUSE_OPTS));
+    for (const r of hl.search(fuzzyPattern)) {
+      const ranges = [];
+      (r.matches || []).forEach((mt) => (mt.indices || []).forEach(([s, e]) => {
+        // Fuse indices include every scored fragment, down to single chars —
+        // highlighting those degrades into confetti. Keep fragments >= 2 chars.
+        if (e - s + 1 >= 2) ranges.push([s, e]);
+      }));
+      if (ranges.length) fuzzyRanges.set(slice[r.refIndex], ranges);
+    }
+  }
   const frag = document.createDocumentFragment();
   for (const i of slice) {
     if (F.grid) frag.appendChild(galleryCell(i, idx));   // idx is already the media subset (VC-16)
@@ -1612,7 +1674,7 @@ function updatePeopleBadge() {
 }
 function updateMatchHint() {
   if (!sEls.matchhint) return;
-  const fuzzy = '<b>Fuzzy</b>: finds close &amp; misspelled matches (typo-tolerant, ranked by relevance).';
+  const fuzzy = '<b>Fuzzy</b>: exact matches first; when there are none (or you ask for them), close &amp; misspelled matches too (typo-tolerant, ranked by relevance).';
   const exact = '<b>Exact</b>: shows only messages that literally contain every word/phrase you type.';
   // Lead with the active mode's description so the user knows what's in effect.
   sEls.matchhint.innerHTML = F.fuzzy ? fuzzy + " &nbsp;·&nbsp; " + exact : exact + " &nbsp;·&nbsp; " + fuzzy;
