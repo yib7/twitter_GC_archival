@@ -850,17 +850,22 @@ function applyTheme() {
 /* ---- Theme modes (X: Light / Dim / Lights out) --------------------------- */
 // Persisted under its own gca.theme key (separate from gca.settings) and applied
 // as data-theme on <html>; the html[data-theme] block in styles.css owns every
-// surface. Drives both the floating .theme-switch and the Settings control.
+// surface. Drives the compact .theme-toggle groups (sidebar footer + More
+// sheet, UX-6) and the Settings control, and keeps <meta name="theme-color">
+// on the theme's page background (theme-boot.js does the same pre-paint).
 const THEME_KEY = "gca.theme";
 const THEMES = ["light", "dim", "lightsout"];
+const THEME_COLOR = { light: "#ffffff", dim: "#15202b", lightsout: "#000000" };
 function getTheme() {
   try { const t = localStorage.getItem(THEME_KEY); if (THEMES.indexOf(t) !== -1) return t; } catch (e) { /* ignore */ }
   return "lightsout";
 }
 function reflectTheme(t) {
-  document.querySelectorAll(".theme-switch button").forEach((b) => b.classList.toggle("on", b.dataset.set === t));
+  document.querySelectorAll(".theme-toggle button[data-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === t)));
   const seg = document.getElementById("set-theme");
   if (seg) seg.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", b.dataset.v === t));
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", THEME_COLOR[t]);
 }
 function setTheme(t) {
   if (THEMES.indexOf(t) === -1) t = "lightsout";
@@ -871,7 +876,7 @@ function setTheme(t) {
 }
 function initTheme() {
   setTheme(getTheme());
-  document.querySelectorAll(".theme-switch button").forEach((b) => {
+  document.querySelectorAll(".theme-toggle button[data-set]").forEach((b) => {
     b.addEventListener("click", () => setTheme(b.dataset.set));
   });
 }

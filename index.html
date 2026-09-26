@@ -85,6 +85,9 @@
         </div>
       </nav>
       <div class="sidebar-foot" id="sidebar-foot"><div id="sidebar-spark"></div><div id="sidebar-foot-text"></div></div>
+      <!-- Compact theme toggle (UX-6) — pinned to the bottom of the sidebar so it
+           stays reachable when the nav scrolls. Light / Dim / Lights out → gca.theme -->
+      <div class="sidebar-theme" id="sidebar-theme"><div class="theme-toggle" role="group" aria-label="Theme"><button type="button" data-set="light" title="Light" aria-label="Light" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button><button type="button" data-set="dim" title="Dim" aria-label="Dim" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button><button type="button" data-set="lightsout" title="Lights out" aria-label="Lights out" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z"/></svg></button></div></div>
     </aside>
 
     <!-- Main -->
@@ -143,14 +146,10 @@
       <button class="sh-item" data-tab="people" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="9" r="3"/><circle cx="17" cy="10" r="2.4"/><path d="M3 19c.6-3 2.6-4.5 5-4.5s4.4 1.5 5 4.5M15.5 18c.4-2 1.6-3 3-3s2.4 1 2.8 2.6"/></svg>People</button>
       <button class="sh-item" data-tab="settings" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2.2"/><circle cx="8" cy="17" r="2.2"/></svg>Settings</button>
     </div>
-  </div>
-
-  <!-- Floating theme switch (Light / Dim / Lights out) — persisted to gca.theme.
-       app.js wires the buttons + reflects the active theme with .on -->
-  <div class="theme-switch" role="group" aria-label="Theme">
-    <button data-set="light" title="Light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button>
-    <button data-set="dim" title="Dim" aria-label="Dim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button>
-    <button data-set="lightsout" title="Lights out" aria-label="Lights out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z"/></svg></button>
+    <div class="sh-theme">
+      <span class="sh-title" id="sh-theme-lbl">Theme</span>
+      <div class="theme-toggle" role="group" aria-labelledby="sh-theme-lbl"><button type="button" data-set="light" title="Light" aria-label="Light" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button><button type="button" data-set="dim" title="Dim" aria-label="Dim" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button><button type="button" data-set="lightsout" title="Lights out" aria-label="Lights out" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z"/></svg></button></div>
+    </div>
   </div>
 
   <!-- Synthetic demo data ships with the repo. Real (gitignored) data loads

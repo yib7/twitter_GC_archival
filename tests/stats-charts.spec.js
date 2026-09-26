@@ -54,7 +54,7 @@ test("charts re-theme live on a theme or accent change", async ({ page }) => {
   // Switch theme with Stats open.
   const before = await token("--text-dim");
   const next = await page.evaluate(() => (document.documentElement.dataset.theme === "light" ? "dim" : "light"));
-  await page.locator('.theme-switch button[data-set="' + next + '"]').click();
+  await page.locator('#sidebar-theme .theme-toggle button[data-set="' + next + '"]').click();
   const after = await token("--text-dim");
   expect(after).not.toBe(before);
   await expect.poll(async () => rgb(await tick())).toBe(await rgb(after));
