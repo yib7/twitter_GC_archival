@@ -138,6 +138,17 @@ test("topCloudWords groups spellings by wordKey and shows the commonest (review 
   assert.deepStrictEqual(S.topCloudWords(new Map([["pizza", 1], ["movie", 2]]), 1), [["movie", 2]]);
 });
 
+test("pronoun contractions never merge into the word they fold to (review round 2)", () => {
+  assert.deepStrictEqual(S.topCloudWords(new Map([["hell", 3], ["he'll", 5]]), 5), [["hell", 3]]);
+  assert.deepStrictEqual(S.topCloudWords(new Map([["shell", 2], ["she'll", 4], ["shed", 1], ["she'd", 3]]), 5), [["shell", 2], ["shed", 1]]);
+  for (const w of ["he'll", "she'll", "she'd", "we'll", "we're", "i'll", "we'd", "he’ll"]) {
+    assert.ok(S.isStopword(S.tokenize(w)[0]), w);
+  }
+  for (const w of ["hell", "shell", "shed"]) assert.ok(!S.isStopword(w), w);
+  // y'all / yall still merge (review fix 7).
+  assert.deepStrictEqual(S.topCloudWords(new Map([["y'all", 2], ["yall", 3]]), 5), [["yall", 5]]);
+});
+
 test("wordKey folds apostrophes so don't / dont / don’t are one word", () => {
   assert.equal(S.wordKey("don't"), "dont");
   assert.equal(S.wordKey(S.tokenize("DON’T")[0]), "dont");

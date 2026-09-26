@@ -397,7 +397,14 @@
     "doesnt havent hasnt hadnt wouldnt couldnt shouldnt aint whos wheres hows everyones someones thatll gotta wanna " +
     "his her him us their from by just really one now know think see going"
   ).split(/\s+/));
-  function isStopword(t) { return STOPWORDS.has(wordKey(t)); }
+  // Pronoun contractions whose apostrophe-free form is a different real word
+  // (he'll/hell, she'll/shell, she'd/shed): stopwords in their apostrophe
+  // spelling only, so they never merge into (or inflate) that word, while
+  // "hell" itself and y'all/yall merging are untouched.
+  const APOS_STOPWORDS = new Set(["he'll", "she'll", "she'd", "we'll", "we're", "i'll", "we'd"]);
+  function isStopword(t) {
+    return STOPWORDS.has(wordKey(t)) || (t.indexOf("'") !== -1 && APOS_STOPWORDS.has(t.toLowerCase()));
+  }
   const RE_CJK_WORD = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
   // Word-cloud / word-of-the-year eligibility: not a stopword, not a number,
   // 3-18 characters (2+ for CJK/Hangul, whose words are mostly 1-2 characters).
