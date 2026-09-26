@@ -1,3 +1,15 @@
+// QA-2/SP-16 (correction after review): globalSetup does NOT run before the
+// webServer in @playwright/test 1.62.1 — plugin setup (which is what spawns
+// webServer) runs at node_modules/playwright/lib/runner/index.js:6003-6009,
+// BEFORE globalSetups are run; the webServer plugin itself is pushed onto that
+// plugin list around line 6649. A guard placed only in globalSetup (as this
+// file originally had it) would therefore run AFTER a real-data webServer had
+// already been spawned — too late. Requiring the guard here, at the very top
+// of this file, runs it at config-EVALUATION time (synchronously, before
+// `defineConfig()` is even called, let alone before Playwright's runner gets
+// to plugin setup), which really is before anything else, webServer included.
+require("./tests/_real-data-guard.js");
+
 const { defineConfig } = require("@playwright/test");
 const fs = require("fs");
 const os = require("os");
@@ -16,10 +28,15 @@ const path = require("path");
 // the run fail loudly (EADDRINUSE) instead of silently reusing it.
 const TEST_PORT = 8799;
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || ("http://127.0.0.1:" + TEST_PORT);
-const testPersonalDir = fs.mkdtempSync(path.join(os.tmpdir(), "gca-e2e-personal-"));
-// globalTeardown runs in this same process (just later), so an env var is
-// enough to hand it the path to clean up — no need for a file or IPC.
-process.env.GCA_E2E_PERSONAL_DIR = testPersonalDir;
+// Workers re-evaluate this config file (each worker process requires it
+// independently), so a plain mkdtempSync() here created a fresh, never-cleaned
+// throwaway dir PER WORKER, not one per run — only the last one assigned to
+// GCA_E2E_PERSONAL_DIR ever got cleaned up by globalTeardown, leaking the rest
+// into the OS temp dir. `||=` makes only the FIRST evaluation (the test
+// runner's own process, which sets env vars workers inherit) create the dir;
+// every worker's re-evaluation sees GCA_E2E_PERSONAL_DIR already set and reuses it.
+process.env.GCA_E2E_PERSONAL_DIR ||= fs.mkdtempSync(path.join(os.tmpdir(), "gca-e2e-personal-"));
+const testPersonalDir = process.env.GCA_E2E_PERSONAL_DIR;
 
 module.exports = defineConfig({
   testDir: "./tests",
@@ -28,10 +45,12 @@ module.exports = defineConfig({
   testMatch: "**/*.spec.js",
   timeout: 30 * 1000,
   expect: { timeout: 7 * 1000 },
-  // QA-2: makes real-data isolation impossible-by-construction, not just a
-  // convention — throws (existence checks only) if this checkout contains
-  // personal_data*/, exports/, root data.js or root names.local.js, BEFORE the
-  // webServer below is ever spawned.
+  // Kept as belt-and-suspenders defense-in-depth, NOT the actual enforcement
+  // point: in this Playwright version globalSetup runs AFTER the webServer
+  // plugin has already been set up (see the note above the top-of-file
+  // require, which is what actually gates the webServer). This just re-checks
+  // the same guard a second time, in case a future refactor of this file ever
+  // separates config-evaluation from webServer spawning.
   globalSetup: require.resolve("./tests/global-setup.js"),
   globalTeardown: require.resolve("./tests/global-teardown.js"),
   // QA-10: a committed `.only` must fail CI loudly instead of quietly running
