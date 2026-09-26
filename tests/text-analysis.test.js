@@ -167,9 +167,10 @@ test("isProfane matches the common stems", () => {
   for (const t of ["hello there", "cocktail hour", "dickens novel", "shiitake"]) assert.ok(!S.isProfane(t), t);
 });
 
-test("isKeysmash needs a vowel-free run with 3+ distinct letters", () => {
-  for (const t of ["sdfghjkl", "asdfasdf", "hjkl", "qwrtpsdf"]) assert.ok(S.isKeysmash(t), t);
-  for (const t of ["hmmmmm", "shhhhh", "brrrrr", "zzzzzz", "hello world"]) assert.ok(!S.isKeysmash(t), t);
+test("isKeysmash: a diverse vowel-free run, never a stretched interjection (review fix 4)", () => {
+  for (const t of ["sdfghjkl", "asdfasdf", "hjkl", "qwrtpsdf", "jfkdlsjf", "dhsjfkdl", "omg fjdkslfj", "GKDJSHFL"]) assert.ok(S.isKeysmash(t), t);
+  for (const t of ["hmmmmm", "shhhhh", "brrrrr", "zzzzzz", "hello world",
+    "pfffft", "hmmmmph", "nggghhh", "grrrrrr", "psssst", "tsktsktsk", "pshhhht", "rhythms"]) assert.ok(!S.isKeysmash(t), t);
 });
 
 test("keyword / keysmash checks never read inside a link (review fix 1)", () => {
