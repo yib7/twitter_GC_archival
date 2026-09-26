@@ -555,15 +555,6 @@ button, input, select, textarea { font-family: inherit; }
 .bar-fill { height: 100%; border-radius: 7px; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); min-width: 2px; }
 .bar-val { text-align: right; color: var(--text-dim); font-size: 13px; font-variant-numeric: tabular-nums; }
 
-/* month activity */
-.months { display: flex; align-items: flex-end; gap: 3px; height: 130px; overflow-x: auto; padding-bottom: 4px; }
-.mbar { flex: 0 0 9px; background: var(--bg-card); border-radius: 3px 3px 0 0; position: relative; min-height: 2px; }
-.mbar .mfill { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(180deg, var(--accent), var(--accent-deep)); border-radius: 3px 3px 0 0; }
-.mbar:hover { outline: 1px solid var(--accent); }
-
-/* heatmap calendar */
-
-
 /* word cloud / chips */
 .words { display: flex; flex-wrap: wrap; gap: 8px; }
 .word {
@@ -1266,7 +1257,7 @@ html[data-theme="light"] .wr-slide::after {
 }
 
 /* ====================================================================== */
-/* New: On This Day Toast, Conversation Threads, Quiz, Mood Ring          */
+/* New: On This Day Toast, Conversation Threads                            */
 /* ====================================================================== */
 
 /* ---- On This Day Toast (mock .toast) -------------------------------------- */
@@ -1347,15 +1338,6 @@ html[data-theme="light"] .wr-slide::after {
 .thr-people .av:first-child { margin-left: 0; }
 .thr-extra { font-size: 11px; color: var(--text-dim); margin-left: 6px; }
 
-/* ---- GC Trivia Quiz ------------------------------------------------------ */
-
-
-/* ---- Mood Ring ----------------------------------------------------------- */
-@keyframes moodPulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--ring-color); }
-  50% { box-shadow: 0 0 16px 4px var(--ring-color); }
-}
-
 /* ---- Word Battles -------------------------------------------------------- */
 .battle-selectors {
   display: flex; align-items: center; gap: 20px; justify-content: center;
@@ -1398,10 +1380,6 @@ html[data-theme="light"] .wr-slide::after {
   background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
 }
 
-/* ---- Sleep Schedule Heatmap ---------------------------------------------- */
-
-/* ---- Emoji DNA ----------------------------------------------------------- */
-
 /* ---- Reply Chains -------------------------------------------------------- */
 .chain-list { display: flex; flex-direction: column; gap: 10px; }
 .chain-card {
@@ -1418,12 +1396,6 @@ html[data-theme="light"] .wr-slide::after {
 .chain-stats { display: flex; gap: 14px; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
 .chain-stats b { color: var(--accent); }
 .chain-preview { font-size: 12px; color: var(--text-faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ---- First & Last Messages ----------------------------------------------- */
-
-/* ---- Quiz ---------------------------------------------------------------- */
-
-/* ---- Moods --------------------------------------------------------------- */
 
 /* ---- First-run onboarding overlay --------------------------------------- */
 .onboard {
