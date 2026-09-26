@@ -61,10 +61,14 @@ test("timeline renders and jumps by date", async ({ page }) => {
   await page.locator(".cmdk-input").fill("2024-01-07");
   await page.getByText(/Jump to 2024-01-07/).click();
 
-  // The timeline anchors (flashes) the jumped-to message — assert it landed on
-  // the sample's actual first 2024-01-07 message, not merely "some message".
+  // The timeline anchors (scrolls to + flashes) the jumped-to message — assert
+  // it landed on the sample's actual first 2024-01-07 message, not merely
+  // "some message". Checking the flash class raced its own 1700ms removal
+  // timer (src/app.js) — a slow CI run could poll after it was already gone,
+  // failing a correct jump. scrollIntoView({block:"center"}) is what actually
+  // proves the jump landed here, and it's a stable, non-time-sensitive signal.
   const target = page.locator('#tl-list [data-idx="11"]');
-  await expect(target).toHaveClass(/flash/);
+  await expect(target).toBeInViewport();
   await expect(target).toContainText("who's hyped for the game");
 });
 

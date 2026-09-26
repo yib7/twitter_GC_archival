@@ -85,8 +85,11 @@ test.describe("served-mode CSP (index.html + setup.html)", () => {
     await page.keyboard.press("Control+K");
     await page.locator(".cmdk-input").fill("2024-01-07");
     await page.getByText(/Jump to 2024-01-07/).click();
+    // See smoke.spec.js's identical jump assertion for why this checks
+    // viewport position rather than the transient .flash class (which races
+    // its own 1700ms removal timer in src/app.js).
     const jumpTarget = page.locator('#tl-list [data-idx="11"]');
-    await expect(jumpTarget).toHaveClass(/flash/);
+    await expect(jumpTarget).toBeInViewport();
     await expect(jumpTarget).toContainText("who's hyped for the game");
 
     // Stats — Chart.js must construct + paint real <canvas> charts under this
