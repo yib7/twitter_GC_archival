@@ -285,6 +285,176 @@
     for (let i = 0, o = 0; i < mask.length; i++) if (mask[i]) out[o++] = i;
     return out;
   }
+  /* ---- Text analysis (SP4: AN-1 / AN-2 / AN-8 / AN-9 / AN-10 / AN-11) -------
+     One definition of "an emoji", "a word", "a laugh", "a swear", "a link to X"
+     for every analytics view (Stats, Wrapped, Word Battles, the keyword
+     trend), so the same message is always counted the same way. Pure and
+     DOM-free; covered by tests/text-analysis.test.js. */
+
+  // --- Emoji (AN-1): whole emoji sequences, so 👍🏽 / 👨‍👩‍👧 / 🇺🇸 / ❤️ each
+  // count once and a skin-tone swatch or a regional-indicator letter never
+  // counts on its own. RE_EMOJI_SEQ is the UTS #51 "possible emoji" grammar
+  // (flag pair | keycap | pictograph + VS16/modifier + tags, ZWJ-joined), and
+  // isEmojiSeq keeps only sequences that render as emoji: a flag, a keycap, or
+  // a pictograph that is emoji-presentation by default or forced by VS16 / a
+  // skin tone / a ZWJ. Text-default pictographs alone (©, ®, ™, ☀ without VS16)
+  // are not emoji — the same set /\p{RGI_Emoji}/v matches for real text
+  // (tests/text-analysis.test.js checks the two agree), but plain `u`-flag
+  // property classes: \p{RGI_Emoji} needs the `v` flag (Chromium 112+,
+  // Firefox 116+, Safari 17+) and is ~40x slower in V8 (3 s vs 70 ms for 130k
+  // emoji-bearing messages). EMOJI_HINT is a cheap prefilter.
+  const EMOJI_HINT = /[\p{Extended_Pictographic}\p{Regional_Indicator}\p{Emoji_Modifier}\u20E3]/u;
+  const RE_EMOJI_SEQ = /\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?[\u{E0020}-\u{E007F}]*(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\p{Emoji_Modifier}/gu;
+  const RE_EMOJI_FORCED = /\p{Emoji_Presentation}|\uFE0F|\u20E3|\p{Emoji_Modifier}|\u200D|^\p{Regional_Indicator}/u;
+  function isEmojiSeq(s) { return RE_EMOJI_FORCED.test(s); }
+  function extractEmojis(text) {
+    if (!text || !EMOJI_HINT.test(text)) return [];
+    const m = text.match(RE_EMOJI_SEQ);
+    if (!m) return [];
+    const out = [];
+    for (const s of m) if (isEmojiSeq(s)) out.push(s);
+    return out;
+  }
+  // Reference implementation for tests only: \p{RGI_Emoji} (null where the
+  // engine lacks the `v` flag).
+  let RE_RGI = null;
+  try { RE_RGI = new RegExp("\\p{RGI_Emoji}", "gv"); } catch (e) { RE_RGI = null; }
+  function extractEmojisRGI(text) { return RE_RGI ? ((text || "").match(RE_RGI) || []) : null; }
+
+  // --- Words (AN-2 / AN-11) -----------------------------------------------------
+  // A word is a run of letters / digits / combining marks (so Cyrillic,
+  // Arabic, Hebrew, Devanagari and accented Latin survive), optionally joined
+  // by apostrophes — curly ones are folded to ' first, so "don’t" is one token,
+  // not "don" + "t". URLs are dropped. Scripts written without spaces (Han,
+  // kana, Thai, …) are split into words by Intl.Segmenter when available,
+  // otherwise into single characters. Tokens are lowercased.
+  const RE_URL = /https?:\/\/\S+|www\.\S+/gi;
+  const RE_APOS = /[\u2018\u2019\u02BC\uFF07]/g, RE_HAS_APOS = /[\u2018\u2019\u02BC\uFF07]/;
+  const RE_TOKEN = /[\p{L}\p{N}\p{M}]+(?:'[\p{L}\p{N}\p{M}]+)*/gu;
+  const RE_NOSPACE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
+  const RE_NOSPACE_RUNS = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]|[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]+/gu;
+  const WORDS_SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter("en", { granularity: "word" }) : null;
+  function tokenizeWith(text, seg) {
+    if (!text) return [];
+    let s = String(text).toLowerCase();
+    if (s.indexOf("http") !== -1 || s.indexOf("www.") !== -1) s = s.replace(RE_URL, " ");
+    if (RE_HAS_APOS.test(s)) s = s.replace(RE_APOS, "'");
+    const m = s.match(RE_TOKEN);
+    if (!m) return [];
+    if (!RE_NOSPACE_SCRIPT.test(s)) return m;
+    const out = [];
+    for (const t of m) {
+      if (!RE_NOSPACE_SCRIPT.test(t)) { out.push(t); continue; }
+      if (seg) { for (const w of seg.segment(t)) if (w.isWordLike) out.push(w.segment); }
+      else for (const piece of t.match(RE_NOSPACE_RUNS)) out.push(piece);
+    }
+    return out;
+  }
+  function tokenize(text) { return tokenizeWith(text, WORDS_SEG); }
+  function tokenizeNoSegmenter(text) { return tokenizeWith(text, null); }
+  // Apostrophe-free form: the key stopwords, word counts and battles compare.
+  function wordKey(t) { return t.indexOf("'") === -1 ? t : t.replace(/'/g, ""); }
+  // One shared stopword list (word cloud, Wrapped word of the year). Entries
+  // are apostrophe-free; isStopword() folds the token the same way, so "i'm",
+  // "don’t" and "dont" all hit "im" / "dont".
+  const STOPWORDS = new Set((
+    "the a an and or but to of in on at for with is are was were be been being am i you he she it we they them me my your our " +
+    "this that these those have has had do does did not no so if as up out get got go gonna just like dont didnt cant wont im " +
+    "youre theyre thats whats here there all any some more most then than too very can could would should will shall may might " +
+    "must about into over under again only also even still much many lol lmao lmaooo yeah yea nah ok okay haha hahaha bro man " +
+    "dude what when who whom how why which whose oh uh um yo idk imo tbh " +
+    // apostrophe-stripped contractions (AN-2)
+    "its ive ill id lets theres heres youve youll youd weve wed well theyve theyll theyd hes shes isnt arent wasnt werent " +
+    "doesnt havent hasnt hadnt wouldnt couldnt shouldnt aint whos wheres hows everyones someones thatll gotta wanna " +
+    "his her him us their from by just really one now know think see going"
+  ).split(/\s+/));
+  function isStopword(t) { return STOPWORDS.has(wordKey(t)); }
+  const RE_CJK_WORD = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u;
+  // Word-cloud / word-of-the-year eligibility: not a stopword, not a number,
+  // 3-18 characters (2+ for CJK/Hangul, whose words are mostly 1-2 characters).
+  function isCloudWord(t) {
+    const n = [...t].length;
+    if (n > 18 || n < (RE_CJK_WORD.test(t) ? 2 : 3)) return false;
+    if (/^[\p{N}']+$/u.test(t)) return false;
+    return !isStopword(t);
+  }
+  // Whole-token occurrences of `word` (which may be a phrase) in `text`,
+  // apostrophe- and case-insensitive: "man" never matches "many"/"humans",
+  // "dont" matches "don’t". Used by Word Battles and the keyword trend (AN-10).
+  function countWord(text, word) {
+    const w = tokenize(word).map(wordKey);
+    if (!w.length) return 0;
+    const t = tokenize(text);
+    let n = 0;
+    for (let i = 0; i + w.length <= t.length; i++) {
+      let k = 0;
+      while (k < w.length && wordKey(t[i + k]) === w[k]) k++;
+      if (k === w.length) n++;
+    }
+    return n;
+  }
+
+  // --- Keyword patterns (AN-8) -------------------------------------------------
+  // Global regexes: count with countMatches() (String#match resets lastIndex).
+  const LAUGH_SRC = "\\b(?:l+o+l+(?:o+l+)*|lm+f*a+o+|rofl+|a?(?:ha){2,}h?)\\b|💀|😭|😂|🤣";
+  const KEYWORDS = {
+    laugh: new RegExp(LAUGH_SRC, "giu"),
+    narcissist: /\b(?:i|me|my|mine|myself)\b/gi,
+    gratitude: /\b(?:thanks|thank you|thank u|ty|tysm|thx)\b/gi,
+    optimist: /\b(?:good|great|awesome|amazing|love|best)\b/gi,
+    pessimist: /\b(?:bad|terrible|awful|hate|worst)\b/gi,
+    // "bet" / "cap" alone are everyday words; only "no cap" is slang.
+    zoomer: /\b(?:fr|ngl|no cap|sus|bruh|based|cringe|rizz|gyatt)\b/gi,
+    // "bot" / "buff" / "lag" are everyday words too.
+    gamer: /\b(?:gg|ggs|wp|nerf|nerfed|noob|fps|respawn)\b/gi,
+    // "moon" / "bear" / "bull" alone are not finance talk.
+    finance: /\b(?:crypto|btc|eth|bitcoin|ethereum|stocks|stonks|hodl|to the moon|bull market|bear market)\b/gi,
+  };
+  function countMatches(re, text) { if (!text) return 0; const m = text.match(re); return m ? m.length : 0; }
+  function countLaughs(text) { return countMatches(KEYWORDS.laugh, text); }
+  // A message that is nothing but laughter (laughs + spaces / punctuation /
+  // variation selectors) with at least one laugh — never whitespace alone.
+  const RE_LAUGH_STRIP = new RegExp(LAUGH_SRC, "giu");
+  function isLaughOnly(text) {
+    if (!text || !countLaughs(text)) return false;
+    return /^[\s\p{P}\uFE0F]*$/u.test(text.replace(RE_LAUGH_STRIP, ""));
+  }
+  const RE_PROFANITY = /\b(?:\w*fuck\w*|\w*shit\w*|bitch\w*|damn\w*|goddam\w*|asshole\w*|cunt\w*|dick|dicks|dickhead\w*|pussy|cock|bastard\w*|slut\w*|whore\w*|wtf|stfu)\b/i;
+  function isProfane(text) { return !!text && RE_PROFANITY.test(text); }
+  // Keysmash: a 6+ letter run with no vowel (y counts) and 3+ distinct
+  // letters ("hmmmmm", "shhhhh", "zzzzzz" are not keysmashes), or a
+  // home-row roll.
+  const RE_KEYSMASH_SEQ = /asdf|fdsa|ghjk|hjkl|jkl;/i;
+  function isKeysmash(text) {
+    if (!text) return false;
+    if (RE_KEYSMASH_SEQ.test(text)) return true;
+    const runs = text.toLowerCase().match(/\b[a-z]{6,}\b/g);
+    if (!runs) return false;
+    for (const r of runs) if (!/[aeiouy]/.test(r) && new Set(r).size >= 3) return true;
+    return false;
+  }
+
+  // --- Links (AN-9): match the hostname, not a substring of the whole URL
+  // ("netflix.com" ends in "x.com"; "xbox.com" contains it).
+  const PLATFORM_HOSTS = [["twitter", /(^|\.)(?:twitter|x)\.com$/], ["youtube", /(^|\.)(?:youtube\.com|youtu\.be)$/],
+    ["tiktok", /(^|\.)tiktok\.com$/], ["instagram", /(^|\.)instagram\.com$/]];
+  function urlHost(url) {
+    if (typeof url !== "string" || !url.trim()) return "";
+    const u = url.trim();
+    try { return new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : "https://" + u).hostname.toLowerCase(); } catch (e) { return ""; }
+  }
+  function linkPlatform(url) {
+    const h = urlHost(url);
+    if (!h || h.indexOf(".") === -1) return null;
+    for (const [name, re] of PLATFORM_HOSTS) if (re.test(h)) return name;
+    return null;
+  }
+
+  // --- Copy (AN-20 / UX-31): "1 thread", "2 threads", "1,234 messages".
+  function plural(n, one, many) {
+    return Number(n).toLocaleString("en-US") + " " + (n === 1 ? one : (many || one + "s"));
+  }
+
   function isPlainObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
   // Copy an object map keeping only entries `fn` maps to a truthy value; never
   // copies prototype-polluting keys.
@@ -369,6 +539,8 @@
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant,
     createBigramIndex, fuzzyCandidates,
+    extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, countWord,
+    KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, urlHost, linkPlatform, plural,
     isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
   };
 });
