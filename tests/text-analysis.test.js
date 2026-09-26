@@ -64,6 +64,20 @@ test("tokenize: URLs are dropped", () => {
   assert.deepStrictEqual(S.tokenize("look https://example.com/a?b=c and www.foo.org now"), ["look", "and", "now"]);
 });
 
+test("tokenize: @mentions and bare domains are dropped too (review fix 2)", () => {
+  assert.deepStrictEqual(S.tokenize("hey @john_doe look"), ["hey", "look"]);
+  assert.deepStrictEqual(S.tokenize("see youtube.com/watch?v=abc now"), ["see", "now"]);
+  assert.deepStrictEqual(S.tokenize("youtu.be/xyz"), []);
+  assert.deepStrictEqual(S.tokenize("Check reddit.com."), ["check"]);
+  assert.deepStrictEqual(S.tokenize("mail me@gmail.com"), ["mail", "me"]);
+  // A missing space after a full stop is not a domain.
+  assert.deepStrictEqual(S.tokenize("ok.so what"), ["ok", "so", "what"]);
+  assert.deepStrictEqual(S.tokenize("done.to be fair"), ["done", "to", "be", "fair"]);
+  // Keyword checks read the same link-free text.
+  assert.equal(S.countMatches(S.KEYWORDS.gratitude, S.plainText("@thanks bro")), 0);
+  assert.equal(S.plainText("hi @bob"), "hi  ");
+});
+
 test("tokenize: non-Latin scripts and accents survive", () => {
   assert.deepStrictEqual(S.tokenize("привет как дела"), ["привет", "как", "дела"]);
   assert.deepStrictEqual(S.tokenize("café naïve"), ["café", "naïve"]);

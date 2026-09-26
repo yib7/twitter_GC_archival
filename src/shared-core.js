@@ -325,19 +325,33 @@
   // A word is a run of letters / digits / combining marks (so Cyrillic,
   // Arabic, Hebrew, Devanagari and accented Latin survive), optionally joined
   // by apostrophes — curly ones are folded to ' first, so "don’t" is one token,
-  // not "don" + "t". URLs are dropped. Scripts written without spaces (Han,
-  // kana, Thai, …) are split into words by Intl.Segmenter when available,
-  // otherwise into single characters. Tokens are lowercased.
+  // not "don" + "t". Links, bare domains and @mentions are dropped
+  // (plainText). Scripts written without spaces (Han, kana, Thai, …) are split
+  // into words by Intl.Segmenter when available, otherwise into grapheme
+  // clusters. Tokens are lowercased.
   const RE_URL = /https?:\/\/\S+|www\.\S+/gi;
   const RE_APOS = /[\u2018\u2019\u02BC\uFF07]/g, RE_HAS_APOS = /[\u2018\u2019\u02BC\uFF07]/;
   const RE_URL_HINT = /https?:|www\./i;
-  // The message with its links removed — what the keyword, keysmash, caps and
-  // question checks read, so a t.co slug ("xkcdbzqwrt") is not a keysmash and
-  // a "?" in a query string is not a question.
+  // Bare domains ("youtube.com/watch?v=…", "youtu.be/x", "reddit.com") — a
+  // closed list of TLDs that are not everyday words, so "ok.so" / "done.to"
+  // (a missing space after a full stop) stay text.
+  const DOMAIN_TLDS = "com|net|org|io|co|be|tv|gg|ly|app|dev|ai|uk|ca|de|fr|jp|ru|info|biz|xyz|fm|gl|edu|gov";
+  const RE_DOMAIN_HINT = new RegExp("\\.(?:" + DOMAIN_TLDS + ")(?![\\p{L}\\p{N}_-])", "iu");
+  const RE_DOMAIN = new RegExp("(^|[^\\p{L}\\p{N}._-])(?:[\\p{L}\\p{N}-]+\\.)+(?:" + DOMAIN_TLDS + ")(?![\\p{L}\\p{N}_-])(?:\\/\\S*)?", "giu");
+  // @mentions (X handles: letters, digits, underscore) not inside a word, so
+  // an email's "me@" survives while its domain goes with RE_DOMAIN.
+  const RE_MENTION = /(^|[^\p{L}\p{N}_])@[A-Za-z0-9_]+/gu;
+  // The message with its links and @mentions removed — what the tokenizer and
+  // the keyword, keysmash, caps and question checks read, so a t.co slug
+  // ("xkcdbzqwrt") is not a keysmash, a "?" in a query string is not a
+  // question and "@thanks_bot" is not gratitude.
   function plainText(text) {
     if (!text) return "";
-    const s = String(text);
-    return RE_URL_HINT.test(s) ? s.replace(RE_URL, " ") : s;
+    let s = String(text);
+    if (RE_URL_HINT.test(s)) s = s.replace(RE_URL, " ");
+    if (RE_DOMAIN_HINT.test(s)) s = s.replace(RE_DOMAIN, "$1 ");
+    if (s.indexOf("@") !== -1) s = s.replace(RE_MENTION, "$1 ");
+    return s;
   }
   const RE_TOKEN = /[\p{L}\p{N}\p{M}]+(?:'[\p{L}\p{N}\p{M}]+)*/gu;
   const RE_NOSPACE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
@@ -345,8 +359,7 @@
   const WORDS_SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter("en", { granularity: "word" }) : null;
   function tokenizeWith(text, seg) {
     if (!text) return [];
-    let s = String(text).toLowerCase();
-    if (s.indexOf("http") !== -1 || s.indexOf("www.") !== -1) s = s.replace(RE_URL, " ");
+    let s = plainText(text).toLowerCase();
     if (RE_HAS_APOS.test(s)) s = s.replace(RE_APOS, "'");
     const m = s.match(RE_TOKEN);
     if (!m) return [];
