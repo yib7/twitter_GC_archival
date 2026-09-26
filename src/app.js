@@ -244,6 +244,9 @@ function monthKeyStr(mk) { return Math.floor(mk / 12) + "-" + String((mk % 12) +
 //   days:     { "YYYY-MM-DD": count } in chronological order
 //   monthArr: [["YYYY-MM", count], …] ascending
 //   busy:     ["YYYY-MM-DD", count] — the earliest busiest day
+// dayCounts is dense over the index's day range, which buildTimeIndex bounds
+// (instants clamped to 1900..2199), so one corrupt timestamp can size it to at
+// most ~110k days (<0.5 MB), never the ~10^8 days a raw outlier would.
 function timeAgg() {
   const TI = timeIndex();
   if (TI.agg) return TI.agg;

@@ -65,3 +65,23 @@ test("buildTimeIndex is pure: no globals, empty input, typed arrays", () => {
   assert.equal(TI.n, 0);
   assert.ok(TI.day instanceof Int32Array && TI.year instanceof Uint16Array && TI.monthKey instanceof Int32Array);
 });
+
+// SP3 review: a corrupt/outlier timestamp (year 275760, before 1900, NaN, not a
+// number) must not wrap the Uint16 year, throw inside the zone clock, or blow
+// the dense per-day span timeAgg() allocates. buildTimeIndex clamps the instant
+// it buckets to [1900-01-01, 2199-12-31] (the message keeps its own t).
+test("buildTimeIndex clamps outlier timestamps into a sane range", () => {
+  const LO = Date.UTC(1900, 0, 1), HI = Date.UTC(2200, 0, 1) - 1;
+  const bad = [8.64e15, -8.64e15, NaN, undefined, "2024", Infinity, Date.UTC(2024, 5, 1)];
+  for (const tz of ["UTC", "America/New_York", "local"]) {
+    const TI = buildTimeIndex(bad.map((t, k) => ({ i: "b" + k, t })), createZoneClock(tz));
+    for (let i = 0; i < bad.length; i++) {
+      assert.ok(TI.year[i] >= 1899 && TI.year[i] <= 2200, tz + " year " + TI.year[i] + " for " + bad[i]);
+      assert.ok(TI.day[i] >= Math.floor(LO / 86400000) - 1 && TI.day[i] <= Math.floor(HI / 86400000) + 1, tz + " day for " + bad[i]);
+      assert.ok(TI.hour[i] < 24 && TI.minute[i] < 60 && TI.month[i] < 12 && TI.dow[i] < 7, tz + " fields for " + bad[i]);
+    }
+    assert.equal(TI.year[0] >= 2199, true, "far future clamps to the top");
+    assert.equal(TI.year[1] <= 1900, true, "far past clamps to the bottom");
+    assert.equal(TI.year[6], 2024, "a normal timestamp is untouched");
+  }
+});
