@@ -68,6 +68,11 @@ html[data-theme="light"]{
 :root{
   --font-size:15px;         /* customizable (Settings → Font size) */
   --gap:14px;               /* density: row gap (Settings → Density) */
+  /* Overlay layers. Everything else stays below 300 (theme switch 200, mobile
+     top bar 30 / tab bar 40 / More sheet 46, On-this-day toast 130); the
+     onboarding card (9000) stays above. */
+  --z-modal:300;            /* every overlay (lightbox, palette, peek, profile, help): stacked by DOM order */
+  --z-toast:400;            /* feedback toasts stay readable above an open overlay */
   --bubble-pad:10px 14px;   /* density: bubble padding */
   --sidebar-w:280px;
 }
