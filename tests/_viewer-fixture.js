@@ -85,4 +85,12 @@ async function settled(read, ok = () => true, same = (a, b) => JSON.stringify(a)
 }
 const settledTimeline = (page) => settled(() => timelineSnap(page), (v) => v.first !== null, (a, b) => a.first === b.first && a.scrollTop === b.scrollTop);
 
-module.exports = { bootViewer, msgs, conv, collectErrors, afterSearchRun, timelineSnap, settled, settledTimeline };
+// Resolve after `n` animation frames: IntersectionObserver / ResizeObserver
+// callbacks are delivered during the rendering steps, so after two frames every
+// observer has seen the current layout. A condition, not a fixed sleep.
+const frames = (page, n = 2) => page.evaluate((k) => new Promise((done) => {
+  const step = () => (k-- > 0 ? requestAnimationFrame(step) : done());
+  step();
+}), n);
+
+module.exports = { bootViewer, msgs, conv, collectErrors, afterSearchRun, timelineSnap, settled, settledTimeline, frames };
