@@ -497,6 +497,7 @@
   function isKeysmashRun(r) {
     if (/[eiouy]/.test(r) || /(.)\1\1/.test(r)) return false;   // a vowel, or a stretched letter ("pfffft")
     const a = r.split("a").length - 1;
+    if (a && r.length < 8) return false;   // short runs with an "a" are words ("splash", "slacks")
     if (a * 6 > r.length) return false;
     if (new Set(r).size < 4) return false;
     return (r.match(RE_HOME_ROW) || []).length * 10 >= r.length * 7;

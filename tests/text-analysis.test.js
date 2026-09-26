@@ -208,7 +208,8 @@ test("isKeysmash: long home-row rolls and ones with a stray 'a' count; words nev
     assert.ok(S.isKeysmash(t), t);
   }
   for (const t of ["salads", "alaska", "glassjaw", "pfffft", "hmmmmph", "nggghhh", "tsktsktsk", "rhythms",
-    "strngths", "psssst", "https://t.co/xkcdbzqwrt"]) assert.ok(!S.isKeysmash(t), t);
+    "strngths", "psssst", "https://t.co/xkcdbzqwrt", "splash", "Splash!", "slacks", "shafts", "stalks",
+    "flasks", "klatsch"]) assert.ok(!S.isKeysmash(t), t);
 });
 
 test("isKeysmashPlain skips the link strip for text that is already plainText (review round 2)", () => {
