@@ -29,8 +29,17 @@ const ROOT = path.resolve(__dirname, "..");     // project root (this script liv
 // without ever touching the real personal_data/. Unset in normal use.
 const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(ROOT, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
-const PORT = process.env.GCA_PORT ? Number(process.env.GCA_PORT) : 8765;
+// `let`, not `const`: GCA_PORT=0 asks the OS for a free ephemeral port (used by
+// tests so no fixed port can ever collide with a real server — see QA-1). The
+// listen() callback below reassigns this to the port actually bound, BEFORE
+// anything else (the startup message, the Host-allowlist check) reads it.
+let PORT = process.env.GCA_PORT ? Number(process.env.GCA_PORT) : 8765;
 const HOST = "127.0.0.1";
+// QA-2/SP-16: when set (Playwright's own webServer sets this — see
+// playwright.config.js), skip the legacy ROOT/data.js + ROOT/names.local.js
+// fallbacks entirely, so a spawned test server can NEVER read or serve a
+// leftover root-level file even if one happens to exist on disk.
+const NO_ROOT_FALLBACK = !!process.env.GCA_NO_ROOT_FALLBACK;
 
 // When launched via the double-click launcher (`--open`), shut the server down
 // once the browser is closed — so users aren't left with a stray command window.
@@ -83,16 +92,28 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
+    let tooLarge = false;
     req.on("data", (c) => {
-      size += c.length;
+      if (tooLarge) return;   // already rejected — keep draining so the socket
+      size += c.length;       // isn't reset mid-upload, but stop buffering.
       if (size > MAX_JSON_BODY) {
+        tooLarge = true;
+        chunks.length = 0;    // free what we'd buffered so far — bounded memory
+        // NOTE: no req.destroy() here — destroying the request stream destroys
+        // the underlying socket (per Node's http docs) before the 413 response
+        // below has a chance to be written, so a real client sees a mid-upload
+        // connection reset instead of a clean 413. Reject now (readBody's
+        // caller sends the 413) and keep the connection open, silently
+        // draining the rest of the oversized body, so the response actually
+        // reaches the client. Bounded memory is still guaranteed: nothing past
+        // the cap is ever pushed onto `chunks`.
         reject(httpError(413, "Request body is too large."));
-        req.destroy();
         return;
       }
       chunks.push(c);
     });
     req.on("end", () => {
+      if (tooLarge) return;   // already rejected; nothing left to parse
       try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
       catch (e) { reject(httpError(400, "Invalid JSON request body.")); }
     });
@@ -161,7 +182,10 @@ function nativePick(kind, which) {
 }
 
 function readBuiltData() {
-  for (const f of [path.join(PERSONAL, "data.js"), path.join(ROOT, "data.js")]) {
+  const candidates = NO_ROOT_FALLBACK
+    ? [path.join(PERSONAL, "data.js")]
+    : [path.join(PERSONAL, "data.js"), path.join(ROOT, "data.js")];
+  for (const f of candidates) {
     if (!fs.existsSync(f)) continue;
     try {
       const s = fs.readFileSync(f, "utf8").replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, "");
@@ -390,6 +414,18 @@ function serveStatic(req, res) {
   // even though they live under ROOT alongside the app. See isServablePath's
   // own comment for the exact allow/deny shape.
   if (!isServablePath(p)) { res.writeHead(404); return res.end("not found"); }
+  // QA-2/SP-16: with the isolation switch on, the two ROOT-level real-data
+  // overrides are never read from disk at all — treated exactly like a missing
+  // optional override (empty 200) regardless of what actually sits at
+  // ROOT/data.js or ROOT/names.local.js. GCA_PERSONAL alone does not stop these
+  // two paths from resolving to ROOT (see readBuiltData's own ROOT fallback
+  // above, which this same switch also disables), so a spawned test server
+  // must set GCA_NO_ROOT_FALLBACK=1 to be fully isolated from a legacy root
+  // export sitting in the checkout it happens to run from.
+  if (NO_ROOT_FALLBACK && (p === "/data.js" || p === "/names.local.js")) {
+    res.writeHead(200, { "Content-Type": "application/javascript" });
+    return res.end("");
+  }
   // /personal_data/... is served from PERSONAL (which GCA_PERSONAL can redirect
   // to a throwaway dir for tests) rather than literally ROOT/personal_data, so
   // local.js/media/pfps resolve to wherever this run's identity actually lives.
@@ -541,6 +577,12 @@ server.on("error", (err) => {
 // registration either way, so it's left outside the guard.
 if (require.main === module) {
   server.listen(PORT, HOST, () => {
+    // GCA_PORT=0 asks the OS to pick a free port; server.address().port is the
+    // ONLY way to learn what it actually bound. Reassign PORT here, before the
+    // startup message (which tests parse — see server-port-zero.test.js) or any
+    // request is handled — the Host-allowlist/CSRF checks above close over this
+    // same `let` binding, so they immediately see the real port too.
+    PORT = server.address().port;
     const setupUrl = "http://" + HOST + ":" + PORT + "/setup.html";
     console.log(
       "Group Chat Archive running at  http://" + HOST + ":" + PORT +
