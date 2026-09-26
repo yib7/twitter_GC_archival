@@ -36,8 +36,8 @@ const DATA = {
       { t: BASE - 2000, type: "create", s: "alice001" },
       { t: BASE - 1000, type: "name", s: "alice001", name: "Boundary Test Group" },
       // Boundary-tie event: t === msgs[49].t === msgs[50].t. Actor "carol9999"
-      // never sends a message, so it's absent from PARTS/GENERIC and nameOf()
-      // falls back to "User 9999" (last 4 chars) — a stable, unique needle.
+      // never sends a message; since SP4 (AN-14) a join-only member is still a
+      // person (PARTS/GENERIC), named "User 3" — a stable, unique needle.
       { t: TIE_T, type: "join", ids: ["carol9999"] },
     ],
   }],
@@ -93,7 +93,7 @@ test("an event tied to a chunk boundary renders in exactly one chunk", async ({ 
   // The "owning chunk = chunk of the first message at-or-after the event"
   // rule assigns TIE_T to chunk 0 (msgs[49] is the first message with
   // t >= TIE_T). It must appear here...
-  await expect(chunk0.locator(".sysline", { hasText: "User 9999" })).toBeVisible();
+  await expect(chunk0.locator(".sysline", { hasText: "Added User 3" })).toBeVisible();
 
   // ...and force-render chunk 1 (bob's first message, index 50) via the same
   // "Go to <person>'s first message" command palette jump the app already
@@ -104,7 +104,7 @@ test("an event tied to a chunk boundary renders in exactly one chunk", async ({ 
 
   const chunk1 = page.locator('#tl-list [data-c="1"]');
   await expect(chunk1.locator(".msg").first()).toBeVisible();
-  await expect(chunk1.locator(".sysline", { hasText: "User 9999" })).toHaveCount(0);
+  await expect(chunk1.locator(".sysline", { hasText: "Added User 3" })).toHaveCount(0);
 
   expect(errors).toEqual([]);
 });

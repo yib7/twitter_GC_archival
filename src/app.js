@@ -7,7 +7,7 @@
 // Constants/helpers shared with the setup wizard + Node build live in ONE module,
 // loaded as a <script> before this one (index.html) — see src/shared-core.js.
 /* global GCAShared */
-const { PALETTE, X_LINK, hashId, initials, paletteColor } = GCAShared;
+const { PALETTE, X_LINK, hashId, initials } = GCAShared;
 // Pure settings validators (VC-5/VC-6) — also unit-tested under Node.
 const { sanitizePhoto, sanitizeColor, isPlainObj } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
@@ -111,13 +111,32 @@ function cancelStatsRender() {
   const sv = document.getElementById("view-stats"); if (sv) { sv.innerHTML = ""; delete sv.dataset.ready; }
 }
 
+// An ignored user disappears entirely (AN-19): their messages AND their
+// reactions on everyone else's messages. Messages whose reactions change are
+// shallow-copied, so the shared CONVOS data stays intact for when the user is
+// un-ignored again.
+function withoutIgnored(list, ignored) {
+  if (!ignored.size) return list.slice();
+  const out = [];
+  for (const m of list) {
+    if (ignored.has(String(m.s))) continue;
+    if (m.r && m.r.some((x) => ignored.has(String(x.s)))) {
+      const r = m.r.filter((x) => !ignored.has(String(x.s)));
+      const copy = Object.assign({}, m);
+      if (r.length) copy.r = r; else delete copy.r;
+      out.push(copy);
+    } else out.push(m);
+  }
+  return out;
+}
+
 function activateConversation(id, rerender) {
   const c = CONVOS.find(x => x.id === id) || CONVOS[0];
   if (!c) return;
   CONV = c;
   try { localStorage.setItem("gca.conv", c.id); } catch (e) {}
   const ignored = ignoredUserIds();
-  MSGS = (c.msgs || []).filter(m => !ignored.has(String(m.s)));
+  MSGS = withoutIgnored(c.msgs || [], ignored);
   EVENTS = c.events || [];
   rebuildIndexes();
   resetDerived();
@@ -605,18 +624,24 @@ function animateCounts(rootEl) {
 }
 
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
-// The viewer's colorOf honors a user-picked settings.colors override first, then
-// falls back to the shared palette lookup (paletteColor, from src/shared-core.js).
-function colorOf(id) { return sanitizeColor(settings.colors[id]) || paletteColor(id); }
+// ONE person colour everywhere (AN-15 / UX-25): avatars, names, cards, Word
+// Battles, foreign pins and the quote card all read personColor().
 // X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
 // A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
 // (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
 const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
-function hueOf(id) {
+function personColor(id) {
   const c = sanitizeColor(settings.colors[id]);
   if (c) return { p: c, f: shade(c, -20) };
   const h = HUES[hashId(id) % HUES.length];
   return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" };
+}
+// Resolve a personColor() value to a concrete colour — for canvas drawing,
+// which can't read CSS custom properties.
+function cssColor(v, fallback) {
+  const m = /^var\((--[\w-]+)\)$/.exec(v || "");
+  if (!m) return v || fallback;
+  return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || fallback;
 }
 
 /* ---- Bookmarks / Pinned messages ----------------------------------------- */
@@ -725,7 +750,7 @@ function applyPfp(av, id) {
     av.style.backgroundRepeat = "no-repeat";
     av.textContent = "";
   } else {
-    const { p, f } = hueOf(id);
+    const { p, f } = personColor(id);
     av.style.backgroundImage = "";     // clear any prior photo; CSS .av gradient uses --p/--f
     av.style.setProperty("--p", p);
     av.style.setProperty("--f", f);
@@ -738,7 +763,7 @@ function pfpHtml(id, styleStr) {
   if (photo) {
     return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background-image:url('${esc(photo)}');background-size:cover;background-position:center;background-repeat:no-repeat;"></span>`;
   }
-  const hue = hueOf(id);
+  const hue = personColor(id);
   return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};--p:${esc(hue.p)};--f:${esc(hue.f)}">${esc(initials(nameOf(id)))}</span>`;
 }
 
@@ -761,6 +786,22 @@ function computeParticipants() {
     if (m.m && p.media.length < 6) p.media.push({ m: m.m, k: m.k });
   }
   const arr = [...map.values()].sort((a, b) => b.count - a.count);
+  // AN-14: members who never posted — on the roster (conversation.participants),
+  // reacting only, or only in a join / leave event — are people too. They go
+  // after every sender (so senders keep their "User N" numbers), in the order
+  // they are first seen: roster, then reactions, then events. Ignored users
+  // never come back this way.
+  const ignored = ignoredUserIds();
+  const quiet = (id) => {
+    if (id == null || id === "") return;
+    id = String(id);
+    if (map.has(id) || ignored.has(id)) return;
+    const p = { id, count: 0, first: null, firstIdx: -1, last: null, samples: [], media: [] };
+    map.set(id, p); arr.push(p);
+  };
+  ((CONV && CONV.participants) || []).forEach(quiet);
+  for (let i = 0; i < N; i++) { const r = MSGS[i].r; if (r) r.forEach((x) => quiet(x.s)); }
+  (EVENTS || []).forEach((e) => { (e.ids || []).forEach(quiet); quiet(e.s); });
   // Prefer longer (more distinctive) lines, dedupe, keep 5–10 per person.
   arr.forEach((p) => {
     const seen = new Set();
@@ -974,7 +1015,7 @@ function renderMsg(i, opts) {
 
   const body = el("div", "msg-body");
   const head = el("div", "msg-head");
-  const nm = el("span", "msg-name"); nm.textContent = nameOf(id); nm.style.color = hueOf(id).p;
+  const nm = el("span", "msg-name"); nm.textContent = nameOf(id); nm.style.color = personColor(id).p;
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
@@ -2872,7 +2913,7 @@ function fillStatsDeferred(v, s, cloudWords) {
           { win: s.gamerWinner, title: "The Gamer", desc: fmtNum(s.gamerWinner.val) + " gamer terms" },
           { win: s.financeBroWinner, title: "Finance Bro", desc: fmtNum(s.financeBroWinner.val) + " crypto/stock terms" },
         ].filter(x => x.win && x.win.id && x.win.val > 0).map(x => `
-          <div class="card super" style="--p:${esc(hueOf(x.win.id).p)}">
+          <div class="card super" style="--p:${esc(personColor(x.win.id).p)}">
             ${pfpHtml(x.win.id, "width:40px;height:40px;font-size:16px")}
             <div class="s-body">
               <div class="s-name">${esc(nameOf(x.win.id))}</div>
@@ -3111,7 +3152,7 @@ function personCard(p) {
   const main = el("div", "person-main");
   const row = el("div", "person-row");
   const input = el("input", "person-name-input");
-  input.type = "text"; input.value = settings.names[p.id] || ""; input.placeholder = "User " + p.id.slice(-4);
+  input.type = "text"; input.value = settings.names[p.id] || ""; input.placeholder = GENERIC[p.id] || nameOf(p.id);
   input.addEventListener("input", () => {
     const val = input.value.trim();
     if (val) settings.names[p.id] = val; else delete settings.names[p.id];
@@ -3121,10 +3162,11 @@ function personCard(p) {
   row.appendChild(input);
   main.appendChild(row);
 
-  main.appendChild(el("div", "person-meta",
-    fmtNum(p.count) + " messages · " + DT.format(p.first).split(",")[0] + ", " + zonedParts(p.first).y +
-    " → " + DT.format(p.last).split(",")[0] + ", " + zonedParts(p.last).y +
-    ' &nbsp; <span class="person-id">id ' + esc(p.id) + "</span>"));
+  const span = p.count
+    ? plural(p.count, "message") + " · " + DT.format(p.first).split(",")[0] + ", " + zonedParts(p.first).y +
+      " → " + DT.format(p.last).split(",")[0] + ", " + zonedParts(p.last).y
+    : "Never posted — on the member list, reacting or in a join / leave event only";
+  main.appendChild(el("div", "person-meta", esc(span) + ' &nbsp; <span class="person-id">id ' + esc(p.id) + "</span>"));
 
   if (p.samples.length) {
     const sw = el("div", "samples");
@@ -3157,9 +3199,15 @@ function personCard(p) {
   side.appendChild(me);
 
   const sws = el("div", "swatches");
+  const override = sanitizeColor(settings.colors[p.id]);
+  const auto = el("button", "swatch swatch-auto" + (override ? "" : " sel"), "A");
+  auto.type = "button"; auto.title = "Automatic colour"; auto.setAttribute("aria-label", "Automatic colour");
+  auto.style.setProperty("--p", personColor(p.id).p);
+  auto.onclick = () => { delete settings.colors[p.id]; saveSettings(); renderPeople(); };
+  sws.appendChild(auto);
   PALETTE.forEach((col) => {
     const sw = el("div", "swatch"); sw.style.background = col; sw.style.color = col;
-    if (colorOf(p.id).toLowerCase() === col.toLowerCase()) sw.classList.add("sel");
+    if (override && override.toLowerCase() === col.toLowerCase()) sw.classList.add("sel");
     sw.onclick = () => { settings.colors[p.id] = col; saveSettings(); renderPeople(); };
     sws.appendChild(sw);
   });
@@ -4135,7 +4183,7 @@ function drawWrappedSlide() {
   } else if (s.kind === "person") {
     const max = (s.podium[0] && s.podium[0][1]) || 1;
     const rows = s.podium.map(([id, c], k) => {
-      const hue = hueOf(id);
+      const hue = personColor(id);
       return `<div class="pl-row st"><span class="pl-rank">0${k + 1}</span>
         ${pfpHtml(id, "width:46px;height:46px;font-size:16px")}
         <div class="pl-main"><div class="pl-name" style="--p:${esc(hue.p)}">${esc(nameOf(id))}</div>
@@ -4439,7 +4487,7 @@ function renderForeignPin(conv, m) {
   const av = el("div", "av"); applyPfp(av, m.s); wrap.appendChild(av);
   const body = el("div", "msg-body");
   const head = el("div", "msg-head");
-  const nm = el("span", "msg-name"); nm.textContent = nameOf(m.s); nm.style.color = colorOf(m.s);
+  const nm = el("span", "msg-name"); nm.textContent = nameOf(m.s); nm.style.color = personColor(m.s).p;
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
@@ -4544,7 +4592,8 @@ function exportQuoteCard(i) {
   const bg = cv("--bg-1", "#0a0e17");
   const accent = settings.accent || "#3b82f6";
   const txtCol = cv("--text", "#e8edf7"), dim = cv("--text-faint", "#5d6a8c");
-  const pColor = colorOf(m.s);
+  const pc = personColor(m.s);
+  const pColor = cssColor(pc.p, accent), pFill = cssColor(pc.f, pColor);
 
   const W = 720, PAD = 48, AV = 64, contentX = PAD + AV + 22, contentW = W - contentX - PAD;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -4587,7 +4636,7 @@ function exportQuoteCard(i) {
       ctx.drawImage(pfpImg, ax - AV / 2, ay - AV / 2, AV, AV);
       ctx.restore();
     } else {
-      ctx.fillStyle = pColor; ctx.fill();
+      ctx.fillStyle = pFill; ctx.fill();
       ctx.fillStyle = "#fff"; ctx.font = '700 26px ' + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(initials(nameOf(m.s)), ax, ay + 1);
     }
@@ -4713,7 +4762,7 @@ function buildCommands() {
   }});
   cmds.push({ ico: "random", label: "Shuffle theme (surprise me)", sub: "Random theme + accent combo", hint: "Theme", run: () => shuffleTheme() });
   // People → jump to their first message
-  PARTS.forEach((p) => cmds.push({ ico: "people", pid: p.id, label: "Go to " + nameOf(p.id) + "'s first message", sub: "Jump to their first message", hint: "Person", run: () => jumpTo(p.firstIdx) }));
+  PARTS.forEach((p) => p.firstIdx >= 0 && cmds.push({ ico: "people", pid: p.id, label: "Go to " + nameOf(p.id) + "'s first message", sub: "Jump to their first message", hint: "Person", run: () => jumpTo(p.firstIdx) }));
   // Saved searches
   (settings.saved || []).forEach((s) => cmds.push({ ico: "saved", label: "Search: " + s.name, sub: s.q || "Filters only", hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
   return cmds;
@@ -4851,7 +4900,7 @@ function showOnThisDayToast() {
   // Mock .toast structure: header (clock icon + "On This Day" + "N years ago"),
   // body (avatar + hue-colored name · quoted snippet), uppercase CTA row, and a
   // ✕ that dismisses without navigating. Click anywhere else → Time Capsule.
-  const hue = hueOf(m.s);
+  const hue = personColor(m.s);
   const otdToast = el("div", "otd-toast");
   otdToast.innerHTML = `
     <button class="otd-close" type="button" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -5096,9 +5145,9 @@ function drawBattleResults() {
     else if (c2 > c1) wins2++;
   });
   html += `<div class="battle-summary">
-    <span style="color:${esc(colorOf(battleP1))};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} wins</span>
+    <span style="color:${esc(personColor(battleP1).p)};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} wins</span>
     <span style="color:var(--text-faint)">•</span>
-    <span style="color:${esc(colorOf(battleP2))};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} wins</span>
+    <span style="color:${esc(personColor(battleP2).p)};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} wins</span>
   </div>`;
 
   container.innerHTML = html;

@@ -602,6 +602,9 @@ button, input, select, textarea { font-family: inherit; }
 .swatches { display: flex; gap: 6px; flex-wrap: wrap; max-width: 150px; justify-content: flex-end; }
 .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px currentColor; }
+/* "Automatic" swatch: the person's hash hue; picking it clears the override. */
+.swatch-auto { padding: 0; font-size: 10px; font-weight: 700; line-height: 18px; color: #fff; background: var(--p); text-align: center; }
+.swatch-auto.sel { color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--p); }
 .me-toggle { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
 .me-toggle input { accent-color: var(--accent); }
 
