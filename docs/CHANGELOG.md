@@ -29,6 +29,34 @@ All notable changes to this project are recorded here.
   scrolling through a huge result set no longer grows the page without bound.
   Infinite scroll is unchanged.
 
+### Fixed (analytics)
+
+- Emoji are counted as whole sequences everywhere: a skin-toned, combined
+  (family, flag, keycap) emoji is one emoji, not two or five.
+- Stats, Wrapped, Word Battles, the keyword trend and the word cloud share one
+  Unicode word tokenizer, so accented, Cyrillic, CJK and apostrophe words
+  ("don't") count the same in every view, and the keyword trend counts whole
+  words instead of substrings ("man" no longer matches "many").
+- Superlatives are fair: frequency awards are rates (per 100 messages or % of
+  messages) with a minimum sample, reply awards use the median reply time,
+  The Scholar compares everyone at the same number of words, ties are shown,
+  and a card is hidden when nobody qualifies or everybody ties. Every card says
+  how it is measured, and profile badges come from the same list, so nobody
+  gets "The Sailor" for zero swear words.
+- Members who never posted (on the roster, reacting or in join/leave events
+  only) are counted as people; an ignored member's reactions are dropped too.
+- One display name and one colour per person: the People placeholder, Word
+  Battles, pinned messages and the quote card match the avatar.
+- Month charts and sparklines show silent months as zero instead of joining
+  January to September.
+- Stats charts follow theme and accent changes live; the keyword trend, the
+  hero sparkline dot and the platform bars use theme colours, and every chart
+  has a text summary for screen readers.
+- "On This Day" picks from every past year, not just the first 20 matches.
+- Copy: "1 thread shown", "3 days" chat age (not "0.0 yrs"), "Msgs / active
+  day", "<1s" replies; empty Stats panels are hidden, an empty gallery says so,
+  and the keyboard help shows ⌘ on Apple devices.
+
 ## v1.4.0 (unreleased) — code-audit remediation
 
 ### Added

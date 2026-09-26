@@ -68,7 +68,7 @@ Server endpoints:
 | `setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard (served). Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Loads `src/theme-boot.js`, then `data.sample.js` first, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/shared-core.js`, then `src/app.js`. |
 | `src/app.js` | The entire UI. See "Runtime model" below. |
-| `src/shared-core.js` | Single source for the constants/helpers three consumers all need to agree on: `PALETTE` (avatar colors), `X_LINK` (Twitter/X link matcher), `hashId`, `initials`, `paletteColor`. Dual-target, no bundler: a UMD-style wrapper sets `window.GCAShared` when loaded as a plain `<script>` (`index.html`/`setup.html`, before `app.js`/`setup.js`) and exports the same object via `module.exports` when `require()`d from Node (`scripts/build-core.js`). Replaces three previously-duplicated copies of the same constants; `tests/shared-core.test.js` asserts every consumer wires up this module and none re-declares its own copy. |
+| `src/shared-core.js` | Single source for the constants/helpers three consumers all need to agree on: `PALETTE` (avatar colors), `X_LINK` (Twitter/X link matcher), `hashId`, `initials`, `paletteColor`, plus the text-analysis definitions (emoji, tokenizer, stopwords, keywords, link platforms, `plural`) and the time index (see *Analytics definitions*). Dual-target, no bundler: a UMD-style wrapper sets `window.GCAShared` when loaded as a plain `<script>` (`index.html`/`setup.html`, before `app.js`/`setup.js`) and exports the same object via `module.exports` when `require()`d from Node (`scripts/build-core.js`). Replaces three previously-duplicated copies of the same constants; `tests/shared-core.test.js` asserts every consumer wires up this module and none re-declares its own copy. |
 | `src/theme-boot.js` | Applies the saved `gca.theme` (light/dim/lightsout) to `<html data-theme>` before first paint, avoiding a flash of the wrong theme. Externalized into its own same-origin file (loaded first, in `<head>`, in both `index.html` and `setup.html`) rather than an inline `<script>` block, so the served-mode CSP's `script-src 'self'` needs no per-inline-script hash or `'unsafe-inline'`. No-op over `file://` (`localStorage` still works there; the CSP header simply isn't sent). |
 | `src/styles.css` | App styles + the X design-token theme system: `html[data-theme]` blocks for Light, Dim, and Lights out. Accent, font size, and density stay JS-driven CSS variables. |
 | `scripts/server.js` | Static file server with HTTP range support (for video), plus the setup-wizard API (`/api/source`, `/api/parts`, `/api/identity`). Not required for daily use, the app runs from `file://`. In served mode it also sends the CSP header (`script-src 'self' 'nonce-<random>'`, matched to a nonce injected into the response's inline theme/boot script tags) and enforces the Host/Origin guard below on every request. |
@@ -142,6 +142,33 @@ them and forces a re-render. The conversation picker (`renderConvPicker()`) is a
   threshold, so results are identical to scanning the whole archive (a unit
   test proves it). The result list is windowed: 60-row pages far from the
   viewport are frozen at their height and emptied, then re-rendered on return.
+
+### Analytics definitions
+
+- **One text vocabulary.** `src/shared-core.js` owns every definition the
+  analytics views count with: `extractEmojis` (whole emoji sequences),
+  `tokenize` / `wordKey` / `wordKeys` / `countKeys` (one Unicode word
+  tokenizer, whole-word matching), `isCloudWord` (stopwords), `KEYWORDS`
+  (laugh, gratitude, slang, …) and `linkPlatform` (hostname-based). Stats,
+  Wrapped, Word Battles and the keyword trend never keep their own regexes;
+  `tests/text-analysis.test.js` pins the definitions.
+- **People.** `PARTS` is every member of the conversation: senders by
+  message count, then members who never posted (roster, reaction-only and
+  join/leave ids). `nameOf()` / `GENERIC` give one display name and
+  `personColor(id)` one colour (override or avatar hue) to every view.
+- **Superlatives.** The `SUPERLATIVES` descriptor list (key, title, pool,
+  `value`, `fmt`, `def`) is the only definition of each award. One sweep
+  (`statsGen`) builds a per-person record; the awards are computed from it
+  once into `STATS.awards`, which both the Stats grid and the profile badges
+  render. Rate awards need `max(20, 1% of messages)` messages; a card is
+  hidden when fewer than two people qualify, the best value is 0 or everyone
+  ties, and a shared top value is shown as a tie.
+- **Months are zero-filled** in `timeAgg().monthArr`, which the months chart,
+  hero and sidebar sparklines and the keyword trend all read.
+- **Charts follow the theme.** Charts are built through `makeChart()`, which
+  colours ticks / grid from `--text-dim` / `--border` and datasets from the
+  accent; `refreshChartTheme()` re-applies that to the open charts from
+  `setTheme()` and `applyTheme()`.
 
 Boot happens at the very end of the IIFE (after all `let`s are declared, so
 `resetDerived()` doesn't hit a temporal-dead-zone) → `activateConversation()` →
