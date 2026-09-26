@@ -3323,7 +3323,13 @@ function init() {
       if (e.key === "ArrowRight") { e.preventDefault(); wrappedGo(1); return; }
       if (e.key === "ArrowLeft") { e.preventDefault(); wrappedGo(-1); return; }
     }
-    if (e.key === "/" && curView !== "search" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); setView("search"); }
+    // VC-21: "/" focuses the search box — on the Search view too (it used to
+    // be a no-op there), never while typing or with an overlay open.
+    if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable && !topModal()) {
+      e.preventDefault();
+      if (curView !== "search") setView("search");
+      const si = document.getElementById("s-input"); if (si) si.focus();
+    }
     if (e.key === "?" && document.activeElement.tagName !== "INPUT" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); toggleKeyboardHelp(); }
   });
 
