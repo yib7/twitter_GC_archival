@@ -63,3 +63,24 @@ test("VC-15/AN-17: the Threads year filter does not leak into another conversati
   await expect(page.locator(".thr-yr.active")).toHaveText("All");
   await expect(page.locator(".thr-card")).not.toHaveCount(0);
 });
+
+// VC-22: a timezone change left already-rendered Search results in the old
+// zone and kept the From/To filter bounds computed for the old zone.
+test("VC-22: changing the timezone re-runs the search with bounds recomputed for the new zone", async ({ page }) => {
+  // 10 msgs at 02:30Z on Mar 10 (= Mar 9 evening in New York) + 5 at 15:00Z.
+  const early = msgs("e", 10, { t0: Date.parse("2024-03-10T02:30:00Z") });
+  const late = msgs("l", 5, { t0: Date.parse("2024-03-10T15:00:00Z") });
+  await bootViewer(page, { conversations: [conv("A", "Alpha", [...early, ...late])] });
+  await page.locator("#f-from").fill("2024-03-10");
+  await page.locator("#f-from").dispatchEvent("change");
+  await page.locator("#f-to").fill("2024-03-10");
+  await page.locator("#f-to").dispatchEvent("change");
+  await expect(page.locator("#s-meta")).toContainText("15 messages found");
+
+  await page.locator('.nav-item[data-view="settings"]').click();
+  await page.locator("#set-tz").selectOption("America/New_York");
+  await page.locator('.nav-item[data-view="search"]').click();
+  await expect(page.locator("#s-meta")).toHaveText(/(^|\D)5 messages found/);
+  await expect(page.locator("#f-from")).toHaveValue("2024-03-10");
+  await expect(page.locator("#s-list .msg-time").first()).toContainText("Mar 10, 2024, 11:04 AM");
+});

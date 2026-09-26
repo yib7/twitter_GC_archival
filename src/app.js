@@ -2948,6 +2948,13 @@ function renderSettings() {
     // months, milestones, Hall of Fame years, threads, and each Wrapped year.
     STATS = null; WORDS = null; MILES = null; HOF = null; threadsCache = null;
     for (const k in wrappedCache) delete wrappedCache[k];
+    // VC-22: already-rendered Search results / Timeline rows carry old-zone
+    // labels, and the From/To bounds were computed for the old zone. Recompute
+    // the bounds from the picked dates, re-run the search, and let the
+    // timeline rebuild on its next visit.
+    syncDateBounds();
+    if (searchBuilt) runSearch();
+    tlBuilt = false; if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
     buildSidebarSparkline();
     if (curView && curView !== "settings") setView(curView);
     toast("Timezone updated");
