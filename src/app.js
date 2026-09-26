@@ -79,6 +79,13 @@ function resetDerived() {
   const gv = document.getElementById("view-gallery"); if (gv) gv.innerHTML = "";
   hofYear = "all"; wrappedYear = null; wrappedSlide = 0;
   battleP1 = null; battleP2 = null;
+  // VC-4/UX-2, VC-15/AN-17: filters are per-conversation state — another
+  // chat's dates / people / media toggles / grid mode (or Threads year) must
+  // not silently narrow this one. Sort order and match mode are preferences
+  // and are kept. ensureSearch() renders its controls FROM F, so the rebuilt
+  // toolbar always shows exactly what is applied.
+  resetSearchFilters();
+  threadFilter = "all";
   for (const k in wrappedCache) delete wrappedCache[k];
   if (trendChart) { try { trendChart.destroy(); } catch (e) {} trendChart = null; }
   // P2-2: same lifecycle as trendChart for the three per-render stats charts —
@@ -1118,7 +1125,22 @@ function toast(msg) {
 /* ===========================================================================
    SEARCH VIEW
    ======================================================================== */
-const F = { needles: [], people: new Set(), from: null, to: null, media: false, links: false, reacts: false, grid: false, sort: "relevance", fuzzy: true };
+// fromStr/toStr keep the raw "YYYY-MM-DD" the user picked: the inputs are
+// re-filled from them when the toolbar is rebuilt, and from/to (epoch bounds
+// in the configured zone) are recomputed from them when the timezone changes.
+const F = { needles: [], people: new Set(), from: null, to: null, fromStr: "", toStr: "", media: false, links: false, reacts: false, grid: false, sort: "relevance", fuzzy: true };
+function resetSearchFilters() {
+  F.needles = []; F.people = new Set();
+  F.from = null; F.to = null; F.fromStr = ""; F.toStr = "";
+  F.media = false; F.links = false; F.reacts = false; F.grid = false;
+}
+// Epoch bounds for the stored date strings, in the CURRENT zone.
+function syncDateBounds() {
+  F.from = F.fromStr ? zonedDateBound(F.fromStr, false) : null;
+  F.to = F.toStr ? zonedDateBound(F.toStr, true) : null;
+  if (isNaN(F.from)) F.from = null;
+  if (isNaN(F.to)) F.to = null;
+}
 let searchBuilt = false;
 let sEls = {};
 let resState = { idx: [], page: 0 };
@@ -1188,6 +1210,15 @@ function ensureSearch() {
     matchtoggle: v.querySelector("#f-matchtoggle"), matchhint: v.querySelector("#s-matchhint"),
   };
 
+  // Every control is rendered FROM F (VC-4) so the UI can never disagree with
+  // the filters actually applied.
+  sEls.from.value = F.fromStr; sEls.to.value = F.toStr;
+  sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to));
+  sEls.viewtoggle.querySelectorAll("button").forEach((b) => b.classList.toggle("sel", (b.dataset.mode === "grid") === F.grid));
+  sEls.media.classList.toggle("active", F.media);
+  sEls.links.classList.toggle("active", F.links);
+  sEls.reacts.classList.toggle("active", F.reacts);
+
   // sort control
   sEls.sort.value = F.sort;
   sEls.sort.onchange = () => { F.sort = sEls.sort.value; runSearch(); };
@@ -1216,8 +1247,8 @@ function ensureSearch() {
   sEls.media.onclick = () => { F.media = !F.media; sEls.media.classList.toggle("active", F.media); runSearch(); };
   sEls.links.onclick = () => { F.links = !F.links; sEls.links.classList.toggle("active", F.links); runSearch(); };
   sEls.reacts.onclick = () => { F.reacts = !F.reacts; sEls.reacts.classList.toggle("active", F.reacts); runSearch(); };
-  sEls.from.onchange = () => { F.from = sEls.from.value ? zonedDateBound(sEls.from.value, false) : null; sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
-  sEls.to.onchange = () => { F.to = sEls.to.value ? zonedDateBound(sEls.to.value, true) : null; sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
+  sEls.from.onchange = () => { F.fromStr = sEls.from.value || ""; syncDateBounds(); sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
+  sEls.to.onchange = () => { F.toStr = sEls.to.value || ""; syncDateBounds(); sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to)); runSearch(); };
 
   // people popover
   sEls.people.onclick = (e) => { e.stopPropagation(); togglePeoplePopover(); };
@@ -1495,7 +1526,7 @@ function updateClearAllBtn() {
 function clearAllFilters() {
   sEls.input.value = ""; sEls.clear.hidden = true;
   F.media = false; F.links = false; F.reacts = false;
-  F.people.clear(); F.from = null; F.to = null;
+  F.people.clear(); F.from = null; F.to = null; F.fromStr = ""; F.toStr = "";
   sEls.from.value = ""; sEls.to.value = "";
   sEls.from.closest(".pill").classList.remove("active");
   sEls.media.classList.remove("active");
@@ -1552,9 +1583,9 @@ function applySaved(s) {
   sEls.input.value = s.q || ""; sEls.clear.hidden = !sEls.input.value;
   const f = s.f || {};
   F.people = new Set(f.people || []); updatePeopleBadge();
-  sEls.from.value = f.from || ""; sEls.to.value = f.to || "";
-  F.from = f.from ? zonedDateBound(f.from, false) : null;
-  F.to = f.to ? zonedDateBound(f.to, true) : null;
+  F.fromStr = f.from || ""; F.toStr = f.to || "";
+  sEls.from.value = F.fromStr; sEls.to.value = F.toStr;
+  syncDateBounds();
   sEls.from.closest(".pill").classList.toggle("active", !!(F.from || F.to));
   F.media = !!f.media; F.links = !!f.links; F.reacts = !!f.reacts;
   sEls.media.classList.toggle("active", F.media);
@@ -4442,6 +4473,9 @@ let threadFilter = "all";
 function renderThreads() {
   const v = document.getElementById("view-threads");
   const threads = computeThreads();
+  // AN-17: a year chosen for another conversation / zone that has no threads
+  // here falls back to "All" (same guard renderHallOfFame uses).
+  if (threadFilter !== "all" && !threads.some((t) => String(zonedParts(t.startT).y) === threadFilter)) threadFilter = "all";
 
   let filtered = threads;
   if (threadFilter !== "all") {
