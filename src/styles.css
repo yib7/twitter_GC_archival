@@ -608,6 +608,15 @@ button, input, select, textarea { font-family: inherit; }
 /* "Automatic" swatch: the person's hash hue; picking it clears the override. */
 .swatch-auto { padding: 0; font-size: 10px; font-weight: 700; line-height: 18px; color: #fff; background: var(--p); text-align: center; }
 .swatch-auto.sel { color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--p); }
+/* Platform link bars (UX-24): theme tokens, never fixed brand hexes — TikTok
+   used to be #222, invisible on Lights out. */
+.plat-tt { background: var(--text); }
+.plat-yt { background: var(--danger); }
+.plat-tw { background: var(--accent); }
+.plat-ig { background: var(--accent-2); }
+.plat-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -4px 0 8px; font-size: 11px; color: var(--text-dim); }
+.plat-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.plat-legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
 .me-toggle { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
 .me-toggle input { accent-color: var(--accent); }
 

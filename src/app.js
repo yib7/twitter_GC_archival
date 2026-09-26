@@ -836,6 +836,7 @@ function applyTheme() {
   const app = document.getElementById("app");
   app.classList.toggle("no-avatars", !settings.avatars);
   app.classList.toggle("no-timestamps", !settings.timestamps);
+  refreshChartTheme();    // AN-5: open charts follow the new accent
 }
 
 /* ---- Theme modes (X: Light / Dim / Lights out) --------------------------- */
@@ -858,6 +859,7 @@ function setTheme(t) {
   document.documentElement.setAttribute("data-theme", t);
   try { localStorage.setItem(THEME_KEY, t); } catch (e) { /* ignore */ }
   reflectTheme(t);
+  refreshChartTheme();    // AN-5: open charts follow the new surface tokens
 }
 function initTheme() {
   setTheme(getTheme());
@@ -2492,6 +2494,52 @@ let trendChart = null;
 // render. Tracked (like trendChart) so renderStats()/resetDerived() can
 // destroy them before their canvases are detached.
 let statCharts = [];
+// AN-5 / UX-7 / UX-24: every Stats chart wears the LIVE theme — tick labels and
+// grid lines from --text-dim / --border, datasets from the accent (never a
+// fixed colour). Applied to a config before a chart is built, and re-applied to
+// the open charts by refreshChartTheme() on every theme / accent change.
+function chartTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  const accent = sanitizeColor(settings.accent) || DEFAULTS.accent;
+  return {
+    text: cs.getPropertyValue("--text-dim").trim() || "rgba(255,255,255,0.6)",
+    grid: cs.getPropertyValue("--border").trim() || "rgba(255,255,255,0.1)",
+    accent, soft: hexA(accent, 0.2),
+  };
+}
+// Explicit x / y axes so a later re-theme has objects to recolour.
+function chartAxes() {
+  return { x: { ticks: {}, grid: {}, border: {} }, y: { beginAtZero: true, ticks: {}, grid: {}, border: {} } };
+}
+// Colour one chart (a live Chart or its config — both carry data + options):
+// bars are solid accent, lines an accent stroke over a soft accent fill.
+function paintChart(type, data, options, th) {
+  const sc = options.scales || {};
+  Object.keys(sc).forEach((k) => {
+    if (sc[k].ticks) sc[k].ticks.color = th.text;
+    if (sc[k].grid) sc[k].grid.color = th.grid;
+    if (sc[k].border) sc[k].border.color = th.grid;
+  });
+  const lg = options.plugins && options.plugins.legend;
+  if (lg && lg.labels) lg.labels.color = th.text;
+  data.datasets.forEach((ds) => {
+    if (type === "bar") ds.backgroundColor = th.accent;
+    else { ds.borderColor = th.accent; ds.backgroundColor = th.soft; }
+  });
+}
+function makeChart(canvas, cfg) {
+  paintChart(cfg.type, cfg.data, cfg.options, chartTheme());
+  return new Chart(canvas.getContext("2d"), cfg);
+}
+function refreshChartTheme() {
+  if (!window.Chart) return;
+  const th = chartTheme();
+  Chart.defaults.color = th.text;
+  Chart.defaults.borderColor = th.grid;
+  statCharts.concat(trendChart ? [trendChart] : []).forEach((c) => {
+    try { paintChart(c.config.type, c.data, c.options, th); c.update("none"); } catch (e) { /* detached canvas */ }
+  });
+}
 // Whole-word uses of `word` (or phrase) per zoned month — the same token
 // definition as the word cloud and Word Battles (AN-10), never a substring.
 function computeKeywordTrend(word) {
@@ -2530,15 +2578,17 @@ function updateTrendChart(word) {
   } else if (window.Chart) {
     const ctx = document.getElementById("chart-trends");
     if (!ctx) return;
-    trendChart = new Chart(ctx.getContext("2d"), {
+    trendChart = makeChart(ctx, {
       type: 'line',
       data: {
         labels: labels,
-        datasets: [{ label: '"' + word + '" frequency', data: data, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.2)', fill: true, tension: 0.4 }]
+        datasets: [{ label: '"' + word + '" frequency', data: data, fill: true, tension: 0.4 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true } }, scales: { y: { beginAtZero: true } } }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, labels: {} } }, scales: chartAxes() }
     });
   }
+  const cv = document.getElementById("chart-trends");
+  if (cv) cv.setAttribute("aria-label", "Line chart: monthly uses of “" + trendWord + "”");
 }
 
 let MILES = null;
@@ -2646,7 +2696,7 @@ function renderStats() {
             </defs>
             <path d="${lineD} L${SW} ${SH} L0 ${SH} Z" fill="url(#hero-spark-grad)"/>
             <path d="${lineD}" stroke="var(--accent-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="${lx}" cy="${ly}" r="3.5" fill="#fff"/>
+            <circle cx="${lx}" cy="${ly}" r="3.5" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="1.5"/>
           </svg>
           <div class="cap">messages / month · ${zonedParts(first).y} → ${zonedParts(last).y}</div>
         </div>`;
@@ -2705,7 +2755,7 @@ function renderStats() {
       ${deferSlot("vocab")}
 
       <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(a.busy[0] ? DAY.format(dayKeyBoundInstant(a.busy[0])) : "—")} (${fmtNum(a.busy[1])} msgs)</div>
-      <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months"></canvas></div></div>
+      <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months" role="img" aria-label="Bar chart: messages per month"></canvas></div></div>
 
       <div class="section">
         <div class="section-h">Keyword Trends (Google Trends Style)</div>
@@ -2713,17 +2763,17 @@ function renderStats() {
           <input type="text" id="trend-input" placeholder="Type a word (e.g. 'lol', 'good')" class="person-name-input" style="flex:1; max-width:300px;" value="${esc(trendWord)}">
           <button class="btn" id="trend-btn">Graph</button>
         </div>
-        <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-trends"></canvas></div>
+        <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-trends" role="img" aria-label="Line chart: monthly uses of a word"></canvas></div>
       </div>
 
       <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
         <div>
           <div class="section-h">Activity by time of day</div>
-          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-hours"></canvas></div>
+          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-hours" role="img" aria-label="Line chart: messages by hour of day"></canvas></div>
         </div>
         <div>
           <div class="section-h">Activity by Day of Week</div>
-          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-weekdays"></canvas></div>
+          <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-weekdays" role="img" aria-label="Bar chart: messages by day of week"></canvas></div>
         </div>
       </div>
 
@@ -2749,37 +2799,33 @@ function renderStats() {
   });
 
   if (window.Chart) {
-    // Theme-aware chart text + gridlines (read the resolved tokens so charts work
-    // in light/dim/lightsout; they refresh to the current theme on each re-render).
-    const cs = getComputedStyle(document.documentElement);
-    Chart.defaults.color = cs.getPropertyValue('--text-dim').trim() || 'rgba(255,255,255,0.6)';
-    Chart.defaults.borderColor = cs.getPropertyValue('--border').trim() || 'rgba(255,255,255,0.1)';
-    const ctxM = document.getElementById("chart-months").getContext("2d");
-    statCharts.push(new Chart(ctxM, {
+    // Theme-aware ticks / grid / accent (AN-5): refreshChartTheme() keeps the
+    // defaults and every open chart in step with later theme / accent changes.
+    refreshChartTheme();
+    const opts = () => ({ responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: chartAxes() });
+    statCharts.push(makeChart(document.getElementById("chart-months"), {
       type: 'bar',
       data: {
         labels: a.monthArr.map(m => m[0]),
-        datasets: [{ label: 'Messages', data: a.monthArr.map(m => m[1]), backgroundColor: settings.accent, borderRadius: 4 }]
+        datasets: [{ label: 'Messages', data: a.monthArr.map(m => m[1]), borderRadius: 4 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      options: opts()
     }));
-    const ctxH = document.getElementById("chart-hours").getContext("2d");
-    statCharts.push(new Chart(ctxH, {
+    statCharts.push(makeChart(document.getElementById("chart-hours"), {
       type: 'line',
       data: {
         labels: Array.from({length: 24}, (_, i) => i + ":00"),
-        datasets: [{ label: 'Messages', data: a.hourCount.slice(), borderColor: settings.accent, backgroundColor: hexA(settings.accent, 0.2), fill: true, tension: 0.4 }]
+        datasets: [{ label: 'Messages', data: a.hourCount.slice(), fill: true, tension: 0.4 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: opts()
     }));
-    const ctxW = document.getElementById("chart-weekdays").getContext("2d");
-    statCharts.push(new Chart(ctxW, {
+    statCharts.push(makeChart(document.getElementById("chart-weekdays"), {
       type: 'bar',
       data: {
         labels: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
-        datasets: [{ label: 'Messages', data: a.weekdayCount.slice(), backgroundColor: settings.accent, borderRadius: 4 }]
+        datasets: [{ label: 'Messages', data: a.weekdayCount.slice(), borderRadius: 4 }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+      options: opts()
     }));
   }
 
@@ -2968,10 +3014,10 @@ function fillStatsDeferred(v, s, cloudWords) {
       platRows += `<div class="bar-row" style="align-items:center;">
         <div class="bar-name">${av(p.id)}${esc(nameOf(p.id))}</div>
         <div style="flex:1; display:flex; font-size:11px; align-items:center; height:12px;">
-          ${pt.tt ? `<div style="width:${(pt.tt/maxPlat*100).toFixed(1)}%; background:#222; height:100%; border:1px solid #444;" title="TikTok: ${pt.tt}"></div>` : ''}
-          ${pt.yt ? `<div style="width:${(pt.yt/maxPlat*100).toFixed(1)}%; background:#FF0000; height:100%;" title="YouTube: ${pt.yt}"></div>` : ''}
-          ${pt.tw ? `<div style="width:${(pt.tw/maxPlat*100).toFixed(1)}%; background:#1DA1F2; height:100%;" title="Twitter: ${pt.tw}"></div>` : ''}
-          ${pt.ig ? `<div style="width:${(pt.ig/maxPlat*100).toFixed(1)}%; background:#E1306C; height:100%;" title="Insta: ${pt.ig}"></div>` : ''}
+          ${pt.tt ? `<div style="width:${(pt.tt/maxPlat*100).toFixed(1)}%; height:100%;" class="plat plat-tt" title="TikTok: ${pt.tt}"></div>` : ''}
+          ${pt.yt ? `<div style="width:${(pt.yt/maxPlat*100).toFixed(1)}%; height:100%;" class="plat plat-yt" title="YouTube: ${pt.yt}"></div>` : ''}
+          ${pt.tw ? `<div style="width:${(pt.tw/maxPlat*100).toFixed(1)}%; height:100%;" class="plat plat-tw" title="Twitter: ${pt.tw}"></div>` : ''}
+          ${pt.ig ? `<div style="width:${(pt.ig/maxPlat*100).toFixed(1)}%; height:100%;" class="plat plat-ig" title="Insta: ${pt.ig}"></div>` : ''}
         </div>
         <div class="bar-val" style="width:30px; text-align:right;">${fmtNum(total)}</div>
       </div>`;
@@ -2984,6 +3030,7 @@ function fillStatsDeferred(v, s, cloudWords) {
         </div>
         <div>
           <div class="section-h">Platform Links Shared</div>
+          <div class="plat-legend"><span><i class="plat plat-tt"></i>TikTok</span><span><i class="plat plat-yt"></i>YouTube</span><span><i class="plat plat-tw"></i>X / Twitter</span><span><i class="plat plat-ig"></i>Instagram</span></div>
           <div class="bars" style="${panel}">${platRows}</div>
         </div>
       </div>`);
