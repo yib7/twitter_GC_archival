@@ -118,3 +118,22 @@ test.describe("served-mode CSP (index.html + setup.html)", () => {
     await assertNoCspViolations(page, consoleViolations);
   });
 });
+
+// The meta CSP is enforced over file:// too (it is part of the page, not a
+// header). There the optional data.js / local.js overrides are genuinely
+// missing, so their <script> loads fail; inline onerror="…" attributes on those
+// tags were blocked by script-src (no 'unsafe-inline'), adding one CSP error per
+// tag on top of the expected not-found lines. A failed <script src> load is
+// harmless without a handler, so the page must carry no inline handlers at all.
+test("file:// index.html: zero CSP violations (the missing optional scripts only log not-found)", async ({ page }) => {
+  const { pathToFileURL } = require("node:url");
+  const path = require("node:path");
+  await installCspEventCollector(page);
+  await page.addInitScript(() => { try { localStorage.setItem("gca.onboarded", "1"); } catch (e) { /* storage blocked */ } });
+  const consoleViolations = trackConsoleCsp(page);
+  await page.goto(pathToFileURL(path.join(__dirname, "..", "index.html")).href);
+  await expect(page.locator("#app")).toBeVisible();
+  expect(await page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample === true)).toBe(true);
+  await expect(page.locator(".msg").first()).toBeVisible();
+  await assertNoCspViolations(page, consoleViolations);
+});

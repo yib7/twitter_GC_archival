@@ -161,16 +161,20 @@
   <!-- Synthetic demo data ships with the repo. Real (gitignored) data loads
        afterward and overrides window.CHAT_DATA:
          · data.js                 — legacy root build (manual flow)
-         · personal_data/data.js   — built by the setup wizard (preferred) -->
+         · personal_data/data.js   — built by the setup wizard (preferred)
+       data-optional marks a file that may not exist. Served, the server
+       answers a missing one with an empty 200; over file:// the browser logs a
+       not-found line and carries on. No onerror handler: the page CSP blocks
+       inline handlers, so one would only add a CSP error. -->
   <script src="data.sample.js"></script>
-  <script src="data.js" onerror="void 0"></script>
-  <script src="personal_data/data.js" onerror="void 0"></script>
+  <script src="data.js" data-optional></script>
+  <script src="personal_data/data.js" data-optional></script>
   <!-- Optional, gitignored name/pfp/GC overrides:
          · names.local.js          — legacy root overrides
          · personal_data/local.js  — written by the setup wizard (LOCAL_NAMES /
            LOCAL_PFPS / LOCAL_ME / LOCAL_GC) -->
-  <script src="names.local.js" onerror="void 0"></script>
-  <script src="personal_data/local.js" onerror="void 0"></script>
+  <script src="names.local.js" data-optional></script>
+  <script src="personal_data/local.js" data-optional></script>
   <script src="lib/fuse.min.js"></script>
   <script src="lib/chart.min.js"></script>
   <script src="src/shared-core.js"></script>

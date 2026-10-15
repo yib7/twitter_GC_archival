@@ -280,7 +280,7 @@ test("isServablePath allows exactly personal_data/data.js and personal_data/loca
   assert.equal(isServablePath("/personal_data/local.js"), true);
 });
 
-// Legacy root overrides: index.html loads these two (onerror-guarded) as the
+// Legacy root overrides: index.html loads these two (as optional probes) as the
 // pre-wizard manual-flow twins of personal_data/data.js and
 // personal_data/local.js — same data class, same user, same localhost.
 // docs/ARCHITECTURE.md documents both as supported. They must be allowed so a
@@ -375,16 +375,18 @@ test("isServablePath rejects paths containing NUL / control characters", () => {
 // console stays clean) instead of a 404. Guard the two invariants that make that
 // safe and correct: every optional path must be allowlisted (so it reaches the
 // serveStatic stat check where the empty-200 lives), and the set must match the
-// exact `<script src=... onerror>` probe list in index.html — a drift there would
+// exact `<script src=... data-optional>` probe list in index.html — a drift there would
 // silently reintroduce a 404 console error or leave a probe un-cleaned.
 test("OPTIONAL_OVERRIDES are all allowlisted and match index.html's script probes", () => {
   for (const p of OPTIONAL_OVERRIDES) {
     assert.equal(SERVABLE_EXACT.has(p), true, `${p} must be in SERVABLE_EXACT to reach the empty-200 path`);
   }
   const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
-  // Every <script src="X" onerror=...> in index.html is an optional probe; collect them.
-  const probes = [...html.matchAll(/<script\s+src="([^"]+)"\s+onerror=/g)].map((m) => "/" + m[1]);
-  assert.ok(probes.length > 0, "expected to find optional <script onerror> probes in index.html");
+  // Every <script src="X" data-optional> in index.html is an optional probe; collect them.
+  const probes = [...html.matchAll(/<script\s+src="([^"]+)"\s+data-optional\b/g)].map((m) => "/" + m[1]);
+  assert.ok(probes.length > 0, "expected to find optional <script data-optional> probes in index.html");
+  // No inline event-handler attributes anywhere: the page CSP blocks them.
+  assert.doesNotMatch(html, /<[^>]+\son[a-z]+=/i, "index.html must not use inline event-handler attributes");
   assert.deepEqual(new Set(probes), OPTIONAL_OVERRIDES, "index.html optional probes and OPTIONAL_OVERRIDES have drifted");
 });
 
