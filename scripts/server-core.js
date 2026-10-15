@@ -8,6 +8,7 @@
 "use strict";
 
 const path = require("path");
+const { foldConversations } = require("./build-core.js");
 
 // True only when `target` resolves to a location STRICTLY inside `root` (a
 // descendant) — false for `root` itself, a parent, a sibling, or any path that
@@ -398,54 +399,72 @@ function pathNotFoundHint(platform, name) {
 }
 
 /* ---- SP-14: which copied media files the archive still uses --------------- */
+// SP7: each of these is a collector — message(conv, msg) per message,
+// conversation(conv) once per conversation (msgs excluded), result() — so the
+// server folds them over a STREAMED data.js (fs-io foldArchive) and never
+// holds the archive's message bodies. The data-object forms below fold the
+// same collectors over an in-memory archive.
+const fold = (data, col) => foldConversations(data, [col])[0].result();
+
 // The file names (basenames) every message's m / mx[].m points at.
-function referencedMediaNames(data) {
+function createReferencedNames() {
   const out = new Set();
   const add = (p) => { if (typeof p === "string" && p) out.add(p.split("/").pop()); };
-  for (const c of (data && data.conversations) || []) {
-    for (const m of c.msgs || []) {
+  return {
+    message(c, m) {
       add(m.m);
       if (Array.isArray(m.mx)) for (const x of m.mx) add(x && x.m);
-    }
-  }
-  return out;
+    },
+    conversation() {},
+    result() { return out; },
+  };
 }
+function referencedMediaNames(data) { return fold(data, createReferencedNames()); }
 // Fix round 1 (#3): what removing these groups / people would take out of the
 // built archive (`data` already excludes anything removed earlier, so this
 // counts only what is newly removed). A person's messages count in every group.
-function removalPreview(data, ignoredGroups, ignoredUsers) {
+function createRemovalCounter(ignoredGroups, ignoredUsers) {
   const G = new Set((ignoredGroups || []).map(String)), U = new Set((ignoredUsers || []).map(String));
   let messages = 0, media = 0, groups = 0;
   const people = new Set();
   const files = (m) => (m.m ? 1 : 0) + (Array.isArray(m.mx) ? m.mx.filter((x) => x && x.m).length : 0);
-  for (const c of (data && data.conversations) || []) {
-    const wholeGroup = G.has(String(c.id));
-    if (wholeGroup) groups++;
-    for (const id of c.participants || []) if (U.has(String(id))) people.add(String(id));
-    for (const m of c.msgs || []) {
+  return {
+    message(c, m) {
+      const wholeGroup = G.has(String(c.id));
       if (U.has(String(m.s))) people.add(String(m.s));
-      if (!wholeGroup && !U.has(String(m.s))) continue;
+      if (!wholeGroup && !U.has(String(m.s))) return;
       messages++;
       media += files(m);
-    }
-  }
-  return { messages, media, groups, people: people.size };
+    },
+    conversation(c) {
+      if (G.has(String(c.id))) groups++;
+      for (const id of c.participants || []) if (U.has(String(id))) people.add(String(id));
+    },
+    result() { return { messages, media, groups, people: people.size }; },
+  };
 }
+function removalPreview(data, ignoredGroups, ignoredUsers) { return fold(data, createRemovalCounter(ignoredGroups, ignoredUsers)); }
 // Fix round 1 (#3): who a media file belonged to, for the quarantine folder
 // personal_data/.removed/<kind>/<id>/ — by message id, from the archive as it
 // was BEFORE the rebuild that drops them. Only messages being removed are mapped.
-function removedMediaOwners(data, ignoredGroups, ignoredUsers) {
+function createOwnersCollector(ignoredGroups, ignoredUsers) {
   const G = new Set((ignoredGroups || []).map(String)), U = new Set((ignoredUsers || []).map(String));
   const out = new Map();
-  for (const c of (data && data.conversations) || []) {
-    const wholeGroup = G.has(String(c.id));
-    for (const m of c.msgs || []) {
-      if (!m.m && !m.mx) continue;
-      if (wholeGroup) out.set(String(m.i), { kind: "group", id: String(c.id) });
+  return {
+    message(c, m) {
+      if (!m.m && !m.mx) return;
+      if (G.has(String(c.id))) out.set(String(m.i), { kind: "group", id: String(c.id) });
       else if (U.has(String(m.s))) out.set(String(m.i), { kind: "person", id: String(m.s) });
-    }
-  }
-  return out;
+    },
+    conversation() {},
+    result() { return out; },
+  };
+}
+function removedMediaOwners(data, ignoredGroups, ignoredUsers) { return fold(data, createOwnersCollector(ignoredGroups, ignoredUsers)); }
+// SP7: the total number of messages (for replies after a rebuild).
+function createMessageCounter() {
+  let n = 0;
+  return { message() { n++; }, conversation() {}, result() { return n; } };
 }
 // A folder-name-safe form of an id (ids are digits; anything else is replaced).
 function safeSegment(s) { return String(s == null ? "" : s).replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64) || "_"; }
@@ -468,4 +487,4 @@ function diskSpaceProblem(needBytes, freeBytes) {
     " free. Free up some space (or move the Group Chat Archive folder to a bigger drive) and try again.";
 }
 
-module.exports = { removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+module.exports = { createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

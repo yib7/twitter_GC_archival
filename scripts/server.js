@@ -21,9 +21,9 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
-const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
-const { writeFileAtomic, readExportHead, scanExportFile, scanArchiveFile, readArchiveMeta, TMP_RE } = require("./fs-io.js");
-const { removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { createParticipantCollector, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
+const { writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, TMP_RE } = require("./fs-io.js");
+const { createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -332,22 +332,33 @@ function moveFile(src, dest) {
   }
 }
 
-function readBuiltData() {
+// The built archive. SP7 (SP6 review #2): it is never loaded whole — the
+// server's default heap would have to hold every message body. It is streamed
+// instead, either as a summary (no message is even parsed) or through small
+// collectors that see one message at a time (see server-core.js).
+function builtArchiveFiles() {
   const candidates = NO_ROOT_FALLBACK
     ? [path.join(PERSONAL, "data.js")]
     : [path.join(PERSONAL, "data.js"), path.join(ROOT, "data.js")];
-  for (const f of candidates) {
-    if (!fs.existsSync(f)) continue;
-    // Streamed (fix round 1), so an archive over V8's ~512 MB string limit
-    // still reads; a BOM or an old single-conversation archive is accepted.
-    try {
-      const conversations = [];
-      const { meta } = scanArchiveFile(f, { onConversation: (c) => conversations.push(c) });
-      return Object.assign(meta, { conversations });
-    } catch (e) { /* try next */ }
+  return candidates.filter((f) => fs.existsSync(f));
+}
+// { meta, conversations: [{ id, type, title, participants, count }] } or null.
+// A BOM or an old single-conversation archive is accepted.
+function readSummary() {
+  for (const f of builtArchiveFiles()) {
+    try { return readArchiveSummary(f); } catch (e) { /* try next */ }
   }
   return null;
 }
+// Fold collectors made by make() over the built archive; null when none reads.
+function foldBuilt(make) {
+  for (const f of builtArchiveFiles()) {
+    const cols = make();
+    try { foldArchive(f, cols); return cols; } catch (e) { /* try next */ }
+  }
+  return null;
+}
+const groupsOf = (sum) => (sum && sum.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
 
 /* ---- endpoint: point at source + build ----------------------------------- */
 function apiSource(body, res) {
@@ -487,8 +498,7 @@ function apiSource(body, res) {
   srcJournal.commit(); mediaJournal.commit();
   const buildLog = built.log;
 
-  const data = readBuiltData();
-  const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
+  const groups = groupsOf(readSummary());
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
   sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: mediaPick.descended || null, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
@@ -551,9 +561,9 @@ function partSiblings(abs) {
 // `group` (optional) scopes the roster to one conversation so the wizard names
 // one group chat at a time, instead of merging everyone across all groups.
 function apiParts(res, group) {
-  const data = readBuiltData();
-  if (!data) return sendJSON(res, 400, { error: "No built data yet — complete step 1 first." });
-  sendJSON(res, 200, { parts: collectParticipants(data, group) });
+  const cols = duringBlocking(() => foldBuilt(() => [createParticipantCollector(group)]));
+  if (!cols) return sendJSON(res, 400, { error: "No built data yet — complete step 1 first." });
+  sendJSON(res, 200, { parts: cols[0].result() });
 }
 
 /* ---- endpoint: save names / pfps / GC photo / "this is you" --------------- */
@@ -695,7 +705,8 @@ function apiIdentity(body, res) {
     const mediaInside = isInsidePersonal(mediaDir, PERSONAL);
     // Fix round 1 (#3): who owned each file about to be dropped, from the
     // archive as it is now (the rebuild removes that knowledge).
-    const owners = removedMediaOwners(readBuiltData(), ignoredGroups, ignoredUsers);
+    const ownerCols = duringBlocking(() => foldBuilt(() => [createOwnersCollector(ignoredGroups, ignoredUsers)]));
+    const owners = ownerCols ? ownerCols[0].result() : new Map();
     const quarantine = listQuarantine();
     if (mediaInside) {
       // Media whose group / person is no longer removed comes back from the
@@ -716,19 +727,19 @@ function apiIdentity(body, res) {
       return sendJSON(res, 422, { error: "Your names and photos were saved, but the archive couldn't be rebuilt without the removed chats/people: " + built.error, log: built.log });
     }
     let removed = 0;
-    const data = readBuiltData();
-    if (data && mediaInside && fs.existsSync(mediaDir)) {
+    const after = duringBlocking(() => foldBuilt(() => [createReferencedNames(), createMessageCounter()]));
+    if (after && mediaInside && fs.existsSync(mediaDir)) {
       // Media no message references any more is MOVED to
       // personal_data/.removed/<group|person>/<id>/ — never deleted — so
       // un-removing brings it back even if the original export folder is gone.
-      const keep = referencedMediaNames(data);
+      const keep = after[0].result();
       for (const e of fs.readdirSync(mediaDir, { withFileTypes: true })) {
         if (!e.isFile() || keep.has(e.name)) continue;
         const o = owners.get(e.name.split("-")[0]) || quarantine.get(e.name) || { kind: "other", id: "unreferenced" };
         if (moveFile(path.join(mediaDir, e.name), path.join(REMOVED, o.kind, safeSegment(o.id), e.name))) removed++;
       }
     }
-    Object.assign(reply, { rebuilt: true, mediaRemoved: removed, totalMsgs: (data && data.conversations || []).reduce((n, c) => n + (c.count || 0), 0) });
+    Object.assign(reply, { rebuilt: true, mediaRemoved: removed, totalMsgs: after ? after[1].result() : 0 });
   }
   sendJSON(res, 200, reply);
 }
@@ -737,7 +748,9 @@ function apiIdentity(body, res) {
 // Read-only: the wizard asks before a save that removes more, with real counts.
 function apiRemovalPreview(body, res) {
   const list = (v) => (Array.isArray(v) ? v.map(String) : []);
-  sendJSON(res, 200, removalPreview(readBuiltData(), list(body && body.ignoredGroups), list(body && body.ignoredUsers)));
+  const make = () => [createRemovalCounter(list(body && body.ignoredGroups), list(body && body.ignoredUsers))];
+  const cols = duringBlocking(() => foldBuilt(make)) || make();
+  sendJSON(res, 200, cols[0].result());
 }
 
 /* ---- endpoint: has a build already happened? ----------------------------- */
@@ -746,11 +759,11 @@ function apiRemovalPreview(body, res) {
 // identity already saved (names/me/pfps) so reopening the wizard shows it
 // instead of appearing to have never been filled in.
 function apiStatus(res) {
-  const data = readBuiltData();
+  const sum = duringBlocking(() => readSummary());
   const cfg = loadConfig();
-  const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
+  const groups = groupsOf(sum);
   sendJSON(res, 200, {
-    built: !!data,
+    built: !!sum,
     groups,
     ignoredGroups: Array.isArray(cfg.ignoredGroups) ? cfg.ignoredGroups : [],
     // fix round 1 (#4): the wizard must know who is already removed, or its
@@ -809,7 +822,7 @@ function serveStatic(req, res) {
   // overrides are never read from disk at all — treated exactly like a missing
   // optional override (empty 200) regardless of what actually sits at
   // ROOT/data.js or ROOT/names.local.js. GCA_PERSONAL alone does not stop these
-  // two paths from resolving to ROOT (see readBuiltData's own ROOT fallback
+  // two paths from resolving to ROOT (see builtArchiveFiles' own ROOT fallback
   // above, which this same switch also disables), so a spawned test server
   // must set GCA_NO_ROOT_FALLBACK=1 to be fully isolated from a legacy root
   // export sitting in the checkout it happens to run from.

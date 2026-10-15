@@ -54,6 +54,28 @@ function scanExportFile(file, handlers, opts) {
 function scanArchiveFile(file, handlers, opts) {
   return feedFile(file, createArchiveScanner(handlers), opts);
 }
+// SP7: what the setup server needs to know about a built archive, read without
+// keeping (or even parsing) a single message: its meta and, per conversation,
+// id / type / title / participants / count. Memory is bounded by the largest
+// conversation's roster, not the archive.
+function readArchiveSummary(file, opts) {
+  const conversations = [];
+  const { meta } = scanArchiveFile(file, {
+    skipMessages: true,
+    onConversation: (c) => conversations.push({ id: c.id, type: c.type, title: c.title, participants: c.participants || [], count: c.count }),
+  }, opts);
+  return { meta, conversations };
+}
+// SP7: run collectors (message(conv, msg) / conversation(conv) / result(),
+// see server-core.js and build-core createParticipantCollector) over a data.js
+// one message at a time; each message is dropped once the collectors saw it.
+function foldArchive(file, collectors, opts) {
+  const cols = collectors || [];
+  return scanArchiveFile(file, {
+    onMessage: (c, m) => { for (const col of cols) col.message(c, m); },
+    onConversation: (c) => { for (const col of cols) col.conversation(c); },
+  }, opts);
+}
 // The metadata at the head of a data.js (generatedAt, ignoredUsers,
 // ignoredGroups — archiveChunks writes it before "conversations"), without
 // reading the rest. null when the file is missing or doesn't start that way.
@@ -194,4 +216,4 @@ function writeChunksAtomic(dest, chunks, opts) {
   }
 }
 
-module.exports = { scanExportFile, scanArchiveFile, readArchiveMeta, readExportHead, writeFileAtomic, writeChunksAtomic, replaceFile, TMP_RE };
+module.exports = { scanExportFile, scanArchiveFile, readArchiveSummary, foldArchive, readArchiveMeta, readExportHead, writeFileAtomic, writeChunksAtomic, replaceFile, TMP_RE };

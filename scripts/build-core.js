@@ -352,29 +352,26 @@ function wrongKindMessage(info, expected, label) {
  * @returns {Array<{id, count, samples: string[], media: Array}>}
  */
 function collectParticipants(data, groupId) {
-  const convs = (data && data.conversations) || [];
+  return foldConversations(data, [createParticipantCollector(groupId)])[0].result();
+}
+/**
+ * SP7: collectParticipants as a collector, so the server can fold it over a
+ * streamed archive (fsio.foldArchive) without holding any message bodies:
+ * message(conv, msg) per message (conv = the conversation's fields, msgs
+ * excluded), conversation(conv) once its fields are all read, result().
+ */
+function createParticipantCollector(groupId) {
   const scoped = groupId != null && groupId !== "";
+  const inScope = (c) => !scoped || c.id == null || String(c.id) === String(groupId);
   const map = new Map();
   const entry = (id) => {
     let p = map.get(id);
     if (!p) { p = { id, count: 0, samples: [], _seen: new Set(), media: [] }; map.set(id, p); }
     return p;
   };
-  for (const c of convs) {
-    if (scoped && String(c.id) !== String(groupId)) continue;
-    // SP-13: everyone on the roster gets a card, even with no messages (a
-    // lurker, or someone known only from the headers file) — plus when they
-    // joined / left, as a memory jog for naming them.
-    for (const id of (c.participants || [])) entry(String(id));
-    for (const e of (c.events || [])) {
-      if (e.type !== "join" && e.type !== "leave") continue;
-      for (const raw of (e.ids || [])) {
-        const p = entry(String(raw));
-        if (e.type === "join" && (p.joined == null || e.t < p.joined)) p.joined = e.t;
-        if (e.type === "leave" && (p.left == null || e.t > p.left)) p.left = e.t;
-      }
-    }
-    for (const m of (c.msgs || [])) {
+  return {
+    message(c, m) {
+      if (!inScope(c) || !m) return;
       const p = entry(m.s);
       p.count++;
       const t = (m.x || "").trim();
@@ -384,16 +381,44 @@ function collectParticipants(data, groupId) {
       }
       if (m.m && p.media.length < 6) p.media.push({ m: m.m, k: m.k || kindOf(m.m) });
       if (Array.isArray(m.mx)) for (const x of m.mx) { if (x && x.m && p.media.length < 6) p.media.push({ m: x.m, k: x.k || kindOf(x.m) }); }
-    }
+    },
+    conversation(c) {
+      if (!inScope(c)) return;
+      // SP-13: everyone on the roster gets a card, even with no messages (a
+      // lurker, or someone known only from the headers file) — plus when they
+      // joined / left, as a memory jog for naming them.
+      for (const id of (c.participants || [])) entry(String(id));
+      for (const e of (c.events || [])) {
+        if (e.type !== "join" && e.type !== "leave") continue;
+        for (const raw of (e.ids || [])) {
+          const p = entry(String(raw));
+          if (e.type === "join" && (p.joined == null || e.t < p.joined)) p.joined = e.t;
+          if (e.type === "leave" && (p.left == null || e.t > p.left)) p.left = e.t;
+        }
+      }
+    },
+    result() {
+      return [...map.values()]
+        .sort((a, b) => b.count - a.count || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0))
+        .map((p) => {
+          const out = { id: p.id, count: p.count, samples: p.samples.slice().sort((a, b) => b.length - a.length).slice(0, 10), media: p.media };
+          if (p.joined != null) out.joined = p.joined;
+          if (p.left != null) out.left = p.left;
+          return out;
+        });
+    },
+  };
+}
+// Run collectors over an in-memory archive the way fsio.foldArchive runs them
+// over a streamed one: every message, then the conversation (without msgs).
+function foldConversations(data, collectors) {
+  for (const c of (data && data.conversations) || []) {
+    const fields = {};
+    for (const k of Object.keys(c)) if (k !== "msgs") fields[k] = c[k];
+    for (const m of c.msgs || []) for (const col of collectors) col.message(fields, m);
+    for (const col of collectors) col.conversation(fields);
   }
-  return [...map.values()]
-    .sort((a, b) => b.count - a.count || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0))
-    .map((p) => {
-      const out = { id: p.id, count: p.count, samples: p.samples.sort((a, b) => b.length - a.length).slice(0, 10), media: p.media };
-      if (p.joined != null) out.joined = p.joined;
-      if (p.left != null) out.left = p.left;
-      return out;
-    });
+  return collectors;
 }
 
 /* ---- export identification ------------------------------------------------ */
@@ -692,12 +717,19 @@ function createExportScanner(handlers) {
 // returned as `meta` by end().
 const ARCHIVE_HEAD_OK = /^\uFEFF?\s*(?:window\.CHAT_DATA\s*=\s*)?$/;
 /**
- * @param {{onConversation?: (conv:object)=>void}} handlers
+ * SP7: with `onMessage`, each message is handed over (with the conversation's
+ * fields read so far — id, type, title, participants and count come before
+ * msgs) and NOT kept, so onConversation gets the conversation without `msgs`.
+ * With `skipMessages`, messages aren't even parsed (a summary read).
+ * @param {{onConversation?: (conv:object)=>void, onMessage?: (conv:object, msg:object)=>void, skipMessages?: boolean}} handlers
  * @returns {{push(text:string):void, end():{meta:object, conversations:number}}}
  */
 function createArchiveScanner(handlers) {
   handlers = handlers || {};
   const onConv = handlers.onConversation || (() => {});
+  const onMsg = typeof handlers.onMessage === "function" ? handlers.onMessage : null;
+  const skipMsgs = !!handlers.skipMessages;
+  const keepMsgs = !onMsg && !skipMsgs;
   const meta = {};
   let conv = null, count = 0, sawList = false;
   const sc = createStreamScanner({
@@ -716,12 +748,12 @@ function createArchiveScanner(handlers) {
         if (key !== "msgs") return { role: "field", cap: true };
         return c === 91 ? { role: "msgs", nav: "arr" } : { bad: "a conversation's messages aren't a list" };
       }
-      if (pr === "msgs") return c === 123 ? { role: "msg", cap: true } : { bad: "a message isn't an object" };
+      if (pr === "msgs") return c === 123 ? { role: "msg", cap: !skipMsgs } : { bad: "a message isn't an object" };
       return { role: null };
     },
     onOpen(role) {
       if (role === "convs") sawList = true;
-      else if (role === "conv") conv = { msgs: [] };
+      else if (role === "conv") conv = keepMsgs ? { msgs: [] } : {};
     },
     onClose(role) {
       if (role !== "conv") return;
@@ -731,7 +763,7 @@ function createArchiveScanner(handlers) {
       onConv(c);
     },
     onValue(role, key, val) {
-      if (role === "msg") conv.msgs.push(val);
+      if (role === "msg") { if (keepMsgs) conv.msgs.push(val); else onMsg(conv, val); }
       else if (role === "field") conv[key] = val;
       else if (role === "meta") meta[key] = val;
     },
@@ -806,6 +838,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, exportPartFiles, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, exportPartFiles, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, createArchiveScanner, prevArchiveProblem, ExportScanError, archiveChunks,
 };

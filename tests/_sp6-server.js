@@ -12,9 +12,12 @@ const path = require("node:path");
 const { spawn } = require("node:child_process");
 const { waitForBootLine } = require("./wait-for-boot-line.js");
 
-async function startServer(extraEnv) {
-  const personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp6-personal-"));
-  const proc = spawn(process.execPath, [path.join(__dirname, "..", "scripts", "server.js")], {
+// opts.nodeArgs: extra node flags for the server process (e.g. a small
+// --max-old-space-size, to prove an endpoint streams instead of loading).
+// opts.personal: an already prepared mkdtemp personal dir to serve.
+async function startServer(extraEnv, opts) {
+  const personal = (opts && opts.personal) || fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp6-personal-"));
+  const proc = spawn(process.execPath, ((opts && opts.nodeArgs) || []).concat([path.join(__dirname, "..", "scripts", "server.js")]), {
     cwd: path.join(__dirname, ".."),
     env: Object.assign({}, process.env, { GCA_PERSONAL: personal, GCA_PORT: "0", GCA_NO_ROOT_FALLBACK: "1", GCA_NO_NATIVE_PICKER: "1" }, extraEnv || {}),
     stdio: "pipe",
