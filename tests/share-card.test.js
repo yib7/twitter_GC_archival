@@ -150,6 +150,27 @@ test("redaction: a stopword word of a name is redacted only when written like a 
   assert.strictEqual(r.text("a long day"), "a long Person A");   // over-redaction is the safe side
 });
 
+test("redaction: an @mention with non-ASCII letters is replaced whole", () => {
+  const r = createRedactor([{ id: "j", names: ["José"] }, { id: "k", names: ["민수"] }]);
+  const cases = [
+    ["@José hi", "@someone hi", ["Jos", "é"]],
+    ["@Jürgen", "@someone", ["J", "ürgen", "ü"]],
+    ["@민수", "@someone", ["민", "수"]],
+    ["@Zoë_99", "@someone", ["Zo", "ë", "_99"]],
+    ["@Zoë ok", "@someone ok", ["Zo", "̈"]],          // a decomposed ë: the mark goes too
+  ];
+  for (const [input, want, pieces] of cases) {
+    const out = r.text(input);
+    assert.strictEqual(out, want, input);
+    assert.ok([...out].every((c) => c.charCodeAt(0) < 128), "non-ASCII leftover in " + JSON.stringify(out));
+    for (const p of pieces) assert.ok(!out.includes(p) || want.includes(p), JSON.stringify(p) + " left in " + JSON.stringify(out));
+  }
+  // an email is not a mention and stays; a name glued after a word's "@"
+  // (not a mention) is still caught by the name pass
+  assert.strictEqual(r.text("mail a@b.com today"), "mail a@b.com today");
+  assert.strictEqual(r.text("x@José"), "x@Person A");
+});
+
 test("wrapText stops measuring once it is past maxLines (a 100k-char unbroken word)", () => {
   let calls = 0;
   const measure = (s) => { calls++; return mono(s); };

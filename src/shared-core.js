@@ -930,6 +930,10 @@
   //    Day") is redacted only when written like a name (Will, WILL), so
   //    "will he?" survives. A generic "User N" alias is redacted only whole.
   const RE_GENERIC_NAME = /^user\s+\d+$/i;
+  // Any @mention for redaction: Unicode letters, digits, marks and "_"
+  // (RE_MENTION is ASCII-only, X's handle rule, which left "@someoneé" from
+  // "@José"). Not inside a word, so an email's "a@b.com" stays.
+  const RE_REDACT_MENTION = /(^|[^\p{L}\p{N}\p{M}_])@[\p{L}\p{N}\p{M}_]+/gu;
   const RE_NOBOUND_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}\p{Script=Hebrew}\p{Script=Arabic}]/u;
   const RE_HANGUL_CHAR = /\p{Script=Hangul}/u;
   function redactFoldChar(c) {
@@ -990,7 +994,7 @@
     const RE_MARK_AT = /^\p{M}/u;
     const text = (s) => {
       let out = String(s == null ? "" : s);
-      if (out.indexOf("@") !== -1) out = out.replace(RE_MENTION, "$1@someone");
+      if (out.indexOf("@") !== -1) out = out.replace(RE_REDACT_MENTION, "$1@someone");
       if (re) {
         const F = redactFold(out);
         let res = "", last = 0, m;
