@@ -259,6 +259,7 @@ function main() {
   if (warnings.missingBodies) log("Warning: " + warnings.missingBodies + " message(s) listed in the headers file have no message text in the messages file(s). " +
     "If your archive's data folder has direct-messages-group-part1.js (-partN) files, make sure they sit next to direct-messages-group.js.");
   if (warnings.badTime) log("Warning: " + warnings.badTime + " message(s)/event(s) had a missing or unreadable date and were skipped.");
+  if (warnings.noSender) log("Warning: " + warnings.noSender + " message(s) had no sender and were skipped.");
 
   // quarantine first as a superset (still removed +
   // coming back), then data.js, then narrow the quarantine to what is still

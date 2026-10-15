@@ -53,6 +53,19 @@ describe("the survey counts what the build keeps", () => {
     assert.equal(r.totals.groups, 1);
     assert.equal(r.totals.messages, 1);
   });
+
+  test("a message with no sender isn't counted, as the build skips it", () => {
+    const sv = core.createExportSurvey({});
+    const nobody = X.gmsg(2, 111, X.T0 + 1000, "who");
+    delete nobody.messageCreate.senderId;
+    const r = feed(sv, [X.conv("1000000001", [X.gmsg(1, 111, X.T0, "a"), nobody])]);
+    assert.equal(r.groups[0].count, 1);
+    assert.equal(r.totals.messages, 1);
+    assert.equal(r.noSender, 1);
+    const core2 = require("../scripts/server-core.js");
+    const w = core2.preflightWarnings({ survey: Object.assign({ dm: { conversations: 0 } }, r) });
+    assert.ok(w.some((x) => x.code === "no-sender" && /no sender/.test(x.text)), JSON.stringify(w));
+  });
 });
 
 describe("preview numbers equal the built archive's", () => {

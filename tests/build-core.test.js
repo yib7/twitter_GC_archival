@@ -245,6 +245,21 @@ test("a message or event with an unparseable createdAt is skipped and counted, n
   assert.equal(res.warnings.badTime, 3);
 });
 
+test("a message with no senderId is skipped and counted; no null joins the roster", () => {
+  const res = assemble({
+    exportDatas: [[conv("G1", [
+      msg("m1", "5", "2020-05-01T10:00:00Z", "fine"),
+      { messageCreate: { id: "m2", createdAt: iso("2020-05-01T10:01:00Z"), text: "who sent this" } },
+      { messageCreate: { id: "m3", senderId: null, createdAt: iso("2020-05-01T10:02:00Z"), text: "nobody" } },
+      { messageCreate: { id: "m4", senderId: "", createdAt: iso("2020-05-01T10:03:00Z"), text: "blank" } },
+    ])]],
+  });
+  const g = onlyGroup(res, "G1");
+  assert.deepEqual(g.msgs.map((m) => m.i), ["m1"]);
+  assert.deepEqual(g.participants, ["5"]);
+  assert.equal(res.warnings.noSender, 3);
+});
+
 // ---- every media file of a message is kept --------------------------
 test("indexMediaFiles groups ALL files per message id, sorted, ignoring non-matching names", () => {
   const { indexMediaFiles } = require("../scripts/build-core.js");

@@ -569,6 +569,7 @@ function preflightWarnings(p) {
   if (p.merge && p.merge.overlap) add("overlap", plural(p.merge.overlap, "message is", "messages are") + " already in your archive; they'll be merged, not duplicated.");
   if (sv.removedMsgs) add("removed", plural(sv.removedMsgs, "message", "messages") + " from people or group chats you removed will stay out.");
   if (sv.badTime) add("bad-time", plural(sv.badTime, "message has", "messages have") + " a missing or unreadable date and will be skipped.");
+  if (sv.noSender) add("no-sender", plural(sv.noSender, "message has", "messages have") + " no sender and will be skipped.");
   return out;
 }
 

@@ -98,7 +98,7 @@ function createAccumulator(opts) {
     return c;
   };
   let prevCount = 0;
-  const warnings = { badTime: 0, missingBodies: 0 };
+  const warnings = { badTime: 0, missingBodies: 0, noSender: 0 };
   // messages read from the quarantine of removed
   // messages (personal_data/.removed/messages.js), so finish() can tell which
   // of them come back into the archive (their group / person is no longer
@@ -150,6 +150,7 @@ function createAccumulator(opts) {
       const r = rawToRec(m.messageCreate);
       if (!r.i) return;
       if (!Number.isFinite(r.t)) { warnings.badTime++; return; }   // skip + warn
+      if (r.s == null || r.s === "") { warnings.noSender++; return; }   // nobody to show it as
       if (r.t > exportNewest && kept(convId, r.s)) exportNewest = r.t;
       const old = c.msgMap.get(r.i);
       if (old) {
@@ -502,7 +503,7 @@ function createExportSink(acc, which) {
  *   const sv = createExportSurvey({ ignoredGroups, ignoredUsers });
  *   const sink = sv.sink("messages"); scanExportFile(f, sink.handlers); sink.finish();
  *   sv.result() → { groups: [{ id, title, count, first, last, participants, removed }],
- *                   totals, dm: { conversations, messages }, removedMsgs, badTime, orphaned }
+ *                   totals, dm: { conversations, messages }, removedMsgs, badTime, noSender, orphaned }
  * `count` is the messages the archive will keep (removed people's and
  * groups' messages are counted in removedMsgs instead).
  */
@@ -533,7 +534,7 @@ function createExportSurvey(opts) {
   const ids = idPartition();   // each id once (see idPartition)
   const allIds = ids.all, keepIds = ids.keep, removedIds = ids.removed;
   const dmConvs = new Set();
-  const st = { dmMessages: 0, removedMsgs: 0, badTime: 0, orphaned: 0, withText: 0, created: 0 };
+  const st = { dmMessages: 0, removedMsgs: 0, badTime: 0, noSender: 0, orphaned: 0, withText: 0, created: 0 };
   const groupOf = (cid) => {
     let g = groups.get(cid);
     if (!g) { g = { id: cid, title: "", titleAt: -Infinity, count: 0, first: Infinity, last: -Infinity, people: new Set() }; groups.set(cid, g); }
@@ -552,6 +553,7 @@ function createExportSurvey(opts) {
       // counted the way the build keeps them — once per
       // id (the same message in two part files is one), none without an id
       if (mc.id == null || mc.id === "") return;
+      if (mc.senderId == null || mc.senderId === "") { st.noSender++; return; }
       const id = String(mc.id);
       if (allIds.has(id)) return;
       if (G.has(cid) || U.has(String(mc.senderId))) { removedIds.add(id); st.removedMsgs++; return; }
@@ -599,7 +601,7 @@ function createExportSurvey(opts) {
         first: firsts.length ? Math.min(...firsts) : null, last: lasts.length ? Math.max(...lasts) : null,
       },
       dm: { conversations: dmConvs.size, messages: st.dmMessages },
-      removedMsgs: st.removedMsgs, badTime: st.badTime, orphaned: st.orphaned,
+      removedMsgs: st.removedMsgs, badTime: st.badTime, noSender: st.noSender, orphaned: st.orphaned,
       withText: st.withText, created: st.created,
     };
   }
