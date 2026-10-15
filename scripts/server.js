@@ -301,6 +301,12 @@ async function copyMediaFlatAsync(srcDir, destDir, opts, progress) {
 // and a new file is noted. rollback() deletes the new files and moves the
 // replaced ones back; commit() drops the backups. Media and source names are
 // flat (no folders), so one backup folder per destination never clashes.
+// A backup folder that can't be removed (Explorer has it open) is only
+// logged and left; clearStaleBackups removes it after a later build.
+function dropBackupDir(dir) {
+  try { fs.rmSync(dir, { recursive: true, force: true }); }
+  catch (e) { console.error("Couldn't remove " + path.basename(dir) + ": " + (e && e.message)); }
+}
 function copyJournal(backupDir) {
   const created = [], saved = [];
   const note = (dest) => {
@@ -321,10 +327,10 @@ function copyJournal(backupDir) {
         try { fs.rmSync(dest, { force: true }); fs.renameSync(kept, dest); } catch (e) { problems.push(dest); }
       }
       // Anything that couldn't be put back stays in backupDir rather than lost.
-      if (!problems.length) fs.rmSync(backupDir, { recursive: true, force: true });
+      if (!problems.length) dropBackupDir(backupDir);
       return problems;
     },
-    commit() { fs.rmSync(backupDir, { recursive: true, force: true }); },
+    commit() { dropBackupDir(backupDir); },
   };
 }
 // once a build from a new export has committed, copies of an older
@@ -359,11 +365,11 @@ function fileSnapshot(file, backupDir) {
       try {
         if (had) replaceFile(kept, file);
         else fs.rmSync(file, { force: true });
-        fs.rmSync(backupDir, { recursive: true, force: true });
-        return [];
       } catch (e) { return [file]; }
+      dropBackupDir(backupDir);
+      return [];
     },
-    commit() { fs.rmSync(backupDir, { recursive: true, force: true }); },
+    commit() { dropBackupDir(backupDir); },
   };
 }
 // a server killed mid-build leaves its backup folders
@@ -699,13 +705,22 @@ async function sourceAndBuild(body, res, progress) {
   // the quarantine too — a build that fails after
   // writing it (as a superset, before data.js) must not leave it changed.
   const quarSnap = fileSnapshot(REMOVED_MSGS, path.join(PERSONAL, prevDirName("removed")));
+  // Each step runs even when one before it fails. → a sentence for the
+  // reply when some previous file couldn't be put back, else "".
   const undo = () => {
-    const left = srcJournal.rollback().concat(mediaJournal.rollback(), quarSnap.restore());
-    try {
+    const left = [];
+    const step = (what, fn) => { try { left.push(...fn()); } catch (err) { console.error("[setup] putting back " + what + ": " + (err && err.message)); left.push(what); } };
+    step("source/", () => srcJournal.rollback());
+    step("media/", () => mediaJournal.rollback());
+    step(".removed/messages.js", () => quarSnap.restore());
+    step("config.json", () => {
       if (cfgBefore) writeFileAtomic(CONFIG, cfgBefore);
       else fs.rmSync(CONFIG, { force: true });
-    } catch (err) { left.push(CONFIG); }
-    if (left.length) console.error("[setup] couldn't put back " + left.length + " file(s) after a failed build; the previous copies are in personal_data/*.prev-*");
+      return [];
+    });
+    if (!left.length) return "";
+    console.error("[setup] couldn't put back " + left.length + " file(s) after a failed build; the previous copies are in personal_data/*.prev-*");
+    return " Some of your previous files couldn't be put back (another program may be using them). They are kept in personal_data/, in folders whose names contain “.prev-”.";
   };
   let media;
   try {
@@ -749,8 +764,8 @@ async function sourceAndBuild(body, res, progress) {
   if (!built.ok && !built.archiveWritten) {
     // A failed build wrote no data.js; put config.json, source/ and media/ back
     // the way they were so the wizard isn't left pointing at the file that just failed.
-    undo();
-    return sendJSON(res, 422, { error: built.error, log: built.log });
+    const left = undo();
+    return sendJSON(res, 422, { error: built.error + left, log: built.log });
   }
   // Failed after data.js was written: the archive already has this export's
   // messages, so keep the copies they point at (the quarantine is still a

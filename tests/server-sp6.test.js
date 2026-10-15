@@ -657,3 +657,84 @@ describe("adding a newer export whose media the archive mostly has", () => {
     } finally { S2.proc.kill(); }
   });
 });
+
+// Putting things back after a failed build must not stop at the first step
+// that fails. A backup folder Explorer keeps open can't be removed, but every
+// file is still put back (it is just left for a later build to tidy), and a
+// successful build isn't reported as failed because of it. A file that really
+// couldn't be put back is named in the reply, not only in the console.
+describe("putting files back when a backup folder or file is held by another program", () => {
+  const PRELOAD = path.join(__dirname, "fixtures", "fs-busy-preload.js");
+  const snapshot = (personal) => {
+    const out = {};
+    for (const d of ["source", "media"]) {
+      for (const n of fs.readdirSync(path.join(personal, d))) out[d + "/" + n] = fs.readFileSync(path.join(personal, d, n), "utf8");
+    }
+    for (const n of ["config.json", "data.js"]) out[n] = fs.readFileSync(path.join(personal, n), "utf8");
+    return out;
+  };
+  // the same names as X.writeExport's files, but the messages file is cut off
+  // (the build refuses it) and one picture differs, so media/ is changed too
+  const badExport = () => {
+    const bad = scratch(), data = path.join(bad, "data"), media = path.join(data, "direct_messages_group_media");
+    fs.mkdirSync(media, { recursive: true });
+    fs.writeFileSync(path.join(data, "direct-messages-group.js"), X.ytd("direct_messages_group", "part0", [X.conv("1000000001", [X.gmsg(9002, 111, X.T0, "cut off")])]).slice(0, -40));
+    fs.writeFileSync(path.join(data, "direct-message-group-headers.js"), X.ytd("direct_message_group_headers", "part0", []));
+    fs.writeFileSync(path.join(media, "9002-Brandnew.jpg"), "new");
+    return { group: path.join(data, "direct-messages-group.js"), headers: path.join(data, "direct-message-group-headers.js"), media };
+  };
+
+  describe("the source backup folder can't be removed", () => {
+    let S, f;
+    before(async () => {
+      S = await startServer({ GCA_TEST_BUSY_RM: String.raw`source\.prev-\d+-[0-9a-f]+$` }, { nodeArgs: ["--require", PRELOAD] });
+      f = X.writeExport(scratch());
+      assert.equal((await source(S, f.group, f.headers, f.media)).status, 200);
+    });
+    after(() => S.stop());
+
+    test("a failed build still puts everything else back and reports the build's own error", async () => {
+      const before0 = snapshot(S.personal);
+      const b = badExport();
+      const r = await source(S, b.group, b.headers, b.media);
+      const j = await r.json();
+      assert.equal(r.status, 422, JSON.stringify(j));
+      assert.doesNotMatch(j.error, /in use|EBUSY/, "the build's error, not the backup folder's");
+      assert.deepEqual(snapshot(S.personal), before0);
+    });
+
+    test("a build that succeeds is reported as a success", async () => {
+      const r = await source(S, f.group, f.headers, f.media);
+      const j = await r.json();
+      assert.equal(r.status, 200, JSON.stringify(j));
+    });
+  });
+
+  describe("a previous media file can't be moved back", () => {
+    let personal, S;
+    before(async () => {
+      personal = scratch("gca-sp6-busy-");
+      const f = X.writeExport(scratch());
+      const S1 = await startServer({}, { personal });
+      try { assert.equal((await source(S1, f.group, f.headers, f.media)).status, 200); }
+      finally { S1.proc.kill(); }
+      // an empty file counts as missing, so the next copy backs it up and replaces it
+      fs.writeFileSync(path.join(personal, "media", "9002-AbCdEf.png"), "");
+      S = await startServer({ GCA_TEST_BUSY_RENAME: String.raw`media\.prev-`, GCA_TEST_BUILD_CRASH: "after-quarantine" }, { personal, nodeArgs: ["--require", PRELOAD] });
+    });
+    after(() => S.proc.kill());
+
+    test("the reply says some previous files are kept aside, and source/ and config.json are still put back", async () => {
+      const before0 = snapshot(personal);
+      const f = X.writeExport(scratch());
+      const r = await source(S, f.group, f.headers, f.media);
+      const j = await r.json();
+      assert.equal(r.status, 422, JSON.stringify(j));
+      assert.match(j.error, /\.prev-/, "says where the previous copies are");
+      const after0 = snapshot(personal);
+      assert.equal(after0["config.json"], before0["config.json"]);
+      for (const k of Object.keys(before0).filter((k) => k.startsWith("source/"))) assert.equal(after0[k], before0[k], k);
+      assert.ok(fs.readdirSync(personal).some((n) => /^media\.prev-/.test(n)), "the previous picture is kept in its backup folder");
+    });
+  });
+});
