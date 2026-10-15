@@ -195,6 +195,12 @@
 .su-me { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
 .su-me input { accent-color: var(--accent); }
 .su-me-row { display: flex; justify-content: flex-end; margin: 0 0 10px; }
+/* fix round 1 (#4): people removed in an earlier save, with a way back */
+.su-removed-list { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; font-size: 13px; color: var(--text-dim); }
+.su-removed-list[hidden] { display: none; }
+.su-removed-list ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.su-removed-list li { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+.su-removed-list .btn { font-size: 11px; padding: 3px 8px; }
 .su-samples { margin-top: 8px; display: flex; flex-direction: column; gap: 4px; }
 .su-sample {
   background: var(--bg-panel); border-radius: 7px; padding: 5px 10px; font-size: 12px; color: var(--text-dim);

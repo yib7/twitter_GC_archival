@@ -662,6 +662,9 @@ function apiStatus(res) {
     built: !!data,
     groups,
     ignoredGroups: Array.isArray(cfg.ignoredGroups) ? cfg.ignoredGroups : [],
+    // fix round 1 (#4): the wizard must know who is already removed, or its
+    // next save un-removes them
+    ignoredUsers: Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : [],
     me: cfg.me ?? null,
     names: cfg.names || {},
     pfps: cfg.pfps || {},

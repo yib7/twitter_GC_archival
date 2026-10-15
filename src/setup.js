@@ -315,6 +315,9 @@ function loadStatus() {
         groups = j.groups || [];
         state.group = groups[0] ? String(groups[0].id) : "";
         (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; savedIgnored.groups[String(id)] = true; });
+        // fix round 1 (#4): people removed in an earlier save stay removed —
+        // without this, the next save sent ignoredUsers: [] and un-removed them.
+        (j.ignoredUsers || []).forEach((id) => { state.ignored[String(id)] = true; savedIgnored.users[String(id)] = true; });
         renderGroupChoosers();
         refreshGroupStep();
         lockSource(true);
@@ -426,9 +429,26 @@ async function loadParts() {
     loadedGroup = state.group;
     host.innerHTML = "";
     PARTS.forEach((p) => host.appendChild(personCard(p)));
+    renderRemovedPeople();
   } catch (e) {
     host.innerHTML = `<div class="setup-result err">✗ ${escapeHtml(e.message)}</div>`;
   }
+}
+
+// People removed in an earlier save have no card (the archive no longer has
+// them), so list them here with a way to bring them back (fix round 1, #4).
+function renderRemovedPeople() {
+  const host = $("#removed-people");
+  if (!host) return;
+  const shown = new Set(PARTS.map((p) => String(p.id)));
+  const ids = Object.keys(state.ignored).filter((id) => !shown.has(id));
+  host.hidden = !ids.length;
+  if (!ids.length) { host.textContent = ""; return; }
+  host.innerHTML = "Removed from your archive (in every group chat):<ul>" + ids.map((id) => {
+    const nm = state.names[id] || "User " + id.slice(-4);
+    return `<li><span>${escapeHtml(nm)}</span><button type="button" class="btn ghost" data-bring-back="${escapeHtml(id)}" aria-label="Bring back ${escapeHtml(nm)}">Bring back</button></li>`;
+  }).join("") + "</ul>";
+  $$("[data-bring-back]", host).forEach((b) => b.onclick = () => { delete state.ignored[b.dataset.bringBack]; renderRemovedPeople(); });
 }
 
 function personCard(p) {
@@ -506,15 +526,19 @@ function personCard(p) {
   // card, disables its inputs, and flags the id to be dropped on save. Undo-able.
   const rm = document.createElement("button");
   rm.type = "button"; rm.className = "btn ghost su-remove"; rm.textContent = "Remove";
+  const showRemoved = (removing) => {
+    card.classList.toggle("removed", removing);
+    rm.textContent = removing ? "Undo" : "Remove";
+    name.disabled = pick.disabled = radio.disabled = removing;
+  };
   rm.onclick = () => {
     const removing = !state.ignored[p.id];
     // SP-18: removing your own card clears "This is YOU" ("" = clear on the server)
     if (removing) { state.ignored[p.id] = true; if (state.me != null && String(state.me) === String(p.id)) { state.me = ""; radio.checked = false; } }
     else delete state.ignored[p.id];
-    card.classList.toggle("removed", removing);
-    rm.textContent = removing ? "Undo" : "Remove";
-    name.disabled = pick.disabled = radio.disabled = removing;
+    showRemoved(removing);
   };
+  if (state.ignored[p.id]) showRemoved(true);   // removed in an earlier save
   left.appendChild(rm);
   return card;
 }
