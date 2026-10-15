@@ -23,11 +23,22 @@ direct_messages_group_media/
 profile_pictures/
 gc_photo.jpg
 
-# Private local overrides (real names / profile pictures)
+# Private local overrides (real names / profile pictures). Any *.local.js, to
+# match the lint ignore list.
 names.local.js
+*.local.js
 
-# Packaged export archives (multi-GB) — never commit
+# Packaged export archives (multi-GB) and other archive formats — never commit
 *.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+
+# Private audit reports (they can quote real ids)
+*_Audit_Report*.md
+*Deep_Audit*.md
 
 # Raw export staging folder (real export files dropped here before setup)
 exports/
@@ -52,6 +63,7 @@ node_modules/
 # Playwright test artifacts
 test-results/
 playwright-report/
+blob-report/
 
 # Internal planning brief (references real ids / private data). Bare pattern, so
 # it matches PLAN.md at any depth.
