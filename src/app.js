@@ -1000,6 +1000,11 @@ function initMobileChrome() {
   });
   const rand = document.getElementById("sh-random");
   if (rand) rand.addEventListener("click", () => { mobileSheetClose(); jumpTo(Math.floor(Math.random() * N)); });
+  // SP8 fix round 1: the Timeline toolbar (and its "Jump to date") is hidden on
+  // phones, so the calendar has its own More-sheet entry. Closing the sheet
+  // first hands focus back to More, which the calendar then returns to.
+  const cal = document.getElementById("sh-calendar");
+  if (cal) cal.addEventListener("click", () => { mobileSheetClose(); if (curView !== "timeline") setView("timeline"); openCalendar(); });
   const mic = document.getElementById("mic-jump");
   if (mic) mic.addEventListener("click", () => openCommandPalette());
   const sel = document.getElementById("mobile-conv");

@@ -175,4 +175,31 @@ test.describe("calendar at 390px on a touch screen", () => {
       expect(await contrastFailures(page, ".cal-modal"), th).toEqual([]);
     }
   });
+
+  // Fix round 1: the Timeline toolbar is hidden on phones, so the calendar has
+  // its own entry in the More sheet (not only the palette).
+  test("the More sheet opens the calendar on the Timeline; Escape returns to More", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
+    await page.locator("#tab-more").click();
+    const item = page.locator("#more-sheet").getByRole("button", { name: "Jump to date" });
+    await expect(item).toBeVisible();
+    const b = await item.boundingBox();
+    expect(b.height).toBeGreaterThanOrEqual(44);
+    await item.click();
+    await expect(dlg(page)).toBeVisible();
+    await expect(page.locator("#view-timeline")).toBeVisible();
+    await expect(page.locator("#more-sheet")).not.toHaveClass(/on/);
+    await expect(dlg(page).locator(".cal-d[tabindex='0']")).toBeFocused();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await day(page, "Thursday, June 1, 2023").click();
+    await expect(dlg(page)).toHaveCount(0);
+    await expect(page.locator(".toast")).toHaveText("Jumped to Jun 1, 2023");
+    // Escape from a fresh open goes back to the More tab, not <body>
+    await page.locator("#tab-more").click();
+    await page.locator("#more-sheet").getByRole("button", { name: "Jump to date" }).click();
+    await expect(dlg(page)).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dlg(page)).toHaveCount(0);
+    await expect(page.locator("#tab-more")).toBeFocused();
+  });
 });
