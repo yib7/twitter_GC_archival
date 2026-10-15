@@ -325,4 +325,22 @@ function buildNodeArgs(buildJs, totalBytes) {
   return ["--max-old-space-size=" + buildHeapMb(totalBytes), buildJs];
 }
 
-module.exports = { buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP-11: who may open a native file dialog ---------------------------- */
+// The picker GETs freeze the server behind a blocking dialog, so they need
+// more than the Origin/Referer check: an <img referrerpolicy="no-referrer">
+// on any web page sends neither header. They also need the per-process token
+// the server writes into setup.html (a custom header, so a cross-origin page
+// would need a CORS preflight the server never grants), and — when the
+// browser says where the request came from — it must be this very origin.
+function isPickerRequestAllowed(headers, token, port) {
+  const h = headers || {};
+  const got = typeof h["x-gca-token"] === "string" ? h["x-gca-token"] : "";
+  if (!token || !got) return false;
+  const a = Buffer.from(got), b = Buffer.from(String(token));
+  if (a.length !== b.length || !require("crypto").timingSafeEqual(a, b)) return false;
+  const site = h["sec-fetch-site"];
+  if (typeof site === "string" && site && site !== "same-origin" && site !== "none") return false;
+  return isAllowedOrigin(h.origin, h.referer, port);
+}
+
+module.exports = { isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

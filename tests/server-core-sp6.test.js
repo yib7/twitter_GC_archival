@@ -66,3 +66,18 @@ test("buildHeapMb gives the build about half the RAM, clamped to 2-16 GB", () =>
 test("buildNodeArgs passes the heap flag before the build script", () => {
   assert.deepEqual(core.buildNodeArgs("/app/scripts/build.js", 16 * 1024 ** 3), ["--max-old-space-size=8192", "/app/scripts/build.js"]);
 });
+
+// ---- SP-11: the native pickers need the page's token, not just no Referer ----
+test("isPickerRequestAllowed needs the per-process token AND an own/absent Origin", () => {
+  const T = "a".repeat(64), P = 8765;
+  const ok = (h) => core.isPickerRequestAllowed(h, T, P);
+  assert.equal(ok({ "x-gca-token": T }), true, "same-origin fetch: token, no Origin");
+  assert.equal(ok({ "x-gca-token": T, origin: "http://127.0.0.1:8765", "sec-fetch-site": "same-origin" }), true);
+  assert.equal(ok({}), false, "an <img referrerpolicy=no-referrer> sends neither header nor token");
+  assert.equal(ok({ "x-gca-token": "b".repeat(64) }), false, "wrong token");
+  assert.equal(ok({ "x-gca-token": T.slice(1) }), false, "different length");
+  assert.equal(ok({ "x-gca-token": T, origin: "http://evil.com" }), false, "foreign Origin even with the token");
+  assert.equal(ok({ "x-gca-token": T, "sec-fetch-site": "cross-site" }), false, "browser says cross-site");
+  assert.equal(ok({ "x-gca-token": T, "sec-fetch-site": "same-site" }), false, "another localhost port is same-site, not same-origin");
+  assert.equal(core.isPickerRequestAllowed({ "x-gca-token": "" }, "", P), false, "never allowed with an empty server token");
+});

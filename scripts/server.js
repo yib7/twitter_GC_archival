@@ -23,7 +23,7 @@ const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
-const { buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -206,6 +206,8 @@ function resolveMediaDir(abs, typed) {
 // so the caller can tell the user to type the path instead.
 function nativePick(kind, which) {
   if (process.platform !== "win32") return null;
+  // Tests set this so a picker request can never open a real, blocking dialog.
+  if (process.env.GCA_NO_NATIVE_PICKER === "1") return null;
   let ps;
   if (kind === "folder") {
     // Use the SAME modern file dialog as the .js pickers (FolderBrowserDialog is
@@ -611,12 +613,15 @@ function serveStatic(req, res) {
           )
           .replace(
             "</head>",
-            `<script nonce="${nonce}">window.GCA_SERVER_URL="${serverUrl}";</script>\n</head>`
+            `<script nonce="${nonce}">window.GCA_SERVER_URL="${serverUrl}";` +
+              // SP-11: only the setup wizard gets the picker token
+              (p === "/setup.html" ? `window.GCA_TOKEN="${PICKER_TOKEN}";` : "") + `</script>\n</head>`
           );
         const body = Buffer.from(injectedData, "utf8");
         res.writeHead(200, {
           "Content-Type": type,
           "Content-Length": body.length,
+          "Cache-Control": "no-store",   // carries this run's token; never reuse a stale copy
           "Accept-Ranges": "bytes",
           "X-Content-Type-Options": "nosniff",
         });
@@ -636,6 +641,11 @@ function serveStatic(req, res) {
 // event loop with a blocking native dialog, so a cross-origin page spamming
 // them is a DoS + dialog-spoofing vector, not a harmless read.
 const GUARDED = new Set(["/api/reset", "/api/source", "/api/identity", "/api/pick-file", "/api/pick-folder"]);
+// SP-11: the pickers additionally need this per-process token, which only
+// setup.html receives (injected into its HTML). Random per start, held in
+// memory only: never logged, printed or written to disk.
+const PICKERS = new Set(["/api/pick-file", "/api/pick-folder"]);
+const PICKER_TOKEN = crypto.randomBytes(32).toString("hex");
 
 const server = http.createServer(async (req, res) => {
   const [url, qs] = req.url.split("?");
@@ -650,6 +660,9 @@ const server = http.createServer(async (req, res) => {
     // send one for a same-origin no-CORS call, so absence stays allowed.
     if (GUARDED.has(url) && !isAllowedOrigin(req.headers.origin, req.headers.referer, PORT)) {
       return sendJSON(res, 403, { error: "forbidden origin" });
+    }
+    if (PICKERS.has(url) && !isPickerRequestAllowed(req.headers, PICKER_TOKEN, PORT)) {
+      return sendJSON(res, 403, { error: "forbidden" });
     }
     if (req.method === "GET" && url === "/api/ping") { notePing(); return sendJSON(res, 200, { ok: true }); }
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }

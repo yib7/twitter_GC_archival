@@ -144,3 +144,43 @@ describe("SP-7: the media folder is validated and only message media is copied",
     assert.deepEqual(mediaNames(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
   });
 });
+
+describe("SP-11: the native pickers need the setup page's token", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+  const tokenFrom = (html) => (/window\.GCA_TOKEN="([0-9a-f]+)"/.exec(html) || [])[1];
+
+  test("setup.html carries a random token; index.html does not; the server never prints it", async () => {
+    const setup = await (await S.get("/setup.html")).text();
+    const token = tokenFrom(setup);
+    assert.match(token || "", /^[0-9a-f]{64}$/);
+    assert.equal(tokenFrom(await (await S.get("/index.html")).text()), undefined);
+    let out = "";
+    S.proc.stdout.on("data", (c) => { out += c; });
+    await S.get("/api/pick-file", { "X-GCA-Token": token });
+    assert.ok(!S.stderr().includes(token) && !out.includes(token), "the token is never logged");
+  });
+
+  test("no token (the no-referrer <img> attack) or a wrong one is refused; the right one reaches the picker", async () => {
+    const token = tokenFrom(await (await S.get("/setup.html")).text());
+    for (const p of ["/api/pick-file", "/api/pick-file?for=headers", "/api/pick-folder"]) {
+      assert.equal((await S.get(p)).status, 403, p + " without a token");
+      assert.equal((await S.get(p, { "X-GCA-Token": "0".repeat(64) })).status, 403, p + " with a wrong token");
+      assert.equal((await S.get(p, { "X-GCA-Token": token, Origin: "http://localhost:9999" })).status, 403, p + " from another origin");
+      const r = await S.get(p, { "X-GCA-Token": token });
+      assert.equal(r.status, 200, p + " with the token");
+      assert.deepEqual(await r.json(), { path: "", supported: false }, "GCA_NO_NATIVE_PICKER keeps tests from opening a dialog");
+    }
+  });
+
+  test("each server start gets a new token", async () => {
+    const S2 = await startServer();
+    try {
+      const a = tokenFrom(await (await S.get("/setup.html")).text());
+      const b = tokenFrom(await (await S2.get("/setup.html")).text());
+      assert.notEqual(a, b);
+      assert.equal((await S2.get("/api/pick-folder", { "X-GCA-Token": a })).status, 403);
+    } finally { S2.stop(); }
+  });
+});

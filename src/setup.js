@@ -244,7 +244,8 @@ async function pick(kind, fill, which) {
   flash($("#src-result"), "Opening the file browser… (check for a dialog window)", "");
   try {
     const url = kind === "file" ? "/api/pick-file?for=" + (which || "group") : "/api/pick-folder";
-    const r = await fetch(url);
+    // SP-11: the server only opens a dialog for a request carrying its token
+    const r = await fetch(url, { headers: { "X-GCA-Token": String(window.GCA_TOKEN || "") } });
     const j = await r.json();
     if (!j.supported) { flash($("#src-result"), "The native file browser is only available on Windows — please paste the path instead.", "err"); return; }
     if (!j.path) { $("#src-result").hidden = true; return; }   // cancelled
