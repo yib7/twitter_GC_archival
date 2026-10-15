@@ -468,7 +468,8 @@ describe("fix round 1: removal is previewed, quarantined and backed up", () => {
   });
 
   test("quarantined media, the backup and config are never served", async () => {
-    for (const p of ["/personal_data/.removed/person/222/9002-AbCdEf.png", "/personal_data/.removed/group/1000000002/9101-Other.mp4", "/personal_data/data.js.bak"]) {
+    assert.ok(fs.existsSync(P(".removed", "messages.js")), "the removed messages are quarantined too (SP7 fix round 1)");
+    for (const p of ["/personal_data/.removed/person/222/9002-AbCdEf.png", "/personal_data/.removed/group/1000000002/9101-Other.mp4", "/personal_data/.removed/messages.js", "/personal_data/data.js.bak"]) {
       assert.equal((await S.get(p)).status, 404, p);
     }
   });

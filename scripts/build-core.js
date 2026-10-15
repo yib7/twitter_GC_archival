@@ -89,22 +89,34 @@ function createAccumulator(opts) {
   };
   let prevCount = 0;
   const warnings = { badTime: 0, missingBodies: 0 };
+  // SP7 fix round 1 (#1): messages read from the quarantine of removed
+  // messages (personal_data/.removed/messages.js), so finish() can tell which
+  // of them come back into the archive (their group / person is no longer
+  // removed) — ids only — and which conversations had their events there.
+  const quarIds = new Set(), quarEventConvs = new Set();
 
-  // 1) baseline = previously built data (so history is never lost)
-  function addPrev(prev) {
+  // 1) baseline = previously built data (so history is never lost).
+  //    opts.quarantine: these are the quarantined removed messages — they
+  //    never replace a message the archive has, and aren't counted as baseline.
+  function addPrev(prev, addOpts) {
     if (!prev) return;
+    const fromQuar = !!(addOpts && addOpts.quarantine);
     const prevConvos = Array.isArray(prev.conversations)
       ? prev.conversations
       : (prev.conversationId ? [{ id: prev.conversationId, type: isGroupId(prev.conversationId) ? "group" : "dm", msgs: prev.msgs || [], events: prev.events || [] }] : []);
     prevConvos.forEach((pc) => {
       const c = getConvo(pc.id);
       if (pc.type) c.type = pc.type;
-      (pc.msgs || []).forEach((m) => c.msgMap.set(m.i, m));
+      (pc.msgs || []).forEach((m) => {
+        if (fromQuar) { quarIds.add(String(m.i)); if (c.msgMap.has(m.i)) return; }
+        c.msgMap.set(m.i, m);
+      });
       (pc.events || []).forEach((e) => c.eventMap.set(eventKey(e), e));
+      if (fromQuar && (pc.events || []).length) quarEventConvs.add(String(pc.id));
       // SP-21: people known only from an earlier build's headers (lurkers,
       // joiners) stay on the roster even when the newer export has no headers.
       (pc.participants || []).forEach((id) => c.headerParts.add(id));
-      prevCount += (pc.msgs || []).length;
+      if (!fromQuar) prevCount += (pc.msgs || []).length;
     });
   }
 
@@ -150,10 +162,31 @@ function createAccumulator(opts) {
   function finish(mediaIndex) {
     mediaIndex = mediaIndex || {};
     const conversations = [];
+    // SP7 fix round 1 (#1): what the archive leaves out because its group or
+    // person is removed (`removed`, for the quarantine), and the quarantined
+    // messages that come back now (`restored`) — see build.js.
+    const removed = [], restored = [];
+    const titleOf = (c, events) => {
+      const nameEv = events.filter((e) => e.type === "name");
+      return nameEv.length ? nameEv[nameEv.length - 1].name : (c.type === "group" ? "Group " + String(c.id).slice(-4) : null);
+    };
+    const byTime = (a, b) => a.t - b.t || (a.i < b.i ? -1 : 1);
     let totalMsgs = 0, totalMedia = 0, groupsSeen = 0;
     for (const c of convos.values()) {
       if (c.type === "group" && c.msgMap.size) groupsSeen++;
-      if (IGNORED_GROUPS.has(String(c.id))) continue;   // removed group chat — skip wholesale
+      if (IGNORED_GROUPS.has(String(c.id))) {   // removed group chat — skip wholesale (into the quarantine)
+        if (c.type === "group" && c.msgMap.size) {
+          const msgs = [...c.msgMap.values()].sort(byTime);
+          const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
+          const participants = [...new Set([...msgs.map((m) => m.s), ...c.headerParts])];
+          removed.push({ id: c.id, type: c.type, title: titleOf(c, events), participants, count: msgs.length, msgs, events });
+        }
+        continue;
+      }
+      if (c.type === "group" && IGNORED.size) {
+        const gone = [...c.msgMap.values()].filter((m) => IGNORED.has(String(m.s))).sort(byTime);
+        if (gone.length) removed.push({ id: c.id, type: c.type, title: null, participants: [...new Set(gone.map((m) => m.s))], count: gone.length, msgs: gone, events: [] });
+      }
       let withMedia = 0;
       const msgVals = [...c.msgMap.values()].filter((m) => !IGNORED.has(String(m.s)));
       for (const rec of msgVals) {
@@ -168,18 +201,21 @@ function createAccumulator(opts) {
           withMedia++;
         } else if (rec.m) withMedia++;
       }
-      const msgs = msgVals.sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
+      const msgs = msgVals.sort(byTime);
       const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
       if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
       for (const hid of c.headerIds) if (!c.msgMap.has(hid)) warnings.missingBodies++;
 
       const headerParts = [...(c.headerParts || [])].filter((id) => !IGNORED.has(String(id)));
       const participants = [...new Set([...msgs.map((m) => m.s), ...headerParts])];
-      const nameEv = events.filter((e) => e.type === "name");
-      const title = nameEv.length ? nameEv[nameEv.length - 1].name
-        : (c.type === "group" ? "Group " + String(c.id).slice(-4) : null);
+      const title = titleOf(c, events);
 
       conversations.push({ id: c.id, type: c.type, title, participants, count: msgs.length, msgs, events });
+      if (quarIds.size || quarEventConvs.size) {
+        const back = msgs.filter((m) => quarIds.has(String(m.i)));
+        const ev = quarEventConvs.has(String(c.id)) ? events : [];
+        if (back.length || ev.length) restored.push({ id: c.id, type: c.type, title, participants, count: back.length, msgs: back, events: ev });
+      }
       totalMsgs += msgs.length;
       totalMedia += withMedia;
     }
@@ -187,10 +223,33 @@ function createAccumulator(opts) {
     // biggest conversation first, so the UI opens on the most active chat
     conversations.sort((a, b) => b.count - a.count);
 
-    return { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings };
+    return { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings, removed, restored };
   }
 
   return { addPrev, addMessage, addHeader, finish };
+}
+
+/**
+ * SP7 fix round 1 (#1): the quarantine written BEFORE data.js — the messages
+ * still removed plus the ones coming back — so a build cut off between the
+ * two writes loses nothing (the next build narrows it again). Conversations
+ * are joined by id; messages by id, events by key.
+ */
+function mergeQuarantine(a, b) {
+  const out = new Map();
+  for (const c of (a || []).concat(b || [])) {
+    const k = String(c.id);
+    const o = out.get(k);
+    if (!o) { out.set(k, { id: c.id, type: c.type, title: c.title, participants: (c.participants || []).slice(), msgMap: new Map((c.msgs || []).map((m) => [String(m.i), m])), eventMap: new Map((c.events || []).map((e) => [eventKey(e), e])) }); continue; }
+    for (const m of c.msgs || []) if (!o.msgMap.has(String(m.i))) o.msgMap.set(String(m.i), m);
+    for (const e of c.events || []) o.eventMap.set(eventKey(e), e);
+    o.participants = [...new Set(o.participants.concat(c.participants || []))];
+    if (!o.title && c.title) o.title = c.title;
+  }
+  return [...out.values()].map((o) => {
+    const msgs = [...o.msgMap.values()].sort((x, y) => x.t - y.t || (x.i < y.i ? -1 : 1));
+    return { id: o.id, type: o.type, title: o.title, participants: o.participants, count: msgs.length, msgs, events: [...o.eventMap.values()].sort((x, y) => x.t - y.t) };
+  });
 }
 
 /**
@@ -1005,6 +1064,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, createExportSink, createExportSurvey, missingPartNumbers, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, mergeQuarantine, createExportSink, createExportSurvey, missingPartNumbers, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, createArchiveScanner, prevArchiveProblem, ExportScanError, archiveChunks,
 };

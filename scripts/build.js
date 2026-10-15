@@ -40,7 +40,15 @@ const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONA
 const CONFIG = path.join(PERSONAL, "config.json");
 const OUT = path.join(PERSONAL, "data.js");
 const BAK = OUT + ".bak";
+// SP7 fix round 1 (#1): messages left out because their group chat or person
+// is removed. A merge re-points config at the newer export (and the older
+// copies are pruned), so the archive itself must keep what it removed, or
+// un-removing could only bring back what the newest export still has.
+// Same format as data.js; never served (not under an allowlisted prefix).
+const QUAR = path.join(PERSONAL, ".removed", "messages.js");
 const log = (...a) => console.log(...a);
+// Test-only: stop the build at a named point, as a crash would.
+const crashPoint = (name) => { if (process.env.GCA_TEST_BUILD_CRASH === name) fail("Simulated crash (" + name + ")."); };
 
 // A user-facing failure: its message is the whole story, shown as-is.
 class BuildError extends Error {}
@@ -126,6 +134,25 @@ function loadPrev(acc) {
     throw e;
   }
 }
+// SP7 fix round 1 (#1): the quarantined removed messages, streamed in under
+// the baseline (a message the archive has always wins). true when there is one.
+function loadQuarantine(acc) {
+  if (!fs.existsSync(QUAR)) return false;
+  try {
+    scanArchiveFile(QUAR, { onConversation: (c) => acc.addPrev({ conversations: [c] }, { quarantine: true }) }, scanOpts());
+    return true;
+  } catch (e) {
+    fail("The messages of removed people and group chats (personal_data/.removed/messages.js) couldn't be read, so the build stopped instead of losing them. " +
+      "Close any program using that file and try again; Start over erases it.");
+  }
+}
+// Write the quarantine (atomically), or remove it when nothing is left in it.
+function writeQuarantine(convs) {
+  if (!convs.length) { if (fs.existsSync(QUAR)) fs.rmSync(QUAR, { force: true }); return; }
+  fs.mkdirSync(path.dirname(QUAR), { recursive: true });
+  writeChunksAtomic(QUAR, core.archiveChunks({ generatedAt: new Date().toISOString(), removedMessages: true }, convs));
+}
+
 // data.js.bak, data.js.<pid>.<hex>.tmp (a write or swap cut short) and
 // data.js.bak.<pid>.<hex>.tmp next to `file`, newest first.
 function leftoversOf(file) {
@@ -187,6 +214,7 @@ function main() {
   if (!exportFiles.length) fail("No messages file is set up. Run the setup wizard and pick direct-messages-group.js.");
 
   const acc = core.createAccumulator({ ignoredUsers, ignoredGroups });
+  const hadQuarantine = loadQuarantine(acc);
   const prev = loadPrev(acc);
   // an old single-conversation archive keeps its messages at the root
   if (prev && prev.meta.conversationId != null) acc.addPrev(prev.meta);
@@ -205,7 +233,7 @@ function main() {
   log("Media folders:", mediaDirs.map((d) => path.relative(here, d)).join(", ") || "(none)");
   const mediaIndex = buildMediaIndex(mediaDirs);
 
-  const { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings } = acc.finish(mediaIndex);
+  const { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings, removed, restored } = acc.finish(mediaIndex);
   if (!groupsSeen) {
     const names = exportFiles.map((f) => "\u201c" + path.basename(f) + "\u201d").join(", ");
     fail("No group chats were found in " + names + (seen.dm ? " — it only has 1:1 conversations" : "") +
@@ -216,7 +244,16 @@ function main() {
     "If your archive's data folder has direct-messages-group-part1.js (-partN) files, make sure they sit next to direct-messages-group.js.");
   if (warnings.badTime) log("Warning: " + warnings.badTime + " message(s)/event(s) had a missing or unreadable date and were skipped.");
 
+  // SP7 fix round 1 (#1): quarantine first as a superset (still removed +
+  // coming back), then data.js, then narrow the quarantine to what is still
+  // removed. Cut off anywhere, every message is in data.js or the quarantine.
+  const anyRemoved = removed.length > 0, anyBack = restored.length > 0;
+  if (anyRemoved || anyBack || hadQuarantine) writeQuarantine(core.mergeQuarantine(removed, restored));
+  crashPoint("after-quarantine");
   writeArchive({ generatedAt: new Date().toISOString(), ignoredUsers, ignoredGroups }, conversations);
+  crashPoint("after-archive");
+  if (anyBack) writeQuarantine(removed);
+  if (anyRemoved) log("Kept out (removed people / group chats):", removed.reduce((n, c) => n + c.count, 0), "message(s), in personal_data/.removed/messages.js.");
 
   const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);
   log("---");
