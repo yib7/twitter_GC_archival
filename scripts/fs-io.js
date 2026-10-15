@@ -321,6 +321,17 @@ function writeFileAtomic(dest, data, opts) {
     throw e;
   }
 }
+// fs.writeSync may write only part of a buffer (POSIX, a nearly full disk)
+// without an error: write the rest, and treat no progress at all as a full
+// disk, so a cut-off file is never saved over a good one.
+function writeAll(fd, data) {
+  const buf = typeof data === "string" ? Buffer.from(data) : data;
+  for (let off = 0; off < buf.length;) {
+    const n = fs.writeSync(fd, buf, off, buf.length - off);
+    if (!(n > 0)) throw Object.assign(new Error("ENOSPC: the disk took no more data"), { code: "ENOSPC" });
+    off += n;
+  }
+}
 // Same, for content produced piece by piece (data.js from archiveChunks), so
 // the whole archive never has to exist as one string.
 function writeChunksAtomic(dest, chunks, opts) {
@@ -328,7 +339,7 @@ function writeChunksAtomic(dest, chunks, opts) {
   try {
     const fd = fs.openSync(tmp, "wx");
     try {
-      for (const c of chunks) if (c) fs.writeSync(fd, c);
+      for (const c of chunks) if (c) writeAll(fd, c);
       fs.fsyncSync(fd);
     } finally { fs.closeSync(fd); }
     return replaceFile(tmp, dest, opts);

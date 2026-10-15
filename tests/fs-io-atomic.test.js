@@ -177,3 +177,39 @@ test("a first save whose new file is held says so, without claiming a previous v
   assert.ok(!fs.existsSync(f));
   assert.deepEqual(leftovers(dir), []);
 });
+
+// fs.writeSync may write fewer bytes than asked (POSIX, a nearly full disk)
+// without throwing. The rest of the chunk must still be written, and a write
+// that makes no progress at all must fail rather than save a cut-off file.
+test("writeChunksAtomic finishes a chunk the OS wrote only part of", () => {
+  const dir = scratch();
+  const f = path.join(dir, "data.js");
+  const chunks = ["window.CHAT_DATA = {", "\"conversations\":[]", "};\n"];
+  const real = fs.writeSync;
+  let shorted = false;
+  fs.writeSync = function (fd, data, ...rest) {
+    const buf = typeof data === "string" ? Buffer.from(data) : data;
+    if (!shorted && buf.toString() === "};\n") { shorted = true; return real.call(fs, fd, buf, 0, buf.length - 1); }
+    return real.call(fs, fd, data, ...rest);
+  };
+  try { writeChunksAtomic(f, chunks); }
+  finally { fs.writeSync = real; }
+  assert.ok(shorted, "the short write happened");
+  assert.equal(fs.readFileSync(f, "utf8"), chunks.join(""));
+  assert.deepEqual(leftovers(dir), []);
+});
+
+test("writeChunksAtomic throws when a write makes no progress, and the old file stays", () => {
+  const dir = scratch();
+  const f = path.join(dir, "data.js");
+  fs.writeFileSync(f, "old archive");
+  const real = fs.writeSync;
+  fs.writeSync = () => 0;
+  let err;
+  try { writeChunksAtomic(f, ["new ", "archive"]); }
+  catch (e) { err = e; }
+  finally { fs.writeSync = real; }
+  assert.ok(err, "the write must fail");
+  assert.equal(fs.readFileSync(f, "utf8"), "old archive");
+  assert.deepEqual(leftovers(dir), []);
+});
