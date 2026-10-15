@@ -96,3 +96,45 @@ test.describe("UX-12: a visible focus ring on every keyboard stop", () => {
     }
   });
 });
+
+test.describe("UX-1 / VC-19: message actions are reachable by keyboard", () => {
+  test("a timeline message takes focus and Tab walks into its actions", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
+    await page.locator("#tl-search").focus();
+    await page.keyboard.press("Tab");
+    const msg = page.locator("#tl-list .msg").first();
+    await expect(msg).toBeFocused();
+    await expect(msg).toHaveAttribute("role", "article");
+    await expect(msg).toHaveAttribute("aria-label", /User 1/);
+    const acts = msg.locator(".msg-acts");
+    await expect(acts).toBeVisible();
+    await expect(acts).toHaveAttribute("role", "toolbar");
+    await page.keyboard.press("Tab");
+    const pin = acts.getByRole("button", { name: "Bookmark" });
+    await expect(pin).toBeFocused();
+    await expect(pin).toHaveAttribute("aria-pressed", "false");
+    await page.keyboard.press("Enter");
+    // a toggle keeps one name and reports its state through aria-pressed
+    await expect(pin).toHaveAttribute("aria-pressed", "true");
+    await expect(pin).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(acts.getByRole("button", { name: "Copy" })).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(acts.getByRole("button", { name: "Context" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".ctx-modal")).toBeVisible();
+  });
+
+  test("a search result card is not a role=button wrapping buttons, and its actions are reachable", async ({ page }) => {
+    await bootViewer(page, DATA);
+    const card = page.locator("#s-list .msg").first();
+    await expect(card).not.toHaveAttribute("role", "button");
+    expect(await card.locator("button, a").count()).toBeGreaterThan(0);
+    await card.focus();
+    await page.keyboard.press("Tab");
+    await expect(card.locator(".msg-acts")).toBeVisible();
+    await expect(card.getByRole("button", { name: "Bookmark" })).toBeFocused();
+    // the "⋯" touch button is not shown to a mouse / keyboard user
+    await expect(card.locator(".msg-more")).toBeHidden();
+  });
+});

@@ -683,10 +683,17 @@ function togglePin(msgId) {
   else { settings.pins.push(msgId); toast("★ Bookmarked"); }
   saveSettings();
   // keep any open pin buttons in sync
-  document.querySelectorAll('.act-pin[data-mid="' + cssEsc(msgId) + '"]').forEach((b) => {
-    const on = isPinned(msgId); b.classList.toggle("on", on); b.textContent = on ? "★" : "☆"; b.title = on ? "Remove bookmark" : "Bookmark";
-  });
+  document.querySelectorAll('.act-pin[data-mid="' + cssEsc(msgId) + '"]').forEach((b) => setPinBtn(b, isPinned(msgId)));
   if (curView === "pins") renderPins();
+}
+// A bookmark toggle keeps one accessible name ("Bookmark") and reports its
+// state through aria-pressed; the star glyph and tooltip mirror it (UX-1).
+function setPinBtn(b, on) {
+  b.classList.toggle("on", on);
+  b.setAttribute("aria-pressed", on ? "true" : "false");
+  b.title = on ? "Remove bookmark" : "Bookmark";
+  if (b.classList.contains("lb-pin")) b.textContent = on ? "★ Bookmarked" : "☆ Bookmark";
+  else { b.textContent = on ? "★" : "☆"; b.setAttribute("aria-label", "Bookmark"); }
 }
 function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 
@@ -1080,30 +1087,22 @@ function renderMsg(i, opts) {
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
-  const acts = el("div", "msg-acts");
-  const pinned = isPinned(m.i);
-  const actPin = el("button", "act-pin" + (pinned ? " on" : ""), pinned ? "★" : "☆");
-  actPin.dataset.mid = m.i; actPin.title = pinned ? "Remove bookmark" : "Bookmark";
-  actPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); };
-  const actCopy = el("button", "", "Copy"); actCopy.onclick = (e) => {
-    e.stopPropagation();
+  // VC-25: Copy and Quote only make sense with text — on a media-only message
+  // Copy used to copy "" and still toast "Copied text".
+  const hasText = !!(m.x || "").trim();
+  const copy = () => {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(m.x).then(() => toast("Copied text")).catch(() => toast("Copy failed"));
     } else {
       toast("Copy failed");
     }
   };
-  const actCtx = el("button", "", "Context"); actCtx.onclick = (e) => { e.stopPropagation(); openContextPeek(i); };
-  const actQuote = el("button", "", "Quote"); actQuote.onclick = (e) => { e.stopPropagation(); exportQuoteCard(i); };
-  const actJump = el("button", "", "Jump"); actJump.onclick = (e) => { e.stopPropagation(); jumpTo(i); };
-  // VC-25: Copy and Quote only make sense with text — on a media-only message
-  // Copy used to copy "" and still toast "Copied text".
-  const hasText = !!(m.x || "").trim();
-  acts.appendChild(actPin);
-  if (hasText) acts.appendChild(actCopy);
-  acts.appendChild(actCtx);
-  if (hasText) acts.appendChild(actQuote);
-  acts.appendChild(actJump);
+  const acts = msgActions(wrap, m, [
+    hasText && ["Copy", copy],
+    ["Context", () => openContextPeek(i)],
+    hasText && ["Quote", () => exportQuoteCard(i)],
+    ["Jump", () => jumpTo(i)],
+  ]);
   body.appendChild(acts);
 
   const txt = (m.x || "").trim();
@@ -1137,7 +1136,54 @@ function renderMsg(i, opts) {
   wrap.appendChild(body);
 
   if (opts.clickable) cardActivation(wrap, () => jumpTo(i));
+  else msgFocusable(wrap, m);
   return wrap;
+}
+// UX-1 / VC-19: the per-message action toolbar. A mouse reveals it on hover; a
+// keyboard user tabs to the message (a focusable article) and on into the
+// toolbar, which shows while focus is inside the card; a touch user — who has
+// no hover — opens it with the "⋯" button. Running an action closes it.
+function msgActions(wrap, m, items) {
+  const acts = el("div", "msg-acts");
+  acts.setAttribute("role", "toolbar");
+  acts.setAttribute("aria-label", "Message actions");
+  const actPin = el("button", "act-pin");
+  actPin.type = "button"; actPin.dataset.mid = m.i; setPinBtn(actPin, isPinned(m.i));
+  actPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); closeMsgActs(); };
+  acts.appendChild(actPin);
+  items.forEach((it) => {
+    if (!it) return;
+    const b = el("button", "", it[0]); b.type = "button";
+    b.onclick = (e) => { e.stopPropagation(); closeMsgActs(); it[1](); };
+    acts.appendChild(b);
+  });
+  const more = el("button", "msg-more", "⋯");
+  more.type = "button";
+  more.setAttribute("aria-label", "Message actions");
+  more.setAttribute("aria-expanded", "false");
+  more.onclick = (e) => {
+    e.stopPropagation();
+    const open = !wrap.classList.contains("acts-open");
+    closeMsgActs();
+    if (open) { wrap.classList.add("acts-open"); more.setAttribute("aria-expanded", "true"); }
+  };
+  wrap.appendChild(more);
+  return acts;
+}
+function closeMsgActs() {
+  let closed = false;
+  document.querySelectorAll(".msg.acts-open").forEach((w) => {
+    w.classList.remove("acts-open"); closed = true;
+    const b = w.querySelector(".msg-more"); if (b) b.setAttribute("aria-expanded", "false");
+  });
+  return closed;
+}
+// A timeline message (not a whole-card link) is a focusable article, so the
+// keyboard can reach it and then its actions.
+function msgFocusable(wrap, m) {
+  wrap.tabIndex = 0;
+  wrap.setAttribute("role", "article");
+  wrap.setAttribute("aria-label", nameOf(m.s) + ", " + DT.format(m.t));
 }
 // VC-8: a whole-card click/Enter target (Search results, bookmark cards) must
 // not hijack its interactive children — a link opens only the link, an avatar
@@ -1147,7 +1193,6 @@ function renderMsg(i, opts) {
 const CARD_CHILD_SEL = "a, button, input, select, textarea, video, .av-clickable";
 function cardActivation(wrap, go) {
   wrap.tabIndex = 0;
-  wrap.setAttribute("role", "button");
   wrap.addEventListener("click", (e) => { if (e.target.closest(CARD_CHILD_SEL)) return; go(); });
   wrap.addEventListener("keydown", (e) => {
     if (e.target !== wrap) return;
@@ -1252,9 +1297,9 @@ function renderLightbox() {
   dl.onclick = (e) => e.stopPropagation();
   box.appendChild(dl);
 
-  const lbPin = el("button", "lb-pin act-pin" + (isPinned(m.i) ? " on" : ""), isPinned(m.i) ? "★ Bookmarked" : "☆ Bookmark");
-  lbPin.dataset.mid = m.i;
-  lbPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); lbPin.textContent = isPinned(m.i) ? "★ Bookmarked" : "☆ Bookmark"; lbPin.classList.toggle("on", isPinned(m.i)); };
+  const lbPin = el("button", "lb-pin act-pin");
+  lbPin.dataset.mid = m.i; setPinBtn(lbPin, isPinned(m.i));
+  lbPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); };
   box.appendChild(lbPin);
 
   if (lbState.pos > 0) {
@@ -1921,6 +1966,8 @@ function applySaved(s) {
 }
 function closePopovers() { document.querySelectorAll(".popover").forEach((p) => p.remove()); }
 document.addEventListener("click", (e) => { if (!e.target.closest(".popwrap")) closePopovers(); });
+// UX-1: a tap anywhere outside an open ⋯ toolbar's message closes it.
+document.addEventListener("click", (e) => { if (!e.target.closest(".msg.acts-open")) closeMsgActs(); }, true);
 
 /* ===========================================================================
    TIMELINE VIEW & VIRTUAL SCROLLER
@@ -3766,6 +3813,7 @@ function init() {
     if (e.key === "Escape") {
       if (mobileSheetClose()) return;   // the More sheet sits above the views
       if (closeTopModal()) return;
+      if (closeMsgActs()) return;       // UX-1: an open ⋯ action toolbar
       closePopovers();
     }
     if (curView === "wrapped" && !topModal() && document.activeElement.tagName !== "INPUT") {
@@ -4552,14 +4600,7 @@ function renderForeignPin(conv, m) {
     jumpTo(idx == null ? 0 : idx);
   };
 
-  const acts = el("div", "msg-acts");
-  const pinned = isPinned(m.i);
-  const actPin = el("button", "act-pin" + (pinned ? " on" : ""), pinned ? "★" : "☆");
-  actPin.dataset.mid = m.i; actPin.title = pinned ? "Remove bookmark" : "Bookmark";
-  actPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); };
-  const actJump = el("button", "", "Jump"); actJump.onclick = (e) => { e.stopPropagation(); go(); };
-  acts.appendChild(actPin); acts.appendChild(actJump);
-  body.appendChild(acts);
+  body.appendChild(msgActions(wrap, m, [["Jump", go]]));
 
   const txt = (m.x || "").trim();
   if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.dir = "auto"; bubbleEl.innerHTML = renderText(m.x, m.u); body.appendChild(bubbleEl); }

@@ -288,7 +288,20 @@ button, input, select, textarea { font-family: inherit; }
 .app.no-avatars .av { display: none; }
 
 .msg-acts { position: absolute; top: 10px; right: 20px; display: none; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--el1); z-index: 5; padding: 4px; gap: 4px; }
-.msg:hover .msg-acts { display: flex; }
+/* UX-1 / VC-19: hover shows the toolbar only where hover exists; keyboard
+   focus inside the card shows it; touch opens it with the ⋯ button (which is
+   itself a keyboard stop there, so a tapped action doesn't leave it pinned open). */
+@media (hover: hover) { .msg:hover .msg-acts { display: flex; } }
+.msg:focus-within .msg-acts, .msg.acts-open .msg-acts { display: flex; }
+.msg-more { display: none; position: absolute; top: 0; right: 0; z-index: 6; background: none; border: 0; border-radius: 999px; color: var(--text-dim); font-size: 18px; line-height: 1; cursor: pointer; min-width: 44px; min-height: 44px; }
+.msg-more[aria-expanded="true"] { color: var(--accent-text); background: var(--bg-hover); }
+@media (hover: none), (pointer: coarse) {
+  .msg-more { display: block; }
+  .msg:not(.acts-open) .msg-acts { display: none; }
+  .msg-acts { top: 44px; right: 0; max-width: calc(100% - 8px); flex-wrap: wrap; }
+  .msg-acts button { min-width: 44px; min-height: 44px; font-size: 13px; }
+  .msg-body { padding-right: 36px; }
+}
 .msg-acts button { background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 11px; padding: 4px 8px; border-radius: 4px; }
 .msg-acts button:hover { background: var(--bg-card); color: var(--text); }
 
