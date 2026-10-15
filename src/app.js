@@ -1674,41 +1674,95 @@ function ensureSearch() {
   runSearch();
 }
 
-function parseQuery(raw) {
-  const phrases = [...raw.matchAll(/"([^"]+)"/g)].map((m) => m[1].toLowerCase().trim()).filter(Boolean);
-  const rest = raw.replace(/"[^"]+"/g, " ");
-  const terms = rest.toLowerCase().split(/\s+/).map((s) => s.trim()).filter(Boolean);
-  return phrases.concat(terms);
+/* ---- Query context (SP9: VC-10 / UX-21) -------------------------------------
+   The box is parsed by GCAShared.parseSearchQuery (shared with the command
+   palette's message hits and the operator chips) and resolved here into the
+   run's context: its needles plus a TRANSIENT operator overlay (P2-2, P2-3) —
+   from:/sender: people, before:/after: bounds, has:/is: flags, -exclusions.
+   The overlay is rebuilt from the text on every run and never written into the
+   persistent F.people/F.from/F.to/F.media/F.links/F.reacts filter-panel state:
+   it narrows further than the manual filters and vanishes with its token. */
+// Who a from: value can name: participants (ignored people are already gone
+// from PARTS) by display name plus aliases — the wizard name, a name set in
+// People and the generic "User N" label.
+function personNames(id) {
+  const out = [];
+  [nameOf(id), settings.names[id], LOCAL_NAMES[id], GENERIC[id]].forEach((n) => { if (n && out.indexOf(n) < 0) out.push(n); });
+  return out;
 }
-let excludeNeedles = [];
-// Transient operator overlay (P2-2, P2-3): from:/sender:/before:/after: and
-// has:media/links/reacts tokens are re-parsed from the query text on every run
-// into these, instead of mutating the persistent F.people/F.from/F.to/F.media/
-// F.links/F.reacts filter-panel state. They combine with (narrow further than)
-// whatever the manual filter panel has set, and never survive past the run
-// that produced them — clearing the query drops them.
-let opPeople = null, opFrom = null, opTo = null;
-let opMedia = false, opLinks = false, opReacts = false;
-// before:/after: tokens whose date doesn't exist (VC-28) — shown in the meta line.
-let opDateNotes = [];
-function testMsgNoNeedle(i) {
-  const m = MSGS[i];
+function searchPeople() { return PARTS.map((p) => ({ id: p.id, names: personNames(p.id) })); }
+function buildSearchCtx(raw, people) {
+  const pq = GCAShared.parseSearchQuery(raw, { clock: CLOCK });
+  const ctx = { pq, needles: pq.needles, phrases: pq.phrases, excludes: pq.excludes,
+    people: null, from: null, to: null, has: {}, pins: null, notes: [], chips: [] };
+  for (const op of pq.ops) {
+    if (op.pending) continue;
+    if (op.key === "from") {
+      const r = GCAShared.resolvePeople(op.value, people || searchPeople(), { open: op.open });
+      if (r.pending) { op.pending = true; continue; }
+      if (!ctx.people) ctx.people = new Set();
+      r.ids.forEach((id) => ctx.people.add(id));
+      op.ids = r.ids;
+      if (!r.ids.length) ctx.notes.push("No one named “" + op.value + "”");
+    } else if (op.key === "before" || op.key === "after") {
+      // VC-28: a date that doesn't exist is dropped with a note, not rolled over
+      if (op.error) { ctx.notes.push("Ignored " + op.raw + (op.error === "order" ? " — use YYYY-MM-DD or Jan 7 2024" : " — no such date")); continue; }
+      // both inclusive of the named period (SP8): after:P = from P's first
+      // day, before:P = through P's last day
+      if (op.key === "before") ctx.to = ctx.to == null ? op.date.end - 1 : Math.min(ctx.to, op.date.end - 1);
+      else ctx.from = ctx.from == null ? op.date.start : Math.max(ctx.from, op.date.start);
+    } else if (op.key === "has") ctx.has[op.value] = true;
+    else if (op.key === "is") ctx.pins = new Set(settings.pins);
+    ctx.chips.push(op);
+  }
+  return ctx;
+}
+// The search context of the last Search run (renderResPage, the fuzzy filter).
+let SQ = buildSearchCtx("", []);
+const MEDIA_KIND = { photo: "img", video: "vid" };
+function hasMediaKind(m, want) {
+  if (!m.m) return false;
+  const is = (k) => (want === "file" ? k !== "img" && k !== "vid" : k === MEDIA_KIND[want]);
+  if (is(m.k)) return true;
+  return Array.isArray(m.mx) && m.mx.some((x) => x && x.m && is(x.k));   // SP-20: a message's other files
+}
+// Does message m (lowercased search text L) pass the manual filters and the
+// query's operator overlay? Needles are the caller's job.
+function msgPasses(ctx, m, L) {
   if (F.people.size && !F.people.has(m.s)) return false;
   if (F.from != null && m.t < F.from) return false;
   if (F.to != null && m.t > F.to) return false;
-  if (opPeople && !opPeople.has(m.s)) return false;
-  if (opFrom != null && m.t < opFrom) return false;
-  if (opTo != null && m.t > opTo) return false;
-  if ((F.media || opMedia) && !m.m) return false;
-  if ((F.links || opLinks) && !m.u) return false;
-  if ((F.reacts || opReacts) && !m.r) return false;
-  if (excludeNeedles.length > 0) {
-    const text = LOWER[i];
-    for (const term of excludeNeedles) {
-      if (text.indexOf(term) >= 0) return false;
-    }
-  }
+  if (ctx.people && !ctx.people.has(m.s)) return false;
+  if (ctx.from != null && m.t < ctx.from) return false;
+  if (ctx.to != null && m.t > ctx.to) return false;
+  const h = ctx.has;
+  if ((F.media || h.media) && !m.m) return false;
+  if ((F.links || h.link) && !m.u) return false;
+  if ((F.reacts || h.reacts) && !m.r) return false;
+  if (h.photo && !hasMediaKind(m, "photo")) return false;
+  if (h.video && !hasMediaKind(m, "video")) return false;
+  if (h.file && !hasMediaKind(m, "file")) return false;
+  if (ctx.pins && !ctx.pins.has(m.i)) return false;
+  for (const term of ctx.excludes) if (L.indexOf(term) >= 0) return false;
   return true;
+}
+function testMsgNoNeedle(i) { return msgPasses(SQ, MSGS[i], LOWER[i]); }
+// Any filter or operator in effect (the "Showing all …" line otherwise).
+function ctxFiltered(ctx) {
+  return !!(ctx.needles.length || ctx.excludes.length || ctx.people || ctx.from != null || ctx.to != null ||
+    Object.keys(ctx.has).length || ctx.pins || F.people.size || F.from || F.to || F.media || F.links || F.reacts);
+}
+// The literal tier: every message holding all the needles (and passing the
+// filters), newest first. Shared by Search and the palette's message hits.
+function literalHits(ctx, msgs, lower) {
+  const out = [], nd = ctx.needles;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    const L = lower[i];
+    let match = true;
+    for (const n of nd) if (L.indexOf(n) < 0) { match = false; break; }
+    if (match && msgPasses(ctx, msgs[i], L)) out.push(i);
+  }
+  return out;
 }
 /* ---- Fuzzy search: exact-first (VC-18, SP3) ---------------------------------
    In Fuzzy mode a query first runs the literal AND-match (a few ms at 100k):
@@ -1762,67 +1816,10 @@ let fuzzyPattern = null;
 // needle highlighter.
 let fuzzyRanges = null;
 function runSearch() {
-  let q = sEls.input.value || "";
   fuzzyRanges = null; fuzzyPattern = null; searchKind = "";
-
-  // Reset exclusions and the operator overlay — both re-parsed each run.
-  excludeNeedles = [];
-  opPeople = null; opFrom = null; opTo = null;
-  opMedia = false; opLinks = false; opReacts = false;
-  opDateNotes = [];
-
-  // 1. Parse has:media, has:links, has:reacts into the transient overlay
-  // (P2-3). Never writes the persistent F.media/F.links/F.reacts pill state —
-  // testMsgNoNeedle OR-combines each overlay flag with its manual pill, so
-  // the operator narrows this run only and vanishes when the token is deleted.
-  q = q.replace(/\bhas:(media|links|reacts|reactions)\b/ig, (match, p1) => {
-    const type = p1.toLowerCase();
-    if (type === "media") opMedia = true;
-    if (type === "links") opLinks = true;
-    if (type === "reacts" || type === "reactions") opReacts = true;
-    return "";
-  });
-
-  // 2. Parse from:name or sender:name into a transient overlay (never F.people).
-  // The name value must be followed by whitespace to take effect. Unlike the
-  // fixed-length date operators below, a name is an open-ended prefix while
-  // being typed (e.g. "from:bo" mid-keystroke toward "from:bob") — treating
-  // end-of-string as a boundary here would fire on every partial keystroke,
-  // which is exactly the P2-2 pollution bug. Requiring an explicit trailing
-  // space is what the checkpoint's "from:bo" (no effect) vs "from:bob "
-  // (takes effect) example exercises.
-  q = q.replace(/\b(from|sender):(\w+|"[^"]+")(?=\s)/ig, (match, op, val) => {
-    const name = val.replace(/"/g, "").toLowerCase().trim();
-    const matches = PARTS.filter(p => nameOf(p.id).toLowerCase().includes(name));
-    if (!opPeople) opPeople = new Set();
-    matches.forEach(p => opPeople.add(p.id));
-    return "";
-  });
-
-  // 3. Parse before:<date> and after:<date> into the transient overlay. VC-28:
-  // the date goes through GCAShared.parseJumpDate — the jump-to-date parser —
-  // so it is read in the configured zone like the From/To pills, takes any
-  // form that parser does (2021-06-14, 2021-06, 2021, or a quoted
-  // "June 2021" / "Jan 7 2024"), and BOTH operators are inclusive of the named
-  // period: after:P = on or after P's first day, before:P = on or before P's
-  // last day (before:2021-06 keeps all of June). A date that doesn't exist is
-  // dropped with a note instead of rolling over (2023-02-30 used to mean
-  // Mar 2); a value that isn't date-shaped at all stays plain search text.
-  // The manual pills' value/active-state are left untouched — operators must
-  // not alter the persistent filter-panel display.
-  q = q.replace(/\b(before|after):("[^"]*"|\S+)/ig, (match, op, val) => {
-    const p = GCAShared.parseJumpDate(val.replace(/"/g, ""), CLOCK);
-    if (!p) return match;
-    if (p.error) { opDateNotes.push(op.toLowerCase() + ":" + val + (p.error === "order" ? " — use YYYY-MM-DD or Jan 7 2024" : " — no such date")); return " "; }
-    if (op.toLowerCase() === "before") opTo = p.end - 1; else opFrom = p.start;
-    return " ";
-  });
-
-  // 4. Parse exclusions: -word or -"exact phrase"
-  q = q.replace(/(?:^|\s)-(\w+|"[^"]+")/g, (match, term) => {
-    excludeNeedles.push(term.replace(/"/g, "").toLowerCase().trim());
-    return "";
-  });
+  // The operator overlay and exclusions are re-parsed from the box each run
+  // (SP9: GCAShared.parseSearchQuery — see buildSearchCtx).
+  SQ = buildSearchCtx(sEls.input.value || "");
 
   // Toggle active class on pills (manual/persistent state only — the overlay
   // never touches these, so typing operators can't alter the filter panel).
@@ -1831,10 +1828,10 @@ function runSearch() {
   sEls.reacts.classList.toggle("active", F.reacts);
   updatePeopleBadge();
 
-  F.needles = parseQuery(q);
+  F.needles = SQ.needles;
   updateClearAllBtn();
 
-  let out = [];
+  let out;
   // What List mode would show for this query — the "N messages match" in Grid
   // mode's no-media empty state. -1 = the (pre-media-filter) result list itself.
   let listCount = -1;
@@ -1843,12 +1840,7 @@ function runSearch() {
     const qKey = F.needles.join("\u0001");
     if (fuzzyForceQ !== qKey) fuzzyForceQ = null;   // the opt-in is per query
     // Literal substring AND-match, newest first — always the first tier.
-    for (let i = N - 1; i >= 0; i--) {
-      const L = LOWER[i];
-      let match = true;
-      for (const n of F.needles) if (L.indexOf(n) < 0) { match = false; break; }
-      if (match && testMsgNoNeedle(i)) out.push(i);
-    }
+    out = literalHits(SQ, MSGS, LOWER);
     searchKind = canFuzzy ? "exact-first" : "exact";
     // The fallback is decided on what the view can show: in Grid mode literal
     // hits without media don't count (they would only produce "No media").
@@ -1872,7 +1864,7 @@ function runSearch() {
       }
     }
   } else {
-    for (let i = N - 1; i >= 0; i--) if (testMsgNoNeedle(i)) out.push(i);
+    out = literalHits(SQ, MSGS, LOWER);
   }
 
   // Apply sort order (relevance = leave as-built: Fuse order, or newest-first)
@@ -1895,12 +1887,12 @@ function runSearch() {
   sEls.scroll.scrollTop = 0;
   if (resObserver) resObserver.disconnect();
 
-  const hasFilter = F.needles.length || F.people.size || F.from || F.to || F.media || F.links || F.reacts || opPeople || opFrom || opTo || opMedia || opLinks || opReacts;
+  const hasFilter = ctxFiltered(SQ);
   const fuzzyRun = searchKind === "fallback" || searchKind === "forced";
   const sortLbl = { relevance: fuzzyRun ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
   const noun = (F.grid ? " media message" : " message") + (out.length === 1 ? "" : "s");
   sEls.meta.textContent = !hasFilter
-    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'after:2021-06', 'before:2024'"
+    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Try from:name, has:photo, has:link, is:pinned, after:2021-06, before:2024, -word"
     : searchKind === "fallback" && out.length
       ? "No exact " + (F.grid ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (F.grid ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
       : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
@@ -1914,8 +1906,9 @@ function runSearch() {
     b.onclick = () => { fuzzyForceQ = forced ? null : key; runSearch(); };
     sEls.meta.append(" · ", b);
   }
-  // VC-28: say which date operator was dropped (text node — never markup).
-  opDateNotes.forEach((n) => sEls.meta.append(" · Ignored " + n));
+  // VC-28 / SP9: say which operator was dropped or matched no one (text
+  // nodes — never markup).
+  SQ.notes.forEach((n) => sEls.meta.append(" · " + n));
   // QA-15: bumped on every completed run (debounced or not), so tests can wait
   // for "the search actually re-ran" instead of a fixed sleep timed to the
   // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if

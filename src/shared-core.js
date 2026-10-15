@@ -283,6 +283,151 @@
     return { unit, y, mo, d, key, label, start: zonedDayStart(y, mo, d, clock), end: zonedDayStart(endY, endMo, endD, clock) };
   }
 
+  /* ---- Search query (SP9: VC-10 / UX-21) -------------------------------------
+     parseSearchQuery(input, { clock }) -> {
+       needles   lowercased search text: "quoted phrases" first, then words
+       phrases / words / excludes (lowercased)
+       ops       [{ key, value, raw, start, end, open, pending, quoted, … }]
+     }
+     The box is read as whitespace-separated tokens (a "quoted run" may hold
+     spaces): "…" is a phrase, -word / -"…" an exclusion (key "not"), and
+     from:/sender:, before:/after:, has:, is: operators. `open` = the token runs
+     to the very end of the input (no trailing space — the user may still be
+     typing it); `pending` = an operator not ready to apply (empty value, a
+     half-typed has:/is: value or date at the end) — neither a filter nor search
+     text. Unknown operators (foo:bar, https://…) and unknown values of a known
+     one (bounded has:cats) stay search text. before:/after: dates go through
+     parseJumpDate in the clock's zone (date: the period; error: why it was
+     dropped). [start, end) are offsets into input, so a chip can remove its own
+     token (removeSearchToken) and the autocomplete can complete one
+     (replaceSearchToken). Name resolution for from: is resolvePeople(). */
+  const OP_KEYS = { from: "from", sender: "from", before: "before", after: "after", has: "has", is: "is" };
+  const HAS_VALUES = {
+    media: "media", link: "link", links: "link", url: "link", urls: "link",
+    reacts: "reacts", reactions: "reacts", reacted: "reacts",
+    photo: "photo", photos: "photo", image: "photo", images: "photo", pic: "photo", pics: "photo",
+    video: "video", videos: "video", vid: "video",
+    file: "file", files: "file", attachment: "file", attachments: "file",
+  };
+  const IS_VALUES = { pinned: "pinned", bookmarked: "pinned", starred: "pinned" };
+  const RE_WS = /\s/;
+  const RE_WORDISH = /[\p{L}\p{N}]/u;
+  function parseSearchQuery(input, opts) {
+    const s = String(input == null ? "" : input), n = s.length;
+    const clock = opts && opts.clock;
+    const out = { needles: [], phrases: [], words: [], excludes: [], ops: [] };
+    const quoted = (q) => {   // s[q] === '"'
+      const c = s.indexOf('"', q + 1);
+      return c < 0 ? { end: n, value: s.slice(q + 1), closed: false } : { end: c + 1, value: s.slice(q + 1, c), closed: true };
+    };
+    const word = (start, end) => { const w = s.slice(start, end).toLowerCase(); if (w) out.words.push(w); };
+    let i = 0;
+    while (i < n) {
+      if (RE_WS.test(s[i])) { i++; continue; }
+      const start = i;
+      if (s[i] === '"') {
+        const q = quoted(i);
+        const v = q.value.toLowerCase().trim();
+        if (v) out.phrases.push(v);
+        i = q.end; continue;
+      }
+      if (s[i] === "-" && i + 1 < n && !RE_WS.test(s[i + 1])) {
+        let end, value, isQ = false, closed = true;
+        if (s[i + 1] === '"') { const q = quoted(i + 1); end = q.end; value = q.value; isQ = true; closed = q.closed; }
+        else { end = i + 1; while (end < n && !RE_WS.test(s[end]) && s[end] !== '"') end++; value = s.slice(i + 1, end); }
+        if (RE_WORDISH.test(value)) {
+          const v = value.toLowerCase().trim();
+          out.excludes.push(v);
+          out.ops.push({ key: "not", value: v, raw: s.slice(start, end), start, end, open: end === n && (!isQ || !closed), quoted: isQ });
+          i = end; continue;
+        }
+      }
+      const km = /^([A-Za-z]+):/.exec(s.slice(i, i + 8));
+      const key = km && OP_KEYS[km[1].toLowerCase()];
+      if (key) {
+        const vs = i + km[0].length;
+        let end, value, isQ = false, closed = true;
+        if (s[vs] === '"') { const q = quoted(vs); end = q.end; value = q.value; isQ = true; closed = q.closed; }
+        else { end = vs; while (end < n && !RE_WS.test(s[end])) end++; value = s.slice(vs, end); }
+        const open = end === n && (!isQ || !closed);
+        const op = { key, value: value.trim(), raw: s.slice(start, end), start, end, open, quoted: isQ, pending: false };
+        let asText = false;
+        if (!op.value) op.pending = true;
+        else if (key === "from") {
+          if (!isQ) op.value = op.value.replace(/[,;!?]+$/, "");
+          if (!op.value) op.pending = true;
+        } else if (key === "has" || key === "is") {
+          const table = key === "has" ? HAS_VALUES : IS_VALUES;
+          const v = op.value.toLowerCase();
+          if (table[v]) op.value = table[v];
+          else if (open && Object.keys(table).some((k) => k.indexOf(v) === 0)) op.pending = true;
+          else asText = true;
+        } else {   // before / after
+          const p = parseJumpDate(op.value, clock);
+          if (p && p.error) op.error = p.error;
+          else if (p) op.date = p;
+          else if (open && (/^\d/.test(op.value) || (isQ && !closed))) op.pending = true;
+          else asText = true;
+        }
+        if (asText) word(start, end);
+        else out.ops.push(op);
+        i = end; continue;
+      }
+      let end = i;
+      while (end < n && !RE_WS.test(s[end]) && s[end] !== '"') end++;
+      word(start, end);
+      i = end;
+    }
+    out.needles = out.phrases.concat(out.words);
+    return out;
+  }
+  // Accent- and case-folded name for matching ("José Álvarez" -> "jose alvarez").
+  function foldName(s) {
+    let t = String(s == null ? "" : s);
+    if (t.normalize) t = t.normalize("NFD");
+    return t.replace(/\p{M}+/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+  }
+  // from: value -> the people it names. people: [{ id, names: [display name,
+  // aliases…] }] (already without hidden / ignored people). An exact name wins,
+  // then names (or a later word of one) starting with the value, then names
+  // containing it. At the end of the input (open: true) a value that still
+  // names several people is `pending` — the user is choosing between them; a
+  // bounded one applies to all of them. A value naming nobody applies too (no
+  // results), so a typo never silently searches everyone.
+  function resolvePeople(value, people, opts) {
+    const v = foldName(value);
+    const open = !!(opts && opts.open);
+    if (!v) return { ids: [], how: "none", pending: open };
+    const list = (people || []).map((p) => ({ id: p.id, names: (p.names || []).map(foldName).filter(Boolean) }));
+    const pick = (fn) => list.filter((p) => p.names.some(fn)).map((p) => p.id);
+    let ids = pick((nm) => nm === v), how = "exact";
+    if (!ids.length) { ids = pick((nm) => nm.indexOf(v) === 0 || nm.split(" ").some((w) => w.indexOf(v) === 0)); how = "prefix"; }
+    if (!ids.length) { ids = pick((nm) => nm.indexOf(v) >= 0); how = "contains"; }
+    if (!ids.length) how = "none";
+    return { ids, how, pending: open && how !== "exact" && ids.length > 1 };
+  }
+  // Drop one token from the query text. When the token was the last one, the
+  // text keeps a trailing space so the token before it stays bounded (an
+  // "open" from:b would turn back into a pending choice).
+  function removeSearchToken(input, tok) {
+    const s = String(input == null ? "" : input);
+    const before = s.slice(0, tok.start).replace(/\s+$/, ""), after = s.slice(tok.end).replace(/^\s+/, "");
+    if (before && after) return before + " " + after;
+    return after ? after : (before ? before + " " : "");
+  }
+  // Replace one token's text (e.g. a completed from: value); a token at the end
+  // gets a trailing space so it is bounded (applied, autocomplete closed).
+  function replaceSearchToken(input, tok, text) {
+    const s = String(input == null ? "" : input);
+    const rest = s.slice(tok.end);
+    return s.slice(0, tok.start) + text + (rest ? rest : " ");
+  }
+  // An operator value as it must be typed: quoted when it holds a space.
+  function quoteOpValue(v) {
+    const t = String(v == null ? "" : v).replace(/"/g, "").trim();
+    return /\s/.test(t) || !t ? '"' + t + '"' : t;
+  }
+
   /* ---- Time index (UX-4 / AN-13) ---------------------------------------------
      buildTimeIndex(msgs, clock) -> TI: zoned calendar fields for every message,
      as typed arrays parallel to msgs (index i = msgs[i]), in clock's zone:
@@ -782,6 +927,7 @@
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
     relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant, zonedDayStart, parseJumpDate, MONTH_NAMES,
+    parseSearchQuery, resolvePeople, removeSearchToken, replaceSearchToken, quoteOpValue, foldName,
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
