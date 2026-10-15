@@ -1489,7 +1489,12 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/api/preflight") return apiPreflight(await readBody(req, res), res);
     if (req.method === "POST" && url === "/api/source") return await apiSource(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/progress") return apiProgress(res);
-    if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
+    if (req.method === "GET" && url === "/api/parts") {
+      const g = /(?:^|&)group=([^&]*)/.exec(qs || "");
+      let group = "";
+      try { group = g ? decodeURIComponent(g[1]) : ""; } catch (e) { return sendJSON(res, 400, { error: "Bad group id." }); }
+      return apiParts(res, group);
+    }
     if (job && (url === "/api/identity" || url === "/api/reset" || url === "/api/removal-preview")) { req.resume(); return sendJSON(res, 409, { error: BUSY }); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req, res), res);
     if (req.method === "POST" && url === "/api/removal-preview") return apiRemovalPreview(await readBody(req, res), res);

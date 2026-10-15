@@ -584,3 +584,19 @@ describe("a failed source build leaves the previous copies as they were", () => 
     assert.deepEqual(fs.readdirSync(S.personal), []);
   });
 });
+
+// A hand-made /api/parts URL with a broken % escape is bad input, not a
+// server fault: a plain 400, and no stack trace in the launcher window.
+describe("a malformed group id in /api/parts", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("answers 400 with a plain sentence and logs no stack", async () => {
+    const r = await S.get("/api/parts?group=%E0%A4%A");
+    const j = await r.json();
+    assert.equal(r.status, 400, JSON.stringify(j));
+    assert.equal(j.error, "Bad group id.");
+    assert.doesNotMatch(S.stderr(), /URIError|^\s+at /m);
+  });
+});
