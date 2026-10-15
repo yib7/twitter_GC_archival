@@ -23,7 +23,7 @@ const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { writeFileAtomic, readExportHead, scanArchiveFile, TMP_RE } = require("./fs-io.js");
-const { diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -185,11 +185,13 @@ function decodeDataUrl(url, whose) {
 // `skipExisting` (SP-14 restore) copies only files destDir doesn't have yet.
 function copyMediaFlat(srcDir, destDir, opts) {
   const skipExisting = !!(opts && opts.skipExisting);
+  const skip = (opts && opts.skip) || null;   // names not to copy (e.g. still quarantined)
   fs.mkdirSync(destDir, { recursive: true });
   let copied = 0, unmatched = 0;
   for (const e of fs.readdirSync(srcDir, { withFileTypes: true })) {
     if (e.isFile() && MEDIA_FILE_RE.test(e.name)) {
       const dest = path.join(destDir, e.name);
+      if (skip && skip.has(e.name)) continue;
       if (skipExisting && fs.existsSync(dest)) continue;
       fs.copyFileSync(path.join(srcDir, e.name), dest); copied++;
     } else unmatched++;
@@ -246,6 +248,45 @@ function nativePick(kind, which) {
 function pickReply(p) {
   if (p && typeof p === "object") return { path: "", supported: true, error: p.error };
   return { path: p == null ? "" : p, supported: p !== null };
+}
+
+/* ---- fix round 1 (#3): the removed-media quarantine ---------------------- */
+// personal_data/.removed/<group|person|other>/<id>/<file>: media of removed
+// group chats / people, kept so un-removing can restore it. Never served (it
+// isn't under an allowlisted prefix); Start over erases it.
+const REMOVED = path.join(PERSONAL, ".removed");
+// name -> { kind, id, file } for every quarantined file.
+function listQuarantine() {
+  const out = new Map();
+  const dirs = (d) => { try { return fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name); } catch (e) { return []; } };
+  for (const kind of dirs(REMOVED)) {
+    for (const id of dirs(path.join(REMOVED, kind))) {
+      const dir = path.join(REMOVED, kind, id);
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.isFile()) out.set(e.name, { kind, id, file: path.join(dir, e.name) });
+      }
+    }
+  }
+  return out;
+}
+// Move a file within personal_data/ (same disk: a rename). Never deletes the
+// source unless it is now at `dest`; false (and the file left where it was) on
+// any failure. An identical file already at `dest` just retires the source.
+function moveFile(src, dest) {
+  if (!isInsidePersonal(src, PERSONAL) || !isInsidePersonal(dest, PERSONAL)) return false;
+  try {
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    if (fs.existsSync(dest) && path.dirname(dest) !== REMOVED && !dest.startsWith(REMOVED + path.sep)) {
+      // restoring over a file already back in media/: keep that one
+      fs.rmSync(src, { force: true });
+      return true;
+    }
+    fs.renameSync(src, dest);
+    return true;
+  } catch (e) {
+    console.error("Couldn't move " + path.basename(src) + ": " + (e && e.message));
+    return false;
+  }
 }
 
 function readBuiltData() {
@@ -561,9 +602,23 @@ function apiIdentity(body, res) {
   if (changed && cfg.sourceJs && fs.existsSync(path.join(PERSONAL, "data.js"))) {
     const mediaDir = cfg.mediaDir ? path.resolve(cfg.mediaDir) : path.join(PERSONAL, "media");
     const mediaInside = isInsidePersonal(mediaDir, PERSONAL);
-    if (mediaInside && cfg.mediaSourceDir && fs.existsSync(cfg.mediaSourceDir)) {
-      try { duringBlocking(() => copyMediaFlat(cfg.mediaSourceDir, mediaDir, { skipExisting: true })); }
-      catch (e) { console.error("Couldn't restore media from " + cfg.mediaSourceDir + ": " + (e && e.message)); }
+    // Fix round 1 (#3): who owned each file about to be dropped, from the
+    // archive as it is now (the rebuild removes that knowledge).
+    const owners = removedMediaOwners(readBuiltData(), ignoredGroups, ignoredUsers);
+    const quarantine = listQuarantine();
+    if (mediaInside) {
+      // Media whose group / person is no longer removed comes back from the
+      // quarantine first; anything else missing from the original media folder,
+      // except what is still quarantined.
+      const stillRemoved = (o) => (o.kind === "group" ? ignoredGroups.includes(o.id) : o.kind === "person" ? ignoredUsers.includes(o.id) : false);
+      for (const [name, o] of quarantine) {
+        if (stillRemoved(o)) continue;
+        if (moveFile(o.file, path.join(mediaDir, name))) quarantine.delete(name);
+      }
+      if (cfg.mediaSourceDir && fs.existsSync(cfg.mediaSourceDir)) {
+        try { duringBlocking(() => copyMediaFlat(cfg.mediaSourceDir, mediaDir, { skipExisting: true, skip: new Set(quarantine.keys()) })); }
+        catch (e) { console.error("Couldn't restore media from " + cfg.mediaSourceDir + ": " + (e && e.message)); }
+      }
     }
     const built = runBuild();
     if (!built.ok) {
@@ -572,16 +627,26 @@ function apiIdentity(body, res) {
     let removed = 0;
     const data = readBuiltData();
     if (data && mediaInside && fs.existsSync(mediaDir)) {
+      // Media no message references any more is MOVED to
+      // personal_data/.removed/<group|person>/<id>/ — never deleted — so
+      // un-removing brings it back even if the original export folder is gone.
       const keep = referencedMediaNames(data);
       for (const e of fs.readdirSync(mediaDir, { withFileTypes: true })) {
         if (!e.isFile() || keep.has(e.name)) continue;
-        fs.rmSync(path.join(mediaDir, e.name), { force: true });
-        removed++;
+        const o = owners.get(e.name.split("-")[0]) || quarantine.get(e.name) || { kind: "other", id: "unreferenced" };
+        if (moveFile(path.join(mediaDir, e.name), path.join(REMOVED, o.kind, safeSegment(o.id), e.name))) removed++;
       }
     }
     Object.assign(reply, { rebuilt: true, mediaRemoved: removed, totalMsgs: (data && data.conversations || []).reduce((n, c) => n + (c.count || 0), 0) });
   }
   sendJSON(res, 200, reply);
+}
+
+/* ---- endpoint: what would removing these take out? (fix round 1, #3) ------ */
+// Read-only: the wizard asks before a save that removes more, with real counts.
+function apiRemovalPreview(body, res) {
+  const list = (v) => (Array.isArray(v) ? v.map(String) : []);
+  sendJSON(res, 200, removalPreview(readBuiltData(), list(body && body.ignoredGroups), list(body && body.ignoredUsers)));
 }
 
 /* ---- endpoint: has a build already happened? ----------------------------- */
@@ -608,7 +673,7 @@ function apiStatus(res) {
 // path is checked through isInsidePersonal() first, so it can NEVER touch a file
 // outside personal_data/ (and never the separate personal_data.REAL backup).
 function apiReset(res) {
-  const targets = ["config.json", "data.js", "local.js", "source", "media", "pfps"];
+  const targets = ["config.json", "data.js", "data.js.bak", "local.js", "source", "media", "pfps", ".removed"];
   const removed = [];
   for (const name of targets) {
     const p = path.join(PERSONAL, name);
@@ -764,7 +829,7 @@ function serveStatic(req, res) {
 // The two picker GETs are included even though they're GETs: they freeze the
 // event loop with a blocking native dialog, so a cross-origin page spamming
 // them is a DoS + dialog-spoofing vector, not a harmless read.
-const GUARDED = new Set(["/api/reset", "/api/source", "/api/identity", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
+const GUARDED = new Set(["/api/reset", "/api/source", "/api/identity", "/api/removal-preview", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
 // SP-11: the pickers additionally need this per-process token, which only
 // setup.html receives (injected into its HTML). Random per start, held in
 // memory only: never logged, printed or written to disk.
@@ -795,6 +860,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req, res), res);
+    if (req.method === "POST" && url === "/api/removal-preview") return apiRemovalPreview(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/status") return apiStatus(res);
     if (req.method === "POST" && url === "/api/reset") return apiReset(res);
   } catch (e) {

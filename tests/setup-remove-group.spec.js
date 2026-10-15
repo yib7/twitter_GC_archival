@@ -47,6 +47,7 @@ test("removing a group sends it in ignoredGroups and the people step shows a not
   });
   await page.locator('[data-pane="3"] [data-next]').click();
   await page.locator("#btn-save").click();
+  await page.locator("#remove-go").click();   // fix round 1 (#3): removing asks first
   await expect(page.locator("#finish-result")).toContainText(/Saved/);
 
   expect(body.ignoredGroups).toContain("G2");

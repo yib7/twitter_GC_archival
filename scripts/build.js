@@ -33,12 +33,13 @@
 const fs = require("fs");
 const path = require("path");
 const core = require("./build-core.js");
-const { scanExportFile, scanArchiveFile, readExportHead, writeChunksAtomic } = require("./fs-io.js");
+const { scanExportFile, scanArchiveFile, readExportHead, writeChunksAtomic, replaceFile } = require("./fs-io.js");
 
 const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
 const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(here, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
 const OUT = path.join(PERSONAL, "data.js");
+const BAK = OUT + ".bak";
 const log = (...a) => console.log(...a);
 
 // A user-facing failure: its message is the whole story, shown as-is.
@@ -121,10 +122,34 @@ function scanOpts() {
   return n > 0 ? { chunkSize: n } : undefined;
 }
 
+// Fix round 1 (#3): keep ONE backup, data.js.bak = the archive as it was
+// before the last successful build. The old data.js is hard-linked (no copy,
+// no extra disk) to a temp name before the new one replaces it, and that link
+// becomes data.js.bak only once the new data.js is safely in place; a failed
+// build leaves the previous data.js.bak alone. (A disk without hard links
+// gets a copy.) data.js itself is never moved or missing.
 function writeArchive(meta, conversations) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  // SP-9: temp file + rename, so a crash mid-write can't leave a truncated data.js
-  writeChunksAtomic(OUT, core.archiveChunks(meta, conversations));
+  let bakTmp = null;
+  if (fs.existsSync(OUT)) {
+    bakTmp = BAK + "." + process.pid + "." + require("crypto").randomBytes(4).toString("hex") + ".tmp";
+    try { fs.linkSync(OUT, bakTmp); }
+    catch (e) {
+      try { fs.copyFileSync(OUT, bakTmp); }
+      catch (e2) { log("Warning: couldn't keep a backup of the previous data.js (" + (e2.code || e2.message) + ")."); bakTmp = null; }
+    }
+  }
+  try {
+    // SP-9: temp file + rename, so a crash mid-write can't leave a truncated data.js
+    writeChunksAtomic(OUT, core.archiveChunks(meta, conversations));
+  } catch (e) {
+    if (bakTmp) try { fs.unlinkSync(bakTmp); } catch (e2) { /* gone */ }
+    throw e;
+  }
+  if (bakTmp) {
+    try { replaceFile(bakTmp, BAK); }
+    catch (e) { try { fs.unlinkSync(bakTmp); } catch (e2) { /* gone */ } log("Warning: couldn't update data.js.bak (" + (e.code || e.message) + ")."); }
+  }
 }
 
 /* ========================================================================= */

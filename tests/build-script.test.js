@@ -138,6 +138,23 @@ test("fix round 1: a whole build + merge read in 7-byte chunks gives the same da
   assert.deepEqual(strip(readData(b.personal)), strip(readData(a.personal)));
 });
 
+test("fix round 1: data.js.bak is the previous archive, rotated only by a successful build", () => {
+  const { personal, files } = setup();
+  const cfg = { sourceJs: [files.group], headersJs: files.headers };
+  const out = path.join(personal, "data.js"), bak = out + ".bak";
+  assert.equal(runBuild(personal, cfg).status, 0);
+  assert.ok(!fs.existsSync(bak), "nothing to back up on the first build");
+  const first = fs.readFileSync(out, "utf8");
+  assert.equal(runBuild(personal, Object.assign({ ignoredGroups: ["1000000002"] }, cfg)).status, 0);
+  assert.equal(fs.readFileSync(bak, "utf8"), first, "the second build backs up the first");
+  const second = fs.readFileSync(out, "utf8");
+  assert.notEqual(second, first);
+  assert.notEqual(runBuild(personal, { sourceJs: [files.account], headersJs: files.headers }).status, 0);
+  assert.equal(fs.readFileSync(bak, "utf8"), first, "a failed build leaves data.js.bak alone");
+  assert.equal(fs.readFileSync(out, "utf8"), second);
+  assert.deepEqual(fs.readdirSync(personal).filter((f) => f.endsWith(".tmp")), []);
+});
+
 test("SP-9: the build writes data.js through a temp file and leaves none behind", () => {
   const { personal, files } = setup();
   assert.equal(runBuild(personal, { sourceJs: [files.group], headersJs: files.headers }).status, 0);

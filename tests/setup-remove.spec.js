@@ -53,6 +53,7 @@ test("a removed participant is sent as ignored and their name is dropped", async
 
   await page.locator('[data-pane="3"] [data-next]').click();
   await page.locator("#btn-save").click();
+  await page.locator("#remove-go").click();   // fix round 1 (#3): removing asks first
   await expect(page.locator("#finish-result")).toContainText(/Saved/);
 
   expect(body.ignoredUsers).toContain("3333");

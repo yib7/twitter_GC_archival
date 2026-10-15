@@ -164,6 +164,20 @@
     </div>
   </div>
 
+  <div class="su-reset-modal" id="remove-modal" role="dialog" aria-modal="true" aria-labelledby="remove-title" aria-describedby="remove-msg" hidden>
+    <div class="su-reset-box">
+      <div class="su-reset-title" id="remove-title">Remove from your archive?</div>
+      <p class="su-reset-msg" id="remove-msg"></p>
+      <p class="su-reset-msg">Un-removing later brings back what is still in your export. Messages that exist only in
+        the archive's history can't come back (the archive as it was before is kept as
+        <code>personal_data/data.js.bak</code> until the next build).</p>
+      <div class="setup-actions">
+        <button type="button" class="btn ghost" id="remove-cancel">Cancel</button>
+        <button type="button" class="btn danger" id="remove-go">Remove permanently</button>
+      </div>
+    </div>
+  </div>
+
   <div class="theme-switch" role="group" aria-label="Theme">
     <button data-set="light" title="Light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button>
     <button data-set="dim" title="Dim" aria-label="Dim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button>

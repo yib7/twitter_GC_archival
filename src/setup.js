@@ -137,6 +137,9 @@ const state = { me: null, names: {}, pfps: {}, ignored: {}, ignoredGroups: {}, g
 // written to disk server-side — a path string there would be posted back as
 // if it were image data.
 let savedPfpPaths = {};
+// What the last save (or the saved config, on reopen) already removed, so a
+// save that removes MORE asks first (fix round 1, #3).
+const savedIgnored = { users: {}, groups: {} };
 let PARTS = [];
 let groups = [];          // [{ id, title, count }] from the build
 let loadedGroup = null;   // which group's roster is currently rendered in #people
@@ -311,7 +314,7 @@ function loadStatus() {
         built = true;
         groups = j.groups || [];
         state.group = groups[0] ? String(groups[0].id) : "";
-        (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; });
+        (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; savedIgnored.groups[String(id)] = true; });
         renderGroupChoosers();
         refreshGroupStep();
         lockSource(true);
@@ -517,25 +520,80 @@ function personCard(p) {
 }
 
 /* ---- step 4: save -------------------------------------------------------- */
+// Fix round 1 (#3): removing rebuilds the archive without those messages, so a
+// save that removes more than before asks first, with real counts from the
+// server. Resolves true to go ahead.
+const removeModal = $("#remove-modal");
+function plural(n, one, many) { return Number(n).toLocaleString() + " " + (n === 1 ? one : many); }
+async function confirmRemoval(ignoredGroups, ignoredUsers, newGroups, newPeople) {
+  let p = null;
+  try {
+    const r = await fetch("/api/removal-preview", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ignoredGroups, ignoredUsers }),
+    });
+    if (r.ok) p = await r.json();
+  } catch (e) { /* counts unknown: still ask */ }
+  const what = p
+    ? "Permanently removes " + plural(p.messages, "message", "messages") + " and their " + plural(p.media, "media file", "media files") + " from your archive"
+    : "Permanently removes the messages and media of what you marked for removal from your archive";
+  const scope = newPeople
+    ? ", in every group (removing a person applies to every group chat they're in)."
+    : " (" + plural(newGroups, "group chat", "group chats") + ").";
+  $("#remove-msg").textContent = what + scope;
+  removeModal.hidden = false;
+  $("#remove-cancel").focus();
+  return new Promise((resolve) => {
+    const done = (ok) => {
+      removeModal.hidden = true;
+      document.removeEventListener("keydown", onKey, true);
+      $("#remove-go").onclick = $("#remove-cancel").onclick = removeModal.onclick = null;
+      $("#btn-save").focus();
+      resolve(ok);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.preventDefault(); done(false); }
+      else if (e.key === "Tab") {   // keep focus inside the dialog
+        const a = $("#remove-cancel"), b = $("#remove-go");
+        if (e.shiftKey && document.activeElement === a) { e.preventDefault(); b.focus(); }
+        else if (!e.shiftKey && document.activeElement === b) { e.preventDefault(); a.focus(); }
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    $("#remove-go").onclick = () => done(true);
+    $("#remove-cancel").onclick = () => done(false);
+    removeModal.onclick = (e) => { if (e.target === removeModal) done(false); };
+  });
+}
 $("#btn-save").onclick = async () => {
-  flash($("#finish-result"), "Saving…", "");
   // Removed participants don't need a name or photo — drop them from the payload.
   const ignoredUsers = Object.keys(state.ignored);
+  const ignoredGroups = Object.keys(state.ignoredGroups);
+  const newPeople = ignoredUsers.filter((id) => !savedIgnored.users[id]).length;
+  const newGroups = ignoredGroups.filter((id) => !savedIgnored.groups[id]).length;
+  if ((newPeople || newGroups) && !(await confirmRemoval(ignoredGroups, ignoredUsers, newGroups, newPeople))) {
+    flash($("#finish-result"), "Nothing was saved. Undo the removals you don't want, then save again.", "");
+    return;
+  }
+  flash($("#finish-result"), "Saving…", "");
   const names = Object.assign({}, state.names), pfps = Object.assign({}, state.pfps);
   ignoredUsers.forEach((id) => { delete names[id]; delete pfps[id]; });
   try {
     const r = await fetch("/api/identity", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ me: state.me, gc: state.gc, names, pfps, ignoredUsers, ignoredGroups: Object.keys(state.ignoredGroups) }),
+      body: JSON.stringify({ me: state.me, gc: state.gc, names, pfps, ignoredUsers, ignoredGroups }),
     });
     const j = await r.json();
     if (!r.ok) { flash($("#finish-result"), "✗ " + escapeHtml(j.error || "Save failed"), "err"); return; }
+    savedIgnored.users = {}; savedIgnored.groups = {};
+    ignoredUsers.forEach((id) => { savedIgnored.users[id] = true; });
+    ignoredGroups.forEach((id) => { savedIgnored.groups[id] = true; });
     flash($("#finish-result"),
       `✓ Saved <b>${j.names}</b> name(s) and <b>${j.pfps}</b> photo(s)` +
       (j.ignored ? ` and removed <b>${j.ignored}</b> user(s)` : "") + "." +
       // SP-14: removals are applied to the archive itself, not just hidden
       (j.rebuilt ? ` Rebuilt the archive without the removed chats/people` +
-        (j.mediaRemoved ? ` and deleted <b>${Number(j.mediaRemoved).toLocaleString()}</b> of their media files` : "") + "." : "") +
+        (j.mediaRemoved ? ` and set aside <b>${Number(j.mediaRemoved).toLocaleString()}</b> of their media files (in personal_data/.removed, so un-removing can bring them back)` : "") + "." : "") +
       ` <a href="index.html">Open your archive →</a>`, "ok");
   } catch (e) {
     flash($("#finish-result"), "✗ " + escapeHtml(e.message), "err");

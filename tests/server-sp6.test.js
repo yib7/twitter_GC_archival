@@ -390,6 +390,76 @@ describe("SP-14: removing a group or person deletes their messages and media", (
   });
 });
 
+// Fix round 1 (review #3): removing deletes data, so it is previewed (the
+// wizard asks first, with real counts), removed media goes to a quarantine
+// folder instead of being deleted (un-removing brings it back even when the
+// original export folder is gone), and the previous data.js is kept as
+// data.js.bak. None of it is ever served; Start over erases all of it.
+describe("fix round 1: removal is previewed, quarantined and backed up", () => {
+  let S, f;
+  before(async () => {
+    S = await startServer();
+    f = X.writeExport(scratch());
+    assert.equal((await source(S, f.group, f.headers, f.media)).status, 200);
+  });
+  after(() => S.stop());
+  const P = (...a) => path.join(S.personal, ...a);
+  const media = () => fs.readdirSync(P("media")).sort();
+  const identity = (extra) => S.post("/api/identity", Object.assign({ names: {}, pfps: {}, gc: {} }, extra));
+
+  test("the removal preview counts what would go, without changing anything", async () => {
+    const before = fs.readFileSync(P("data.js"), "utf8");
+    const r = await S.post("/api/removal-preview", { ignoredGroups: ["1000000002"], ignoredUsers: ["222"] });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    // group 1000000002: 9101 + 9102 (1 file); person 222: 9002 + 9005 (2 files of 9002)
+    assert.deepEqual(j, { messages: 4, media: 3, groups: 1, people: 1 });
+    const g = await (await S.post("/api/removal-preview", { ignoredGroups: ["1000000002"], ignoredUsers: [] })).json();
+    assert.deepEqual(g, { messages: 2, media: 1, groups: 1, people: 0 });
+    assert.equal(fs.readFileSync(P("data.js"), "utf8"), before);
+  });
+
+  test("a removed group's media is moved to .removed/group/<id>/, and data.js.bak is the previous archive", async () => {
+    const prev = fs.readFileSync(P("data.js"), "utf8");
+    const j = await (await identity({ ignoredGroups: ["1000000002"], ignoredUsers: [] })).json();
+    assert.equal(j.rebuilt, true, JSON.stringify(j));
+    assert.equal(j.mediaRemoved, 1);
+    assert.deepEqual(media(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg"]);
+    assert.equal(fs.readFileSync(P(".removed", "group", "1000000002", "9101-Other.mp4"), "utf8"), "mp4");
+    assert.equal(fs.readFileSync(P("data.js.bak"), "utf8"), prev, "data.js.bak holds the archive before this build");
+  });
+
+  test("a removed person's media is moved to .removed/person/<id>/", async () => {
+    const j = await (await identity({ ignoredGroups: ["1000000002"], ignoredUsers: ["222"] })).json();
+    assert.equal(j.rebuilt, true);
+    assert.deepEqual(media(), []);
+    assert.deepEqual(fs.readdirSync(P(".removed", "person", "222")).sort(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg"]);
+  });
+
+  test("quarantined media, the backup and config are never served", async () => {
+    for (const p of ["/personal_data/.removed/person/222/9002-AbCdEf.png", "/personal_data/.removed/group/1000000002/9101-Other.mp4", "/personal_data/data.js.bak"]) {
+      assert.equal((await S.get(p)).status, 404, p);
+    }
+  });
+
+  test("un-removing restores media from quarantine even after the original media folder is gone", async () => {
+    fs.rmSync(f.media, { recursive: true, force: true });
+    const j = await (await identity({ ignoredGroups: [], ignoredUsers: [] })).json();
+    assert.equal(j.rebuilt, true);
+    assert.deepEqual(media(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
+    assert.equal(fs.readFileSync(P("media", "9101-Other.mp4"), "utf8"), "mp4");
+    assert.ok(!fs.existsSync(P(".removed", "person", "222", "9002-AbCdEf.png")));
+  });
+
+  test("Start over erases the quarantine and data.js.bak", async () => {
+    assert.equal((await identity({ ignoredGroups: ["1000000002"], ignoredUsers: [] })).status, 200);
+    assert.ok(fs.existsSync(P(".removed")) && fs.existsSync(P("data.js.bak")));
+    assert.equal((await S.post("/api/reset", {})).status, 200);
+    assert.ok(!fs.existsSync(P(".removed")), ".removed/ erased");
+    assert.ok(!fs.existsSync(P("data.js.bak")), "data.js.bak erased");
+  });
+});
+
 describe("SP-23: not enough disk space is caught before copying", () => {
   let S;
   before(async () => { S = await startServer({ GCA_TEST_FREE_BYTES: "1024" }); });   // pretend the disk is full

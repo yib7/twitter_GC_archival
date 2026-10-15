@@ -162,7 +162,11 @@ node scripts/server.js                 # -> http://localhost:8765
 Everything the wizard writes lands in one git-ignored folder, `personal_data/`
 (`config.json`, the built `data.js`, `local.js`, the copied raw export under
 `source/`, copied `media/`, and `pfps/`). After setup, daily use is just
-double-clicking `index.html`.
+double-clicking `index.html`. Each build keeps the previous archive as
+`data.js.bak`. Removing a group chat or a person (the wizard asks first, with
+counts) rebuilds the archive without their messages and moves their media to
+`personal_data/.removed/`, so un-removing can bring it back. Start over erases
+all of it.
 
 > Adding a newer export later? Just re-run the wizard. The build is merge-aware,
 > so your history accumulates and is never lost.
@@ -232,8 +236,8 @@ lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored
 data.sample.js      committed synthetic demo data
 sample_media/       committed placeholder media
 docs/               architecture notes
-personal_data/      (git-ignored) wizard output: config.json, data.js, local.js,
-                    source/, media/, pfps/ (all your real, private data in one place)
+personal_data/      (git-ignored) wizard output: config.json, data.js(.bak), local.js,
+                    source/, media/, pfps/, .removed/ (all your real, private data in one place)
 ```
 
 Built with [Fuse.js](https://www.fusejs.io/) (Apache-2.0) and

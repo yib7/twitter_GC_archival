@@ -49,7 +49,11 @@ test("\"Nobody here is me\" clears a saved 'This is YOU'", async ({ page }) => {
 
 test("removing your own card clears 'This is YOU' too", async ({ page }) => {
   await page.locator(".su-person").first().locator(".su-remove").click();
-  await save(page);
+  await page.locator('[data-pane="3"] [data-next]').click();
+  await page.locator("#btn-save").click();
+  // fix round 1 (#3): removing someone asks first (preview is unmocked here, so no counts)
+  await page.locator("#remove-go").click();
+  await expect(page.locator("#finish-result")).toContainText(/Saved/);
   expect(saved.me).toBe("");
 });
 

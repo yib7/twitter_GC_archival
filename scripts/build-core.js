@@ -744,7 +744,8 @@ function prevArchiveProblem(e) {
   const code = e && e.code;
   if (e instanceof ExportScanError) {
     return where + " couldn't be read — it looks damaged (" + String(e.message).replace(/\.$/, "") + "), perhaps by a crash or a full disk. " +
-      "The build stopped so the history in it isn't silently replaced. First make a backup copy of data.js. Then restore an older copy of it, " +
+      "The build stopped so the history in it isn't silently replaced. First make a backup copy of data.js. Then restore an older copy of it " +
+      "(data.js.bak next to it is the archive as it was before the last build), " +
       "or delete it (or use Start over) to rebuild from this export only.";
   }
   if (code === "EBUSY" || code === "EPERM" || code === "EACCES") {
