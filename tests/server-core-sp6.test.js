@@ -85,6 +85,26 @@ test("isPickerRequestAllowed needs the per-process token AND an own/absent Origi
   assert.equal(core.isPickerRequestAllowed({ "x-gca-token": "" }, "", P), false, "never allowed with an empty server token");
 });
 
+// ---- cross-site reads and writes ----------------------------------
+test("isForeignFetchSite is true only when the browser names another site", () => {
+  assert.equal(core.isForeignFetchSite({}), false, "no header: curl, an older browser");
+  assert.equal(core.isForeignFetchSite({ "sec-fetch-site": "" }), false);
+  assert.equal(core.isForeignFetchSite({ "sec-fetch-site": "same-origin" }), false);
+  assert.equal(core.isForeignFetchSite({ "sec-fetch-site": "none" }), false, "a typed-in address or bookmark");
+  assert.equal(core.isForeignFetchSite({ "sec-fetch-site": "cross-site" }), true);
+  assert.equal(core.isForeignFetchSite({ "sec-fetch-site": "same-site" }), true, "another localhost port");
+  assert.equal(core.isForeignFetchSite(null), false);
+});
+
+test("isPrivateServedPath covers the archive, the names and everything under personal_data/", () => {
+  for (const p of ["/data.js", "/names.local.js", "/personal_data/data.js", "/personal_data/local.js", "/personal_data/media/9001-a.mp4", "/personal_data/pfps/ann_pfp.png", "/personal_data"]) {
+    assert.equal(core.isPrivateServedPath(p), true, p);
+  }
+  for (const p of ["/", "/index.html", "/setup.html", "/data.sample.js", "/src/app.js", "/lib/x.js", "/sample_media/photo-1.svg", "/favicon.ico"]) {
+    assert.equal(core.isPrivateServedPath(p), false, p);
+  }
+});
+
 // ---- pasted paths -------------------------------------------------
 test("normalizeUserPath strips one pair of surrounding quotes (Explorer's Copy as path)", () => {
   const win = { platform: "win32", home: "C:/Users/me" };

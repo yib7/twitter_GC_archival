@@ -316,6 +316,15 @@ All notable changes to this project are recorded here.
 
 ### Security
 
+- While the local server runs, another website can no longer read your
+  archive. Before, any page you visited could load `personal_data/data.js`
+  (or `local.js`) with a `<script>` tag and read every message and name. Now
+  every reply carries `Cross-Origin-Resource-Policy: same-origin`, and the
+  archive, names, media and photos are refused (`403`) when the browser says
+  another site asked for them.
+- Build, save, removal preview and Start over are refused when the browser
+  says another site sent the request (`Sec-Fetch-Site`), as the file pickers
+  already were.
 - The native file pickers require a per-session token and a same-origin
   request, so another website can't open them.
 - Pages are sent with `X-Frame-Options: DENY` and `frame-ancestors 'none'`, so

@@ -10,8 +10,21 @@ the git-ignored `personal_data/` folder. Both pages carry a strict
 Content-Security-Policy in a `<meta>` tag (`script-src 'self'`, enforced over
 `file://` too). When served, the setup server adds a per-response nonce for
 the one config script it injects, and the pages are sent with `X-Frame-Options: DENY` and a `frame-ancestors 'none'` CSP header
-(they can't be framed). It validates every request's Host/Origin against
-a loopback allowlist, requires a per-run token for the native file pickers, rejecting cross-origin and DNS-rebinding attempts (see
+(they can't be framed). The server checks:
+
+- the `Host` header of every request against a loopback allowlist (this
+  stops DNS rebinding);
+- on the routes that change files or open a dialog, an `Origin`/`Referer`
+  that must be its own or absent, and a `Sec-Fetch-Site` that, when the
+  browser sends it, must be `same-origin` or `none`; the native file pickers
+  also need a per-run token only the setup page receives;
+- for the archive files themselves (`data.js`, `local.js`,
+  `names.local.js`, media and photos under `personal_data/`), the same
+  `Sec-Fetch-Site` rule: another site's request gets `403`.
+
+Every reply also carries `Cross-Origin-Resource-Policy: same-origin`, so a
+web page on another site can't read the archive through a `<script>`,
+`<img>` or `<video>` tag while the server runs (see
 [docs/ARCHITECTURE.md](ARCHITECTURE.md)).
 
 The most relevant areas for security reports are therefore:
@@ -19,8 +32,9 @@ The most relevant areas for security reports are therefore:
 - HTML/script injection from message content, names, or group titles rendered in
   the viewer.
 - Path handling in `scripts/server.js` (static serving and the setup endpoints).
-- Gaps in the Host/Origin/CSP defenses above, or other ways to reach the setup
-  server's file-writing endpoints from an unintended origin.
+- Gaps in the Host, Origin, `Sec-Fetch-Site`, Cross-Origin-Resource-Policy or
+  CSP defenses above: other ways to reach the setup server's file-writing
+  endpoints, or to read the archive files, from an unintended origin.
 
 ## Reporting a vulnerability
 

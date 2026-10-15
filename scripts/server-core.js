@@ -378,6 +378,25 @@ function isPickerRequestAllowed(headers, token, port) {
   return isAllowedOrigin(h.origin, h.referer, port);
 }
 
+/* ---- cross-site reads and writes ------------------------------------ */
+// Browsers send Sec-Fetch-Site on every request: "same-origin" (this page),
+// "none" (a typed-in address, a bookmark), or "same-site"/"cross-site" (some
+// other page asked). Another localhost port is "same-site", not ours. A
+// missing header (curl, an older browser) says nothing either way and is left
+// to the other checks.
+function isForeignFetchSite(headers) {
+  const site = headers && headers["sec-fetch-site"];
+  return typeof site === "string" && site !== "" && site !== "same-origin" && site !== "none";
+}
+// The served files that hold the archive itself: data.js is a script
+// (`window.CHAT_DATA = {…}`), so a page on any site could otherwise include
+// it with <script src> and read every message. local.js and names.local.js
+// hold the names; media and photos live under personal_data/ too.
+function isPrivateServedPath(urlPath) {
+  const p = String(urlPath == null ? "" : urlPath);
+  return p === "/data.js" || p === "/names.local.js" || p === "/personal_data" || p.startsWith("/personal_data/");
+}
+
 /* ---- paths as people actually paste them -------------------------- */
 // Explorer's "Copy as path" wraps the path in double quotes; macOS / Linux
 // users type ~/Downloads/... or paste a Terminal-escaped "My\ Archive". Undo
@@ -551,4 +570,4 @@ function preflightWarnings(p) {
   return out;
 }
 
-module.exports = { withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+module.exports = { isForeignFetchSite, isPrivateServedPath, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

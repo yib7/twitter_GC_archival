@@ -343,7 +343,7 @@ scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware
 scripts/build-core.js    pure archive-assembly logic used by build.js
 scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
-scripts/server-core.js   pure server helpers (path allowlist, Host/Origin guard)
+scripts/server-core.js   pure server helpers (path allowlist, Host/Origin/Sec-Fetch guards)
 scripts/fs-io.js    streaming export readers + atomic writes
 lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored, with licenses
 data.sample.js      committed synthetic demo data
@@ -394,8 +394,20 @@ Both pages carry a strict Content-Security-Policy in a `<meta>` tag
 `file://` as well. When you run the local setup server (`scripts/server.js`),
 it adds a fresh per-response nonce for the one config script it injects, and
 sends every page with `X-Frame-Options: DENY` and a `frame-ancestors 'none'`
-CSP header so no other site can frame them. It also validates every request's
-Host/Origin against a loopback allowlist, and the native file pickers need a
-per-run token only the setup page receives, rejecting cross-origin and DNS-rebinding
-attempts. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. It's
+CSP header so no other site can frame them. What it checks, and where:
+
+- **Every request:** the `Host` header must name this loopback server, which
+  stops DNS rebinding.
+- **Every reply** carries `Cross-Origin-Resource-Policy: same-origin`, so a
+  web page on another site can't load `data.js`, your names, media or photos
+  through a `<script>`, `<img>` or `<video>` tag and read them. When the
+  browser also says (with `Sec-Fetch-Site`) that another site asked for one of
+  those private files, the server refuses it with `403`.
+- **Routes that change files or open a dialog** (build, save, Start over, the
+  file pickers) also need an `Origin`/`Referer` that is this server or absent,
+  and are refused when `Sec-Fetch-Site` says another site sent them. The
+  native file pickers also need a per-run token that only the setup page
+  receives.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. The server is
 not needed for daily use — the built archive runs from `file://`.

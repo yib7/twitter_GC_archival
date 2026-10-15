@@ -29,7 +29,7 @@ const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { idPartition, createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, replaceFile, TMP_RE } = require("./fs-io.js");
-const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -1318,6 +1318,12 @@ function serveStatic(req, res) {
   // even though they live under ROOT alongside the app. See isServablePath's
   // own comment for the exact allow/deny shape.
   if (!isServablePath(p)) { res.writeHead(404); return res.end("not found"); }
+  // The archive, the names, media and photos are for this origin's own pages
+  // only. Every reply already says so (Cross-Origin-Resource-Policy, set in the
+  // request handler); when the browser also says another site asked
+  // (Sec-Fetch-Site), refuse before reading anything, so a page elsewhere
+  // can't <script src> data.js and read window.CHAT_DATA.
+  if (isPrivateServedPath(p) && isForeignFetchSite(req.headers)) { res.writeHead(403); return res.end("forbidden"); }
   // with the isolation switch on, the two ROOT-level real-data
   // overrides are never read from disk at all — treated exactly like a missing
   // optional override (empty 200) regardless of what actually sits at
@@ -1452,11 +1458,19 @@ const server = http.createServer(async (req, res) => {
     // rebinding (an attacker domain resolving to 127.0.0.1 still sends its own
     // name in Host) and any request that didn't actually target this server.
     if (!isAllowedHost(req.headers.host, PORT)) return sendJSON(res, 403, { error: "forbidden host" });
+    // Nothing this server sends is for another site's page: CORP makes the
+    // browser withhold every reply (data.js, local.js, media, the pages) from
+    // a cross-origin <script>, <img> or <video>. Same-origin loads, Range
+    // requests and navigations are unaffected.
+    res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
     // CSRF guard on state-changing routes: a cross-origin fetch() always
     // carries a browser-set Origin (unspoofable from page JS), so a PRESENT
     // foreign Origin/Referer is the attack signal; same-origin requests never
     // send one for a same-origin no-CORS call, so absence stays allowed.
-    if (GUARDED.has(url) && !isAllowedOrigin(req.headers.origin, req.headers.referer, PORT)) {
+    // And when the browser says another site sent it (Sec-Fetch-Site
+    // cross-site or same-site, i.e. another localhost port), refuse too, as
+    // the pickers always did; a missing header (curl) is left to the above.
+    if (GUARDED.has(url) && (!isAllowedOrigin(req.headers.origin, req.headers.referer, PORT) || isForeignFetchSite(req.headers))) {
       return sendJSON(res, 403, { error: "forbidden origin" });
     }
     if (PICKERS.has(url) && !isPickerRequestAllowed(req.headers, PICKER_TOKEN, PORT)) {
