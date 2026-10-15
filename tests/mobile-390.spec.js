@@ -54,7 +54,7 @@ test.describe("touch users reach message actions through a ⋯ button", () => {
   });
 });
 
-test.describe("I-2: running a toolbar action keeps keyboard focus on a touch screen", () => {
+test.describe("running a toolbar action keeps keyboard focus on a touch screen", () => {
   test("⋯ → Enter → Tab → Enter on Bookmark leaves focus on the message's ⋯, not <body>", async ({ page }) => {
     await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
     const msg = page.locator("#tl-list .msg").nth(1);
@@ -73,7 +73,7 @@ test.describe("I-2: running a toolbar action keeps keyboard focus on a touch scr
   });
 });
 
-test.describe("I-3: on your own messages the ⋯ doesn't cover the avatar", () => {
+test.describe("on your own messages the ⋯ doesn't cover the avatar", () => {
   test("the avatar on a right-aligned (me) message is still what a tap at its centre hits", async ({ page }) => {
     await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ me: "u1" }) } });
     const mine = page.locator("#tl-list .msg.me").first();
@@ -261,7 +261,7 @@ test.describe("mobile search header is compact and doesn't grab the keyboard", (
   });
 });
 
-test.describe("I-1: the filter sheet's backdrop catches the tap", () => {
+test.describe("the filter sheet's backdrop catches the tap", () => {
   test("a tap outside the sheet closes it and does not reach the result underneath", async ({ page }) => {
     await bootViewer(page, RICH_DATA);
     await expect(page.locator("#s-list .msg").first()).toBeVisible();

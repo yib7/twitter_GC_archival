@@ -361,7 +361,7 @@ button, input, select, textarea { font-family: inherit; }
   .msg-acts { top: 44px; right: 0; max-width: calc(100% - 8px); flex-wrap: wrap; }
   .msg-acts button { min-width: 44px; min-height: 44px; font-size: 13px; }
   .msg-body { padding-right: 44px; }   /* the ⋯ is 44px wide: a full-width bubble stops short of it */
-  /* I-3: your own messages are row-reverse (avatar on the right), so the ⋯,
+  /* Your own messages are row-reverse (avatar on the right), so the ⋯,
      its toolbar and the reserved gutter swap to the left edge */
   .msg.me .msg-more, .msg.me .msg-acts { right: auto; left: 0; }
   .msg.me .msg-body { padding-right: 0; padding-left: 44px; }
@@ -444,7 +444,7 @@ button, input, select, textarea { font-family: inherit; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 /* own-message variant — the chip sits on the page bg, so it gets its own
-   accent fill. I-4: the fill is a mix of --accent-fill and --accent-grad-end,
+   accent fill, a mix of --accent-fill and --accent-grad-end,
    both derived to clear 4.5:1 against --on-accent and the second one pushed
    *away* from it, so the domain and the label (full --on-accent) stay >= 4.5:1
    for every accent and theme. (A tint toward --on-accent, and a fixed white
@@ -994,7 +994,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
     padding: 14px 14px calc(16px + env(safe-area-inset-bottom));
     box-shadow: var(--el2);
   }
-  /* I-1: the dimmed backdrop is a real element (#filter-scrim, a sibling inside
+  /* The dimmed backdrop is a real element (#filter-scrim, a sibling inside
      the lifted toolbar), so a tap outside the sheet lands on it — not on the
      result underneath — and closes the sheet. It paints over the search row and
      everything outside the toolbar; the sheet (z-modal) sits above it. */

@@ -115,7 +115,7 @@ All notable changes to this project are recorded here.
   succeeds; restoring a removed person's media copies only their messages'
   media.
 - The launcher's server no longer stops under a hidden or sleeping tab: it
-  exits a few seconds after the last open page is closed. If the server has
+  exits about 20 seconds after the last open page is closed. If the server has
   stopped, the page says so and how to restart it.
 
 #### Viewer and demo
@@ -143,20 +143,22 @@ All notable changes to this project are recorded here.
 
 ### Features
 
-#### Dates and search
+#### Dates and time zones
 
 - Dates now follow your browser's own timezone by default instead of UTC.
-  If you never picked a zone, a previously saved "UTC" (the old default) moves
-  to the new default once; a zone you picked, UTC included, is kept. Settings
+  A saved "UTC" (the old default) moves to your browser's zone once. Earlier
+  versions saved a UTC you picked the same way as the default, so that one
+  moves too: pick UTC again in Settings to keep it. Any other zone you picked
+  is kept, and so is a zone (UTC included) you pick from now on. Settings
   now lists every timezone your browser knows, with a filter box.
-- Search shows exact matches first. Typo-tolerant "close matches" appear
-  automatically when nothing matches exactly, and a "+ Show close matches"
-  link adds them on demand.
 - An invalid saved timezone now falls back to the browser's zone (it used to
   fall back to UTC).
 
 #### Search
 
+- Search shows exact matches first. Typo-tolerant "close matches" appear
+  automatically when nothing matches exactly, and a "+ Show close matches"
+  link adds them on demand.
 - An "All chats" switch in Search looks through every group chat at once. The
   results are grouped by chat, with this chat first. Each group's header shows
   the chat's name and how many messages matched, plus a "Search only <chat>"
@@ -244,7 +246,8 @@ All notable changes to this project are recorded here.
 - "Hide names & photos" in the Share dialog swaps every name, alias, @handle
   and photo for "Person A/B/C" and plain discs, in titles and rankings too.
   It is on by default for Wrapped slides that rank people, and your last
-  choice is remembered on this device.
+  choice is remembered on this device. A name that is also a common word
+  (a lowercase "will") may stay in the message text, so check the preview.
 - Wrapped backdrops and highlights are mixed from your accent colour in all
   three themes instead of fixed violet/amber washes.
 - The softer text tweaks made for contrast now apply only to Light and Dim;

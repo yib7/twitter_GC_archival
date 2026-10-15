@@ -1215,7 +1215,7 @@ function closeMsgActs() {
   let closed = false;
   document.querySelectorAll(".msg.acts-open").forEach((w) => {
     const b = w.querySelector(".msg-more");
-    // I-2: on touch the closed toolbar is display:none, which would drop a
+    // On touch the closed toolbar is display:none, which would drop a
     // keyboard user's focus to <body> — hand it back to this message's ⋯.
     const acts = w.querySelector(".msg-acts");
     const hadFocus = !!(acts && acts.contains(document.activeElement));
@@ -1671,7 +1671,7 @@ function ensureSearch() {
   // on a phone the filter bar is a bottom sheet behind "Filters (n)".
   sEls.ftoggle.onclick = (e) => { e.stopPropagation(); if (sEls.filters.classList.contains("open")) closeFilterSheet(); else openFilterSheet(); };
   v.querySelector("#f-done").onclick = () => closeFilterSheet();
-  // I-1: a real backdrop element takes the tap outside the sheet, so it closes
+  // A real backdrop element takes the tap outside the sheet, so it closes
   // the sheet instead of falling through to the result underneath.
   v.querySelector("#filter-scrim").onclick = (e) => { e.stopPropagation(); closeFilterSheet(); };
 

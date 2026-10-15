@@ -118,7 +118,7 @@ test("Stats chart tooltips wear --on-accent on the accent fill (chartTheme)", as
   expect([r.title, r.body, r.bg]).toEqual([r.on, r.on, r.fill]);
 });
 
-// I-4: a link/file chip inside your own message sits on an accent-tinted fill;
+// A link/file chip inside your own message sits on an accent-tinted fill;
 // its domain and its dim label line both need 4.5:1 there, for every preset
 // accent in every theme (the label was a fixed white 80%: ~2.8:1 on X blue).
 test("link chip text in your own messages passes on every preset accent and theme", async ({ page }) => {

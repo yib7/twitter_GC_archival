@@ -2,7 +2,7 @@
  * Synthetic Twitter/X export generator for the ingestion tests.
  *
  * Everything here is made up: numeric ids, invented text, fake media names.
- * It follows the export shape described in the deep audit's Appendix C:
+ * It follows the shape of a real X export, file by file:
  *   data/direct-messages-group.js            window.YTD.direct_messages_group.part0 = [...]
  *   data/direct-messages-group-part1.js      window.YTD.direct_messages_group.part1 = [...]
  *   data/direct-message-group-headers.js     window.YTD.direct_message_group_headers.part0 = [...]

@@ -39,7 +39,8 @@ if (hazards.length) {
     "REFUSING TO RUN TESTS: this checkout (" + ROOT + ") contains real-data " +
     "hazard(s): " + hazards.join(", ") + ". Tests must only run from a clean " +
     "worktree with no personal_data*/, exports/, root data.js or names.local.js. " +
-    "See CLAUDE.md / .autopilot/AUTONOMY.md — real private data is sacred."
+    "See \"Privacy & security\" in README.md and docs/SECURITY.md: real " +
+    "messages must never reach a test run."
   );
 }
 
