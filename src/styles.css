@@ -1165,6 +1165,9 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .cmdk-label { min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdk-label mark { background: none; color: var(--accent-text-soft); font-weight: 800; }
 .cmdk-sub { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* UX-8 (SP9): message hits — the snippet reads as text, not a command name */
+.cmdk-msg .cmdk-label { font-weight: 450; }
+.cmdk-msg .cmdk-label mark { font-weight: 700; }
 .cmdk-hint {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-faint); text-transform: uppercase;
   border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; flex: 0 0 auto;

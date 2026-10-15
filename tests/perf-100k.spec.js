@@ -18,6 +18,8 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 //   fuzzy keystroke (typo query) ... < 120   (was 160-620)
 //   exact keystroke ................ < 120
 //   "Show close matches" (forced) .. < 400   (a deliberate click, not a keystroke)
+//   palette keystroke (SP9 UX-8) ... < 120   (the palette's debounced message
+//     hits — same budget as a Search keystroke)
 //
 // CI robustness: shared CI runners are slower and noisier than a dev box, so
 // every budget is multiplied by GCA_PERF_MULT (default 1 locally, 2 when
@@ -41,7 +43,7 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 const MULT = Number(process.env.GCA_PERF_MULT) || (process.env.CI ? 2 : 1);
 const RATIO = { statsCold: 14, convSwitchStats: 14 };
 const THROTTLE = Number(process.env.GCA_PERF_CPU_THROTTLE) || 1;
-const BUDGET = { statsFirst: 400, convSwitchStats: 400, wrappedFirst: 400, capsule: 400, fuzzyKey: 120, exactKey: 120, forcedFuzzy: 400, calendarOpen: 120 };
+const BUDGET = { statsFirst: 400, convSwitchStats: 400, wrappedFirst: 400, capsule: 400, fuzzyKey: 120, exactKey: 120, forcedFuzzy: 400, calendarOpen: 120, paletteKey: 120 };
 const BIG = "910000000000000001", SIDE = "910000000000000002";
 
 test.use({ timezoneId: "America/New_York" });
@@ -102,6 +104,24 @@ function keystroke(page, q) {
     while (!tDone && performance.now() - t0 < 10000) await new Promise((r) => setTimeout(r, 5));
     mo.disconnect();
     return { ms: Math.round(tDone - tStart), meta: meta.textContent.slice(0, 90) };
+  }, q);
+}
+
+// SP9 (UX-8): one debounced palette keystroke — from the palette's 150 ms
+// debounce firing to its message hits being drawn (.cmdk-list data-hits bump).
+function paletteKeystroke(page, q) {
+  return page.evaluate(async (query) => {
+    const inp = document.querySelector(".cmdk-input"), list = document.querySelector(".cmdk-list");
+    const gen0 = list.dataset.hits;
+    let tStart = 0, tDone = 0;
+    const mo = new MutationObserver(() => { if (!tDone && list.dataset.hits !== gen0) tDone = performance.now(); });
+    mo.observe(list, { attributes: true, attributeFilter: ["data-hits"] });
+    setTimeout(() => { tStart = performance.now(); }, 150);
+    inp.value = query; inp.dispatchEvent(new Event("input", { bubbles: true }));
+    const t0 = performance.now();
+    while (!tDone && performance.now() - t0 < 10000) await new Promise((r) => setTimeout(r, 5));
+    mo.disconnect();
+    return { ms: Math.round(tDone - tStart), rows: list.querySelectorAll(".cmdk-msg").length };
   }, q);
 }
 
@@ -194,6 +214,17 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   R.exactKey = [];
   for (const q of ["movie night", "the", "hilarious"]) R.exactKey.push((await keystroke(page, q)).ms);
 
+  // Command palette message hits (SP9 UX-8), over the 100k chat.
+  await page.keyboard.press("Control+k");
+  await expect(page.locator(".cmdk-input")).toBeFocused();
+  R.paletteKey = [];
+  R.paletteRows = [];
+  for (const q of ["movie night", "the", "hilarious"]) {
+    const k = await paletteKeystroke(page, q);
+    R.paletteKey.push(k.ms); R.paletteRows.push(k.rows);
+  }
+  await page.keyboard.press("Escape");
+
   R.longTasks = await page.evaluate(() => window.__lt.map(Math.round));
   await testInfo.attach("perf-100k.json", { body: JSON.stringify(R, null, 1), contentType: "application/json" });
   console.log("[perf-100k]", JSON.stringify(R));
@@ -213,4 +244,6 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   expect.soft(Math.max(...R.exactKey), "exact keystroke (worst query)").toBeLessThan(BUDGET.exactKey * MULT);
   expect.soft(best(R.forcedFuzzy), "forced fuzzy (Show close matches)").toBeLessThan(BUDGET.forcedFuzzy * MULT);
   expect.soft(best(R.calendarOpen), "calendar open after a convo switch").toBeLessThan(BUDGET.calendarOpen * MULT);
+  expect(Math.max(...R.paletteRows), "the palette shows message hits").toBe(5);
+  expect.soft(Math.max(...R.paletteKey), "palette keystroke (worst query)").toBeLessThan(BUDGET.paletteKey * MULT);
 });

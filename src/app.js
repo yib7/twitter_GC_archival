@@ -2445,14 +2445,13 @@ function ensureTimelineShell() {
   const v = document.getElementById("view-timeline");
   // Toolbar (mock .toolbar): rebuilt with the shell on every conversation
   // switch (tlBuilt is reset by resetDerived()), so the count stays fresh.
-  const kbd = MOD_KEY === "⌘" ? "⌘K" : "Ctrl K";
   v.innerHTML = `
     <div class="tl-toolbar">
       <span class="tt">Timeline</span>
       <span class="tc">${fmtNum(N)} message${N === 1 ? "" : "s"}</span>
       <span class="spacer"></span>
       <button class="tbtn" id="tl-jumpdate" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/></svg>Jump to date</button>
-      <button class="tbtn" id="tl-search" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search<span class="kbd">${kbd}</span></button>
+      <button class="tbtn" id="tl-search" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>Search<span class="kbd" aria-hidden="true">/</span></button>
     </div>
     <div class="scroll" id="tl-scroll" style="position:relative;">
       <div class="list" id="tl-list"></div>
@@ -2460,9 +2459,10 @@ function ensureTimelineShell() {
     <button class="tl-latest" id="tl-latest" type="button" aria-label="Jump to latest message" title="Jump to latest (End)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13M6 12l6 6 6-6"/></svg><span>Latest</span></button>
   `;
   // SP8: "Jump to date" opens the calendar (which has its own typed-date
-  // box); "Search" opens the command palette, which also takes dates.
+  // box). UX-8 (SP9): "Search" opens the Search view with the box focused
+  // (as "/" does; Ctrl/Cmd+K is the palette, which searches messages too).
   v.querySelector("#tl-jumpdate").onclick = () => openCalendar();
-  v.querySelector("#tl-search").onclick = () => openCommandPalette();
+  v.querySelector("#tl-search").onclick = () => openSearchWith(null);
   tlEls = { scroll: v.querySelector("#tl-scroll"), list: v.querySelector("#tl-list") };
   v.querySelector("#tl-latest").onclick = jumpToLatest;
   // SP8: keep the "Jump to latest" button and the saved reading position
@@ -5072,7 +5072,7 @@ function toggleKeyboardHelp() {
         <button class="kb-close" type="button" aria-label="Close">✕</button>
       </div>
       <div class="kb-body">
-        <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette (jump anywhere)</span></div>
+        <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette — jump anywhere, search messages</span></div>
         <div class="kb-row"><kbd>/</kbd><span>Focus search</span></div>
         <div class="kb-row"><kbd>Home</kbd> <kbd>End</kbd><span>Oldest / newest message in the Timeline</span></div>
         <div class="kb-row"><kbd>?</kbd><span>Show this help</span></div>
@@ -5806,6 +5806,49 @@ function buildCommands() {
   (settings.saved || []).forEach((s) => cmds.push({ ico: "saved", label: "Search: " + s.name, sub: s.q || "Filters only", hint: "Saved", run: () => { setView("search"); applySaved(s); } }));
   return cmds;
 }
+// UX-8 (SP9): open the Search view on a query, box focused (the palette's
+// "See all in Search", the Timeline's Search button). The query rides in
+// history.state like any typed one — never the URL.
+function openSearchWith(q) {
+  setView("search");
+  if (q != null && sEls.input) {
+    clearTimeout(sDeb);
+    sEls.input.value = q; sEls.clear.hidden = !q;
+    runSearch();
+  }
+  if (sEls.input) { sEls.input.focus(); const n = sEls.input.value.length; sEls.input.setSelectionRange(n, n); }
+}
+// A message's text as it reads on screen: t.co links shown by their display /
+// expanded URL (renderText does the same for the bubble).
+function displayText(m) {
+  let x = m.x || "";
+  if (Array.isArray(m.u)) for (const u of m.u) if (u && u.s && (u.d || u.e)) x = x.split(u.s).join(u.d || u.e);
+  return x.replace(/\s+/g, " ").trim();
+}
+// An escaped one-line snippet of `text` around the first needle, every needle
+// marked (XSS-safe: marks are placed on the raw text, each part esc()'d).
+function snippetHtml(text, needles, width) {
+  width = width || 110;
+  const low = text.toLowerCase();
+  const sameLen = low.length === text.length;
+  let at = -1;
+  if (sameLen) for (const n of needles) { const k = low.indexOf(n); if (k >= 0 && (at < 0 || k < at)) at = k; }
+  let a = 0, b = Math.min(text.length, width);
+  if (at > 30) { a = at - 30; b = Math.min(text.length, a + width); }
+  const s = text.slice(a, b), sl = low.slice(a, b);
+  const ranges = [];
+  if (sameLen) for (const n of needles) { if (!n) continue; for (let k = sl.indexOf(n); k >= 0; k = sl.indexOf(n, k + n.length)) ranges.push([k, k + n.length]); }
+  ranges.sort((x, y) => x[0] - y[0]);
+  let html = a > 0 ? "…" : "", pos = 0;
+  for (const [x, y] of ranges) {
+    if (x < pos) continue;
+    html += esc(s.slice(pos, x)) + "<mark>" + esc(s.slice(x, y)) + "</mark>";
+    pos = y;
+  }
+  return html + esc(s.slice(pos)) + (b < text.length ? "…" : "");
+}
+const PALETTE_HITS = 5;
+const PALETTE_DEB = 150;
 function openCommandPalette() {
   const prevCmdk = document.querySelector(".cmdk");
   const inherit = prevCmdk ? prevCmdk._opener : undefined;   // replacing: keep the original opener
@@ -5816,10 +5859,10 @@ function openCommandPalette() {
   modal.innerHTML = `<div class="cmdk-card">
       <div class="cmdk-inputrow">
         ${searchSvg}
-        <input class="cmdk-input" type="text" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-label="Command, person, or date" placeholder="Type a command, person, or date (June 2021, Jan 7 2024)…" spellcheck="false" autocomplete="off">
+        <input class="cmdk-input" type="text" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-label="Command, person, date, or message search" placeholder="Type a command, person, date (June 2021) or words to find…" spellcheck="false" autocomplete="off">
         <span class="cmdk-esc" aria-hidden="true">ESC</span>
       </div>
-      <div class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Commands"></div>
+      <div class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Commands and messages"></div>
       <div class="cmdk-foot">
         <span class="cmdk-f"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
         <span class="cmdk-f"><kbd>↵</kbd> select</span>
@@ -5834,6 +5877,9 @@ function openCommandPalette() {
   const input = modal.querySelector(".cmdk-input");
   const listEl = modal.querySelector(".cmdk-list");
   let filtered = all, sel = 0;
+  // UX-8 (SP9): message hits for the current input — { q, idx, total,
+  // needles } once the debounced search ran for exactly this text, else null.
+  let hits = null, hitT = 0;
 
   // UX-9: any form parseJumpDate reads ("2021-06", "June 2021", "Jan 7 2024",
   // 1/7/2024 …); a date-shaped input that doesn't exist gets a row that says
@@ -5849,7 +5895,7 @@ function openCommandPalette() {
   }
   // Hint → group header shown above each run of rows (cosmetic only — `filtered`
   // stays flat and index-aligned with the `.cmdk-row` NodeList).
-  const GROUP_OF = { Date: "Dates", View: "Views", Action: "Actions", Help: "Actions", Theme: "Theme", Person: "People", Saved: "Saved searches" };
+  const GROUP_OF = { Date: "Dates", View: "Views", Action: "Actions", Help: "Actions", Theme: "Theme", Person: "People", Saved: "Saved searches", Message: "Messages", Search: "Messages" };
   // XSS-safe match highlight: split the RAW label at the first case-insensitive
   // occurrence of the query and esc() each part — never regex over escaped HTML.
   function markLabel(label, q) {
@@ -5858,14 +5904,55 @@ function openCommandPalette() {
     if (i < 0) return esc(label);
     return esc(label.slice(0, i)) + "<mark>" + esc(label.slice(i, i + q.length)) + "</mark>" + esc(label.slice(i + q.length));
   }
+  // Date row + the commands whose label holds the input (as before UX-8).
+  function commandRows(raw) {
+    const q = raw.trim().toLowerCase();
+    const dc = dateCmd(raw);
+    const base = q ? all.filter((c) => c.label.toLowerCase().includes(q)) : all;
+    return (dc ? [dc].concat(base) : base).slice(0, 50);
+  }
+  // The message part of the list: the top hits, then the row that opens
+  // Search on this query. Only for 2+ characters (a lone letter filters the
+  // commands, it isn't a search).
+  function msgRows(raw) {
+    const q = raw.trim();
+    if (q.length < 2) return [];
+    const rows = [];
+    const ready = hits && hits.q === raw;
+    if (ready) hits.idx.forEach((i) => {
+      const m = MSGS[i], text = displayText(m);
+      rows.push({ kind: "msg", pid: m.s, html: snippetHtml(text, hits.needles), label: text,
+        sub: nameOf(m.s) + " · " + DT.format(m.t), hint: "Message", run: () => jumpTo(i) });
+    });
+    rows.push({ kind: "seeall", ico: "search", hint: "Search", run: () => openSearchWith(raw),
+      label: ready && hits.total ? "See all in Search" : "Search messages for “" + q + "”",
+      sub: !ready ? "Searching this chat…" : hits.total ? fmtNum(hits.total) + " message" + (hits.total === 1 ? " matches" : "s match") + " in this chat"
+        : "No exact matches in this chat — Search also finds close matches" });
+    return rows;
+  }
   function refresh() {
-    const q = input.value.trim().toLowerCase();
-    const dc = dateCmd(input.value);
-    let base = all;
-    if (q) base = all.filter((c) => c.label.toLowerCase().includes(q));
-    filtered = dc ? [dc].concat(base) : base;
-    filtered = filtered.slice(0, 50);
+    filtered = commandRows(input.value).concat(msgRows(input.value));
     sel = 0; draw();
+    // UX-8: the message search is debounced — typing never waits on it
+    clearTimeout(hitT);
+    if (input.value.trim().length >= 2 && !(hits && hits.q === input.value)) hitT = setTimeout(runHits, PALETTE_DEB);
+  }
+  // The SAME engine as Search: parseSearchQuery + the operator overlay + the
+  // literal (exact) tier, in the active chat with its filters; newest first.
+  function runHits() {
+    if (!modal.isConnected) return;
+    const raw = input.value;
+    const ctx = buildSearchCtx(raw);
+    const idx = ctxFiltered(ctx) ? literalHits(ctx, MSGS, LOWER) : [];
+    hits = { q: raw, idx: idx.slice(0, PALETTE_HITS), total: idx.length, needles: ctx.needles };
+    // keep the selection on the same row (the hits go in before "See all")
+    const cur = filtered[sel];
+    filtered = commandRows(raw).concat(msgRows(raw));
+    if (cur && cur.kind === "seeall") sel = filtered.length - 1;
+    else if (sel >= filtered.length) sel = 0;
+    draw();
+    if (filtered.length === 1 && filtered[0].kind === "seeall") announce("No matches for “" + raw.trim() + "” — press Enter to search messages");
+    listEl.dataset.hits = String((Number(listEl.dataset.hits) || 0) + 1);   // a hits pass completed (tests / perf)
   }
   function draw() {
     listEl.innerHTML = "";
@@ -5890,14 +5977,14 @@ function openCommandPalette() {
         const gh = el("div", "cmdk-group", esc(g)); gh.setAttribute("aria-hidden", "true");
         listEl.appendChild(gh); lastGroup = g;
       }
-      const row = el("div", "cmdk-row" + (k === sel ? " sel" : ""));
+      const row = el("div", "cmdk-row" + (c.kind === "msg" ? " cmdk-msg" : c.kind === "seeall" ? " cmdk-seeall" : "") + (k === sel ? " sel" : ""));
       row.id = "cmdk-opt-" + k; row.setAttribute("role", "option");
       row.setAttribute("aria-selected", k === sel ? "true" : "false");
       const lead = c.pid != null
         ? pfpHtml(c.pid, "")
         : '<span class="cmdk-ico">' + cmdIco(c.ico) + "</span>";
       row.innerHTML = lead +
-        '<span class="cmdk-tx"><span class="cmdk-label">' + markLabel(c.label, q) + "</span>" +
+        '<span class="cmdk-tx"><span class="cmdk-label"' + (c.kind === "msg" ? ' dir="auto"' : "") + ">" + (c.html != null ? c.html : markLabel(c.label, q)) + "</span>" +
         (c.sub ? '<span class="cmdk-sub">' + esc(c.sub) + "</span>" : "") +
         '</span><span class="cmdk-hint">' + esc(c.hint) + "</span>";
       // The whole row is the click target — don't let the global av-clickable
@@ -5914,7 +6001,7 @@ function openCommandPalette() {
     listEl.querySelectorAll(".cmdk-row").forEach((r, k) => { r.classList.toggle("sel", k === sel); r.setAttribute("aria-selected", k === sel ? "true" : "false"); });
     if (filtered.length) input.setAttribute("aria-activedescendant", "cmdk-opt-" + sel);
   }
-  function choose(k) { const c = filtered[k]; modal.remove(); if (c) c.run(); }
+  function choose(k) { const c = filtered[k]; clearTimeout(hitT); modal.remove(); if (c) c.run(); }
 
   input.addEventListener("input", refresh);
   input.addEventListener("keydown", (e) => {
@@ -5924,7 +6011,7 @@ function openCommandPalette() {
   });
   function ensureVisible() { const r = listEl.querySelectorAll(".cmdk-row")[sel]; if (r) r.scrollIntoView({ block: "nearest" }); }
 
-  modal.addEventListener("click", (e) => { if (e.target === modal) { modal.remove(); restoreFocus(modal); } });
+  modal.addEventListener("click", (e) => { if (e.target === modal) { clearTimeout(hitT); modal.remove(); restoreFocus(modal); } });
   document.body.appendChild(modal);
   refresh();
   // applyDialog captures the opener (for focus restore) before focusing the input.

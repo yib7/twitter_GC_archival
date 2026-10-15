@@ -461,8 +461,13 @@ test.describe("UX-16: the command palette is a combobox", () => {
     expect(third).toBe(2);
     await expect(lb.locator('[role=option][aria-selected="true"]')).toHaveCount(1);
     await page.keyboard.type("zzzz-no-such-command");
-    await expect(input).toHaveAttribute("aria-expanded", "false");
-    expect(await input.getAttribute("aria-activedescendant")).toBeNull();
+    // SP9 (UX-8): with no command, date or message match the one option left
+    // searches the messages (Search also finds close matches) — still a
+    // combobox option, active, and "No matches" is announced.
+    await expect(lb.getByRole("option")).toHaveCount(1);
+    await expect(lb.getByRole("option")).toContainText("Search messages for “zzzz-no-such-command”");
+    await expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(await input.getAttribute("aria-activedescendant")).toBe(await lb.getByRole("option").getAttribute("id"));
     await expect(page.locator("#sr-status")).toContainText("No matches");
   });
 });
