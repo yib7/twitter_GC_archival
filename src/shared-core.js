@@ -367,9 +367,12 @@
           else asText = true;
         } else {   // before / after
           const p = parseJumpDate(op.value, clock);
-          if (p && p.error) op.error = p.error;
+          // still being typed (at the end, digit-led or in an open quote):
+          // "2023-0" is on its way to "2023-06" — pending, never an error yet
+          const typing = open && (/^\d/.test(op.value) || (isQ && !closed));
+          if (p && p.error) { if (typing) op.pending = true; else op.error = p.error; }
           else if (p) op.date = p;
-          else if (open && (/^\d/.test(op.value) || (isQ && !closed))) op.pending = true;
+          else if (typing) op.pending = true;
           else asText = true;
         }
         if (asText) word(start, end);

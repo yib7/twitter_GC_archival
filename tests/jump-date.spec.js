@@ -139,10 +139,16 @@ test.describe("before:/after: share the parser and are inclusive (VC-28)", () =>
   });
 
   test("a date that doesn't exist is ignored with a note, never rolled over or searched as text", async ({ page }) => {
-    await afterSearchRun(page, () => page.locator("#s-input").fill("before:2024-01-32"));
+    // SP9 polish: while the date is still being typed (open, at the end) it
+    // is pending — no "no such date" flash at "before:2023-0"; finished
+    // (followed by a space or more text) the note appears.
+    await afterSearchRun(page, () => page.locator("#s-input").fill("before:2023-0"));
+    expect(await count(page)).toBe(8);
+    await expect(page.locator("#s-meta")).not.toContainText("Ignored");
+    await afterSearchRun(page, () => page.locator("#s-input").fill("before:2024-01-32 "));
     expect(await count(page)).toBe(8);
     await expect(page.locator("#s-meta")).toContainText("Ignored before:2024-01-32 — no such date");
-    await afterSearchRun(page, () => page.locator("#s-input").fill("after:13/01/2024"));
+    await afterSearchRun(page, () => page.locator("#s-input").fill("after:13/01/2024 "));
     expect(await count(page)).toBe(8);
     await expect(page.locator("#s-meta")).toContainText("Ignored after:13/01/2024 — use YYYY-MM-DD or Jan 7 2024");
   });

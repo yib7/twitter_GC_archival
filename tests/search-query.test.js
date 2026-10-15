@@ -125,14 +125,31 @@ test("before:/after: go through parseJumpDate (inclusive bounds in the clock's z
   const NY = createZoneClock("America/New_York");
   assert.strictEqual(parseSearchQuery("after:2024-01-01", { clock: NY }).ops[0].date.start, Date.parse("2024-01-01T05:00:00Z"));
   // dates that don't exist are dropped with a reason (VC-28), not rolled over
-  const [bad] = P("before:2024-01-32").ops;
+  const [bad] = P("before:2024-01-32 x").ops;
   assert.strictEqual(bad.error, "invalid");
-  assert.strictEqual(P("after:13/01/2024").ops[0].error, "order");
-  assert.deepStrictEqual(P("before:2024-01-32").needles, []);
+  assert.strictEqual(P("after:13/01/2024 ").ops[0].error, "order");
+  assert.deepStrictEqual(P("before:2024-01-32 ").needles, []);
   // a half-typed date at the end is pending; bounded non-dates stay text
   assert.deepStrictEqual(ops("after:2021-"), [["after", "2021-", true, true]]);
   assert.deepStrictEqual(P("after:2021-").needles, []);
   assert.deepStrictEqual(P("after:hello ").words, ["after:hello"]);
+});
+
+test("a date still being typed never flashes an error; a finished bad one does", () => {
+  // open + starts with a digit: pending, no error (2023-0 -> 2023-06 next keystroke)
+  for (const q of ["before:2023-0", "after:2024-13", "after:13/01/2024", "before:2024-01-32"]) {
+    const [o] = P(q).ops;
+    assert.strictEqual(o.pending, true, q);
+    assert.strictEqual(o.error, undefined, q);
+    assert.deepStrictEqual(P(q).needles, [], q);
+  }
+  // bounded: the error stands (the UI notes it)
+  assert.strictEqual(P("before:2023-0 ").ops[0].error, "invalid");
+  assert.strictEqual(P("after:13/01/2024 pizza").ops[0].error, "order");
+  // an open quoted date that is wrong is still being typed too
+  assert.strictEqual(P('before:"2023-0').ops[0].pending, true);
+  // open but not digit-led: a word-form date that parses is applied, nonsense stays text
+  assert.strictEqual(P("after:June").ops.length + P("after:June").words.length, 1);
 });
 
 test("every token carries [start, end) offsets into the input", () => {
