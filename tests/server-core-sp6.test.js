@@ -123,3 +123,15 @@ test("referencedMediaNames lists every m and mx file name; sameIdSet ignores ord
   assert.equal(core.sameIdSet(["1"], []), false);
   assert.equal(core.sameIdSet(["1"], ["2"]), false);
 });
+
+// ---- SP-23: a free-space check before copying gigabytes ------------------------
+test("diskSpaceProblem says how much is needed and free, in plain units", () => {
+  const MB = 1048576, GB = 1024 * MB;
+  assert.equal(core.diskSpaceProblem(2 * GB, 10 * GB), null);
+  const msg = core.diskSpaceProblem(3.5 * GB, 1.2 * GB);
+  assert.match(msg, /Not enough free disk space/);
+  assert.match(msg, /3\.5 GB/);
+  assert.match(msg, /1\.2 GB free/);
+  assert.match(core.diskSpaceProblem(300 * MB, 20 * MB), /300 MB.*20 MB free/);
+  assert.equal(core.diskSpaceProblem(5 * GB, NaN), null, "unknown free space never blocks");
+});

@@ -272,7 +272,10 @@ async function pick(kind, fill, which) {
     const url = kind === "file" ? "/api/pick-file?for=" + (which || "group") : "/api/pick-folder";
     // SP-11: the server only opens a dialog for a request carrying its token
     const r = await fetch(url, { headers: { "X-GCA-Token": String(window.GCA_TOKEN || "") } });
+    // SP-23: tell "refused" / "failed to open" apart from "not on Windows"
+    if (r.status === 403) { flash($("#src-result"), "The server didn't accept this request — it may have been restarted. Reload this page and try again.", "err"); return; }
     const j = await r.json();
+    if (j.error) { flash($("#src-result"), "✗ " + escapeHtml(j.error) + " Paste the full path into the box instead.", "err"); return; }
     if (!j.supported) { flash($("#src-result"), "The native file browser is only available on Windows — please paste the path instead.", "err"); return; }
     if (!j.path) { $("#src-result").hidden = true; return; }   // cancelled
     fill(j.path);
@@ -336,8 +339,10 @@ function buildWarningsHtml(j) {
   return w.length ? `<ul class="build-warnings">${w.map((l) => `<li>Warning: ${escapeHtml(l)}</li>`).join("")}</ul>` : "";
 }
 
+let building = false;
 $("#btn-build").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
+  if (building) return;   // SP-23: one build at a time (a double-click used to run two)
   const groupJs = $("#src-group").value.trim();
   const headersJs = $("#src-headers").value.trim();
   const mediaDir = $("#src-media").value.trim();
@@ -345,6 +350,8 @@ $("#btn-build").onclick = async () => {
   if (!headersJs) { flash($("#src-result"), "Choose your direct-message-group-headers.js file.", "err"); return; }
   if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder — it's required.", "err"); return; }
   flash($("#src-result"), "Building… (copying media can take a moment)", "");
+  building = true;
+  $("#btn-build").disabled = true;
   try {
     const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupJs, headersJs, mediaDir }) });
     const j = await r.json();
@@ -366,6 +373,9 @@ $("#btn-build").onclick = async () => {
     go(2);
   } catch (e) {
     flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
+  } finally {
+    building = false;
+    if (!built) $("#btn-build").disabled = false;   // after a success the source stays locked
   }
 };
 

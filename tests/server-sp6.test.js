@@ -389,3 +389,19 @@ describe("SP-14: removing a group or person deletes their messages and media", (
     assert.deepEqual(media(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
   });
 });
+
+describe("SP-23: not enough disk space is caught before copying", () => {
+  let S;
+  before(async () => { S = await startServer({ GCA_TEST_FREE_BYTES: "1024" }); });   // pretend the disk is full
+  after(() => S.stop());
+
+  test("the build is refused with a plain message and nothing is copied", async () => {
+    const f = X.writeExport(scratch());
+    const r = await source(S, f.group, f.headers, f.media);
+    const j = await r.json();
+    assert.equal(r.status, 507, JSON.stringify(j));
+    assert.match(j.error, /Not enough free disk space/);
+    assert.ok(!fs.existsSync(path.join(S.personal, "media")), "no media copied");
+    assert.ok(!fs.existsSync(path.join(S.personal, "source")), "no export copied");
+  });
+});

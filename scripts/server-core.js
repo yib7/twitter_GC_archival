@@ -417,4 +417,15 @@ function sameIdSet(a, b) {
   return true;
 }
 
-module.exports = { referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP-23: room on disk for the copy ------------------------------------ */
+// The wizard copies the export and every media file into personal_data/; a
+// full disk mid-copy used to surface as a raw ENOSPC. Check first. Unknown
+// free space (NaN) never blocks.
+function diskSpaceProblem(needBytes, freeBytes) {
+  if (!Number.isFinite(freeBytes) || !Number.isFinite(needBytes) || freeBytes >= needBytes) return null;
+  const fmt = (b) => b >= 1073741824 ? (b / 1073741824).toFixed(1) + " GB" : Math.max(1, Math.round(b / 1048576)) + " MB";
+  return "Not enough free disk space to copy your archive: it needs about " + fmt(needBytes) + " and the disk has " + fmt(freeBytes) +
+    " free. Free up some space (or move the Group Chat Archive folder to a bigger drive) and try again.";
+}
+
+module.exports = { diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

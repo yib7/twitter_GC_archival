@@ -23,7 +23,7 @@ const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
-const { referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -215,8 +215,9 @@ function resolveMediaDir(abs, typed) {
 // Open a native Windows file/folder picker and return the chosen absolute path.
 // `which` ("group" | "headers") only tailors the file dialog's title + filter —
 // the values are constant strings we control, so there's no injection risk.
-// Returns "" on cancel, or null when unsupported (non-Windows / no PowerShell)
-// so the caller can tell the user to type the path instead.
+// Returns "" on cancel, null when unsupported (not Windows), or { error } when
+// PowerShell couldn't show the dialog (e.g. Constrained Language Mode blocks
+// Add-Type) — SP-23: so a Windows user isn't told it "only works on Windows".
 function nativePick(kind, which) {
   if (process.platform !== "win32") return null;
   // Tests set this so a picker request can never open a real, blocking dialog.
@@ -236,7 +237,15 @@ function nativePick(kind, which) {
   }
   try {
     return duringBlocking(() => execFileSync("powershell.exe", ["-STA", "-NoProfile", "-Command", ps], { encoding: "utf8", windowsHide: true })).trim();
-  } catch (e) { return null; }
+  } catch (e) {
+    console.error("The native file dialog failed: " + String(e && (e.stderr || e.message) || e).split(/\r?\n/)[0]);
+    return { error: "The Windows file browser couldn't be opened on this PC." };
+  }
+}
+// The picker routes' reply: { path, supported } plus `error` when it failed.
+function pickReply(p) {
+  if (p && typeof p === "object") return { path: "", supported: true, error: p.error };
+  return { path: p == null ? "" : p, supported: p !== null };
 }
 
 function readBuiltData() {
@@ -300,6 +309,15 @@ function apiSource(body, res) {
   const cfg = loadConfig();
   const cfgBefore = fs.existsSync(CONFIG) ? fs.readFileSync(CONFIG) : null;
 
+  // SP-2: X splits big files into <name>.js, <name>-part1.js, …; picking any
+  // one of them brings its whole family (in part order), so messages in
+  // part1+ are never silently left behind.
+  const groupFiles = partSiblings(groupAbs);
+  const headerFiles = partSiblings(headersAbs);
+  // SP-23: make sure the copy (and the build's output) fits before starting it
+  const spaceErr = diskSpaceProblem(copyBytesNeeded(groupFiles.concat(headerFiles), mediaAbs), freeBytesAt(PERSONAL));
+  if (spaceErr) return sendJSON(res, 507, { error: spaceErr });
+
   // Copy every source into personal_data/source/ so ALL private data lives under
   // personal_data/ (the export is just as private as the messages).
   const srcDir = path.join(PERSONAL, "source");
@@ -313,11 +331,6 @@ function apiSource(body, res) {
     if (path.resolve(abs) !== path.resolve(dest)) fs.copyFileSync(abs, dest);
     return dest;
   };
-  // SP-2: X splits big files into <name>.js, <name>-part1.js, …; picking any
-  // one of them brings its whole family (in part order), so messages in
-  // part1+ are never silently left behind.
-  const groupFiles = partSiblings(groupAbs);
-  const headerFiles = partSiblings(headersAbs);
   cfg.sourceJs = groupFiles.map(copyInto);   // message bodies (build parses these)
   const headerDests = headerFiles.map(copyInto);
   cfg.headersJs = headerDests.length === 1 ? headerDests[0] : headerDests;  // metadata only (roster + events)
@@ -374,6 +387,28 @@ function runBuild() {
     const log = ((e.stdout ? plain(e.stdout).trim() : "") + "\nBUILD ERROR: " + error).trim();
     return { ok: false, error, log };
   }
+}
+// SP-23: bytes the wizard is about to write — each export file copied plus
+// about as much again for data.js, every media file that will be copied, and
+// a margin.
+function copyBytesNeeded(exportFiles, mediaDir) {
+  let n = 64 * 1048576;
+  for (const f of exportFiles) { try { n += 2 * fs.statSync(f).size; } catch (e) { /* gone: the build will say */ } }
+  try {
+    for (const e of fs.readdirSync(mediaDir, { withFileTypes: true })) {
+      if (e.isFile() && MEDIA_FILE_RE.test(e.name)) { try { n += fs.statSync(path.join(mediaDir, e.name)).size; } catch (err) { /* skip */ } }
+    }
+  } catch (e) { /* unreadable: the copy will report it */ }
+  return n;
+}
+// Free bytes on the disk holding `dir` (its nearest existing parent); NaN when
+// unknown. GCA_TEST_FREE_BYTES lets the tests pretend the disk is full.
+function freeBytesAt(dir) {
+  if (process.env.GCA_TEST_FREE_BYTES) return Number(process.env.GCA_TEST_FREE_BYTES);
+  if (typeof fs.statfsSync !== "function") return NaN;
+  let d = path.resolve(dir);
+  while (!fs.existsSync(d) && path.dirname(d) !== d) d = path.dirname(d);
+  try { const st = fs.statfsSync(d); return Number(st.bavail) * Number(st.bsize); } catch (e) { return NaN; }
 }
 // The chosen export file plus its -partN siblings in the same folder (SP-2).
 function partSiblings(abs) {
@@ -752,8 +787,8 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === "GET" && url === "/api/ping") { notePing(clientIdOf(qs)); return sendJSON(res, 200, { ok: true }); }
     if (req.method === "POST" && url === "/api/bye") { live.bye(clientIdOf(qs)); req.resume(); res.writeHead(204); return res.end(); }
-    if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
-    if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
+    if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; return sendJSON(res, 200, pickReply(nativePick("file", which))); }
+    if (req.method === "GET" && url === "/api/pick-folder") return sendJSON(res, 200, pickReply(nativePick("folder")));
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req, res), res);
