@@ -1721,6 +1721,8 @@ function ensureSearch() {
     const c = e.target.closest(".s-chip");
     if (c && (e.key === "Backspace" || e.key === "Delete")) { e.preventDefault(); removeChip(c); }
   });
+  // SP9: j / k / arrows, c, b on a focused result (resultKeydown)
+  sEls.list.addEventListener("keydown", resultKeydown);
 
   // toggles
   sEls.media.onclick = () => { F.media = !F.media; sEls.media.classList.toggle("active", F.media); runSearch(); };
@@ -2125,7 +2127,7 @@ function renderResPage(pg) {
     for (let pos = k * PAGE, end = Math.min(resState.rows, (k + 1) * PAGE); pos < end; pos++) {
       const { g, i } = groupRow(pos);
       let card;
-      if (i < 0) card = convHeadEl(g);
+      if (i < 0) { card = convHeadEl(g); card.dataset.hpos = pos; }
       else {
         card = g.d.active ? renderMsg(i, { clickable: true, needles: F.needles }) : renderForeignPin(g.d.conv, g.d.msgs[i], F.needles);
         card.dataset.pos = pos;
@@ -2180,6 +2182,71 @@ function appendResultsPage() {
     const sentinel = el("div", "sentinel"); sEls.list.appendChild(sentinel);
     resObserver.observe(sentinel);
   }
+}
+/* ---- Keyboard result navigation (SP9) ---------------------------------------
+   With focus in the result list (a result card, a control inside one, or a
+   chat's header in All chats) — never in the box, a chip or the autocomplete,
+   which sit outside #s-list — j / ↓ and k / ↑ move focus to the next /
+   previous result (rendering a windowed-out page, or appending the next one,
+   on the way; All chats headers are stepped over). Enter opens the result
+   (cardActivation), c opens its context, b bookmarks it. The position is
+   announced through the live region once the keys come to rest. */
+const RESULT_STEP = { j: 1, ArrowDown: 1, k: -1, ArrowUp: -1 };
+let resAnnT = 0;
+// What row `pos` of the result list is: { i, m, conv (another chat, or null),
+// n (its 1-based number among the results), total }, or null for a header.
+function resultAt(pos) {
+  if (resState.groups) {
+    if (pos < 0 || pos >= resState.rows) return null;
+    const { g, i } = groupRow(pos);
+    if (i < 0) return null;
+    return { i, m: g.d.msgs[i], conv: g.d.active ? null : g.d.conv, n: pos - resState.groups.indexOf(g), total: resState.total };
+  }
+  const i = resState.idx[pos];
+  return i == null ? null : { i, m: MSGS[i], conv: null, n: pos + 1, total: resState.idx.length };
+}
+// The rendered card of row `pos`, rendering its page first when needed.
+function resultCard(pos) {
+  const k = Math.floor(pos / PAGE);
+  while (resState.page <= k && resState.page * PAGE < resRows()) appendResultsPage();
+  const pg = sEls.list.querySelector('.res-page[data-p="' + k + '"]');
+  if (!pg) return null;
+  if (pg.dataset.empty) renderResPage(pg);
+  return pg.querySelector('[data-pos="' + pos + '"]');
+}
+function resultKeydown(e) {
+  if (curView !== "search" || topModal() || e.ctrlKey || e.metaKey || e.altKey) return;
+  const t = e.target;
+  if (/^(INPUT|TEXTAREA|SELECT|VIDEO|AUDIO)$/.test(t.tagName) || t.isContentEditable) return;
+  const card = t.closest("[data-pos]"), head = card ? null : t.closest("[data-hpos]");
+  const step = RESULT_STEP[e.key];
+  if (step) {
+    if (!card && !head) return;
+    e.preventDefault();
+    const rows = resRows();
+    let pos = (card ? +card.dataset.pos : +head.dataset.hpos) + step;
+    while (pos >= 0 && pos < rows && !resultAt(pos)) pos += step;   // over a chat's header
+    if (pos < 0 || pos >= rows) return;                              // the ends stay put
+    const next = resultCard(pos);
+    if (!next) return;
+    next.focus({ preventScroll: true });
+    next.scrollIntoView({ block: "nearest" });
+    const r = resultAt(pos);
+    clearTimeout(resAnnT);
+    resAnnT = setTimeout(() => announce("Result " + fmtNum(r.n) + " of " + fmtNum(r.total)), 250);
+    return;
+  }
+  if (!card || e.shiftKey || (e.key !== "c" && e.key !== "b")) return;
+  const r = resultAt(+card.dataset.pos);
+  if (!r) return;
+  e.preventDefault();
+  if (e.key === "b") {
+    togglePin(r.m.i);
+    announce(isPinned(r.m.i) ? "Bookmarked" : "Removed bookmark");
+  } else if (r.conv) {
+    const msg = "Its context is in " + convLabel(r.conv) + " — press Enter to open it there";
+    toast(msg); announce(msg);
+  } else openContextPeek(r.i);
 }
 function galleryCell(i, list) {
   const m = MSGS[i], c = el("div", "gcell");
@@ -5258,6 +5325,8 @@ function toggleKeyboardHelp() {
       <div class="kb-body">
         <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette — jump anywhere, search messages</span></div>
         <div class="kb-row"><kbd>/</kbd><span>Focus search</span></div>
+        <div class="kb-row"><kbd>j</kbd> <kbd>k</kbd><span>Next / previous search result (↓ ↑ too) — with a result focused</span></div>
+        <div class="kb-row"><kbd>c</kbd> <kbd>b</kbd><span>The focused result's context / bookmark it (Enter opens it)</span></div>
         <div class="kb-row"><kbd>Home</kbd> <kbd>End</kbd><span>Oldest / newest message in the Timeline</span></div>
         <div class="kb-row"><kbd>?</kbd><span>Show this help</span></div>
         <div class="kb-row"><kbd>Esc</kbd><span>Close palette / modal / lightbox / popover</span></div>
