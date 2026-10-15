@@ -82,10 +82,16 @@ function asNamesMap(v) {
 // own [[Prototype]] instead of adding a "__proto__" entry (classic
 // prototype-pollution shape). Skip that one key explicitly rather than
 // relying on Object.assign's default copy semantics.
+// SP-18: a posted empty / blank name is the explicit "forget this name"
+// signal and deletes the id; an id missing from the post is left unchanged.
 function mergeNames(prev, posted) {
   const out = {};
-  for (const src of [asNamesMap(prev), asNamesMap(posted)]) {
-    for (const k of Object.keys(src)) { if (k !== "__proto__") out[k] = src[k]; }
+  const p = asNamesMap(prev), q = asNamesMap(posted);
+  for (const k of Object.keys(p)) { if (k !== "__proto__") out[k] = p[k]; }
+  for (const k of Object.keys(q)) {
+    if (k === "__proto__") continue;
+    if (typeof q[k] === "string" && !q[k].trim()) delete out[k];
+    else out[k] = q[k];
   }
   return out;
 }

@@ -458,7 +458,8 @@ function apiIdentity(body, res) {
     gcOut[cid] = { name, photo };
   }
 
-  const me = body.me ? String(body.me) : (cfg.me || null);
+  // SP-18: me "" clears it; me missing / null means "unchanged".
+  const me = body.me === "" ? null : body.me ? String(body.me) : (cfg.me || null);
 
   // participants the user deleted in the wizard (LOCAL_IGNORED_USERS hides them
   // in the app now; cfg.ignoredUsers drops them from a future merge-aware build).

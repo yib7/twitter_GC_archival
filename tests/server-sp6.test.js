@@ -311,3 +311,30 @@ describe("SP-15: paths are accepted the way people paste them", () => {
     assert.match(j.error, /not found: direct-messages-group\.js\. Paste the full path, e\.g\. /);
   });
 });
+
+describe("SP-18: 'This is YOU' and names can be cleared", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+  const cfg = () => JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+  const local = () => fs.readFileSync(path.join(S.personal, "local.js"), "utf8");
+
+  test("me: \"\" clears a saved 'this is you'; leaving me out keeps it", async () => {
+    await S.post("/api/reset", {});
+    await S.post("/api/identity", { me: "111", names: {} });
+    assert.equal(cfg().me, "111");
+    await S.post("/api/identity", { names: {} });
+    assert.equal(cfg().me, "111", "not sent = unchanged");
+    await S.post("/api/identity", { me: "", names: {} });
+    assert.equal(cfg().me, null);
+    assert.match(local(), /window\.LOCAL_ME = null;/);
+  });
+
+  test("a name posted as \"\" is removed from config and local.js", async () => {
+    await S.post("/api/reset", {});
+    await S.post("/api/identity", { names: { "111": "Ann", "222": "Bob" } });
+    await S.post("/api/identity", { names: { "111": "" } });
+    assert.deepEqual(cfg().names, { "222": "Bob" });
+    assert.doesNotMatch(local(), /Ann/);
+  });
+});

@@ -390,6 +390,11 @@ $("#gc-photo").onchange = async (e) => {
 };
 
 /* ---- step 3: people ------------------------------------------------------ */
+// SP-18: un-mark "This is YOU" (a radio can't be unchecked by clicking it).
+$("#me-clear").onclick = () => {
+  state.me = "";
+  $$('.su-me input[type="radio"]').forEach((r) => { r.checked = false; });
+};
 async function loadParts() {
   const host = $("#people");
   if (state.ignoredGroups[state.group]) {
@@ -447,7 +452,8 @@ function personCard(p) {
   const name = document.createElement("input");
   name.className = "setup-input su-name"; name.type = "text"; name.placeholder = "User " + String(p.id).slice(-4);
   if (savedName) name.value = savedName;
-  name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { delete state.names[p.id]; if (!state.pfps[p.id]) av.textContent = initials("User " + String(p.id).slice(-4)); } };
+  // SP-18: emptying a name keeps the id with "" — the server's signal to forget it.
+  name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { state.names[p.id] = ""; if (!state.pfps[p.id]) av.textContent = initials("User " + String(p.id).slice(-4)); } };
   main.appendChild(name);
 
   const meta = document.createElement("div"); meta.className = "su-meta";
@@ -464,7 +470,7 @@ function personCard(p) {
   const me = document.createElement("label"); me.className = "su-me";
   const radio = document.createElement("input"); radio.type = "radio"; radio.name = "su-me"; radio.value = p.id;
   if (state.me != null && String(state.me) === String(p.id)) radio.checked = true;
-  radio.onchange = () => { if (radio.checked) state.me = p.id; };
+  radio.onchange = () => { if (radio.checked) state.me = String(p.id); };
   me.appendChild(radio); me.appendChild(document.createTextNode(" This is YOU"));
   main.appendChild(me);
 
@@ -489,7 +495,8 @@ function personCard(p) {
   rm.type = "button"; rm.className = "btn ghost su-remove"; rm.textContent = "Remove";
   rm.onclick = () => {
     const removing = !state.ignored[p.id];
-    if (removing) { state.ignored[p.id] = true; if (state.me === p.id) { state.me = null; radio.checked = false; } }
+    // SP-18: removing your own card clears "This is YOU" ("" = clear on the server)
+    if (removing) { state.ignored[p.id] = true; if (state.me != null && String(state.me) === String(p.id)) { state.me = ""; radio.checked = false; } }
     else delete state.ignored[p.id];
     card.classList.toggle("removed", removing);
     rm.textContent = removing ? "Undo" : "Remove";

@@ -173,6 +173,15 @@ test("mergeNames treats an array (prev or posted) as empty, not as index-keyed d
   assert.deepEqual(mergeNames(["x", "y"], { "1": "Alice" }), { "1": "Alice" });
 });
 
+// SP-18: clearing a name in the wizard posts "" for that id — the explicit
+// "forget this name" signal (an id simply missing from the post still means
+// "unchanged", so a partial save never wipes names).
+test("mergeNames deletes an id posted with an empty (or blank) name", () => {
+  assert.deepEqual(mergeNames({ "1": "Alice", "2": "Bob" }, { "1": "" }), { "2": "Bob" });
+  assert.deepEqual(mergeNames({ "1": "Alice" }, { "1": "   " }), {});
+  assert.deepEqual(mergeNames({}, { "3": "" }), {}, "clearing an unknown id adds nothing");
+});
+
 test("mergeNames never mutates its inputs", () => {
   const prev = { "1": "Alice" };
   const posted = { "1": "Alicia", "2": "Bob" };
