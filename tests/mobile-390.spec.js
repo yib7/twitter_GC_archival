@@ -375,6 +375,16 @@ test.describe("Contrast of rendered text at 390px", () => {
       await page.locator("#tab-more").tap();
       await expect(page.locator("#more-sheet")).toBeVisible();
       await check("more sheet", "#more-sheet");
+      await page.keyboard.press("Escape");
+      // SP10 / M-c: every Wrapped slide at 390px, not only the desktop pass
+      await page.evaluate(() => document.querySelector('.nav-item[data-view="wrapped"]').click());
+      const slides = await page.locator("#wr-segs .wr-seg").count();
+      expect(slides).toBeGreaterThan(3);
+      for (let k = 0; k < slides; k++) {
+        if (k) await page.locator("#wr-next").tap();
+        await page.waitForTimeout(120);
+        await check("wrapped slide " + (k + 1), "#view-wrapped");
+      }
       expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
     });
   }
