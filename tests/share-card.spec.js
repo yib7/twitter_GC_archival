@@ -275,6 +275,18 @@ test.describe("Share: review fixes", () => {
     expect(leaks(all), all.join(" | ")).toEqual([]);
   });
 
+  test("Hide names: a one-word name with an emoji (\"Sam 🔥\") is not drawn when the message says \"Sam\"", async ({ page }) => {
+    await recordCanvas(page);
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ names: Object.assign({}, NAMES, { u2: "Sam 🔥" }) }) } });
+    const dlg = await openShareOnMessage(page, "booked it");
+    await resetDrawn(page);
+    await dlg.getByRole("checkbox", { name: /Hide names/ }).check();
+    await expect.poll(async () => (await drawn(page)).join(" | ")).toContain("Person");
+    const all = await drawn(page);
+    expect(all.filter((s) => /sam/i.test(s)), all.join(" | ")).toEqual([]);
+    expect(leaks(all), all.join(" | ")).toEqual([]);
+  });
+
   test("a slow photo from an older render never overwrites the redacted preview or the PNG", async ({ page }) => {
     // every `new Image()` load is held back by __imgDelay ms
     await page.addInitScript(() => {

@@ -187,3 +187,35 @@ test("wrapText stops measuring once it is past maxLines (a 100k-char unbroken wo
   assert.strictEqual(wrapText("a\n".repeat(50000), 100, measure, { maxLines: 2 }).lines.length, 2);
   assert.ok(calls < 50, "measure calls: " + calls);
 });
+
+// a one-word display name decorated with emoji or punctuation ("Sam 🔥",
+// "Ana!") is that word: the bare word in a message is the name too.
+test("redaction: a one-word name with emoji or punctuation redacts the bare word", () => {
+  assert.strictEqual(createRedactor([{ id: "1", names: ["Sam 🔥"] }, { id: "2", names: ["Ana!"] }]).text("Sam and Ana"), "Person A and Person B");
+  const cases = [
+    ["Sam 🔥", "Sam is late again", ["Sam"]],
+    ["Jo ✨", "ask jo", ["jo"]],
+    ["~Lu~", "Lu said so", ["Lu"]],
+    ["(Ana)", "ANA is here", ["ANA"]],
+    ["Bea.", "bea?", ["bea"]],
+    ["Max ❤️", "Max won", ["Max"]],
+    ["Will 🎸", "Will said hi", ["Will"]],
+    ["José 💃🏽", "Jose came", ["Jose"]],
+    ["Zoë!!", "zoe and Zoë", ["zoe", "Zoë"]],
+    ["O'Neil 🍀", "O’Neil came", ["O’Neil", "Neil"]],
+    ["Саша 🔥", "Саша пришла", ["Саша"]],
+    ["«Ника»", "НИКА тут", ["НИКА"]],
+    ["Νίκος 🎸", "ΝΙΚΟΣ ήρθε", ["ΝΙΚΟΣ"]],
+    ["민수 ✨", "민수는 갔어", ["민수"]],
+    ["さくら🌸", "さくらちゃん", ["さくら"]],
+    ["李小龙!", "李小龙说你好", ["李小龙"]],
+    ["דני 🙂", "ולדני", ["דני"]],
+    ["محمد 🌙", "ومحمد", ["محمد"]],
+    ["🔥Kai🔥", "kai is here", ["kai"]],
+    ["@Rae 💜", "Rae said", ["Rae"]],
+  ];
+  for (const [name, text, names] of cases) leaks([{ id: "x", names: [name] }], text, names);
+  // still whole words only, and an emoji-only name redacts nothing else
+  assert.strictEqual(createRedactor([{ id: "s", names: ["Sam 🔥"] }]).text("a samovar, Salami"), "a samovar, Salami");
+  assert.strictEqual(createRedactor([{ id: "e", names: ["🔥🔥"] }]).text("it was 🔥 tonight"), "it was 🔥 tonight");
+});

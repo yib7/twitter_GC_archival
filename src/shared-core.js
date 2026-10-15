@@ -982,7 +982,10 @@
         if (!n) continue;
         add(n, id);
         if (RE_GENERIC_NAME.test(n)) continue;
-        const words = n.split(/[^\p{L}\p{N}\p{M}'’‘ʼ]+/u).filter(Boolean);
+        const words = n.split(/[^\p{L}\p{N}\p{M}'’‘ʼ]+/u).filter((w) => /[\p{L}\p{N}]/u.test(w));
+        // One word dressed with emoji or punctuation ("Sam 🔥", "Ana!") is
+        // that name written plainly: the bare word is redacted the same way.
+        if (words.length === 1) { add(words[0], id); continue; }
         if (words.length < 2) continue;
         for (const w of words) {
           if ([...w].length < 2 || /^\d+$/.test(w)) continue;
