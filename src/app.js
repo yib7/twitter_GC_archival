@@ -151,6 +151,10 @@ function activateConversation(id, rerender) {
   if (!c) return;
   saveTlPos();   // SP8: the conversation being left keeps its reading position
   CONV = c;
+  // SP9: the active chat searches through MSGS / LOWER — its All chats index
+  // (built while it was "another chat") would only hold memory; rebuilt
+  // lazily if it is searched from another chat again.
+  convSearchIdx.delete(c.id);
   try { localStorage.setItem("gca.conv", c.id); } catch (e) {}
   const ignored = ignoredUserIds();
   MSGS = withoutIgnored(c.msgs || [], ignored);

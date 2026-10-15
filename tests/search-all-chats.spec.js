@@ -142,3 +142,21 @@ test("Export writes the groups, one record per line, under each chat's name", as
   for (const l of recs) expect(l).toMatch(/ \| .+: pizza party number \d+$/);
   expect(lines[1]).toContain("Ann: pizza party number 6");
 });
+
+// SP9 polish: the active chat's cached cross-chat index is dropped when it
+// becomes active (it searches through MSGS/LOWER then) and rebuilt lazily
+// once it is "another chat" again — results stay right across the switches.
+test("switching chats back and forth keeps All chats results right", async ({ page }) => {
+  await boot(page, { ignoredUsers: ["u9"] });
+  await afterSearchRun(page, () => scopeBtn(page, "all").click());
+  await search(page, "pizza");
+  await expect(page.locator("#s-meta")).toContainText("9 messages in 3 chats");
+  for (const [id, title] of [["B", "Beta"], ["A", "Alpha"], ["B", "Beta"]]) {
+    await page.locator("#conv-select").selectOption(id);
+    await expect(page.locator("#brand-title")).toHaveText(title);
+    await search(page, "pizza");
+    await expect(page.locator("#s-meta")).toContainText("9 messages in 3 chats");
+    await expect(heads(page).first()).toContainText(title);
+    await expect(page.locator("#s-list")).not.toContainText("Gus");
+  }
+});
