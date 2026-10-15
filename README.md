@@ -171,9 +171,10 @@ Everything the wizard writes lands in one git-ignored folder, `personal_data/`
 `source/`, copied `media/`, and `pfps/`). After setup, daily use is just
 double-clicking `index.html`. Each build keeps the previous archive as
 `data.js.bak`. Removing a group chat or a person (the wizard asks first, with
-counts) rebuilds the archive without their messages and moves their media to
-`personal_data/.removed/`, so un-removing can bring it back. Start over erases
-all of it.
+counts) rebuilds the archive without their messages, keeps those messages in
+`personal_data/.removed/messages.js` and moves their media to
+`personal_data/.removed/`, so un-removing brings them back (even after a merge
+with a newer export that no longer has them). Start over erases all of it.
 
 > Adding a newer export later? Open the wizard again and click **Add a newer
 > export** on step 1, pick the new archive, and check the preview (what your
@@ -181,7 +182,11 @@ all of it.
 > current archive as the baseline and adds the new messages (deduplicated by
 > message id), so messages only in the older export stay. Names, photos, group
 > names, "me" and removed people are kept, and `data.js.bak` is the archive as
-> it was before the merge. To just edit names, use **Continue**.
+> it was before the merge. Media already in the archive is never replaced. An
+> export with no group messages can't be merged, and one older than your
+> archive needs an extra "merge anyway" tick: the archive keeps its newer
+> copies of messages it already has (reactions from both are kept). To just
+> edit names, use **Continue**.
 
 ### Naming participants
 

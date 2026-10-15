@@ -122,7 +122,16 @@ All notable changes to this project are recorded here.
   new ones once each, keeps names, photos, group names, "me" and removed
   people, and leaves the pre-merge archive in `data.js.bak`.
 - A progress bar shows the photo & video copy during a build; media already
-  copied at the same size isn't copied again.
+  in the archive isn't copied again.
+- Removed people's and group chats' messages are kept aside in
+  `personal_data/.removed/messages.js`, so un-removing brings them back even
+  after merging a newer export that no longer has them.
+- Merging an export older than the archive asks first, and keeps the
+  archive's newer copies of messages (edits); reactions from both are kept.
+  An export with no group messages can't be merged.
+- Media copies never replace a file the archive already has and never leave
+  a half-copied file behind; a manifest that doesn't list every part file
+  no longer hides the unlisted parts.
 
 - Very large exports build: the messages file is read as a stream and the
   archive is written in pieces, so a ~600 MB export no longer fails with a
