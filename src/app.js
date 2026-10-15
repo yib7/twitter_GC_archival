@@ -5870,8 +5870,10 @@ function shareModelWrapped(s, w, k, R, T) {
   return { align: "center", minH: 900, blocks: B, footer: shareBrand(R) + " · " + w.year + " Wrapped", file: "wrapped-" + w.year + "-" + (k + 1) };
 }
 
-// Decode the (data: URL) photos a model needs, then draw. Resolves the model.
-function renderShareCard(canvas, model, T) {
+// Decode the (data: URL) photos a model needs, then draw. Resolves the model,
+// or null without drawing when `isCurrent()` says a newer render took over
+// (a slow photo must never paint over a later, redacted preview).
+function renderShareCard(canvas, model, T, isCurrent) {
   const avs = [];
   model.blocks.forEach((b) => { if (b.who) avs.push(b.who.av); if (b.rows) b.rows.forEach((r) => avs.push(r.who.av)); });
   return Promise.all(avs.filter((a) => a.photo).map((a) => new Promise((res) => {
@@ -5879,7 +5881,11 @@ function renderShareCard(canvas, model, T) {
     img.onload = () => { a.img = img; res(); };
     img.onerror = () => res();     // a broken photo falls back to the disc
     img.src = a.photo;
-  }))).then(() => { drawShareCard(canvas, model, T); return model; });
+  }))).then(() => {
+    if (isCurrent && !isCurrent()) return null;
+    drawShareCard(canvas, model, T);
+    return model;
+  });
 }
 // The one drawing pipeline: measure every block (text wrapped by
 // GCAShared.wrapText between graphemes), size the canvas, paint the
@@ -6032,14 +6038,23 @@ function openShareDialog(build, opts) {
   const cv = card.querySelector("canvas"), cb = card.querySelector(".share-redact-cb");
   const kind = opts.kind || "card";
   cb.checked = shareRedactPref(kind, !!opts.defaultRedact);
-  let ready = null;
+  let ready = null, gen = 0;
   const paint = () => {
+    const g = ++gen;
     const T = shareTheme();
     const model = build(cb.checked, T, cb.checked ? shareRedactor() : null);
-    ready = renderShareCard(cv, model, T);
+    ready = renderShareCard(cv, model, T, () => g === gen);
     return ready;
   };
-  const toBlob = () => ready.then((model) => new Promise((res) => cv.toBlob((blob) => res({ blob, model }), "image/png")));
+  // The canvas as a PNG once the LATEST render has drawn: if the toggle
+  // changed while waiting, wait for the newer render instead.
+  const toBlob = () => {
+    const p = ready;
+    return p.then((model) => {
+      if (p !== ready || !model) return toBlob();
+      return new Promise((res) => cv.toBlob((blob) => res({ blob, model }), "image/png"));
+    });
+  };
   modal._close = () => {
     modal.remove();
     if (opts.onClose) opts.onClose();
@@ -6055,7 +6070,7 @@ function openShareDialog(build, opts) {
     a.href = url; a.download = model.file + ".png"; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast("Saved image");
-  });
+  }).catch(() => toast("Could not render image"));
   const copyBtn = card.querySelector(".share-copy");
   const canCopy = typeof ClipboardItem === "function" && navigator.clipboard && typeof navigator.clipboard.write === "function";
   copyBtn.hidden = !canCopy;

@@ -255,3 +255,105 @@ test.describe("Share at 390px", () => {
     }
   });
 });
+
+// SP10 review fixes: a name said on its own, a stale render racing a newer
+// one, and both Copy image paths plus a failing Download.
+test.describe("Share: review fixes", () => {
+  test("Hide names: a two-letter first name said on its own (\"Jo\") is not drawn", async ({ page }) => {
+    const D = { conversations: [conv("A", "Alpha", [
+      { i: "j1", s: "u1", t: T, x: "Jo said hi, ask Jo about it" },
+      { i: "j2", s: "u3", t: T + 60000, x: "ok" },
+    ])] };
+    await recordCanvas(page);
+    await bootViewer(page, D, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS() } });
+    const dlg = await openShareOnMessage(page, "Jo said hi");
+    await resetDrawn(page);
+    await dlg.getByRole("checkbox", { name: /Hide names/ }).check();
+    await expect.poll(async () => (await drawn(page)).join(" | ")).toContain("Person");
+    const all = await drawn(page);
+    expect(all.filter((s) => /(^|[^\p{L}])Jo([^\p{L}]|$)/u.test(s)), all.join(" | ")).toEqual([]);
+    expect(leaks(all), all.join(" | ")).toEqual([]);
+  });
+
+  test("a slow photo from an older render never overwrites the redacted preview or the PNG", async ({ page }) => {
+    // every `new Image()` load is held back by __imgDelay ms
+    await page.addInitScript(() => {
+      window.__imgDelay = 0;
+      const Real = window.Image;
+      window.Image = function () {
+        const img = new Real();
+        let h = null;
+        Object.defineProperty(img, "onload", { get: () => h, set: (f) => { h = f; } });
+        img.addEventListener("load", () => setTimeout(() => { if (h) h.call(img); }, window.__imgDelay));
+        return img;
+      };
+    });
+    await recordCanvas(page);
+    const PFP = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS(), "gca.pfps": JSON.stringify({ u1: PFP }) } });
+    await page.evaluate(() => { window.__imgDelay = 1000; });
+    const dlg = await openShareOnMessage(page, "booked it");           // render 1: names + slow photo
+    const cb = dlg.getByRole("checkbox", { name: /Hide names/ });
+    await cb.check();                                                   // render 2: redacted, instant
+    await cb.uncheck();                                                 // render 3: names + slow photo
+    await resetDrawn(page);
+    await cb.check();                                                   // render 4: redacted, instant
+    await page.waitForTimeout(1600);                                    // the slow photos land
+    const after = await drawn(page);
+    expect(leaks(after), after.join(" | ")).toEqual([]);
+    expect(after.some((s) => s.includes("Person A"))).toBe(true);
+    expect(await page.evaluate(() => window.__images)).toBe(0);
+    const { buf } = await download(page, dlg);
+    checkPng(buf);
+    expect(leaks(await drawn(page))).toEqual([]);
+    expect(await page.evaluate(() => window.__images)).toBe(0);
+    // the PNG is byte-for-byte a fresh redacted render (no photo, no names)
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => { window.__imgDelay = 0; });
+    const again = await openShareOnMessage(page, "booked it");
+    await expect(again.getByRole("checkbox", { name: /Hide names/ })).toBeChecked();
+    const fresh = await download(page, again);
+    expect(buf.equals(fresh.buf), "the downloaded PNG matches a clean redacted render").toBe(true);
+  });
+
+  test("Copy image is hidden when the browser has no ClipboardItem", async ({ page }) => {
+    await page.addInitScript(() => { delete window.ClipboardItem; });
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS() } });
+    const dlg = await openShareOnMessage(page, "booked it");
+    await expect(dlg.locator(".share-copy")).toBeHidden();
+    await expect(dlg.getByRole("button", { name: "Download PNG" })).toBeVisible();
+  });
+
+  test("Copy image: a refused clipboard write says to use Download PNG; an accepted one copies a PNG", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__copied = [];
+      window.__refuse = true;
+      Object.defineProperty(navigator.clipboard, "write", { configurable: true, value: (items) => {
+        if (window.__refuse) return Promise.reject(new DOMException("denied", "NotAllowedError"));
+        window.__copied.push(items.map((it) => it.types.join(",")).join(";"));
+        return Promise.resolve();
+      } });
+    });
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS() } });
+    const dlg = await openShareOnMessage(page, "booked it");
+    const copy = dlg.getByRole("button", { name: "Copy image" });
+    await expect(copy).toBeVisible();
+    await copy.click();
+    await expect(page.locator(".toast")).toHaveText(/Couldn.t copy the image.*Download PNG/);
+    await page.evaluate(() => { window.__refuse = false; });
+    await copy.click();
+    await expect(page.locator(".toast")).toHaveText("Copied image");
+    expect(await page.evaluate(() => window.__copied)).toEqual(["image/png"]);
+  });
+
+  test("a Download whose render fails says so instead of failing silently", async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(String(e)));
+    await page.addInitScript(() => { HTMLCanvasElement.prototype.toBlob = function () { throw new Error("tainted"); }; });
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS() } });
+    const dlg = await openShareOnMessage(page, "booked it");
+    await dlg.getByRole("button", { name: "Download PNG" }).click();
+    await expect(page.locator(".toast")).toHaveText("Could not render image");
+    expect(errors).toEqual([]);
+  });
+});
