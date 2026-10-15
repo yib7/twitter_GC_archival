@@ -591,3 +591,32 @@ test.describe("UX-32: no flash of message 0", () => {
     expect(await page.evaluate(() => window.__flashed)).toEqual(["4"]);
   });
 });
+
+test.describe("UX-33: the sticky day pill doesn't block what's under it", () => {
+  test("translucent + blurred, and clicks pass through to the media below", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "timeline" } });
+    for (const th of THEMES) {
+      await page.evaluate((t) => document.querySelector('#sidebar-theme button[data-set="' + t + '"]').click(), th);
+      const st = await page.locator("#tl-list .daysep:not(.cont) .daypill").first().evaluate((p) => {
+        const cs = getComputedStyle(p);
+        const a = cs.backgroundColor.match(/[\d.]+/g).map(Number);
+        return { pe: cs.pointerEvents, alpha: a.length > 3 ? a[3] : 1, blur: (cs.backdropFilter || cs.webkitBackdropFilter || "").indexOf("blur") >= 0 };
+      });
+      expect(st.pe, th).toBe("none");
+      expect(st.alpha, th).toBeLessThan(1);
+      expect(st.blur, th).toBe(true);
+    }
+    // stuck over a message: a click at the pill's centre reaches the message
+    const scroller = page.locator("#tl-scroll");
+    await scroller.evaluate((s) => { s.scrollTop = 600; });
+    await page.waitForTimeout(100);
+    const hit = await page.evaluate(() => {
+      const pills = [...document.querySelectorAll("#tl-list .daysep .daypill")].filter((p) => { const r = p.getBoundingClientRect(); return r.height && r.top >= 0 && r.top < 120; });
+      if (!pills.length) return "no stuck pill";
+      const r = pills[0].getBoundingClientRect();
+      const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return e && e.closest(".daypill") ? "pill" : "through";
+    });
+    expect(hit).toBe("through");
+  });
+});

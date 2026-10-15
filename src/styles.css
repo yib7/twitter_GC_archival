@@ -464,11 +464,16 @@ button, input, select, textarea { font-family: inherit; }
    (chunks are contain:layout paint); visual parity with the mock is the goal */
 .daysep {
   position: sticky; top: 6px; z-index: 10; display: flex; justify-content: center;
-  margin: 10px auto; max-width: 920px; width: 100%; pointer-events: none;
+  margin: 12px auto; max-width: 920px; width: 100%; pointer-events: none;
 }
+/* UX-33: the pill is a label, not a control — clicks pass through to the
+   media / controls it is stuck over, and it is translucent + blurred so what
+   is underneath stays visible. */
 .daysep .daypill {
-  pointer-events: auto; font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
-  color: var(--text-dim); background: var(--bg-hover); border: 1px solid var(--border-lift);
+  pointer-events: none; font-size: 12px; font-weight: 700; letter-spacing: 0.01em;
+  color: var(--text-dim); background: color-mix(in srgb, var(--bg-hover) 74%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(1.2); backdrop-filter: blur(10px) saturate(1.2);
+  border: 1px solid var(--border-lift);
   padding: 6px 15px; border-radius: var(--radius-pill); box-shadow: var(--el2);
 }
 .daysep .daypill b { color: var(--text); }
