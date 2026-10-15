@@ -394,6 +394,101 @@ function createExportSink(acc, which) {
   return { handlers: { onConversationId, onMessage }, stats, finish };
 }
 
+/**
+ * SP7 pre-flight: what an export holds, read one message at a time and kept
+ * as counts (plus the message ids, to match media and spot overlap with the
+ * built archive). Nothing is assembled and nothing is written.
+ *   const sv = createExportSurvey({ ignoredGroups, ignoredUsers });
+ *   const sink = sv.sink("messages"); scanExportFile(f, sink.handlers); sink.finish();
+ *   sv.result() → { groups: [{ id, title, count, first, last, participants, removed }],
+ *                   totals, dm: { conversations, messages }, removedMsgs, badTime, orphaned }
+ * `count` is the messages the archive will keep (removed people's and
+ * groups' messages are counted in removedMsgs instead).
+ */
+function createExportSurvey(opts) {
+  opts = opts || {};
+  const G = new Set((opts.ignoredGroups || []).map(String));
+  const U = new Set((opts.ignoredUsers || []).map(String));
+  const groups = new Map();
+  const allIds = new Set(), keepIds = new Set();
+  const dmConvs = new Set();
+  const st = { dmMessages: 0, removedMsgs: 0, badTime: 0, orphaned: 0, withText: 0, created: 0 };
+  const groupOf = (cid) => {
+    let g = groups.get(cid);
+    if (!g) { g = { id: cid, title: "", titleAt: -Infinity, count: 0, first: Infinity, last: -Infinity, people: new Set() }; groups.set(cid, g); }
+    return g;
+  };
+  function add(cid, m, which) {
+    if (!m || typeof m !== "object") return;
+    if (!isGroupId(cid)) { dmConvs.add(cid); if (m.messageCreate) st.dmMessages++; return; }
+    const g = groupOf(cid);
+    const mc = m.messageCreate;
+    if (mc) {
+      if (mc.senderId != null) g.people.add(String(mc.senderId));
+      if (which === "headers") return;
+      const t = toMs(mc.createdAt);
+      if (!Number.isFinite(t)) { st.badTime++; return; }
+      if (mc.id != null) allIds.add(String(mc.id));
+      if (G.has(cid) || U.has(String(mc.senderId))) { st.removedMsgs++; return; }
+      if (mc.id != null) keepIds.add(String(mc.id));
+      g.count++;
+      if (t < g.first) g.first = t;
+      if (t > g.last) g.last = t;
+      return;
+    }
+    const join = m.participantsJoin, leave = m.participantsLeave;
+    for (const ev of [join, leave]) if (ev && Array.isArray(ev.userIds)) ev.userIds.forEach((u) => g.people.add(String(u)));
+    const nu = m.conversationNameUpdate;
+    if (nu && typeof nu.name === "string") {
+      const t = toMs(nu.createdAt);
+      const at = Number.isFinite(t) ? t : -Infinity;
+      if (at >= g.titleAt) { g.title = nu.name; g.titleAt = at; }
+    }
+  }
+  function sink(which) {
+    const s = createExportSink({ addMessage: (cid, m) => add(cid, m, "messages"), addHeader: (cid, m) => add(cid, m, "headers") }, which);
+    return {
+      handlers: s.handlers,
+      finish: () => {
+        const r = s.finish();
+        st.orphaned += r.orphaned;
+        if (which !== "headers") { st.withText += r.withText; st.created += r.messages; }
+        return r;
+      },
+    };
+  }
+  function result() {
+    const list = [...groups.values()].map((g) => ({
+      id: g.id, title: g.title, count: g.count,
+      first: Number.isFinite(g.first) ? g.first : null, last: Number.isFinite(g.last) ? g.last : null,
+      participants: g.people.size, removed: G.has(g.id),
+    }));
+    const everyone = new Set();
+    for (const g of groups.values()) if (!G.has(g.id)) g.people.forEach((p) => { if (!U.has(p)) everyone.add(p); });
+    const kept = list.filter((g) => !g.removed);
+    const firsts = kept.map((g) => g.first).filter((t) => t != null), lasts = kept.map((g) => g.last).filter((t) => t != null);
+    return {
+      groups: list,
+      totals: {
+        groups: kept.length, messages: kept.reduce((n, g) => n + g.count, 0), participants: everyone.size,
+        first: firsts.length ? Math.min(...firsts) : null, last: lasts.length ? Math.max(...lasts) : null,
+      },
+      dm: { conversations: dmConvs.size, messages: st.dmMessages },
+      removedMsgs: st.removedMsgs, badTime: st.badTime, orphaned: st.orphaned,
+      withText: st.withText, created: st.created,
+    };
+  }
+  return { sink, result, allIds, keepIds };
+}
+// SP7: the part numbers missing from a family (0-based), e.g. [0, 1, 3] → [2].
+function missingPartNumbers(nums) {
+  const have = new Set(nums.filter((n) => Number.isInteger(n) && n >= 0));
+  if (!have.size) return [];
+  const out = [];
+  for (let i = 0; i < Math.max(...have); i++) if (!have.has(i)) out.push(i);
+  return out;
+}
+
 // What to tell the user when a file's window.YTD global says it's the wrong
 // file for the slot it was picked for. `expected` is "messages" or "headers";
 // returns null when the file is (or may be) the right kind.
@@ -910,6 +1005,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, createExportSink, createExportSurvey, missingPartNumbers, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, createArchiveScanner, prevArchiveProblem, ExportScanError, archiveChunks,
 };

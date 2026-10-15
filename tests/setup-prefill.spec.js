@@ -1,5 +1,6 @@
 require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout — required first, consistently, even though Playwright already ran it once at the top of playwright.config.js in this same worker process
 const { test, expect } = require("@playwright/test");
+const { checkAndBuild } = require("./_setup-helpers.js");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
@@ -91,7 +92,7 @@ async function buildAndGotoPeopleStep(page) {
   await page.locator("#src-group").fill(path.join(exportDir, "direct-messages-group.js"));
   await page.locator("#src-headers").fill(path.join(exportDir, "direct-message-group-headers.js"));
   await page.locator("#src-media").fill(path.join(exportDir, "media"));
-  await page.locator("#btn-build").click();
+  await checkAndBuild(page);   // SP7: Check export → preview → Build
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
   await page.locator('[data-pane="2"] [data-next]').click();
   await expect(page.locator(".su-person").first()).toBeVisible();

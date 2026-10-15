@@ -1,5 +1,6 @@
 require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
+const { checkAndBuild } = require("./_setup-helpers.js");
 
 // SP-18: a saved "This is YOU" and a saved name must be clearable. The wizard
 // sends me: "" / names[id] = "" as the explicit "forget it" signal (a missing
@@ -28,7 +29,7 @@ test.beforeEach(async ({ page }) => {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await page.locator("#btn-build").click();
+  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
   await page.locator('[data-pane="2"] [data-next]').click();
   await expect(page.locator(".su-person")).toHaveCount(2);
 });

@@ -13,6 +13,8 @@
  *   POST /api/source    point at the archive folder (archiveRoot), or at group
  *                       .js + headers .js + media → write config, copy
  *                       sources + media, build
+ *   POST /api/preflight the same body as /api/source → what a build would bring
+ *                       in (groups, dates, people, media, warnings); read-only
  *   GET  /api/parts     participants + link-free sample messages + shared media
  *   POST /api/identity  names / pfps / GC photo / "this is you" → write local.js
  */
@@ -22,9 +24,9 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
-const { createParticipantCollector, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
+const { createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, TMP_RE } = require("./fs-io.js");
-const { createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -470,7 +472,7 @@ function resolveArchiveRoot(rootIn) {
   return {
     groupFiles: messages, headerFiles: headers,
     mediaAbs: loc.mediaDir, mediaDescended: null,
-    swapped, via: loc.via, notes, picked: loc.picked,
+    swapped, via: loc.via, notes: notes.map(withText), picked: loc.picked,
   };
 }
 function apiSource(body, res) {
@@ -495,18 +497,8 @@ function apiSource(body, res) {
     ids = got.all; keepIds = got.keep;
   } catch (e) { /* unreadable: the build below says so plainly */ }
   if (ids && mediaAbs) {
-    let candidates = 0, matching = 0;
-    try {
-      for (const e of fs.readdirSync(mediaAbs, { withFileTypes: true })) {
-        if (!e.isFile() || !MEDIA_FILE_RE.test(e.name)) continue;
-        candidates++;
-        if (ids.has(e.name.split("-")[0])) matching++;
-      }
-    } catch (e) { /* unreadable: the copy reports it */ }
-    if (candidates && !matching) {
-      return sendJSON(res, 400, { error: "None of the " + candidates.toLocaleString("en-US") + " picture and video files in “" + path.basename(mediaAbs) +
-        "” belong to messages in this export, so it doesn't look like its group media folder. Pick the direct_messages_group_media folder from the same Twitter/X archive." });
-    }
+    const mismatch = mediaMismatch(surveyMedia(mediaAbs, ids, ids), mediaAbs);
+    if (mismatch) return sendJSON(res, 400, { error: mismatch });
   }
 
   // SP-23: make sure the copy (and the build's output) fits before starting it
@@ -578,6 +570,135 @@ function apiSource(body, res) {
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
   sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
+// The media folder against this export's message ids: files that will be
+// copied (`files`, `bytes`), files of removed people / groups (`removed`)
+// and picture/video files of no message here (`unmatched`) — unless the
+// archive already has a file of that name (`known`: a newer export's folder
+// can hold media of messages only the archive has). Read-only.
+function surveyMedia(dir, allIds, keepIds, known) {
+  const out = { candidates: 0, files: 0, bytes: 0, removed: 0, unmatched: 0, known: 0 };
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return out; }
+  for (const e of entries) {
+    if (!e.isFile() || !MEDIA_FILE_RE.test(e.name)) continue;
+    out.candidates++;
+    const id = e.name.split("-")[0];
+    if (keepIds.has(id)) {
+      out.files++;
+      try { out.bytes += fs.statSync(path.join(dir, e.name)).size; } catch (err) { /* gone: the copy says */ }
+    } else if (allIds.has(id)) out.removed++;
+    else if (known && known(e.name)) out.known++;
+    else out.unmatched++;
+  }
+  return out;
+}
+// Fix round 1 (#7): "<digits>-<name>.jpg" is also how phones and cameras name
+// pictures (20230301-IMG_0001.jpg), so a folder where none of the files
+// belong to this export's messages is refused.
+function mediaMismatch(m, dir) {
+  if (!m.candidates || m.files || m.removed || m.known) return null;
+  return "None of the " + m.candidates.toLocaleString("en-US") + " picture and video files in “" + path.basename(dir) +
+    "” belong to messages in this export, so it doesn't look like its group media folder. Pick the direct_messages_group_media folder from the same Twitter/X archive.";
+}
+// SP7: the part files missing from a family (part 2 of 0, 1, 3), by name.
+function missingPartFiles(files) {
+  if (!files.length) return [];
+  const nums = files.map((f) => {
+    const k = identifyExport(readExportHead(f));
+    if (k.part != null) return k.part;
+    const m = /[-_.]part(\d+)\.js$/i.exec(f);
+    return m ? Number(m[1]) : 0;
+  });
+  const base = path.basename(files[0]).replace(/[-_.]part\d+(?=\.js$)/i, "").replace(/\.js$/i, "");
+  return missingPartNumbers(nums).map((n) => (n === 0 ? base + ".js" : base + "-part" + n + ".js"));
+}
+
+/* ---- endpoint: pre-flight preview (SP7) ----------------------------------- */
+// What a build from this export would bring in, before anything is written:
+// groups (messages, dates, people), media, what the archive already has, and
+// the warnings worth reading first. Read-only: nothing under personal_data/
+// changes. Each file is streamed one message at a time (never a whole-file
+// string); memory is the message ids (to match media and overlap) plus counts.
+function apiPreflight(body, res) {
+  const src = resolveSource(body);
+  if (src.error) return sendJSON(res, src.status || 400, { error: src.error });
+  const cfg = loadConfig();
+  const sv = createExportSurvey({ ignoredGroups: asList(cfg.ignoredGroups), ignoredUsers: asList(cfg.ignoredUsers) });
+  const userError = (text) => Object.assign(new Error(text), { statusCode: 422 });
+  const scanOne = (f, which) => {
+    const sink = sv.sink(which);
+    const label = "“" + path.basename(f) + "”";
+    try { scanExportFile(f, sink.handlers); }
+    catch (e) {
+      if (e && e.code === "EXPORT_SCAN") throw userError(label + ": " + e.message + ".");
+      throw e;
+    }
+    const st = sink.finish();
+    // SP-8: a headers file read as messages has no text in any message
+    if (which === "messages" && st.messages > 0 && st.withText === 0) {
+      throw userError(label + " looks like the group headers file: its messages have no text. Pick direct-messages-group.js as the messages file and direct-message-group-headers.js as the headers file.");
+    }
+  };
+  let media = null, merge = null;
+  try {
+    duringBlocking(() => {
+      for (const f of src.groupFiles) scanOne(f, "messages");
+      for (const f of src.headerFiles) scanOne(f, "headers");
+      merge = surveyMerge(sv);
+      const inArchive = merge ? (name) => fs.existsSync(path.join(PERSONAL, "media", name)) : null;
+      if (src.mediaAbs) media = surveyMedia(src.mediaAbs, sv.allIds, sv.keepIds, inArchive);
+    });
+  } catch (e) {
+    return sendJSON(res, e.statusCode || 500, { error: friendlyError(e) });
+  }
+  if (media) {
+    const mismatch = mediaMismatch(media, src.mediaAbs);
+    if (mismatch) return sendJSON(res, 400, { error: mismatch });
+  }
+  const survey = sv.result();
+  const missingParts = missingPartFiles(src.groupFiles).concat(missingPartFiles(src.headerFiles));
+  if (merge && merge.groupIds) {
+    const archived = merge.groupIds;
+    const inExport = new Set(survey.groups.map((g) => g.id));
+    merge.newGroups = survey.groups.filter((g) => !g.removed && !archived.has(g.id)).length;
+    merge.keptGroups = [...archived].filter((id) => !inExport.has(id)).length;
+    delete merge.groupIds;
+  }
+  sendJSON(res, 200, {
+    ok: true, via: src.via, swapped: src.swapped,
+    files: {
+      messages: src.groupFiles.map((f) => path.basename(f)),
+      headers: src.headerFiles.map((f) => path.basename(f)),
+      media: src.mediaAbs ? path.basename(src.mediaAbs) : null,
+    },
+    groups: survey.groups, totals: survey.totals, dm: survey.dm,
+    media: media ? { files: media.files, bytes: media.bytes, unmatched: media.unmatched, removed: media.removed, known: media.known } : null,
+    merge,
+    warnings: preflightWarnings({ swapped: src.swapped, notes: src.notes, missingParts, survey, media, merge }),
+  });
+}
+// "Add a newer export": what the built archive already holds, streamed —
+// its message count, how many of this export's messages it already has
+// (`overlap`), and how many this export would add. null with no archive.
+function surveyMerge(sv) {
+  const archive = builtArchiveFiles()[0];
+  if (!archive) return null;
+  let existing = 0, overlap = 0, keptOverlap = 0;
+  const groupIds = new Set();
+  try {
+    foldArchive(archive, [{
+      message: (c, m) => {
+        existing++;
+        const id = m && m.i != null ? String(m.i) : null;
+        if (id != null && sv.allIds.has(id)) { overlap++; if (sv.keepIds.has(id)) keptOverlap++; }
+      },
+      conversation: (c) => { if (c && c.id != null) groupIds.add(String(c.id)); },
+      result: () => null,
+    }]);
+  } catch (e) { return { unreadable: true }; }
+  return { existingMsgs: existing, existingGroups: groupIds.size, overlap, added: sv.keepIds.size - keptOverlap, groupIds };
+}
+
 // Runs scripts/build.js (it reads personal_data/config.json and writes
 // personal_data/data.js). → { ok: true, log } or { ok: false, error, log }.
 // SP-1 / SP-17: the user gets build.js's one-sentence BUILD ERROR (never a raw
@@ -1044,7 +1165,7 @@ function serveStatic(req, res) {
 // The two picker GETs are included even though they're GETs: they freeze the
 // event loop with a blocking native dialog, so a cross-origin page spamming
 // them is a DoS + dialog-spoofing vector, not a harmless read.
-const GUARDED = new Set(["/api/reset", "/api/source", "/api/identity", "/api/removal-preview", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
+const GUARDED = new Set(["/api/reset", "/api/source", "/api/preflight", "/api/identity", "/api/removal-preview", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
 // SP-11: the pickers additionally need this per-process token, which only
 // setup.html receives (injected into its HTML). Random per start, held in
 // memory only: never logged, printed or written to disk.
@@ -1072,6 +1193,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "POST" && url === "/api/bye") { live.bye(clientIdOf(qs)); req.resume(); res.writeHead(204); return res.end(); }
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; return sendJSON(res, 200, pickReply(nativePick("file", which))); }
     if (req.method === "GET" && url === "/api/pick-folder") return sendJSON(res, 200, pickReply(nativePick("folder", /(?:^|&)for=root(?:&|$)/.test(qs || "") ? "root" : "media")));
+    if (req.method === "POST" && url === "/api/preflight") return apiPreflight(await readBody(req, res), res);
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req, res), res);

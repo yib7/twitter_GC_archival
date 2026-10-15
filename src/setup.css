@@ -290,3 +290,19 @@
 .setup-or { display: flex; align-items: center; gap: 10px; margin: 20px 0 8px; color: var(--text-faint);
   font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
 .setup-or::before, .setup-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+/* SP7: the pre-flight preview (reuses the finish receipt's look) */
+.preflight { margin-top: 14px; }
+.pf-tag { color: var(--accent-soft); background: var(--accent-glow); border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
+.pf-groups { list-style: none; margin: 0; padding: 4px 17px 8px; border-top: 1px dashed var(--border-lift); }
+.pf-groups li { padding: 8px 0; font-size: 13px; color: var(--text-dim); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
+.pf-groups li:last-child { border-bottom: 0; }
+.pf-groups b { color: var(--text); }
+.pf-groups .pf-removed { color: var(--text-faint); }
+.pf-warnings { margin: 0; padding: 10px 17px 4px 35px; border-top: 1px dashed var(--border-lift); font-size: 13px; line-height: 1.5; color: var(--warning, var(--text)); }
+.pf-warnings:empty { display: none; }
+.pf-warnings li + li { margin-top: 4px; }
+.pf-warnings li.pf-ok { list-style: none; margin-left: -18px; color: var(--success); }
+.pf-safe { margin: 0; padding: 10px 17px 0; font-size: 12.5px; color: var(--text-faint); }
+.pf-actions { margin: 0; padding: 12px 17px 16px; justify-content: flex-end; }
+@media (max-width: 480px) { .pf-actions .btn { flex: 1 1 auto; } }

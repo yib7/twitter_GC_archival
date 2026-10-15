@@ -1,5 +1,6 @@
 require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
+const { checkAndBuild } = require("./_setup-helpers.js");
 
 // SP-12: a phone photo is 3-12 MB, but an avatar never needs more than a few
 // hundred pixels. The wizard now shrinks every picked photo (person or group)
@@ -27,7 +28,7 @@ test.beforeEach(async ({ page }) => {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await page.locator("#btn-build").click();
+  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
 });
 

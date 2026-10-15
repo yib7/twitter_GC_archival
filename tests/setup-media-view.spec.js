@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { checkAndBuild } = require("./_setup-helpers.js");
 
 const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
@@ -22,7 +23,7 @@ async function gotoPeopleStep(page) {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await page.locator("#btn-build").click();
+  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
   await page.locator('[data-pane="2"] [data-next]').click();
   await expect(page.locator(".su-person").first()).toBeVisible();

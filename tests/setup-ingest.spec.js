@@ -6,6 +6,7 @@ const os = require("os");
 const path = require("path");
 const { waitForBootLine } = require("./wait-for-boot-line.js");
 const X = require("./fixtures/x-export.js");
+const { checkAndBuild } = require("./_setup-helpers.js");
 
 // SP6 checkpoint: the wizard over a REAL server + synthetic export shows a
 // clear error — never a green "✓ Built 0 messages" — for a wrong, empty or
@@ -35,6 +36,8 @@ test.afterAll(() => {
   for (const d of [personal, exportRoot]) if (d) fs.rmSync(d, { recursive: true, force: true });
 });
 
+// SP7: "Check export" reads the files first (POST /api/preflight); a file it
+// can't use is refused right there, before the preview and before any build.
 async function submit(page, groupJs) {
   await page.goto(BASE + "/setup.html");
   await page.locator("#src-group").fill(groupJs);
@@ -81,8 +84,10 @@ test("a truncated messages file gets a clear error and the build log is availabl
   const s = fs.readFileSync(F.group, "utf8");
   fs.writeFileSync(cut, s.slice(0, s.length >> 1));
   await submit(page, cut);
+  // SP7: the pre-flight check reads the file and stops here, before a build
+  // runs — so there is no build log to show, only the plain sentence.
   await expect(page.locator("#src-result")).toContainText(/truncated/);
-  await expect(page.locator("#src-result details summary")).toHaveText(/Build log/);
+  await expect(page.locator("#preflight")).toBeHidden();
   await expectClearFailure(page, /truncated/);
 });
 
@@ -92,7 +97,11 @@ test("a folder given as the messages file gets a plain message, not a raw EPERM"
 });
 
 test("a BOM-prefixed export builds, reports its messages and shows the build log", async ({ page }) => {
-  await submit(page, F.group);
+  await page.goto(BASE + "/setup.html");
+  await page.locator("#src-group").fill(F.group);
+  await page.locator("#src-headers").fill(F.headers);
+  await page.locator("#src-media").fill(F.media);
+  await checkAndBuild(page);
   const out = page.locator("#src-result");
   await expect(out).toHaveClass(/ok/, { timeout: 15000 });
   await expect(out).toContainText(/Built 7 messages across 2 group/);

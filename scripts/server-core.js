@@ -487,4 +487,57 @@ function diskSpaceProblem(needBytes, freeBytes) {
     " free. Free up some space (or move the Group Chat Archive folder to a bigger drive) and try again.";
 }
 
-module.exports = { createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP7: the pre-flight preview's words --------------------------------- */
+const qn = (f) => "“" + String(f) + "”";
+const fmtN = (n) => Number(n).toLocaleString("en-US");
+const plural = (n, one, many) => fmtN(n) + " " + (n === 1 ? one : many);
+// What finding the export in the archive folder noticed, as one plain sentence
+// (null when there's nothing to say). Every note carries its own text so the
+// wizard never has to word them.
+function sourceNoteText(n) {
+  const files = (list) => (list || []).map((f) => qn(typeof f === "string" ? f : f.file)).join(", ");
+  switch (n && n.code) {
+    case "manifest-missing": return "The archive's manifest lists files that aren't in the folder: " + files(n.files) + ". The archive may not have unzipped completely — their messages will be missing.";
+    case "manifest-unsafe": return "Ignored " + plural(n.files.length, "path", "paths") + " in the archive's manifest that point outside the folder you picked.";
+    case "manifest-unreadable": return "The archive's manifest couldn't be read, so its files were found by their names instead.";
+    case "manifest-no-groups": return "The archive's manifest lists no group chats, so its files were found by their names instead.";
+    case "skipped-files": return "Skipped " + files(n.files) + ": empty, or not a group chat file.";
+    case "no-headers": return "No group headers file was found, so people who never sent a message won't be listed.";
+    case "no-media": return "No group media folder was found, so no photos or videos will be copied.";
+    case "dm-file": return "Your 1:1 direct messages are left out — only group chats are imported.";
+    default: return null;
+  }
+}
+const withText = (n) => Object.assign({}, n, { text: sourceNoteText(n) });
+/**
+ * The pre-flight warnings, each { code, text } — in the order the user should
+ * read them. `p`: { swapped, notes, missingParts: [file names], survey
+ * (createExportSurvey().result()), media: { unmatched } | null, merge:
+ * { overlap } | null }.
+ */
+function preflightWarnings(p) {
+  const out = [];
+  const add = (code, text, extra) => out.push(Object.assign({ code, text }, extra || {}));
+  const sv = p.survey;
+  if (sv.totals.messages === 0) add("zero-messages", "This export has no group chat messages to import" + (sv.removedMsgs ? " (every message is from a group chat or person you removed)" : "") + ". Check you picked the right archive.");
+  if (p.swapped) add("swapped", "The messages and headers files were the other way round — they'll be swapped back automatically.");
+  const missing = p.missingParts || [];
+  if (missing.length) {
+    const one = missing.length === 1;
+    add("missing-parts", missing.map(qn).join(", ") + (one ? " is" : " are") + " missing from the export — the messages in " + (one ? "it" : "them") +
+      " won't be imported. Re-extract the archive to get every part.", { files: missing });
+  }
+  for (const n of p.notes || []) {
+    if (n.code === "dm-file" && sv.dm.conversations) continue;   // said with counts below
+    const t = sourceNoteText(n);
+    if (t) add(n.code === "manifest-missing" ? "missing-parts" : n.code, t, n.files ? { files: n.files } : null);
+  }
+  if (sv.dm.conversations) add("dm-ignored", plural(sv.dm.conversations, "1:1 conversation", "1:1 conversations") + " (" + plural(sv.dm.messages, "message", "messages") + ") will be left out — only group chats are imported.");
+  if (p.media && p.media.unmatched) add("unmatched-media", plural(p.media.unmatched, "file", "files") + " in the media folder don't belong to any message in this export and won't be copied.");
+  if (p.merge && p.merge.overlap) add("overlap", plural(p.merge.overlap, "message is", "messages are") + " already in your archive; they'll be merged, not duplicated.");
+  if (sv.removedMsgs) add("removed", plural(sv.removedMsgs, "message", "messages") + " from people or group chats you removed will stay out.");
+  if (sv.badTime) add("bad-time", plural(sv.badTime, "message has", "messages have") + " a missing or unreadable date and will be skipped.");
+  return out;
+}
+
+module.exports = { sourceNoteText, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

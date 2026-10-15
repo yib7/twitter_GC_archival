@@ -1,4 +1,5 @@
 const { test, expect } = require("@playwright/test");
+const { checkAndBuild } = require("./_setup-helpers.js");
 
 // Two groups so the group selector + remove toggle are exercised. All server
 // endpoints are mocked, so this runs identically on CI.
@@ -21,7 +22,7 @@ async function build(page) {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await page.locator("#btn-build").click();
+  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
 }
 

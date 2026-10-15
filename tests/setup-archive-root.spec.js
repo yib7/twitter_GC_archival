@@ -6,6 +6,7 @@ const os = require("os");
 const path = require("path");
 const { waitForBootLine } = require("./wait-for-boot-line.js");
 const X = require("./fixtures/x-export.js");
+const { checkAndBuild } = require("./_setup-helpers.js");
 
 // SP7: the wizard builds from the unzipped archive folder alone — its
 // data/manifest.js says where the group files, every part, the headers and
@@ -52,14 +53,32 @@ test("picking only the archive folder builds every part, with the media", async 
   await page.goto(BASE + "/setup.html");
   await expect(page.locator(".setup-or")).toContainText(/or pick the three files yourself/i);
   await page.locator("#src-root").fill(F.root);
+  // SP7 pre-flight: the preview comes first, and nothing is written yet
   await page.locator("#btn-build").click();
+  const pf = page.locator("#preflight");
+  await expect(pf).toBeVisible();
+  await expect(page.locator("#pf-sub")).toContainText(/data\/manifest\.js · 2 messages files/);
+  await expect(page.locator("#pf-lines")).toContainText(/Messages\s*7/);
+  await expect(page.locator("#pf-lines")).toContainText(/Group chats\s*2/);
+  await expect(page.locator("#pf-lines")).toContainText(/People\s*5/);
+  await expect(page.locator("#pf-lines")).toContainText(/Photos & videos\s*3/);
+  await expect(page.locator("#pf-groups li")).toHaveCount(2);
+  await expect(page.locator("#pf-groups")).toContainText(/Synthetic Crew — 5 messages/);
+  await expect(page.locator('#pf-warnings li[data-code="dm-ignored"]')).toContainText(/1 1:1 conversation/);
+  expect(fs.readdirSync(personal)).toEqual([]);
+  // changing a field drops the preview (it no longer describes the fields)
+  await page.locator("#src-root").fill(F.root + " ");
+  await expect(pf).toBeHidden();
+  await page.locator("#src-root").fill(F.root);
+  await checkAndBuild(page);
   const out = page.locator("#src-result");
   await expect(out).toHaveClass(/ok/);
   await expect(out).toContainText(/Built 7 messages across 2 group/);
   await expect(out).toContainText(/from 2 message part files/);
   await expect(out).toContainText(/copied 3 media files/);
   await expect(out).toContainText(/data\/manifest\.js/);
-  await expect(out).toContainText(/1:1 direct messages were left out/);
+  await expect(out).toContainText(/1:1 direct messages are left out/);
+  await expect(pf).toBeHidden();
   const cfg = JSON.parse(fs.readFileSync(path.join(personal, "config.json"), "utf8"));
   expect(cfg.sourceJs.map((p) => path.basename(p))).toEqual(["direct-messages-group.js", "direct-messages-group-part1.js"]);
   await expect(page.locator("#src-root")).toBeDisabled();   // locked like the three fields

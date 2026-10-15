@@ -287,10 +287,10 @@ async function pick(kind, fill, which) {
     flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
   }
 }
-$("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value = p; }, "group");
-$("#headers-browse").onclick = () => pick("file", (p) => { $("#src-headers").value = p; }, "headers");
-$("#media-browse").onclick = () => pick("folder", (p) => { $("#src-media").value = p; });
-$("#root-browse").onclick = () => pick("folder", (p) => { $("#src-root").value = p; }, "root");
+$("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value = p; hidePreflight(); }, "group");
+$("#headers-browse").onclick = () => pick("file", (p) => { $("#src-headers").value = p; hidePreflight(); }, "headers");
+$("#media-browse").onclick = () => pick("folder", (p) => { $("#src-media").value = p; hidePreflight(); });
+$("#root-browse").onclick = () => pick("folder", (p) => { $("#src-root").value = p; hidePreflight(); }, "root");
 
 /* ---- source lock + status ------------------------------------------------ */
 // Once an archive is built, lock the source files so the user can't corrupt the
@@ -332,29 +332,14 @@ function buildLogHtml(log) {
   const s = String(log || "").trim();
   return s ? `<details class="build-log"><summary>Build log</summary><pre>${escapeHtml(s)}</pre></details>` : "";
 }
-// SP7: what the server noticed while finding the export in the archive
-// folder, as one plain sentence each (null = nothing worth saying).
-function sourceNoteText(n) {
-  const files = (list) => (list || []).map((f) => `<code>${escapeHtml(typeof f === "string" ? f : f.file)}</code>`).join(", ");
-  switch (n && n.code) {
-    case "manifest-missing": return `The archive's manifest lists files that aren't in the folder: ${files(n.files)}. The archive may not have unzipped completely — those messages will be missing.`;
-    case "manifest-unsafe": return `Ignored ${n.files.length} path(s) in the archive's manifest that point outside the folder you picked.`;
-    case "manifest-unreadable": return "The archive's manifest couldn't be read, so its files were found by their names instead.";
-    case "manifest-no-groups": return "The archive's manifest lists no group chats, so its files were found by their names instead.";
-    case "skipped-files": return `Skipped ${files(n.files)}: empty, or not a group chat file.`;
-    case "no-headers": return "No group headers file was found, so people who never sent a message won't be listed.";
-    case "no-media": return "No group media folder was found, so no photos or videos were copied.";
-    case "dm-file": return "Your 1:1 direct messages were left out — only group chats are imported.";
-    default: return null;
-  }
-}
+
 // Things the server fixed up on its own (SP-7, SP-8), so nothing is a surprise.
 function buildNotesHtml(j) {
   const n = [];
   if (j.via === "manifest") n.push("Found your group chat files through the archive's <code>data/manifest.js</code>.");
   if (j.swapped) n.push("Your messages and headers files were picked the other way round — they were swapped back automatically.");
   if (j.mediaDescended) n.push(`Used the <code>${escapeHtml(j.mediaDescended)}</code> folder inside the folder you picked for media.`);
-  (j.notes || []).forEach((x) => { const t = sourceNoteText(x); if (t) n.push(t); });
+  (j.notes || []).forEach((x) => { if (x && x.text) n.push(escapeHtml(x.text)); });   // worded by the server
   return n.length ? `<ul class="build-notes">${n.map((l) => `<li>${l}</li>`).join("")}</ul>` : "";
 }
 // "Warning: …" lines from the build, plus skipped media, surfaced on success.
@@ -365,9 +350,56 @@ function buildWarningsHtml(j) {
 }
 
 let building = false;
+// SP7: what the pre-flight preview was made for. Build sends exactly this, and
+// any change to the fields drops it (the preview no longer describes them).
+let pendingSource = null;
+function hidePreflight() { pendingSource = null; const pf = $("#preflight"); if (pf) pf.hidden = true; }
+["#src-root", "#src-group", "#src-headers", "#src-media"].forEach((s) => $(s).addEventListener("input", hidePreflight));
+$("#btn-pf-cancel").onclick = () => { hidePreflight(); $("#btn-build").focus(); };
+const fmtDay = (ms) => (ms == null ? "?" : new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }));
+const fmtSpan = (a, b) => (a == null ? "no dates" : fmtDay(a) === fmtDay(b) ? fmtDay(a) : fmtDay(a) + " – " + fmtDay(b));
+function fmtBytes(n) {
+  if (!(n > 0)) return "0 MB";
+  return n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0) + " MB";
+}
+const VIA = { manifest: "Found through the archive's data/manifest.js", scan: "Found by file name in the archive folder", files: "The files you picked" };
+function renderPreflight(j) {
+  const t = j.totals || {}, m = j.merge, md = j.media;
+  const merging = !!(m && !m.unreadable);
+  $("#pf-title").textContent = merging ? "Add this export to your archive" : "Ready to build";
+  const files = (j.files && j.files.messages || []).length;
+  $("#pf-sub").textContent = (VIA[j.via] || VIA.files) + " · " + plural(files, "messages file", "messages files");
+  const line = (label, value, blue) => `<div class="fr-line"><span class="rl">${escapeHtml(label)}</span><span class="rv${blue ? " blue" : ""}">${escapeHtml(value)}</span></div>`;
+  let lines = line("Group chats", Number(t.groups || 0).toLocaleString()) +
+    line("Messages", Number(t.messages || 0).toLocaleString(), true) +
+    line("People", Number(t.participants || 0).toLocaleString()) +
+    line("Dates", fmtSpan(t.first, t.last)) +
+    line("Photos & videos", md ? Number(md.files).toLocaleString() + " (" + fmtBytes(md.bytes) + ")" : "none");
+  if (merging) {
+    lines += line("Already in your archive", plural(m.existingMsgs, "message", "messages")) +
+      line("New messages to add", Number(m.added).toLocaleString(), true) +
+      line("New group chats", Number(m.newGroups || 0).toLocaleString()) +
+      (m.keptGroups ? line("Group chats kept from your archive", Number(m.keptGroups).toLocaleString()) : "");
+  }
+  $("#pf-lines").innerHTML = lines;
+  $("#pf-groups").innerHTML = (j.groups || []).map((g) => {
+    const name = g.title || "Group …" + String(g.id).slice(-4);
+    if (g.removed) return `<li class="pf-removed"><b>${escapeHtml(name)}</b> — removed, stays out</li>`;
+    return `<li><b>${escapeHtml(name)}</b> — ${plural(g.count, "message", "messages")} · ${escapeHtml(fmtSpan(g.first, g.last))} · ${plural(g.participants, "person", "people")}</li>`;
+  }).join("");
+  const w = j.warnings || [];
+  $("#pf-warnings").innerHTML = w.length
+    ? w.map((x) => `<li data-code="${escapeHtml(x.code)}">${escapeHtml(x.text)}</li>`).join("")
+    : `<li class="pf-ok">✓ No problems found.</li>`;
+  const confirm = $("#btn-confirm");
+  confirm.textContent = merging ? "Merge into archive" : "Build archive";
+  confirm.disabled = !(t.messages > 0) && !merging;
+  $("#preflight").hidden = false;
+}
+// Step 1, part 1: read the export and show what a build would bring in. Read-only.
 $("#btn-build").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
-  if (building) return;   // SP-23: one build at a time (a double-click used to run two)
+  if (building) return;   // SP-23: one request at a time (a double-click used to run two)
   const archiveRoot = $("#src-root").value.trim();
   const groupJs = $("#src-group").value.trim();
   const headersJs = $("#src-headers").value.trim();
@@ -379,11 +411,37 @@ $("#btn-build").onclick = async () => {
     if (!headersJs) { flash($("#src-result"), "Choose your direct-message-group-headers.js file.", "err"); return; }
     if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder — it's required.", "err"); return; }
   }
-  flash($("#src-result"), "Building… (copying media can take a moment)", "");
+  const body = archiveRoot ? { archiveRoot } : { groupJs, headersJs, mediaDir };
+  hidePreflight();
+  flash($("#src-result"), "Checking your export… (nothing is copied yet)", "");
   building = true;
   $("#btn-build").disabled = true;
   try {
-    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(archiveRoot ? { archiveRoot } : { groupJs, headersJs, mediaDir }) });
+    const r = await fetch("/api/preflight", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json();
+    if (!r.ok) { flash($("#src-result"), "✗ " + escapeHtml(j.error || "The export couldn't be read."), "err"); return; }
+    $("#src-result").hidden = true;
+    renderPreflight(j);
+    pendingSource = body;
+    $("#btn-confirm").focus();
+  } catch (e) {
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
+  } finally {
+    building = false;
+    if (!built) $("#btn-build").disabled = false;
+  }
+};
+// Step 1, part 2: the user saw the preview and confirmed — copy + build.
+$("#btn-confirm").onclick = async () => {
+  if (!SERVED) { needServer($("#src-result")); return; }
+  if (building || !pendingSource) return;   // SP-23: one build at a time
+  const body = pendingSource;
+  flash($("#src-result"), "Building… (copying media can take a moment)", "");
+  building = true;
+  $("#btn-build").disabled = true;
+  $("#btn-confirm").disabled = true;
+  try {
+    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const j = await r.json();
     // SP-1 / SP-17: a failed build shows the server's plain-language sentence
     // plus the build log (collapsed), and leaves step 1 unlocked to fix it.
@@ -399,13 +457,14 @@ $("#btn-build").onclick = async () => {
       (j.partFiles > 1 ? ` from <b>${Number(j.partFiles)}</b> message part files` : "") +
       (j.mediaCopied ? `, copied <b>${j.mediaCopied.toLocaleString()}</b> media files` : "") +
       `.<ul>${groupList}</ul>` + buildNotesHtml(j) + buildWarningsHtml(j) + buildLogHtml(j.log), "ok");
+    hidePreflight();
     lockSource(true);
     go(2);
   } catch (e) {
     flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
   } finally {
     building = false;
-    if (!built) $("#btn-build").disabled = false;   // after a success the source stays locked
+    if (!built) { $("#btn-build").disabled = false; $("#btn-confirm").disabled = false; }   // after a success the source stays locked
   }
 };
 
