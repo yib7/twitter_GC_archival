@@ -50,3 +50,35 @@ test("editing a group's name + photo in Settings updates that group's brand only
   await expect(page.locator("#brand-title")).toHaveText("Renamed Alpha");
   await expect(page.locator(".brand-mark")).toHaveCSS("background-image", /data:image/);
 });
+
+// A custom group name (Settings or the wizard's local.js) is the chat's name
+// everywhere: both pickers and the Pinned headers, not only the brand. The
+// pickers follow a rename at once. Untitled groups would otherwise read "Group 1234".
+test("a custom group name shows in both pickers and the Pinned headers", async ({ page }) => {
+  const UNTITLED = { __sample: true, conversations: [
+    DATA.conversations[0],
+    Object.assign({}, DATA.conversations[1], { id: "900000001234", title: null }),
+  ] };
+  await page.route("**/data.sample.js", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(UNTITLED) + ";" }));
+  await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: 'window.LOCAL_GC = {"G1":{"name":"Wizard Alpha"}};' }));
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("seeded")) return;
+    sessionStorage.setItem("seeded", "1");
+    localStorage.setItem("gca.gc", JSON.stringify({ "900000001234": { name: "Family" } }));
+    localStorage.setItem("gca.settings", JSON.stringify({ pins: ["m1", "m2"] }));
+  });
+  await page.goto("/");
+  await expect(page.locator("#brand-title")).toHaveText("Wizard Alpha");
+  const opts = (sel) => page.locator(sel + " option");
+  await expect(opts("#conv-select")).toHaveText(["Wizard Alpha · 1", "Family · 1"]);
+  await expect(opts("#mobile-conv")).toHaveText(["Wizard Alpha · 1", "Family · 1"]);
+  await page.locator('.nav-item[data-view="pins"]').click();
+  await expect(page.locator("#view-pins")).toContainText("Family");
+  await expect(page.locator("#view-pins")).not.toContainText("Group 1234");
+  // a rename in Settings reaches the pickers right away
+  await page.locator('[data-view="settings"]').click();
+  await page.locator("#set-gcs .gc-item").nth(1).locator(".gc-name-input").fill("Cousins");
+  await expect(opts("#conv-select")).toHaveText(["Wizard Alpha · 1", "Cousins · 1"]);
+  await expect(opts("#mobile-conv")).toHaveText(["Wizard Alpha · 1", "Cousins · 1"]);
+});

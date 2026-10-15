@@ -1031,11 +1031,11 @@ function syncMobileConvPicker() {
   const brand = document.getElementById("brand-title");
   const nm = document.getElementById("mpick-nm");
   const ct = document.getElementById("mpick-ct");
-  if (nm) nm.textContent = (brand && brand.textContent) || convLabel(CONV);
+  if (nm) nm.textContent = (brand && brand.textContent) || displayConvName(CONV);
   if (ct) ct.textContent = "· " + fmtNum(N);
   const convos = visibleConvos();
   sel.innerHTML = convos.map((c) =>
-    `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`
+    `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(displayConvName(c))} · ${fmtNum(c.count)}</option>`
   ).join("");
   const single = convos.length <= 1;
   pick.classList.toggle("single", single);
@@ -2183,13 +2183,13 @@ function convHeadEl(g) {
   const c = g.d.conv, n = g.idx.length;
   const h = el("div", "s-conv-head");
   const nm = el("span", "s-conv-name"); nm.setAttribute("role", "heading"); nm.setAttribute("aria-level", "2");
-  nm.textContent = convLabel(c);
+  nm.textContent = displayConvName(c);
   h.appendChild(nm);
   h.appendChild(el("span", "s-conv-n", fmtNum(n) + (n === 1 ? " message" : " messages")));
   if (g.d.active) h.appendChild(el("span", "pins-conv-cur", "this chat"));
   h.appendChild(el("span", "s-conv-rule"));
   const b = btnEl("meta-act s-conv-go", "");
-  b.textContent = "Search only " + convLabel(c);
+  b.textContent = "Search only " + displayConvName(c);
   b.onclick = () => (g.d.active ? setSearchScope("this") : searchOnlyIn(c.id));
   h.appendChild(b);
   return h;
@@ -2330,7 +2330,7 @@ function resultKeydown(e) {
     togglePin(r.m.i);
     announce(isPinned(r.m.i) ? "Bookmarked" : "Removed bookmark");
   } else if (r.conv) {
-    const msg = "Its context is in " + convLabel(r.conv) + " — press Enter to open it there";
+    const msg = "Its context is in " + displayConvName(r.conv) + " — press Enter to open it there";
     toast(msg); announce(msg);
   } else openContextPeek(r.i);
 }
@@ -2615,7 +2615,7 @@ function exportResults() {
     if (!resState.total) { toast("No results to export"); return; }
     const out = [];
     resState.groups.forEach((g) => {
-      out.push("== " + convLabel(g.d.conv) + " ==");
+      out.push("== " + displayConvName(g.d.conv) + " ==");
       g.idx.forEach((i) => out.push(exportLine(g.d.msgs[i], g.d.conv)));
       out.push("");
     });
@@ -4307,6 +4307,7 @@ function renderSettings() {
       const val = name.value.trim();
       if (val) settings.gc[c.id].name = val; else delete settings.gc[c.id].name;
       saveGc();
+      renderConvPicker();   // both pickers carry the name
       if (CONV && c.id === CONV.id) updateBrand();
     };
     mid.appendChild(name);
@@ -4736,17 +4737,26 @@ function convLabel(c) {
   if (c.title) return c.title;
   return "Group " + String(c.id).slice(-4);
 }
+// LOCAL_GC is per-conversation { convId: { name, photo } }; older builds wrote a
+// single flat { name, photo } that applied to every group — support both.
+function localGcFor(c) {
+  return LOCAL_GC ? (LOCAL_GC[c && c.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
+}
+// The name a chat goes by everywhere (brand, pickers, Pinned and All chats
+// headers, exports): the in-app per-group override (Settings → Group chats)
+// wins over the wizard's LOCAL_GC, which wins over the legacy flat gcName,
+// then the chat's own title, its last rename, "Group 1234".
+function displayConvName(c) {
+  if (!c) return convLabel(c);
+  const sgc = settings.gc ? settings.gc[c.id] : null, lgc = localGcFor(c);
+  const nameEv = (c.events || []).filter((e) => e.type === "name");
+  return (sgc && sgc.name) || (lgc && lgc.name) || settings.gcName || c.title || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(c));
+}
 
 function updateBrand() {
-  const nameEv = EVENTS.filter((e) => e.type === "name");
-  // LOCAL_GC is per-conversation { convId: { name, photo } }; older builds wrote a
-  // single flat { name, photo } that applied to every group — support both.
-  const lgc = LOCAL_GC ? (LOCAL_GC[CONV && CONV.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
-  // In-app per-group override (Settings → Group chats) wins over the wizard's
-  // LOCAL_GC, which wins over the legacy flat gcName/gcPhoto.
+  const lgc = localGcFor(CONV);
   const sgc = (settings.gc && CONV) ? settings.gc[CONV.id] : null;
-  const gcName = (sgc && sgc.name) || (lgc && lgc.name) || settings.gcName;
-  const title = gcName || (CONV && CONV.title) || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(CONV));
+  const title = displayConvName(CONV);
   // Restore the real group photo on the sidebar brand mark when present.
   const mark = document.querySelector(".brand-mark");
   const gcPhoto = sanitizePhoto((sgc && sgc.photo) || (lgc && lgc.photo) || settings.gcPhoto);
@@ -4780,7 +4790,7 @@ function renderConvPicker() {
   syncMobileConvPicker();   // the mobile <select> carries the same options
   if (convos.length <= 1) { host.innerHTML = ""; host.hidden = true; return; }
   host.hidden = false;
-  const opt = (c) => `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(convLabel(c))} · ${fmtNum(c.count)}</option>`;
+  const opt = (c) => `<option value="${esc(c.id)}"${CONV && c.id === CONV.id ? " selected" : ""}>${esc(displayConvName(c))} · ${fmtNum(c.count)}</option>`;
   const body = convos.map(opt).join("");
   host.innerHTML = `<label class="conv-pick-label" for="conv-select">Group chat (${convos.length})</label>
     <select id="conv-select" class="conv-select">${body}</select>`;
@@ -5728,7 +5738,7 @@ function renderPins() {
     const hits = byConv.get(c.id);
     const isActive = CONV && c.id === CONV.id;
     frag.appendChild(el("div", "pins-conv-head",
-      esc(convLabel(c)) + (isActive ? ' <span class="pins-conv-cur">this chat</span>' : "")));
+      esc(displayConvName(c)) + (isActive ? ' <span class="pins-conv-cur">this chat</span>' : "")));
     ids.forEach((id) => {
       if (!hits.has(id)) return;
       if (isActive && ID2IDX.has(id)) frag.appendChild(renderMsg(ID2IDX.get(id), { clickable: true }));
@@ -5743,7 +5753,7 @@ function renderPins() {
     const lines = [];
     ordered.forEach((c) => {
       const hits = byConv.get(c.id);
-      lines.push("== " + convLabel(c) + " ==");
+      lines.push("== " + displayConvName(c) + " ==");
       ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(exportLine(m, c)); });
       lines.push("");
     });
