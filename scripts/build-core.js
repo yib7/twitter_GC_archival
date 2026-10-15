@@ -1130,6 +1130,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, mergeQuarantine, idPartition, createExportSink, createExportSurvey, missingPartNumbers, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, mergeQuarantine, idPartition, createExportSink, createExportSurvey, missingPartNumbers, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, isGroupId, kindOf,
   identifyExport, createExportScanner, createArchiveScanner, prevArchiveProblem, ExportScanError, archiveChunks,
 };

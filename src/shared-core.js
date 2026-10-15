@@ -1116,10 +1116,10 @@
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
     relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant, zonedDayStart, parseJumpDate, MONTH_NAMES,
-    parseSearchQuery, resolvePeople, rankPeople, removeSearchToken, replaceSearchToken, quoteOpValue, foldName,
+    parseSearchQuery, resolvePeople, rankPeople, removeSearchToken, replaceSearchToken, quoteOpValue,
     createBigramIndex, fuzzyCandidates,
-    extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
-    KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
+    extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
+    KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, linkPlatform, plural,
     graphemes, graphemesNoSegmenter, wrapText, createRedactor,
     isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
   };
