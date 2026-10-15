@@ -106,6 +106,53 @@ All notable changes to this project are recorded here.
 - Time Capsule sizes itself by layout, so it no longer ends up as a scroller
   inside the page scroller.
 
+### Fixed (importing and setup)
+
+- Very large exports build: the messages file is read as a stream and the
+  archive is written in pieces, so a ~600 MB export no longer fails with a
+  "string too long" error. The build's memory limit is sized to the machine.
+- A wrong, empty, truncated or group-less file stops the build with one
+  plain sentence saying what is wrong and what to pick instead (a file with a
+  byte-order mark now builds). The wizard shows that sentence, keeps the
+  build log one click away, and doesn't lock your choices after a failure.
+- Archives split into `-part1`, `-part2` ... files are imported whole, and a
+  missing part is reported.
+- Picking the messages and headers files the wrong way round is fixed for
+  you. Picking the whole `data` folder, or a folder of `.js` files, as the
+  media folder is refused or steered to `direct_messages_group_media`, and only
+  group-message media is copied.
+- `data.js` and the wizard's files are written atomically, so a crash or a
+  full disk can't leave half a file; an unreadable existing archive stops the
+  build instead of being silently replaced.
+- Members who never posted keep their place when an archive is merged, get a
+  card in People ("No messages · joined Mar 2021") and can be named. Messages
+  without a valid date are skipped with a warning instead of landing in 1970.
+- A message with several photos or videos shows all of them, not just the
+  first.
+- Removing a group or a person rebuilds the archive, so their messages and
+  media are really gone; adding them back restores them.
+- Large photos picked for a person or the group are shrunk in the browser
+  before upload; every photo is checked before anything is saved, and a
+  too-large one is named. A group photo no longer overwrites a person's.
+- "This is YOU" and display names can be cleared.
+- Paths pasted with quotes, `~/` or backslash-escaped spaces are accepted, and
+  a "not found" message shows what a full path looks like.
+- Build can't be started twice at once; a failing file dialog says what went
+  wrong; the wizard checks there is enough free disk space before copying.
+- The double-click launchers say plainly when Node.js is missing or older
+  than 18, or when they are run from inside the ZIP, instead of showing a raw
+  error. `package.json` declares Node 18 or newer.
+- The launcher's server no longer stops under a hidden or sleeping tab: it
+  exits a few seconds after the last open page is closed. If the server has
+  stopped, the page says so and how to restart it.
+
+### Security
+
+- The native file pickers require a per-session token and a same-origin
+  request, so another website can't open them.
+- Pages are sent with `X-Frame-Options: DENY` and `frame-ancestors 'none'`, so
+  they can't be framed by another site.
+
 ## v1.4.0 (unreleased) — code-audit remediation
 
 ### Added
