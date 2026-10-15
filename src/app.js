@@ -1999,7 +1999,7 @@ function runSearch() {
   const sortLbl = sortLabel(searchKind === "fallback" || searchKind === "forced");
   const noun = (gridOn() ? " media message" : " message") + (out.length === 1 ? "" : "s");
   sEls.meta.textContent = !hasFilter
-    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — " + SEARCH_HINT
+    ? "Showing all " + fmtNum(out.length) + noun + ", " + sortLabel(false) + " first — " + SEARCH_HINT
     : searchKind === "fallback" && out.length
       ? "No exact " + (gridOn() ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (gridOn() ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
       : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
@@ -2080,7 +2080,7 @@ function runSearchAll() {
   const nChats = groups.length;
   const inChats = " in " + fmtNum(nChats) + (nChats === 1 ? " chat" : " chats");
   sEls.meta.textContent = !ctxFiltered(SQ)
-    ? "Showing all " + fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + ", newest first — " + SEARCH_HINT
+    ? "Showing all " + fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + ", " + sortLabel(false) + " first — " + SEARCH_HINT
     : fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + " · exact matches · sorted by " + sortLabel(false);
   finishSearchMeta();
   if (!total) {
