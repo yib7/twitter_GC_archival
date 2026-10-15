@@ -306,3 +306,13 @@
 .pf-safe { margin: 0; padding: 10px 17px 0; font-size: 12.5px; color: var(--text-faint); }
 .pf-actions { margin: 0; padding: 12px 17px 16px; justify-content: flex-end; }
 @media (max-width: 480px) { .pf-actions .btn { flex: 1 1 auto; } }
+
+/* SP7: media copy progress while a build runs */
+.build-progress {
+  -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 6px; margin-top: 10px;
+  border: 0; border-radius: var(--radius-pill); background: var(--bg-hover); overflow: hidden; color: var(--accent);
+}
+.build-progress::-webkit-progress-bar { background: var(--bg-hover); border-radius: var(--radius-pill); }
+.build-progress::-webkit-progress-value { background: linear-gradient(90deg, var(--accent), var(--accent-soft)); border-radius: var(--radius-pill); transition: width 0.3s ease; }
+.build-progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), var(--accent-soft)); border-radius: var(--radius-pill); }
+@media (prefers-reduced-motion: reduce) { .build-progress::-webkit-progress-value { transition: none; } }

@@ -15,11 +15,14 @@
  *                       sources + media, build
  *   POST /api/preflight the same body as /api/source → what a build would bring
  *                       in (groups, dates, people, media, warnings); read-only
+ *   GET  /api/progress  the running copy + build: { running, phase, files,
+ *                       totalFiles, bytes, totalBytes }
  *   GET  /api/parts     participants + link-free sample messages + shared media
  *   POST /api/identity  names / pfps / GC photo / "this is you" → write local.js
  */
 const http = require("http");
 const fs = require("fs");
+const fsp = fs.promises;
 const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
@@ -190,24 +193,63 @@ function decodeDataUrl(url, whose) {
 // X's group media folder is flat, so there are no same-name clashes to resolve.
 // `skipExisting` (SP-14 restore) copies only files destDir doesn't have yet.
 // `journal` (fix round 1, #9) records each copy so a failed build can undo it.
-function copyMediaFlat(srcDir, destDir, opts) {
+// SP7: `skipSame` leaves a file destDir already has at the same size (X names
+// media by message id + media id, so it is the same picture) — adding a newer
+// export doesn't copy the whole media folder again; those are counted `same`.
+function planMediaCopy(srcDir, destDir, opts) {
   const skipExisting = !!(opts && opts.skipExisting);
-  const journal = (opts && opts.journal) || null;
+  const skipSame = !!(opts && opts.skipSame);
   const skip = (opts && opts.skip) || null;   // names not to copy (e.g. still quarantined)
   const ids = (opts && opts.ids) || null;     // only media of these message ids (fix round 1, #7)
-  fs.mkdirSync(destDir, { recursive: true });
-  let copied = 0, unmatched = 0;
+  const todo = [];
+  let unmatched = 0, same = 0;
   for (const e of fs.readdirSync(srcDir, { withFileTypes: true })) {
     if (e.isFile() && MEDIA_FILE_RE.test(e.name) && (!ids || ids.has(e.name.split("-")[0]))) {
       const dest = path.join(destDir, e.name);
       if (skip && skip.has(e.name)) continue;
       if (skipExisting && fs.existsSync(dest)) continue;
-      if (journal) journal.copy(path.join(srcDir, e.name), dest);
-      else fs.copyFileSync(path.join(srcDir, e.name), dest);
-      copied++;
+      let size = 0;
+      try { size = fs.statSync(path.join(srcDir, e.name)).size; } catch (err) { /* the copy reports it */ }
+      if (skipSame) {
+        let have = null;
+        try { have = fs.statSync(dest); } catch (err) { /* not there yet */ }
+        if (have && have.isFile() && have.size === size) { same++; continue; }
+      }
+      todo.push({ name: e.name, size });
     } else unmatched++;
   }
-  return { copied, unmatched };
+  return { todo, unmatched, same };
+}
+function copyMediaFlat(srcDir, destDir, opts) {
+  const journal = (opts && opts.journal) || null;
+  fs.mkdirSync(destDir, { recursive: true });
+  const plan = planMediaCopy(srcDir, destDir, opts);
+  for (const f of plan.todo) {
+    const dest = path.join(destDir, f.name);
+    if (journal) journal.copy(path.join(srcDir, f.name), dest);
+    else fs.copyFileSync(path.join(srcDir, f.name), dest);
+  }
+  return { copied: plan.todo.length, unmatched: plan.unmatched, same: plan.same };
+}
+// SP7 (SP6 carry-over): the same copy, one file at a time without blocking
+// the server, so GET /api/progress can report it while it runs.
+// GCA_TEST_COPY_DELAY_MS slows each file down so the tests can watch it.
+const COPY_DELAY_MS = Math.max(0, Number(process.env.GCA_TEST_COPY_DELAY_MS) || 0);
+async function copyMediaFlatAsync(srcDir, destDir, opts, progress) {
+  const journal = (opts && opts.journal) || null;
+  fs.mkdirSync(destDir, { recursive: true });
+  const plan = planMediaCopy(srcDir, destDir, opts);
+  progress.totalFiles = plan.todo.length;
+  progress.totalBytes = plan.todo.reduce((n, f) => n + f.size, 0);
+  for (const f of plan.todo) {
+    const dest = path.join(destDir, f.name);
+    if (journal) await journal.copyAsync(path.join(srcDir, f.name), dest);
+    else await fsp.copyFile(path.join(srcDir, f.name), dest);
+    progress.files++;
+    progress.bytes += f.size;
+    if (COPY_DELAY_MS) await new Promise((r) => setTimeout(r, COPY_DELAY_MS));
+  }
+  return { copied: plan.todo.length, unmatched: plan.unmatched, same: plan.same };
 }
 // Fix round 1 (#9): a new source is copied over the previous one (source/ and
 // media/) BEFORE its build runs, so a failed build used to leave the previous
@@ -218,16 +260,17 @@ function copyMediaFlat(srcDir, destDir, opts) {
 // flat (no folders), so one backup folder per destination never clashes.
 function copyJournal(backupDir) {
   const created = [], saved = [];
+  const note = (dest) => {
+    if (fs.existsSync(dest)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+      const kept = path.join(backupDir, path.basename(dest));
+      fs.renameSync(dest, kept);
+      saved.push([kept, dest]);
+    } else created.push(dest);
+  };
   return {
-    copy(src, dest) {
-      if (fs.existsSync(dest)) {
-        fs.mkdirSync(backupDir, { recursive: true });
-        const kept = path.join(backupDir, path.basename(dest));
-        fs.renameSync(dest, kept);
-        saved.push([kept, dest]);
-      } else created.push(dest);
-      fs.copyFileSync(src, dest);
-    },
+    copy(src, dest) { note(dest); fs.copyFileSync(src, dest); },
+    async copyAsync(src, dest) { note(dest); await fsp.copyFile(src, dest); },
     rollback() {
       const problems = [];
       for (const f of created) { try { fs.rmSync(f, { force: true }); } catch (e) { problems.push(f); } }
@@ -475,8 +518,23 @@ function resolveArchiveRoot(rootIn) {
     swapped, via: loc.via, notes: notes.map(withText), picked: loc.picked,
   };
 }
-function apiSource(body, res) {
-  const src = resolveSource(body);
+// SP7 (SP6 carry-over): the copy + build in progress, for GET /api/progress
+// and the busy guard — null when none runs. One at a time: a second build,
+// a save or Start over while one runs gets a 409 instead of racing it.
+let job = null;
+const BUSY = "A build is still running. Wait for it to finish, then try again.";
+function apiProgress(res) {
+  sendJSON(res, 200, job ? Object.assign({ running: true }, job) : { running: false });
+}
+async function apiSource(body, res) {
+  if (job) return sendJSON(res, 409, { error: BUSY });
+  job = { phase: "check", files: 0, totalFiles: 0, bytes: 0, totalBytes: 0 };
+  live.enter();   // the work below is real activity: no idle auto-exit
+  try { return await sourceAndBuild(body, res, job); }
+  finally { job = null; live.leave(); }
+}
+async function sourceAndBuild(body, res, progress) {
+  const src = duringBlocking(() => resolveSource(body));
   if (src.error) return sendJSON(res, src.status || 400, { error: src.error });
   const { groupFiles, headerFiles, mediaAbs, swapped } = src;
 
@@ -537,15 +595,15 @@ function apiSource(body, res) {
     const headerDests = headerFiles.map(copyInto);
     cfg.headersJs = headerDests.length === 1 ? headerDests[0] : headerDests;  // metadata only (roster + events)
 
-    // media is required → always copied. Thousands of files can take a while to
-    // copy synchronously, so bracket it in duringBlocking like the build below —
-    // otherwise the auto-exit watchdog could mistake the frozen event loop for
-    // the browser having closed.
-    // SP7: an archive picked by its folder may have no group media folder
-    // (none was sent); the media already copied in stays.
+    // SP7: copied one file at a time without blocking the server, so the
+    // wizard can show "N of M files" (GET /api/progress). An archive picked
+    // by its folder may have no group media folder (none was sent); the
+    // media already copied in stays. Files already there unchanged aren't
+    // copied again (adding a newer export).
+    progress.phase = "copy";
     media = mediaAbs
-      ? duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids: keepIds || new Set(), journal: mediaJournal }))
-      : { copied: 0, unmatched: 0 };
+      ? await copyMediaFlatAsync(mediaAbs, mediaDestDir, { ids: keepIds || new Set(), journal: mediaJournal, skipSame: true }, progress)
+      : { copied: 0, unmatched: 0, same: 0 };
     fs.mkdirSync(mediaDestDir, { recursive: true });
     cfg.mediaDir = mediaDestDir;
     // SP-14: remembered so media pruned for a removed group / person can be
@@ -555,7 +613,8 @@ function apiSource(body, res) {
   } catch (e) { undo(); throw e; }   // a copy failed part-way (disk full, unreadable file …)
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
-  const built = runBuild();
+  progress.phase = "build";
+  const built = await runBuildAsync();
   if (!built.ok) {
     // A failed build wrote no data.js; put config.json, source/ and media/ back
     // the way they were so the wizard isn't left pointing at the file that just failed.
@@ -568,7 +627,7 @@ function apiSource(body, res) {
 
   const groups = groupsOf(readSummary());
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
+  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
 // The media folder against this export's message ids: files that will be
 // copied (`files`, `bytes`), files of removed people / groups (`removed`)
@@ -620,6 +679,7 @@ function missingPartFiles(files) {
 // changes. Each file is streamed one message at a time (never a whole-file
 // string); memory is the message ids (to match media and overlap) plus counts.
 function apiPreflight(body, res) {
+  if (job) return sendJSON(res, 409, { error: BUSY });
   const src = resolveSource(body);
   if (src.error) return sendJSON(res, src.status || 400, { error: src.error });
   const cfg = loadConfig();
@@ -705,22 +765,48 @@ function surveyMerge(sv) {
 // stack trace); the full stderr goes to this server's console only. The log is
 // shown in the wizard, so ask for plain text (an inherited FORCE_COLOR would
 // wrap every number in ANSI colour codes). SP-10: heap sized to the machine.
-function runBuild() {
+function buildEnvOf() {
   const buildEnv = Object.assign({}, process.env, { NO_COLOR: "1" });
   delete buildEnv.FORCE_COLOR;
-  // eslint-disable-next-line no-control-regex -- matching ESC is the point
-  const plain = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
+  return buildEnv;
+}
+// eslint-disable-next-line no-control-regex -- matching ESC is the point
+const plainText = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
+function buildFailed(stdout, stderrRaw) {
+  const stderr = plainText(stderrRaw);
+  console.error("Build failed:\n" + stderr.trim());
+  const error = buildFailureMessage(stderr);
+  const log = ((stdout ? plainText(stdout).trim() : "") + "\nBUILD ERROR: " + error).trim();
+  return { ok: false, error, log };
+}
+function runBuild() {
   try {
     const out = duringBlocking(() => execFileSync(process.execPath, buildNodeArgs(path.join(__dirname, "build.js"), os.totalmem()),
-      { cwd: ROOT, env: buildEnv, stdio: ["ignore", "pipe", "pipe"] }));
-    return { ok: true, log: plain(out).trim() };
+      { cwd: ROOT, env: buildEnvOf(), stdio: ["ignore", "pipe", "pipe"] }));
+    return { ok: true, log: plainText(out).trim() };
   } catch (e) {
-    const stderr = e.stderr ? plain(e.stderr) : String(e.message || e);
-    console.error("Build failed:\n" + stderr.trim());
-    const error = buildFailureMessage(stderr);
-    const log = ((e.stdout ? plain(e.stdout).trim() : "") + "\nBUILD ERROR: " + error).trim();
-    return { ok: false, error, log };
+    return buildFailed(e.stdout, e.stderr ? e.stderr : String(e.message || e));
   }
+}
+// SP7: the same build without blocking the server (GET /api/progress and the
+// heartbeat keep answering while a big archive builds).
+function runBuildAsync() {
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(process.execPath, buildNodeArgs(path.join(__dirname, "build.js"), os.totalmem()),
+        { cwd: ROOT, env: buildEnvOf(), stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    } catch (e) { resolve(buildFailed("", String(e && e.message || e))); return; }
+    const out = [], err = [];
+    child.stdout.on("data", (c) => out.push(c));
+    child.stderr.on("data", (c) => err.push(c));
+    child.on("error", (e) => resolve(buildFailed(Buffer.concat(out), String(e && e.message || e))));
+    child.on("close", (code) => {
+      const stdout = Buffer.concat(out), stderr = Buffer.concat(err);
+      if (code === 0) resolve({ ok: true, log: plainText(stdout).trim() });
+      else resolve(buildFailed(stdout, stderr.length ? stderr : "The build exited with code " + code + "."));
+    });
+  });
 }
 // SP-23: bytes the wizard is about to write — each export file copied plus
 // about as much again for data.js, every media file that will be copied, and
@@ -1194,8 +1280,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; return sendJSON(res, 200, pickReply(nativePick("file", which))); }
     if (req.method === "GET" && url === "/api/pick-folder") return sendJSON(res, 200, pickReply(nativePick("folder", /(?:^|&)for=root(?:&|$)/.test(qs || "") ? "root" : "media")));
     if (req.method === "POST" && url === "/api/preflight") return apiPreflight(await readBody(req, res), res);
-    if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req, res), res);
+    if (req.method === "POST" && url === "/api/source") return await apiSource(await readBody(req, res), res);
+    if (req.method === "GET" && url === "/api/progress") return apiProgress(res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
+    if (job && (url === "/api/identity" || url === "/api/reset" || url === "/api/removal-preview")) { req.resume(); return sendJSON(res, 409, { error: BUSY }); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req, res), res);
     if (req.method === "POST" && url === "/api/removal-preview") return apiRemovalPreview(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/status") return apiStatus(res);

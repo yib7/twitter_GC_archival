@@ -141,3 +141,50 @@ describe("SP7: building from the archive folder", () => {
     assert.ok(j.notes.some((n) => n.code === "no-media"));
   });
 });
+
+// SP6 carry-over: the media copy reported progress nowhere — a big media
+// folder looked frozen. It now runs without blocking the server, and
+// GET /api/progress says how far it is; while it runs, a second build, a
+// save or Start over is refused (409) instead of racing it.
+describe("SP7: media copy progress and the busy guard", () => {
+  let S;
+  before(async () => { S = await startServer({ GCA_TEST_COPY_DELAY_MS: "300" }); });
+  after(() => S.stop());
+
+  test("progress counts files and bytes while the copy runs, and other changes wait", async () => {
+    const f = X.writeExport(scratch());
+    const idle = await (await S.get("/api/progress")).json();
+    assert.deepEqual(idle, { running: false });
+    const pending = source(S, f);
+    let seen = null;
+    for (let i = 0; i < 100 && !seen; i++) {
+      const p = await (await S.get("/api/progress")).json();
+      if (p.running && p.phase === "copy" && p.files >= 1) seen = p;
+      else await new Promise((r) => setTimeout(r, 50));
+    }
+    assert.ok(seen, "progress was reported mid-copy");
+    assert.equal(seen.totalFiles, 3);
+    assert.equal(seen.totalBytes, 13);
+    assert.ok(seen.files < 3 && seen.bytes > 0 && seen.bytes < 13, JSON.stringify(seen));
+    // the server stays responsive and refuses to start anything else
+    assert.equal((await S.get("/api/ping?c=t")).status, 200);
+    assert.equal((await source(S, f)).status, 409);
+    assert.equal((await S.post("/api/identity", { names: {}, pfps: {}, gc: {} })).status, 409);
+    assert.equal((await S.post("/api/reset", {})).status, 409);
+    assert.equal((await S.post("/api/preflight", { groupJs: f.group, headersJs: f.headers, mediaDir: f.media })).status, 409);
+    const r = await pending;
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.mediaCopied, 3);
+    assert.deepEqual(await (await S.get("/api/progress")).json(), { running: false });
+  });
+
+  test("building the same export again doesn't copy media it already has", async () => {
+    const f = X.writeExport(scratch());
+    const r = await source(S, f);
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.mediaCopied, 0);
+    assert.equal(j.mediaSame, 3);
+  });
+});

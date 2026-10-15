@@ -360,7 +360,31 @@ const fmtDay = (ms) => (ms == null ? "?" : new Date(ms).toLocaleDateString(undef
 const fmtSpan = (a, b) => (a == null ? "no dates" : fmtDay(a) === fmtDay(b) ? fmtDay(a) : fmtDay(a) + " – " + fmtDay(b));
 function fmtBytes(n) {
   if (!(n > 0)) return "0 MB";
-  return n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0) + " MB";
+  if (n < 1024) return n + " B";
+  return n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0) + " MB";
+}
+// SP7 (SP6 carry-over): while a build runs, ask the server how far the media
+// copy is and show it — a big media folder used to look frozen for minutes.
+function showProgress(p) {
+  let html;
+  if (p.phase === "copy" && p.totalFiles) {
+    html = escapeHtml(`Copying photos & videos… ${Number(p.files).toLocaleString()} of ${plural(p.totalFiles, "file", "files")} (${fmtBytes(p.bytes)} of ${fmtBytes(p.totalBytes)})`) +
+      `<progress class="build-progress" max="${Math.max(1, p.totalBytes || p.totalFiles)}" value="${p.totalBytes ? p.bytes : p.files}"></progress>`;
+  } else if (p.phase === "build") html = "Building your archive… (big archives take a minute)";
+  else html = "Copying your export…";
+  flash($("#src-result"), html, "");
+}
+function watchProgress() {
+  let stopped = false, timer = null;
+  const tick = async () => {
+    try {
+      const p = await (await fetch("/api/progress")).json();
+      if (!stopped && p && p.running) showProgress(p);
+    } catch (e) { /* the build's own reply will say what happened */ }
+    if (!stopped) timer = setTimeout(tick, 400);
+  };
+  timer = setTimeout(tick, 200);
+  return () => { stopped = true; clearTimeout(timer); };
 }
 const VIA = { manifest: "Found through the archive's data/manifest.js", scan: "Found by file name in the archive folder", files: "The files you picked" };
 function renderPreflight(j) {
@@ -440,8 +464,9 @@ $("#btn-confirm").onclick = async () => {
   building = true;
   $("#btn-build").disabled = true;
   $("#btn-confirm").disabled = true;
+  const stopWatching = watchProgress();
   try {
-    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).finally(stopWatching);
     const j = await r.json();
     // SP-1 / SP-17: a failed build shows the server's plain-language sentence
     // plus the build log (collapsed), and leaves step 1 unlocked to fix it.
