@@ -200,3 +200,22 @@ test("SP-2: a missing part file is called out (headers list messages with no bod
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /Warning: 2 message\(s\) listed in the headers file have no message text.*-part/);
 });
+
+// SP7 carry-over (SP6 review #1): data.js missing while its backup or an
+// unfinished save sits next to it means the archive's history is in one of
+// those files (a crash mid-swap, or data.js deleted by hand). Building from
+// the export alone would silently replace that history, so stop and say what
+// to do. Nothing may be written.
+for (const leftover of ["data.js.bak", "data.js.4242.0a1b2c3d.tmp", "data.js.bak.4242.0a1b2c3d.tmp"]) {
+  test("SP7: no data.js but a leftover " + leftover + " stops the build with a plain sentence", () => {
+    const { personal, files } = setup();
+    fs.writeFileSync(path.join(personal, leftover), "window.CHAT_DATA = {\"conversations\":[]};\n");
+    const r = runBuild(personal, { sourceJs: [files.group], headersJs: files.headers });
+    assert.equal(r.status, 2, r.stdout + r.stderr);
+    assert.match(r.stderr, /^BUILD ERROR: .*data\.js\) is missing/m);
+    assert.ok(r.stderr.includes(leftover), "the sentence names the leftover file");
+    assert.match(r.stderr, /Start over/);
+    noStack(r);
+    assert.ok(!fs.existsSync(path.join(personal, "data.js")), "no data.js is written");
+  });
+}

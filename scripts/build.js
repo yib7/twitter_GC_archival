@@ -33,7 +33,7 @@
 const fs = require("fs");
 const path = require("path");
 const core = require("./build-core.js");
-const { scanExportFile, scanArchiveFile, readExportHead, writeChunksAtomic, replaceFile } = require("./fs-io.js");
+const { scanExportFile, scanArchiveFile, readExportHead, writeChunksAtomic, replaceFile, TMP_RE } = require("./fs-io.js");
 
 const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
 const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(here, "personal_data");
@@ -104,7 +104,18 @@ function ingest(acc, file, which) {
 // streamed into the accumulator one conversation at a time, so it may be any
 // size (fix round 1: no ~512 MB ceiling). Returns null when there is none.
 function loadPrev(acc) {
-  if (!fs.existsSync(OUT)) return null;
+  if (!fs.existsSync(OUT)) {
+    // SP7: no data.js, but its backup or an unfinished save is right next to
+    // it (a crash mid-swap, or data.js deleted by hand): the history is in
+    // there. Building from this export alone would replace it, so stop.
+    const left = leftoversOf(OUT);
+    if (left.length) {
+      fail("Your archive (personal_data/data.js) is missing, but " + left.map((f) => "“" + f + "”").join(", ") +
+        " is next to where it should be, and may hold your archive's history. The build stopped so that history isn't replaced by this export alone. " +
+        "To keep it, make a copy of that file and rename it to data.js, then build again. To start fresh from this export instead, use Start over (it erases the leftovers).");
+    }
+    return null;
+  }
   try {
     return scanArchiveFile(OUT, { onConversation: (c) => acc.addPrev({ conversations: [c] }) }, scanOpts());
   } catch (e) {
@@ -114,6 +125,18 @@ function loadPrev(acc) {
     if (msg) fail(msg);
     throw e;
   }
+}
+// data.js.bak, data.js.<pid>.<hex>.tmp (a write or swap cut short) and
+// data.js.bak.<pid>.<hex>.tmp next to `file`, newest first.
+function leftoversOf(file) {
+  const dir = path.dirname(file), base = path.basename(file);
+  let names;
+  try { names = fs.readdirSync(dir); } catch (e) { return []; }
+  return names
+    .filter((n) => n === base + ".bak" || (n.startsWith(base + ".") && TMP_RE.test(n)))
+    .map((n) => { let t = 0; try { t = fs.statSync(path.join(dir, n)).mtimeMs; } catch (e) { /* gone */ } return { n, t }; })
+    .sort((a, b) => b.t - a.t || (a.n < b.n ? -1 : 1))
+    .map((x) => x.n);
 }
 // Read size for the streaming readers; GCA_SCAN_CHUNK (bytes) lets tests force
 // tiny reads through the whole build.
