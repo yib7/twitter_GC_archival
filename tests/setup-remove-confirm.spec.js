@@ -47,8 +47,14 @@ test("removing a person asks first, with real counts and 'every group'; Cancel s
   const dlg = page.locator("#remove-modal");
   await expect(dlg).toBeVisible();
   await expect(dlg).toHaveAttribute("role", "dialog");
-  await expect(dlg).toContainText("Permanently removes 1,234 messages and their 56 media files");
+  await expect(dlg).toContainText("Takes 1,234 messages and their 56 media files out of your archive");
   await expect(dlg).toContainText(/every group/);
+  // Since removed messages and media are quarantined in personal_data/.removed
+  // and come back on un-remove, the dialog must not promise deletion.
+  await expect(dlg).not.toContainText(/permanent/i);
+  await expect(dlg).toContainText("kept in a private folder");
+  await expect(dlg).toContainText(/Start over/);
+  await expect(page.locator("#remove-go")).toHaveText("Remove");
   expect(previewed.ignoredUsers).toEqual(["2222"]);
   await expect(page.locator("#remove-cancel")).toBeFocused();
   await page.locator("#remove-cancel").click();

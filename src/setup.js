@@ -712,9 +712,10 @@ function personCard(p) {
 }
 
 /* ---- step 4: save -------------------------------------------------------- */
-// Removing rebuilds the archive without those messages, so a
-// save that removes more than before asks first, with real counts from the
-// server. Resolves true to go ahead.
+// Removing rebuilds the archive without those messages (they are kept in
+// personal_data/.removed until un-removed or Start over), so a save that
+// removes more than before asks first, with real counts from the server.
+// Resolves true to go ahead.
 const removeModal = $("#remove-modal");
 function plural(n, one, many) { return Number(n).toLocaleString() + " " + (n === 1 ? one : many); }
 async function confirmRemoval(ignoredGroups, ignoredUsers, newGroups, newPeople) {
@@ -727,8 +728,8 @@ async function confirmRemoval(ignoredGroups, ignoredUsers, newGroups, newPeople)
     if (r.ok) p = await r.json();
   } catch (e) { /* counts unknown: still ask */ }
   const what = p
-    ? "Permanently removes " + plural(p.messages, "message", "messages") + " and their " + plural(p.media, "media file", "media files") + " from your archive"
-    : "Permanently removes the messages and media of what you marked for removal from your archive";
+    ? "Takes " + plural(p.messages, "message", "messages") + " and their " + plural(p.media, "media file", "media files") + " out of your archive"
+    : "Takes the messages and media of what you marked for removal out of your archive";
   const scope = newPeople
     ? ", in every group (removing a person applies to every group chat they're in)."
     : " (" + plural(newGroups, "group chat", "group chats") + ").";

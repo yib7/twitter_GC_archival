@@ -82,8 +82,10 @@ All notable changes to this project are recorded here.
   without a valid date are skipped with a warning instead of landing in 1970.
 - A message with several photos or videos shows all of them, not just the
   first.
-- Removing a group or a person rebuilds the archive, so their messages and
-  media are really gone; adding them back restores them.
+- Removing a group or a person rebuilds the archive without their messages
+  and media. Both are kept in `personal_data/.removed/` and come back when
+  you un-remove them, even after a merge; only Start over erases them. The
+  removal dialog says so instead of calling it permanent.
 - Large photos picked for a person or the group are shrunk in the browser
   before upload; every photo is checked before anything is saved, and a
   too-large one is named. A group photo no longer overwrites a person's.
