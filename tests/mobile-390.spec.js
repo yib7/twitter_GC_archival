@@ -53,3 +53,36 @@ test.describe("UX-1: touch users reach message actions through a ⋯ button", ()
     await expect(msg.locator(".msg-acts")).toBeHidden();
   });
 });
+
+test.describe("UX-17: the More sheet is a real dialog", () => {
+  test("inert while closed; on open aria-modal with focus inside and trapped; Esc closes back to the More tab", async ({ page }) => {
+    await bootViewer(page, DATA);
+    const sheet = page.locator("#more-sheet");
+    await expect(sheet).toHaveAttribute("aria-hidden", "true");
+    expect(await sheet.evaluate((s) => s.inert)).toBe(true);
+    // closed: none of its buttons is a Tab stop
+    await page.locator("#tab-more").focus();
+    for (let k = 0; k < 6; k++) {
+      await page.keyboard.press("Tab");
+      expect(await page.evaluate(() => !!document.activeElement.closest("#more-sheet"))).toBe(false);
+    }
+    await page.locator("#tab-more").tap();
+    await expect(sheet).toHaveClass(/\bon\b/);
+    await expect(sheet).toHaveAttribute("aria-modal", "true");
+    expect(await sheet.evaluate((s) => s.inert || s.getAttribute("aria-hidden") === "true")).toBe(false);
+    await expect(sheet.locator(".sh-item").first()).toBeFocused();
+    for (let k = 0; k < 16; k++) {
+      await page.keyboard.press("Tab");
+      expect(await page.evaluate(() => !!document.activeElement.closest("#more-sheet")), "Tab " + k).toBe(true);
+    }
+    await page.keyboard.press("Escape");
+    await expect(sheet).not.toHaveClass(/\bon\b/);
+    expect(await sheet.evaluate((s) => s.inert)).toBe(true);
+    await expect(page.locator("#tab-more")).toBeFocused();
+    // choosing an item navigates and also closes it inert
+    await page.locator("#tab-more").tap();
+    await sheet.locator('.sh-item[data-tab="people"]').tap();
+    expect(await sheet.evaluate((s) => s.inert)).toBe(true);
+    expect(await view(page)).toBe("people");
+  });
+});

@@ -707,7 +707,11 @@ function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 // last one in the DOM is the top layer. Escape pops only that layer; each
 // layer remembers its own opener (box._opener) so closing the top one hands
 // focus back into the layer below instead of to a single global opener.
-const MODAL_SEL = ".cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal";
+//
+// UX-17: the mobile More sheet (persistent markup, a layer only while .on) and
+// the onboarding card join the same stack; a layer that isn't simply removed
+// supplies its own box._close().
+const MODAL_SEL = ".sheet.on, .onboard, .cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal";
 function topModal() {
   const all = document.querySelectorAll(MODAL_SEL);
   return all.length ? all[all.length - 1] : null;
@@ -732,7 +736,7 @@ function applyDialog(box, label, opts) {
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-modal", "true");
   if (label) box.setAttribute("aria-label", label);
-  box.addEventListener("keydown", trapTab);
+  if (!box._trapped) { box.addEventListener("keydown", trapTab); box._trapped = true; }   // a reused box (the More sheet) traps once
   const initial = (opts.initial && box.querySelector(opts.initial)) || focusablesIn(box)[0];
   if (initial && initial.focus) { try { initial.focus(); } catch (e) {} }
 }
@@ -751,6 +755,7 @@ function closeTopModal() {
   const top = topModal();
   if (!top) return false;
   if (top === lbState.box) closeLightbox();
+  else if (top._close) top._close();
   else { top.remove(); restoreFocus(top); }
   return true;
 }
@@ -941,6 +946,11 @@ function mobileSheetOpen() {
   const scrim = document.getElementById("sheet-scrim");
   if (!sheet || !scrim) return;
   sheet.classList.add("on"); scrim.classList.add("on");
+  // UX-17: a real modal while open — reachable, focus moved in and trapped,
+  // Esc (closeTopModal → _close) or the scrim closes it back to its opener.
+  sheet.inert = false; sheet.removeAttribute("aria-hidden");
+  sheet._close = mobileSheetClose;
+  applyDialog(sheet, "More views", { initial: ".sh-item" });
 }
 // Returns true if the sheet was open (so Escape handling can stop there).
 function mobileSheetClose() {
@@ -949,6 +959,9 @@ function mobileSheetClose() {
   sheet.classList.remove("on");
   const scrim = document.getElementById("sheet-scrim");
   if (scrim) scrim.classList.remove("on");
+  // closed = out of the Tab order and the accessibility tree (UX-17)
+  sheet.inert = true; sheet.setAttribute("aria-hidden", "true");
+  restoreFocus(sheet);
   return true;
 }
 // Mirror .nav-item.active onto the tab bar: the four tab views light their own
@@ -3735,7 +3748,8 @@ function setView(name) {
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
   reflectMobileNav(name);
-  if (name === "search") { ensureSearch(); setTimeout(() => sEls.input && sEls.input.focus(), 0); }
+  // never pull focus out of an open dialog layer (e.g. first-run onboarding)
+  if (name === "search") { ensureSearch(); setTimeout(() => { if (sEls.input && !topModal()) sEls.input.focus(); }, 0); }
   else if (name === "timeline") {
     if (!tlBuilt) {
       if (tlResume) openTimeline(Math.min(tlResume.idx, Math.max(0, N - 1)), { quiet: true, off: tlResume.off });
@@ -3846,8 +3860,7 @@ function init() {
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && (e.key === "k" || e.key === "K")) { e.preventDefault(); openCommandPalette(); return; }
     if (e.key === "Escape") {
-      if (mobileSheetClose()) return;   // the More sheet sits above the views
-      if (closeTopModal()) return;
+      if (closeTopModal()) return;      // the More sheet / onboarding are stack layers too (UX-17)
       if (closeMsgActs()) return;       // UX-1: an open ⋯ action toolbar
       closePopovers();
     }
@@ -3892,7 +3905,7 @@ function maybeShowOnboarding() {
   const ov = el("div", "onboard");
   ov.innerHTML = `
     <div class="onboard-card">
-      <div class="onboard-title">Welcome to your Group Chat Archive</div>
+      <div class="onboard-title" id="onboard-title">Welcome to your Group Chat Archive</div>
       <div class="onboard-body">
         ${IS_SAMPLE
           ? `You're looking at <b>synthetic demo data</b>. To load your own Twitter/X
@@ -3916,11 +3929,20 @@ function maybeShowOnboarding() {
   const close = () => {
     if (ov.querySelector("#onboard-never").checked) { try { localStorage.setItem("gca.onboarded", "1"); } catch (e) {} }
     ov.remove();
+    restoreFocus(ov);
   };
   ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
   ov.querySelector("#onboard-people").onclick = () => { close(); setView("people"); };
   ov.querySelector("#onboard-dismiss").onclick = close;
   document.body.appendChild(ov);
+  // UX-17: a real dialog — labelled, focus moved in and trapped; Esc = "Maybe later"
+  // Opened at boot, so there is no opener to hand focus back to: return it to
+  // the current view's own nav item (sidebar on desktop, tab bar on mobile).
+  ov._close = close;
+  ov.setAttribute("aria-labelledby", "onboard-title");
+  const home = [...document.querySelectorAll(".nav-item.active, .tabbar .tab.active, #tab-more.active")]
+    .find((n) => n.getClientRects().length) || null;
+  applyDialog(ov, null, { initial: ".onboard-actions .btn", opener: home });
 }
 
 /* ===========================================================================

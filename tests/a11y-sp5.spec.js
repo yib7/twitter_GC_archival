@@ -388,3 +388,27 @@ test.describe("UX-16: the command palette is a combobox", () => {
     await expect(page.locator("#sr-status")).toContainText("No matches");
   });
 });
+
+test.describe("UX-17: onboarding is a real dialog", () => {
+  test("role=dialog + aria-modal + labelled, focus moves in, Tab is trapped, Esc closes and restores focus", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.onboarded": "0" } });
+    const ov = page.locator(".onboard");
+    await expect(ov).toBeVisible();
+    await expect(ov).toHaveAttribute("role", "dialog");
+    await expect(ov).toHaveAttribute("aria-modal", "true");
+    const lb = await ov.getAttribute("aria-labelledby");
+    await expect(page.locator("#" + lb)).toHaveText(/Welcome/);
+    expect(await page.evaluate(() => !!document.activeElement.closest(".onboard"))).toBe(true);
+    for (let k = 0; k < 8; k++) {
+      await page.keyboard.press("Tab");
+      expect(await page.evaluate(() => !!document.activeElement.closest(".onboard")), "Tab " + k).toBe(true);
+    }
+    // it sits in the shared modal layer, under the toast layer
+    const z = await ov.evaluate((e) => [getComputedStyle(e).zIndex, getComputedStyle(document.documentElement).getPropertyValue("--z-modal").trim()]);
+    expect(z[0]).toBe(z[1]);
+    await page.keyboard.press("Escape");
+    await expect(ov).toHaveCount(0);
+    // opened at boot (no opener): focus returns to the current view's nav item
+    await expect(page.locator('.nav-item[data-view="search"]')).toBeFocused();
+  });
+});
