@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -8,7 +8,7 @@ const { waitForBootLine } = require("./wait-for-boot-line.js");
 const X = require("./fixtures/x-export.js");
 const { checkAndBuild } = require("./_setup-helpers.js");
 
-// SP7 (SP6 carry-over): the wizard shows how far the media copy is while a
+// the wizard shows how far the media copy is while a
 // build runs. Own server (GCA_PORT=0, mkdtemp GCA_PERSONAL, root fallbacks and
 // native pickers off) with GCA_TEST_COPY_DELAY_MS slowing each media file down
 // so the progress is visible; synthetic export only.

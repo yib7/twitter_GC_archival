@@ -1,11 +1,11 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert");
 const os = require("node:os");
 const path = require("node:path");
 const fs = require("node:fs");
 
-// QA-2/SP-16 checkpoint test (review-fix item 3a): playwright.config.js's own
+// Checkpoint test for the e2e real-data isolation: playwright.config.js's own
 // isolation properties (dedicated port, throwaway GCA_PERSONAL, no legacy
 // root fallback, never reuse a stray server) are exactly what stand between
 // this suite and a real personal_data/ archive. Nothing before this test

@@ -1,5 +1,5 @@
 /*
- * SP7: pick the archive root. A real X archive lists its data files in
+ * pick the archive root. A real X archive lists its data files in
  * data/manifest.js (window.__THAR_CONFIG = {…}); the wizard reads it to find
  * the group messages files (every part), the headers and the group media
  * folder, and falls back to scanning file names when it is missing or
@@ -7,7 +7,7 @@
  * user picked (no "..", no absolute paths, no symlink / junction escapes).
  * Synthetic archives only (tests/fixtures/x-export.js).
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -118,7 +118,7 @@ test("locateExport falls back to scanning file names when there is no (usable) m
   assert.equal(loc2.messages.length, 2);
 });
 
-// SP7 fix round 1 (#6): the manifest isn't the whole story — a part on disk
+// the manifest isn't the whole story — a part on disk
 // that a stale manifest doesn't list is still found (by its export name).
 test("locateExport adds a part file on disk that the manifest doesn't list", () => {
   const f = X.writeExport(scratch(), { manifest: true });

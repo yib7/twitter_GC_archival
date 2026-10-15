@@ -1,15 +1,15 @@
 const { test, expect } = require("@playwright/test");
 
-// P2-2: from:/sender:/before:/after: search operators must be TRANSIENT overlay
+// from:/sender:/before:/after: search operators must be TRANSIENT overlay
 // filters recomputed fresh every run, not additive mutations of the persistent
 // F.people/F.from/F.to filter state. Typing a partial token (no trailing
 // boundary) must not touch results or the People filter UI, and clearing the
 // query must fully restore the unfiltered view with no residual filter chips.
 //
-// P2-4: a `file`-kind media message (kindOf() for unknown extensions, e.g. a
+// a `file`-kind media message (kindOf() for unknown extensions, e.g. a
 // .pdf) must render as a file chip in the gallery grid, not a broken <video>.
 //
-// P2-3: has:media/has:links/has:reacts must be transient per-run overlays too,
+// has:media/has:links/has:reacts must be transient per-run overlays too,
 // not writes into the persistent F.media/F.links/F.reacts pill state. Typing
 // `has:media` must never latch the Media pill ON, and clearing the query must
 // fully restore the unfiltered view. Overlay and manual pills AND-combine.
@@ -37,7 +37,7 @@ const DATA = {
 // Dedicated fixture for the has: operator tests: one plain message, one
 // media-only, one links-only, and one with media AND links so the pill+operator
 // combination can be told apart from either filter alone. (Kept separate from
-// DATA so the P2-2 tests' expected counts stay untouched.)
+// DATA so the operator tests' expected counts stay untouched.)
 const HAS_DATA = {
   __sample: true,
   conversations: [
@@ -54,7 +54,7 @@ const HAS_DATA = {
   ],
 };
 
-// QA-15: a fixed `waitForTimeout(250)` after typing only proves 250ms elapsed
+// a fixed `waitForTimeout(250)` after typing only proves 250ms elapsed
 // — a search that never reran (e.g. an event handler silently detached) would
 // pass exactly the same way if every assertion after it is a NEGATIVE one
 // (toBeHidden / not.toHaveClass). runSearch() bumps #s-meta's data-gen on
@@ -111,7 +111,7 @@ test("partial from: token does not narrow results or touch the People filter UI"
   // the People filter UI silently gaining a selection nobody made. It must
   // stay untouched regardless of how the text search itself scores "bo".
   //
-  // QA-15: both checks below are negative (toBeHidden / not.toHaveClass), so a
+  // both checks below are negative (toBeHidden / not.toHaveClass), so a
   // plain sleep would pass even if this fill() never triggered a re-run at
   // all — waiting for the search generation to actually change first proves
   // runSearch() really executed with "from:bo" in the box.

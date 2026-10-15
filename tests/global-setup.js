@@ -1,4 +1,4 @@
-// QA-2/SP-16 (correction after review): this is belt-and-suspenders
+// this is belt-and-suspenders
 // defense-in-depth, NOT the primary enforcement point. In @playwright/test
 // 1.62.1, plugin setup — which is what spawns the webServer — runs BEFORE
 // globalSetups (node_modules/playwright/lib/runner/index.js:6003-6009 runs

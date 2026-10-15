@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
-// VC-13: renderChunk() started prevDay / prevSenderId / prevTimestamp fresh for
+// renderChunk() started prevDay / prevSenderId / prevTimestamp fresh for
 // every 50-message chunk, so a single busy day showed its "Sunday, March 10"
 // pill again at every chunk boundary (20x for a 1,000-message day) and the
 // first message of each chunk re-showed avatar + name mid-run. The state is
@@ -27,7 +27,7 @@ async function chunks(page, n = 3) {
   return out;
 }
 
-test("VC-13: one day spanning several chunks gets one day pill and unbroken sender runs", async ({ page }) => {
+test("one day spanning several chunks gets one day pill and unbroken sender runs", async ({ page }) => {
   // 150 messages from one sender, 1 minute apart, all on Sunday March 10 (UTC).
   const DATA = { conversations: [conv("A", "Alpha", msgs("a", 150, { s: ["u1"], t0: T0 }))] };
   await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
@@ -47,7 +47,7 @@ test("VC-13: one day spanning several chunks gets one day pill and unbroken send
   }
 });
 
-test("VC-13: a new day that starts exactly at a chunk boundary still gets its in-flow pill", async ({ page }) => {
+test("a new day that starts exactly at a chunk boundary still gets its in-flow pill", async ({ page }) => {
   const day1 = msgs("d", 50, { s: ["u1"], t0: T0 });
   const day2 = msgs("e", 30, { s: ["u1"], t0: T0 + 86400000 });
   await bootViewer(page, { conversations: [conv("A", "Alpha", [...day1, ...day2])] }, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
@@ -58,7 +58,7 @@ test("VC-13: a new day that starts exactly at a chunk boundary still gets its in
   expect(c[1].firstMsgConsecutive).toBe(false);
 });
 
-test("VC-13: an event closing the previous chunk breaks the sender run", async ({ page }) => {
+test("an event closing the previous chunk breaks the sender run", async ({ page }) => {
   const list = msgs("a", 80, { s: ["u1"], t0: T0 });
   // Event at the same instant as message 49 (last of chunk 0) -> bucketed into chunk 0, after it.
   const events = [{ type: "join", s: "u1", ids: ["u2"], t: list[49].t }];

@@ -1,5 +1,5 @@
 /*
- * SP7 fix round 1 (#3): media copies never replace a good file and never
+ * media copies never replace a good file and never
  * leave a partial one. X names group media "<messageId>-<mediaId>.<ext>", so
  * a name already in personal_data/media is the same picture — a merge keeps
  * it (an empty file counts as missing). Every copy goes to a temp name and
@@ -7,7 +7,7 @@
  * crash's temp files are cleared by the next successful build.
  * Real servers (GCA_PORT=0, mkdtemp GCA_PERSONAL); synthetic exports only.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -22,7 +22,7 @@ after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: tr
 const source = (S, f) => S.post("/api/source", { groupJs: f.group, headersJs: f.headers, mediaDir: f.media });
 const TMP = /\.\d+\.[0-9a-f]{8}\.tmp$/;
 
-describe("SP7 fix 3: a merge never replaces media the archive already has", () => {
+describe("a merge never replaces media the archive already has", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -48,7 +48,7 @@ describe("SP7 fix 3: a merge never replaces media the archive already has", () =
   });
 });
 
-describe("SP7 fix 3: a crash mid-copy leaves no partial file at its real name", () => {
+describe("a crash mid-copy leaves no partial file at its real name", () => {
   let personal, f;
   before(() => { personal = scratch("gca-media-crash-personal-"); f = X.writeExport(scratch()); });
 
@@ -78,7 +78,7 @@ describe("SP7 fix 3: a crash mid-copy leaves no partial file at its real name", 
   });
 });
 
-test("SP7 fix 3: a crash's temp file is never indexed as a message's media", () => {
+test("a crash's temp file is never indexed as a message's media", () => {
   const core = require("../scripts/build-core.js");
   assert.deepEqual(core.indexMediaFiles(["9002-AbCdEf.png", "9002-AbCdEf.png.4242.0a1b2c3d.tmp"], "personal_data/media"), { 9002: ["personal_data/media/9002-AbCdEf.png"] });
 });

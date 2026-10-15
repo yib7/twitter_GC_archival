@@ -16,7 +16,7 @@ const { createExportScanner, createArchiveScanner, parseManifest, exportFamilies
 const DEFAULT_CHUNK = 1 << 20;   // 1 MiB
 
 // Feed a file to a streaming scanner in `chunkSize`-byte reads, so the file is
-// never one giant string (SP-10). A StringDecoder keeps multi-byte UTF-8
+// never one giant string. A StringDecoder keeps multi-byte UTF-8
 // characters that straddle a chunk boundary intact.
 function feedFile(file, scanner, opts) {
   opts = opts || {};
@@ -47,14 +47,14 @@ function scanExportFile(file, handlers, opts) {
   return feedFile(file, createExportScanner(handlers), opts);
 }
 /**
- * Stream a previously built data.js, one conversation at a time (fix round 1:
- * the accumulated history can outgrow V8's ~512 MB string limit).
+ * Stream a previously built data.js, one conversation at a time (the
+ * accumulated history can outgrow V8's ~512 MB string limit).
  * @returns {{meta: object, conversations: number}}
  */
 function scanArchiveFile(file, handlers, opts) {
   return feedFile(file, createArchiveScanner(handlers), opts);
 }
-// SP7: what the setup server needs to know about a built archive, read without
+// what the setup server needs to know about a built archive, read without
 // keeping (or even parsing) a single message: its meta and, per conversation,
 // id / type / title / participants / count. Memory is bounded by the largest
 // conversation's roster, not the archive.
@@ -66,7 +66,7 @@ function readArchiveSummary(file, opts) {
   }, opts);
   return { meta, conversations };
 }
-// SP7: run collectors (message(conv, msg) / conversation(conv) / result(),
+// run collectors (message(conv, msg) / conversation(conv) / result(),
 // see server-core.js and build-core createParticipantCollector) over a data.js
 // one message at a time; each message is dropped once the collectors saw it.
 function foldArchive(file, collectors, opts) {
@@ -102,7 +102,7 @@ function readExportHead(file, max) {
   }
 }
 
-/* ---- SP7: find the export inside a picked archive folder ------------------ */
+/* ---- find the export inside a picked archive folder ------------------ */
 const MANIFEST_MAX = 8 * 1048576;   // a real manifest is a few KB
 const isWithin = (child, parent) => {
   const rel = path.relative(parent, child);
@@ -193,7 +193,7 @@ function locateExport(pickedIn) {
     messages = fam.messages.filter(inside).map((n) => path.join(dataDir, n));
     headers = fam.headers.filter(inside).map((n) => path.join(dataDir, n));
   } else {
-    // SP7 fix round 1 (#6): the manifest isn't taken as the complete list — a
+    // the manifest isn't taken as the complete list — a
     // stale one can leave out a part that is right there. Export-named files
     // in the data folder it doesn't list are added, in part order.
     const key = (p) => { const r = path.resolve(p); return process.platform === "win32" ? r.toLowerCase() : r; };
@@ -224,7 +224,7 @@ function locateExport(pickedIn) {
   return { picked, root, dataDir, via, messages, headers, mediaDir, notes };
 }
 
-/* ---- crash-safe writes (SP-9) --------------------------------------------- */
+/* ---- crash-safe writes --------------------------------------------- */
 // Write to a temp file in the SAME directory (so the rename can't cross
 // volumes), flush it, then rename it over the target: readers see either the
 // old file or the complete new one, never a truncated mix — whatever happens
@@ -288,7 +288,7 @@ function replaceFile(tmp, dest, opts) {
   const aside = tmpNameFor(dest);
   try { rename(dest, aside); }
   catch (e) {
-    // SP7: no old file at all (a first save) — what's held is the NEW file
+    // no old file at all (a first save) — what's held is the NEW file
     // (antivirus scanning it), and there is no previous version to speak of.
     if (e && e.code === "ENOENT" && !fs.existsSync(dest)) throw newFileHeldError(dest, last);
     throw heldError(dest, last);                       // nothing moved: the caller removes tmp

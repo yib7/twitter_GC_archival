@@ -1,9 +1,9 @@
-// SP10: the pure helpers behind the one share-card renderer (src/app.js
+// the pure helpers behind the one share-card renderer (src/app.js
 // drawShareCard): grapheme splitting, canvas text wrapping and name
 // redaction. DOM-free, so the rules are pinned here; the e2e spec
 // (tests/share-card.spec.js) checks what the canvas actually draws.
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
@@ -90,7 +90,7 @@ test("createRedactor: generic 'User N' labels only redact as a whole, not the wo
   assert.match(out, /^the user said Person A was right$/);
 });
 
-// SP10 review: probes that leaked through "Hide names". Over-redaction is the
+// probes that leaked through "Hide names". Over-redaction is the
 // safe direction for a shared image, so scripts written without spaces (or
 // with attached particles / prefixes) match without word boundaries.
 const leaks = (people, text, names) => {

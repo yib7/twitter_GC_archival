@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P1-3 (+P2-7): Import Settings assigns settings.pfps/settings.gc verbatim from
+// Import Settings assigns settings.pfps/settings.gc verbatim from
 // an arbitrary JSON file, then pfpHtml() interpolates that value into a raw
 // HTML string as an unescaped style="...url('...')" attribute. A crafted pfp
 // value can close the attribute and inject markup/handlers straight into the

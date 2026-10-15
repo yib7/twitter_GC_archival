@@ -1,10 +1,10 @@
 const { test, expect } = require("@playwright/test");
 
-// P2-5: monologuer badge must fire at exactly 5 consecutive messages from the
+// monologuer badge must fire at exactly 5 consecutive messages from the
 // same sender (counting the first message of the run), not 6. u1 sends a run
 // of exactly 5 in a row, u2 a run of exactly 4; after that they alternate.
 // Only u1 should ever earn "The Monologuer".
-// SP4 (AN-7): the Monologuer is now a rate (runs of 5+ per 100 messages) that
+// the Monologuer is now a rate (runs of 5+ per 100 messages) that
 // needs 20+ messages per person, so both send 20.
 const seq = [].concat(Array(5).fill("u1"), Array(4).fill("u2"));
 for (let k = 0; k < 15; k++) seq.push("u1", "u2");

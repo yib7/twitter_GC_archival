@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert");
 const { spawn } = require("node:child_process");
@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { waitForBootLine } = require("./wait-for-boot-line.js");
 
-// QA-2/SP-16 checkpoint test (review-fix item 3b): GCA_NO_ROOT_FALLBACK is the
+// Checkpoint test for the e2e real-data isolation: GCA_NO_ROOT_FALLBACK is the
 // switch playwright.config.js sets on the shared webServer so a spawned test
 // server can never read/serve a leftover ROOT/data.js or ROOT/names.local.js
 // (readBuiltData's own fallback, and the two static routes — see server.js's
@@ -68,7 +68,7 @@ test("GCA_NO_ROOT_FALLBACK isolates a spawned server from a synthetic ROOT's fak
   const repoRoot = path.join(__dirname, "..");
   // server.js's ROOT = path.resolve(__dirname, ".."), so it resolves to
   // synthRoot only if server.js itself physically lives at synthRoot/scripts/.
-  // server-core.js, build-core.js and fs-io.js (SP6) are its same-directory
+  // server-core.js, build-core.js and fs-io.js are its same-directory
   // requires; build-core.js in turn requires ../src/shared-core.js.
   for (const f of ["server.js", "server-core.js", "build-core.js", "fs-io.js"]) {
     fs.copyFileSync(path.join(repoRoot, "scripts", f), path.join(scriptsDir, f));

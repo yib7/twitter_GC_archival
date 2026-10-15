@@ -1,6 +1,6 @@
 const { expect } = require("@playwright/test");
 
-// Shared synthetic-data harness for the viewer specs (SP2). Routes a fixture
+// Shared synthetic-data harness for the viewer specs. Routes a fixture
 // in place of data.sample.js (always flagged __sample so the app treats it as
 // the demo), blanks data.js, and optionally supplies a local.js. localStorage
 // is seeded on the FIRST load of the page only, so specs that reload keep
@@ -53,7 +53,7 @@ function collectErrors(page) {
 }
 
 // Wait until a search run has completed after `fn` (s-meta's data-gen bumps
-// once per runSearch — see QA-15 in app.js).
+// once per runSearch — see runSearch in app.js).
 async function afterSearchRun(page, fn) {
   const before = await page.locator("#s-meta").getAttribute("data-gen");
   await fn();

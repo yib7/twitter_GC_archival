@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, msgs, afterSearchRun } = require("./_viewer-fixture.js");
 
-// SP9: keyboard result navigation in Search. With focus in the result list,
+// keyboard result navigation in Search. With focus in the result list,
 // j / ↓ and k / ↑ move a roving focus between results (pulling in more pages
 // as needed), Enter opens the result, c opens its context, b bookmarks it.
 // Never while typing in the box, a chip or the autocomplete. The position is

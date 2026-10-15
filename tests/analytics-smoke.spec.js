@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// the default zone is now the viewer's own ("local"). This spec's
 // expected dates were written for UTC, so it pins the browser zone to UTC.
 test.use({ timezoneId: "UTC" });
 
@@ -145,7 +145,7 @@ test("wrapped renders and navigating years changes the label and stats", async (
   await expect(page.locator("#wr-stage .wr-big")).toHaveText("2024");
 
   // Slide 2 is the message-count stat for the year. The visible text counts up
-  // (SP3 story mode), so assert on the raw data-count target instead.
+  // (story mode), so assert on the raw data-count target instead.
   await page.locator("#wr-next").click();
   await expect(page.locator("#wr-stage .wr-label")).toContainText("messages sent in 2024");
   const stat2024 = await page.locator("#wr-stage .wr-big").getAttribute("data-count");

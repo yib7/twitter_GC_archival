@@ -8,14 +8,14 @@
 // (hueVars) without the settings.colors override, which is viewer-only.
 /* global GCAShared */
 const { initials, hueVars } = GCAShared;
-// UX-25: a person's avatar here is the same hue the viewer gives them (the
+// a person's avatar here is the same hue the viewer gives them (the
 // --p / --f pair of src/shared-core.js hueVars), not a separate palette.
 function paintHue(el, id) { const h = hueVars(id); el.style.setProperty("--p", h.p); el.style.setProperty("--f", h.f); }
 const hueStyle = (id) => { const h = hueVars(id); return `--p:${h.p};--f:${h.f}`; };
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 function fileToDataURL(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); }); }
-// SP-12: a phone photo is 3-12 MB, an avatar needs a few hundred pixels. Shrink
+// a phone photo is 3-12 MB, an avatar needs a few hundred pixels. Shrink
 // every picked photo to at most 512 px on its long side (PNG stays PNG so
 // transparency survives, anything else becomes JPEG) before it is previewed,
 // kept or uploaded. Small images are kept exactly as picked; a file that isn't
@@ -140,11 +140,11 @@ const state = { me: null, names: {}, pfps: {}, ignored: {}, ignoredGroups: {}, g
 // written to disk server-side — a path string there would be posted back as
 // if it were image data.
 let savedPfpPaths = {};
-// SP-4: group photos from an earlier save, for display only — the server
+// group photos from an earlier save, for display only — the server
 // keeps a saved photo unless a new one is uploaded, so they're never re-sent.
 let savedGcPhotos = {};
 // What the last save (or the saved config, on reopen) already removed, so a
-// save that removes MORE asks first (fix round 1, #3).
+// save that removes MORE asks first.
 const savedIgnored = { users: {}, groups: {} };
 let PARTS = [];
 let groups = [];          // [{ id, title, count }] from the build
@@ -158,7 +158,7 @@ let statusReady = null;
 // The per-group name+photo entry for the group currently being set up.
 function gcEntry() {
   const g = state.group || "";
-  // SP-4: no "name" key until one is typed (or hydrated from the last save):
+  // no "name" key until one is typed (or hydrated from the last save):
   // { name: "" } on Save used to wipe a group name saved in an earlier run.
   return state.gc[g] || (state.gc[g] = { photo: null });
 }
@@ -283,9 +283,9 @@ async function pick(kind, fill, which) {
   flash($("#src-result"), "Opening the file browser… (check for a dialog window)", "");
   try {
     const url = kind === "file" ? "/api/pick-file?for=" + (which || "group") : "/api/pick-folder" + (which === "root" ? "?for=root" : "");
-    // SP-11: the server only opens a dialog for a request carrying its token
+    // the server only opens a dialog for a request carrying its token
     const r = await fetch(url, { headers: { "X-GCA-Token": String(window.GCA_TOKEN || "") } });
-    // SP-23: tell "refused" / "failed to open" apart from "not on Windows"
+    // tell "refused" / "failed to open" apart from "not on Windows"
     if (r.status === 403) { flash($("#src-result"), "The server didn't accept this request — it may have been restarted. Reload this page and try again.", "err"); return; }
     const j = await r.json();
     if (j.error) { flash($("#src-result"), "✗ " + escapeHtml(j.error) + " Paste the full path into the box instead.", "err"); return; }
@@ -311,7 +311,7 @@ function lockSource(locked) {
   const banner = $("#src-locked"); if (banner) banner.hidden = !locked;
   if (locked) { merging = false; const m = $("#src-merge"); if (m) m.hidden = true; }
 }
-// SP-5 / QA-6: "Add a newer export" — unlock the fields to pick a newer
+// "Add a newer export" — unlock the fields to pick a newer
 // download; its preview shows what merging adds, and the build merges it into
 // the archive (the existing data.js is the baseline; removals and identity stay).
 let merging = false;
@@ -339,7 +339,7 @@ function loadStatus() {
       state.me = j && j.me != null ? String(j.me) : null;
       state.names = Object.assign({}, j && j.names || {});
       savedPfpPaths = Object.assign({}, j && j.pfps || {});
-      // SP-4: group names (editable, and re-sent unchanged on Save) and photos
+      // group names (editable, and re-sent unchanged on Save) and photos
       // (display only) from the last save
       savedGcPhotos = {};
       const gc = j && j.gc && typeof j.gc === "object" ? j.gc : {};
@@ -355,7 +355,7 @@ function loadStatus() {
         groups = j.groups || [];
         state.group = groups[0] ? String(groups[0].id) : "";
         (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; savedIgnored.groups[String(id)] = true; });
-        // fix round 1 (#4): people removed in an earlier save stay removed —
+        // People removed in an earlier save stay removed —
         // without this, the next save sent ignoredUsers: [] and un-removed them.
         (j.ignoredUsers || []).forEach((id) => { state.ignored[String(id)] = true; savedIgnored.users[String(id)] = true; });
         renderGroupChoosers();
@@ -372,7 +372,7 @@ function buildLogHtml(log) {
   return s ? `<details class="build-log"><summary>Build log</summary><pre>${escapeHtml(s)}</pre></details>` : "";
 }
 
-// Things the server fixed up on its own (SP-7, SP-8), so nothing is a surprise.
+// Things the server fixed up on its own, so nothing is a surprise.
 function buildNotesHtml(j) {
   const n = [];
   if (j.via === "manifest") n.push("Found your group chat files through the archive's <code>data/manifest.js</code>.");
@@ -389,11 +389,11 @@ function buildWarningsHtml(j) {
 }
 
 let building = false;
-// SP7: what the pre-flight preview was made for. Build sends exactly this, and
+// what the pre-flight preview was made for. Build sends exactly this, and
 // any change to the fields drops it (the preview no longer describes them).
 let pendingSource = null;
 // What the preview allows: a build needs messages; an export older than the
-// archive (SP7 fix round 1, #2) needs the extra confirm ticked first.
+// archive needs the extra confirm ticked first.
 const pf = { canBuild: false, older: false };
 function updateConfirm() {
   const ok = $("#pf-older-ok");
@@ -410,7 +410,7 @@ function fmtBytes(n) {
   if (n < 1024) return n + " B";
   return n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0) + " MB";
 }
-// SP7 (SP6 carry-over): while a build runs, ask the server how far the media
+// while a build runs, ask the server how far the media
 // copy is and show it — a big media folder used to look frozen for minutes.
 function showProgress(p) {
   let html;
@@ -464,12 +464,12 @@ function renderPreflight(j) {
     : `<li class="pf-ok">✓ No problems found.</li>`;
   const confirm = $("#btn-confirm");
   confirm.textContent = merging ? "Merge into archive" : "Build archive";
-  // SP7 fix round 1 (#5): no group messages, nothing to build or merge (a
+  // no group messages, nothing to build or merge (a
   // merge whose messages are all removed ones still goes: they are kept aside)
   pf.canBuild = t.messages > 0 || (merging && w.some((x) => x.code === "removed"));
   pf.older = merging && w.some((x) => x.code === "older-export");
   $("#pf-older").hidden = !pf.older;
-  // SP7 fix round 2 (#3): an export the archive already has is re-added, not "older"
+  // an export the archive already has is re-added, not "older"
   const olderThan = m && Number.isFinite(m.exportNewest) && Number.isFinite(m.archiveNewest) && m.exportNewest < m.archiveNewest;
   $("#pf-older-text").textContent = olderThan
     ? "This export is older than my archive — merge it anyway (my archive keeps its newer messages)"
@@ -481,7 +481,7 @@ function renderPreflight(j) {
 // Step 1, part 1: read the export and show what a build would bring in. Read-only.
 $("#btn-build").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
-  if (building) return;   // SP-23: one request at a time (a double-click used to run two)
+  if (building) return;   // one request at a time (a double-click used to run two)
   const archiveRoot = $("#src-root").value.trim();
   const groupJs = $("#src-group").value.trim();
   const headersJs = $("#src-headers").value.trim();
@@ -516,7 +516,7 @@ $("#btn-build").onclick = async () => {
 // Step 1, part 2: the user saw the preview and confirmed — copy + build.
 $("#btn-confirm").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
-  if (building || !pendingSource) return;   // SP-23: one build at a time
+  if (building || !pendingSource) return;   // one build at a time
   const body = pendingSource;
   flash($("#src-result"), "Building… (copying media can take a moment)", "");
   building = true;
@@ -526,7 +526,7 @@ $("#btn-confirm").onclick = async () => {
   try {
     const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).finally(stopWatching);
     const j = await r.json();
-    // SP-1 / SP-17: a failed build shows the server's plain-language sentence
+    // a failed build shows the server's plain-language sentence
     // plus the build log (collapsed), and leaves step 1 unlocked to fix it.
     if (!r.ok) { flash($("#src-result"), "✗ " + escapeHtml(j.error || "Build failed") + buildLogHtml(j.log), "err"); return; }
     built = true;
@@ -574,7 +574,7 @@ $("#gc-photo").onchange = async (e) => {
 };
 
 /* ---- step 3: people ------------------------------------------------------ */
-// SP-18: un-mark "This is YOU" (a radio can't be unchecked by clicking it).
+// un-mark "This is YOU" (a radio can't be unchecked by clicking it).
 $("#me-clear").onclick = () => {
   state.me = "";
   $$('.su-me input[type="radio"]').forEach((r) => { r.checked = false; });
@@ -604,7 +604,7 @@ async function loadParts() {
 }
 
 // People removed in an earlier save have no card (the archive no longer has
-// them), so list them here with a way to bring them back (fix round 1, #4).
+// them), so list them here with a way to bring them back.
 function renderRemovedPeople() {
   const host = $("#removed-people");
   if (!host) return;
@@ -653,12 +653,12 @@ function personCard(p) {
   const name = document.createElement("input");
   name.className = "setup-input su-name"; name.type = "text"; name.placeholder = "User " + String(p.id).slice(-4);
   if (savedName) name.value = savedName;
-  // SP-18: emptying a name keeps the id with "" — the server's signal to forget it.
+  // emptying a name keeps the id with "" — the server's signal to forget it.
   name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { state.names[p.id] = ""; if (!state.pfps[p.id]) av.textContent = initials("User " + String(p.id).slice(-4)); } };
   main.appendChild(name);
 
   const meta = document.createElement("div"); meta.className = "su-meta";
-  // SP-13: members who never posted still get a card; say so, and when they
+  // members who never posted still get a card; say so, and when they
   // joined / left the group, as a memory jog for who they are.
   const when = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
   const bits = [p.count ? `${p.count.toLocaleString()} messages` : "No messages"];
@@ -701,7 +701,7 @@ function personCard(p) {
   };
   rm.onclick = () => {
     const removing = !state.ignored[p.id];
-    // SP-18: removing your own card clears "This is YOU" ("" = clear on the server)
+    // removing your own card clears "This is YOU" ("" = clear on the server)
     if (removing) { state.ignored[p.id] = true; if (state.me != null && String(state.me) === String(p.id)) { state.me = ""; radio.checked = false; } }
     else delete state.ignored[p.id];
     showRemoved(removing);
@@ -712,7 +712,7 @@ function personCard(p) {
 }
 
 /* ---- step 4: save -------------------------------------------------------- */
-// Fix round 1 (#3): removing rebuilds the archive without those messages, so a
+// Removing rebuilds the archive without those messages, so a
 // save that removes more than before asks first, with real counts from the
 // server. Resolves true to go ahead.
 const removeModal = $("#remove-modal");
@@ -783,7 +783,7 @@ $("#btn-save").onclick = async () => {
     flash($("#finish-result"),
       `✓ Saved <b>${j.names}</b> name(s) and <b>${j.pfps}</b> photo(s)` +
       (j.ignored ? ` and removed <b>${j.ignored}</b> user(s)` : "") + "." +
-      // SP-14: removals are applied to the archive itself, not just hidden
+      // removals are applied to the archive itself, not just hidden
       (j.rebuilt ? ` Rebuilt the archive without the removed chats/people` +
         (j.mediaRemoved ? ` and set aside <b>${Number(j.mediaRemoved).toLocaleString()}</b> of their media files (in personal_data/.removed, so un-removing can bring them back)` : "") + "." : "") +
       ` <a href="index.html">Open your archive →</a>`, "ok");

@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv } = require("./_viewer-fixture.js");
 
-// SP-20: X can export more than one media file for one DM; the build keeps
+// X can export more than one media file for one DM; the build keeps
 // the first as m/k and the rest in `mx`. The timeline must show all of them.
 const T = Date.parse("2024-03-10T12:00:00Z");
 const LIST = [
@@ -11,7 +11,7 @@ const LIST = [
 ];
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 
-test("SP-20: every media file of a message is rendered in the timeline", async ({ page }) => {
+test("every media file of a message is rendered in the timeline", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
   const multi = page.locator('#view-timeline .msg[data-idx="0"]');
   await expect(multi.locator(".media img")).toHaveCount(2);

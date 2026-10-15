@@ -1,8 +1,8 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv, collectErrors, settledTimeline, frames } = require("./_viewer-fixture.js");
 
-// SP8: the Timeline opens at the NEWEST message (it used to open at the
-// oldest — SP5/UX-32 made that first open quiet; this supersedes where it
+// the Timeline opens at the NEWEST message (it used to open at the
+// oldest — an earlier fix made that first open quiet; this supersedes where it
 // lands, keeping the no-flash-of-message-0 guarantee), remembers the reading
 // position per conversation (localStorage gca.tlpos, guarded), and offers a
 // "Jump to latest" button plus Home / End.
@@ -157,7 +157,7 @@ test("Reset customization keeps reading positions (like bookmarks) and says so",
   expect((await settledTimeline(page)).first).toBe(pos.first);
 });
 
-// Fix round 1: the On-This-Day toast sits in the same bottom-right corner as
+// The On-This-Day toast sits in the same bottom-right corner as
 // the "Latest" pill. While it's up the pill is lifted above it; once it's
 // dismissed the pill drops back.
 const OTD = msgs("o", 400, { s: ["u1", "u2"], step: 3600000 * 3, t0: Date.parse("2024-04-20T00:30:00Z") });

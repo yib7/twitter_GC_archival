@@ -1,8 +1,8 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { checkAndBuild } = require("./_setup-helpers.js");
 
-// SP-18: a saved "This is YOU" and a saved name must be clearable. The wizard
+// a saved "This is YOU" and a saved name must be clearable. The wizard
 // sends me: "" / names[id] = "" as the explicit "forget it" signal (a missing
 // value still means "unchanged"). Server routes are mocked; made-up data.
 const PARTS = [
@@ -29,7 +29,7 @@ test.beforeEach(async ({ page }) => {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
+  await checkAndBuild(page, { mock: true });   // Check export → preview → Build
   await page.locator('[data-pane="2"] [data-next]').click();
   await expect(page.locator(".su-person")).toHaveCount(2);
 });
@@ -52,7 +52,7 @@ test("removing your own card clears 'This is YOU' too", async ({ page }) => {
   await page.locator(".su-person").first().locator(".su-remove").click();
   await page.locator('[data-pane="3"] [data-next]').click();
   await page.locator("#btn-save").click();
-  // fix round 1 (#3): removing someone asks first (preview is unmocked here, so no counts)
+  // Removing someone asks first (preview is unmocked here, so no counts)
   await page.locator("#remove-go").click();
   await expect(page.locator("#finish-result")).toContainText(/Saved/);
   expect(saved.me).toBe("");

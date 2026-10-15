@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, afterSearchRun, collectErrors } = require("./_viewer-fixture.js");
 
-// SP9 (UX-21): every applied operator shows as a removable chip under the
+// every applied operator shows as a removable chip under the
 // Search box (a named button — click, Enter, Space, Backspace or Delete
 // removes it and edits the query text to match), and after from: the box is
 // an ARIA combobox offering participants (display names + aliases, never a
@@ -112,7 +112,7 @@ test("autocomplete quotes names with spaces, matches aliases and accents, and hi
   await expect(box).toHaveValue("from:Bob ");
 });
 
-// SP9 polish: removing a chip is an edit of the box the browser can undo —
+// Removing a chip is an edit of the box the browser can undo —
 // Ctrl/Cmd+Z in the box brings the token (and its chip) back. Chromium
 // implements execCommand("insertText") on inputs (the suite runs Chromium
 // only); where it isn't, the box is set directly, without an undo entry.

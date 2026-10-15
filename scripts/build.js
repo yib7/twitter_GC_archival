@@ -16,7 +16,7 @@
  *  - Dedupes messages by id, re-sorts chronologically, resolves local media by
  *    the {messageId}-… filename convention. Group chats only — 1:1 DMs are skipped.
  *
- * Fails loudly (SP-1): a missing, empty, truncated, unparseable or wrong file,
+ * Fails loudly: a missing, empty, truncated, unparseable or wrong file,
  * or an export with no group chats, prints ONE plain-language line
  *   BUILD ERROR: <what went wrong and what to do>
  * on stderr and exits non-zero without touching data.js. The setup server shows
@@ -40,7 +40,7 @@ const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONA
 const CONFIG = path.join(PERSONAL, "config.json");
 const OUT = path.join(PERSONAL, "data.js");
 const BAK = OUT + ".bak";
-// SP7 fix round 1 (#1): messages left out because their group chat or person
+// messages left out because their group chat or person
 // is removed. A merge re-points config at the newer export (and the older
 // copies are pruned), so the archive itself must keep what it removed, or
 // un-removing could only bring back what the newest export still has.
@@ -74,7 +74,7 @@ function findMediaDirs(config) {
   return fs.existsSync(d) ? [d] : [];
 }
 function buildMediaIndex(dirs) {
-  const idx = {};   // messageId -> [root-relative paths] (SP-20: all of them)
+  const idx = {};   // messageId -> [root-relative paths] (all of them)
   for (const d of dirs) {
     const rel = path.relative(here, d).split(path.sep).join("/");
     const names = fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
@@ -100,7 +100,7 @@ function ingest(acc, file, which) {
     throw e;
   }
   const stats = sink.finish();
-  // SP-8: a headers file picked as the messages file parses fine but every
+  // a headers file picked as the messages file parses fine but every
   // messageCreate lacks `text` — the build would "succeed" with blank messages.
   if (which !== "headers" && stats.messages > 0 && stats.withText === 0) {
     fail("\u201c" + label + "\u201d looks like the group headers file: its messages have no text. Pick direct-messages-group.js as the messages file and direct-message-group-headers.js as the headers file.");
@@ -110,10 +110,10 @@ function ingest(acc, file, which) {
 
 // The previous data.js is the baseline (the accumulated history). It is
 // streamed into the accumulator one conversation at a time, so it may be any
-// size (fix round 1: no ~512 MB ceiling). Returns null when there is none.
+// size (no ~512 MB ceiling). Returns null when there is none.
 function loadPrev(acc) {
   if (!fs.existsSync(OUT)) {
-    // SP7: no data.js, but its backup or an unfinished save is right next to
+    // no data.js, but its backup or an unfinished save is right next to
     // it (a crash mid-swap, or data.js deleted by hand): the history is in
     // there. Building from this export alone would replace it, so stop.
     const left = leftoversOf(OUT);
@@ -127,14 +127,14 @@ function loadPrev(acc) {
   try {
     return scanArchiveFile(OUT, { onConversation: (c) => acc.addPrev({ conversations: [c] }) }, scanOpts());
   } catch (e) {
-    // SP-9: never rebuild over history that couldn't be read. Each cause gets
+    // never rebuild over history that couldn't be read. Each cause gets
     // its own sentence; only real damage is called damaged.
     const msg = core.prevArchiveProblem(e);
     if (msg) fail(msg);
     throw e;
   }
 }
-// SP7 fix round 1 (#1): the quarantined removed messages, streamed in under
+// the quarantined removed messages, streamed in under
 // the baseline (a message the archive has always wins). true when there is one.
 function loadQuarantine(acc) {
   if (!fs.existsSync(QUAR)) return false;
@@ -147,7 +147,7 @@ function loadQuarantine(acc) {
   }
 }
 // Write the quarantine (atomically), or remove it when nothing is left in it.
-// Fix round 2 (#1): while anything is removed it stays, even empty — its
+// While anything is removed it stays, even empty — its
 // presence says this archive's removals have been set aside (an archive with
 // removals and no quarantine predates it; see sourceAndBuild in server.js).
 function writeQuarantine(convs, keepEmpty) {
@@ -175,7 +175,7 @@ function scanOpts() {
   return n > 0 ? { chunkSize: n } : undefined;
 }
 
-// Fix round 1 (#3): keep ONE backup, data.js.bak = the archive as it was
+// Keep ONE backup, data.js.bak = the archive as it was
 // before the last successful build. The old data.js is hard-linked (no copy,
 // no extra disk) to a temp name before the new one replaces it, and that link
 // becomes data.js.bak only once the new data.js is safely in place; a failed
@@ -193,7 +193,7 @@ function writeArchive(meta, conversations) {
     }
   }
   try {
-    // SP-9: temp file + rename, so a crash mid-write can't leave a truncated data.js
+    // temp file + rename, so a crash mid-write can't leave a truncated data.js
     writeChunksAtomic(OUT, core.archiveChunks(meta, conversations));
   } catch (e) {
     if (bakTmp) try { fs.unlinkSync(bakTmp); } catch (e2) { /* gone */ }
@@ -247,7 +247,7 @@ function main() {
     "If your archive's data folder has direct-messages-group-part1.js (-partN) files, make sure they sit next to direct-messages-group.js.");
   if (warnings.badTime) log("Warning: " + warnings.badTime + " message(s)/event(s) had a missing or unreadable date and were skipped.");
 
-  // SP7 fix round 1 (#1): quarantine first as a superset (still removed +
+  // quarantine first as a superset (still removed +
   // coming back), then data.js, then narrow the quarantine to what is still
   // removed. Cut off anywhere, every message is in data.js or the quarantine.
   const anyRemoved = removed.length > 0, anyBack = restored.length > 0;

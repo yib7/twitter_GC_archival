@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 const S = require("../src/shared-core.js");
 
-// SP4 (AN-1 / AN-2 / AN-10 / AN-11): every view that counts words or emoji
+// every view that counts words or emoji
 // uses the ONE definition in shared-core (extractEmojis / tokenize / countWord)
 // — Stats (top emojis, word cloud, total words), Wrapped (emoji + word of the
 // year), Word Battles (default AND custom rows) and the keyword trend.

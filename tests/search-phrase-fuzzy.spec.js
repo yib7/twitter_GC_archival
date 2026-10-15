@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, afterSearchRun } = require("./_viewer-fixture.js");
 
-// SP9 (VC-11): the box promises "use quotes for exact phrases" — that holds in
+// the box promises "use quotes for exact phrases" — that holds in
 // Fuzzy mode (the default) too. Fuse's close matches (the automatic fallback
 // and "+ Show close matches") must still contain every quoted phrase
 // contiguously (case-insensitive, same lowercasing as the exact matcher);

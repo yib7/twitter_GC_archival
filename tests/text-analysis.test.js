@@ -1,17 +1,17 @@
-// SP4 (AN-1 / AN-2 / AN-8 / AN-9 / AN-10 / AN-11 / AN-20): the pure
+// the pure
 // text-analysis helpers every analytics view shares — grapheme-aware emoji
 // extraction, the Unicode word tokenizer + apostrophe-insensitive stopwords,
 // the keyword patterns behind the superlatives, hostname-based platform
 // matching and the plural() copy helper. All live in src/shared-core.js so
 // Stats, Wrapped, Word Battles and the keyword trend can never disagree.
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
 const S = require("../src/shared-core.js");
 
-/* ---- AN-1: emoji ---------------------------------------------------------- */
+/* ---- emoji ---------------------------------------------------------- */
 const EMOJI_CASES = [
   ["thanks 👍🏽", ["👍🏽"]],
   ["family 👨‍👩‍👧 and 👍🏽 and 🇺🇸", ["👨‍👩‍👧", "👍🏽", "🇺🇸"]],
@@ -49,7 +49,7 @@ test("a skin-tone modifier can never outrank the emoji it is attached to", () =>
   assert.deepStrictEqual(top, ["😂", 2]);
 });
 
-/* ---- AN-2 / AN-11: tokenizer --------------------------------------------- */
+/* ---- tokenizer --------------------------------------------- */
 test("tokenize: curly and straight apostrophes stay inside one token", () => {
   assert.deepStrictEqual(S.tokenize("I’m sure you don’t know, I didn’t either"), ["i'm", "sure", "you", "don't", "know", "i", "didn't", "either"]);
   assert.deepStrictEqual(S.tokenize("I'm tired, don't care"), ["i'm", "tired", "don't", "care"]);
@@ -177,7 +177,7 @@ test("countKeys / mayContainKey: the pre-folded loop form of countWord", () => {
   assert.ok(!S.mayContainKey("", "dont"));
 });
 
-/* ---- AN-8: keyword patterns ---------------------------------------------- */
+/* ---- keyword patterns ---------------------------------------------- */
 test("countLaughs counts plain and stretched laughs and laughing emoji", () => {
   assert.equal(S.countLaughs("💀"), 1);
   assert.equal(S.countLaughs("im dead 💀💀💀"), 3);
@@ -239,7 +239,7 @@ test("slang / gamer / finance patterns skip everyday words", () => {
   assert.equal(S.countMatches(S.KEYWORDS.finance, "btc to the moon"), 2);
 });
 
-/* ---- AN-9: hostname matching ----------------------------------------------- */
+/* ---- hostname matching ----------------------------------------------- */
 test("linkPlatform matches on the hostname, not a substring of the URL", () => {
   const cases = [
     ["https://www.netflix.com/title/123", null],
@@ -252,7 +252,7 @@ test("linkPlatform matches on the hostname, not a substring of the URL", () => {
   for (const [url, want] of cases) assert.equal(S.linkPlatform(url), want, url);
 });
 
-/* ---- AN-20: plural --------------------------------------------------------- */
+/* ---- plural --------------------------------------------------------- */
 test("plural picks the singular only for exactly one and formats the count", () => {
   assert.equal(S.plural(1, "thread"), "1 thread");
   assert.equal(S.plural(0, "thread"), "0 threads");

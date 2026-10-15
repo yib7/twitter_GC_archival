@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, afterSearchRun } = require("./_viewer-fixture.js");
 
-// UX-9 / VC-28 (SP8): jump-to-date reads natural dates through the one shared
+// jump-to-date reads natural dates through the one shared
 // parser (GCAShared.parseJumpDate), rejects dates that don't exist, and is
 // honest when the date is outside the archive or has no messages — it says
 // where it actually landed instead of "Jumped to <date>". before:/after: in
@@ -29,7 +29,7 @@ async function paletteJump(page, text) {
 }
 const landed = (page, idx) => expect(page.locator('#tl-list .msg[data-idx="' + idx + '"]')).toHaveClass(/flash/);
 
-test.describe("jump to date (UX-9)", () => {
+test.describe("jump to date", () => {
   test.beforeEach(async ({ page }) => { await bootViewer(page, DATA, { ls: UTC }); });
 
   test("natural day forms land on that day's first message", async ({ page }) => {
@@ -119,7 +119,7 @@ test("jump-to-date buckets days in the configured zone", async ({ page }) => {
   await landed(page, 3);
 });
 
-test.describe("before:/after: share the parser and are inclusive (VC-28)", () => {
+test.describe("before:/after: share the parser and are inclusive", () => {
   test.beforeEach(async ({ page }) => {
     await bootViewer(page, DATA, { ls: { "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
   });
@@ -139,7 +139,7 @@ test.describe("before:/after: share the parser and are inclusive (VC-28)", () =>
   });
 
   test("a date that doesn't exist is ignored with a note, never rolled over or searched as text", async ({ page }) => {
-    // SP9 polish: while the date is still being typed (open, at the end) it
+    // While the date is still being typed (open, at the end) it
     // is pending — no "no such date" flash at "before:2023-0"; finished
     // (followed by a space or more text) the note appears.
     await afterSearchRun(page, () => page.locator("#s-input").fill("before:2023-0"));

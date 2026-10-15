@@ -1,13 +1,13 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 
-// SP4 AN-14: a person who never posted — on the roster only, reacting only,
+// a person who never posted — on the roster only, reacting only,
 // or joining / leaving without a word — is still a member of the chat: they
 // appear in People, the people count, the name pickers and reaction tooltips,
-// numbered with the same "User N" everywhere (AN-15).
-// SP4 AN-19: an ignored user's REACTIONS are dropped too, not only their
+// numbered with the same "User N" everywhere.
+// an ignored user's REACTIONS are dropped too, not only their
 // messages — they never show in chips, tooltips, counts or awards.
-// SP4 UX-25: one person colour everywhere (the avatar hue), not a second
+// one person colour everywhere (the avatar hue), not a second
 // palette for battles / foreign pins / the quote card.
 
 const T0 = Date.parse("2024-04-01T12:00:00Z");

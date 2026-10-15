@@ -1,12 +1,12 @@
 /*
- * SP-9: crash-safe writes. data.js, config.json, local.js and photos are
+ * crash-safe writes. data.js, config.json, local.js and photos are
  * written to a temp file in the same directory and renamed over the target,
  * so a crash / full disk / AV lock mid-write never leaves a truncated file.
  * On Windows a rename over a file another process holds can fail with
  * EPERM/EBUSY — it is retried briefly; if it still fails the old file is left
  * as it was and the error names the file that is held.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -41,7 +41,7 @@ test("a rename that fails with EPERM/EBUSY is retried, then succeeds", () => {
   assert.deepEqual(leftovers(dir), []);
 });
 
-// Fix round 1 (review #1): there is no copy fallback. Copying over the target
+// There is no copy fallback. Copying over the target
 // in place could fail half-way (full disk) and truncate it, after which the
 // temp file — the only complete copy — was deleted. A rename that keeps
 // failing leaves the old file untouched and says which file is held and what
@@ -155,7 +155,7 @@ test("replacing a file another handle has open still succeeds", () => {
   assert.deepEqual(leftovers(dir), []);
 });
 
-// SP7 carry-over (SP6 review #4): on a FIRST save there is no old file. When
+// on a FIRST save there is no old file. When
 // the new file can't be renamed into place (antivirus scanning the fresh temp
 // file), the fallback's "move the old one aside" step hits ENOENT. That used
 // to be reported as "another program is holding data.js … the previous

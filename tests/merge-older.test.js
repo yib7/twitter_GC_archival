@@ -1,12 +1,12 @@
 /*
- * SP7 fix round 1 (#2): merging an OLDER export into a newer archive. The
+ * merging an OLDER export into a newer archive. The
  * export's copy of a message used to replace the archive's unconditionally
  * (losing edits and reactions the newer archive had), the preview didn't say
  * the export was older, and the media source folder was re-pointed at the
  * older export's folder. Synthetic exports only; real server on GCA_PORT=0
  * with a mkdtemp GCA_PERSONAL (tests/_sp6-server.js).
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -34,7 +34,7 @@ function build(prevMsgs, exportMsgs) {
 }
 const keys = (m) => (m.r || []).map((r) => r.k + ":" + r.s).sort();
 
-describe("SP7 fix 2: merging copies of the same message", () => {
+describe("merging copies of the same message", () => {
   test("an OLDER export keeps the archive's text (an edit) and unions the reactions", () => {
     const got = build(
       [prevRec(1, 111, T, "edited text", [{ k: "like", s: "222" }]), prevRec(2, 111, T + 100e3, "newest in the archive")],
@@ -59,7 +59,7 @@ describe("SP7 fix 2: merging copies of the same message", () => {
 
 /* ---- the warning ---------------------------------------------------------- */
 const survey = { totals: { messages: 3, groups: 1 }, dm: { conversations: 0 }, removedMsgs: 0, badTime: 0 };
-describe("SP7 fix 2: the preview says when the export is older than the archive", () => {
+describe("the preview says when the export is older than the archive", () => {
   test("its newest message is older than the archive's newest", () => {
     const w = preflightWarnings({ survey, merge: { overlap: 2, added: 1, exportNewest: Date.parse("2021-06-01T12:00:00Z"), archiveNewest: Date.parse("2021-07-01T12:00:00Z") } });
     const o = w.find((x) => x.code === "older-export");
@@ -79,7 +79,7 @@ describe("SP7 fix 2: the preview says when the export is older than the archive"
 });
 
 /* ---- end to end over the server ------------------------------------------ */
-describe("SP7 fix 2: merging export A into an archive built from the newer B", () => {
+describe("merging export A into an archive built from the newer B", () => {
   let S, A, B;
   before(async () => {
     S = await startServer();
@@ -112,13 +112,13 @@ describe("SP7 fix 2: merging export A into an archive built from the newer B", (
   });
 });
 
-// SP7 fix round 2 (#4): after an older export is merged, config's message
+// after an older export is merged, config's message
 // files are the older export's, but the media source folder is still the
 // newer one's. Un-removing restored media from that folder only for message
 // ids in the older export's files, so the newer export's removed media
 // (9008, only in B) never came back. The ids come from the archive and the
 // quarantine now.
-describe("SP7 fix round 2: un-removing after an older merge restores the newer export's media", () => {
+describe("un-removing after an older merge restores the newer export's media", () => {
   let S, B;
   before(async () => { S = await startServer(); B = X.writeExportB(scratch()); });
   after(() => S.stop());

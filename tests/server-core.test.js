@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
@@ -98,7 +98,7 @@ test("isIdleTimedOut is true only once the heartbeat gap exceeds the idle window
   assert.equal(isIdleTimedOut(1000, 1000 + 7000, 6000), true);   // 7s gap > 6s window
 });
 
-// SP-6 (deep audit) replaced the old rule "exit after 6 s without a ping":
+// The liveness rule replaced the old rule "exit after 6 s without a ping":
 // Chromium throttles timers in hidden tabs to about one a minute and sleeping
 // tabs / a laptop lid stop them entirely, so the launcher's server quit under
 // a user who had only switched tabs. The close signal is now the page's own
@@ -216,7 +216,7 @@ test("mergeNames treats an array (prev or posted) as empty, not as index-keyed d
   assert.deepEqual(mergeNames(["x", "y"], { "1": "Alice" }), { "1": "Alice" });
 });
 
-// SP-18: clearing a name in the wizard posts "" for that id — the explicit
+// clearing a name in the wizard posts "" for that id — the explicit
 // "forget this name" signal (an id simply missing from the post still means
 // "unchanged", so a partial save never wipes names).
 test("mergeNames deletes an id posted with an empty (or blank) name", () => {
@@ -239,7 +239,7 @@ test("mergeNames returns a fresh object, not a reference to prev or posted", () 
   assert.notEqual(out, prev);
 });
 
-// QA-13 review fix: mergeNames' own `k !== "__proto__"` skip (server-core.js
+// mergeNames' own `k !== "__proto__"` skip (server-core.js
 // ~line 88) is the one thing standing between an attacker-controlled
 // body.names and a polluted Object.prototype. Built via JSON.parse, not the
 // `{ __proto__: ... }` object-literal syntax — a literal sets the object's

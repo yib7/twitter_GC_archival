@@ -1,17 +1,17 @@
-// UX-4 / AN-13: GCAShared.createZoneClock resolves a zone's UTC offset once per
+// GCAShared.createZoneClock resolves a zone's UTC offset once per
 // UTC day (instead of one Intl.formatToParts per message) and exactly on the
 // transition days. Every analytics bucket in the viewer is built from it, so it
 // must agree with Intl.DateTimeFormat — the old per-message source of truth —
 // for every instant, including across DST changes, half-hour / 45-minute zones
 // and zones whose offset changes by 30 minutes.
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
 const { createZoneClock } = require("../src/shared-core.js");
 
-// Reference: wall-clock fields straight from Intl (the pre-SP3 zonedParts).
+// Reference: wall-clock fields straight from Intl (the older zonedParts).
 const FMT = new Map();
 function intlWall(tz, t) {
   let f = FMT.get(tz);
@@ -74,7 +74,7 @@ test("createZoneClock memoizes per UTC day: far fewer Intl calls than instants",
   assert.ok(clock.stats().exact < 400, "exact lookups: " + clock.stats().exact);
 });
 
-// SP4 carry-over: offset() used to call Intl / Date on the raw instant, so the
+// offset() used to call Intl / Date on the raw instant, so the
 // largest valid Date (8.64e15) threw a RangeError (its UTC day's last ms is past
 // the max) and instants before year 1 gave garbage. The lookup instant is now
 // clamped to the same 1900..2199 window buildTimeIndex buckets in.

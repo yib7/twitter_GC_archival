@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P1-4: a corrupt/ported gca.settings.timezone must not brick app boot.
+// a corrupt/ported gca.settings.timezone must not brick app boot.
 // initDateFormatters() runs at top-level module init and feeds settings.timezone
 // straight into `new Intl.DateTimeFormat(..., { timeZone })` with no guard. An
 // invalid IANA zone throws a RangeError there, aborting the whole app IIFE
@@ -40,7 +40,7 @@ test("an invalid stored timezone falls back to the default instead of bricking b
   expect(pageErrors).toEqual([]);
 });
 
-// UX-20 (SP3): the fallback for an invalid zone is now the default, "local"
+// the fallback for an invalid zone is now the default, "local"
 // (it was "UTC" while UTC was the default).
 test("an invalid stored timezone is normalized to the default (local) in the settings UI", async ({ page }) => {
   await page.addInitScript(() => {

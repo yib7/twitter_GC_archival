@@ -61,7 +61,7 @@ module.exports = [
     },
     rules: {
       "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }],
-      // QA-10: node:test ignores `only` unless --test-only is passed (it isn't,
+      // node:test ignores `only` unless --test-only is passed (it isn't,
       // in npm run test:unit), so a committed .only there is silently harmless
       // — but Playwright's forbidOnly (playwright.config.js) only fires in CI,
       // and either way a reviewer scanning a diff should never have to notice
@@ -77,7 +77,7 @@ module.exports = [
       "no-restricted-syntax": ["error",
         {
           selector: "MemberExpression[property.name='only']",
-          message: "Remove .only before committing — it silently narrows the suite (see QA-10).",
+          message: "Remove .only before committing — it silently narrows the suite.",
         },
       ],
     },

@@ -1,9 +1,9 @@
 /*
- * SP6 ingestion: the streaming export scanner and the incremental archive
+ * Ingestion: the streaming export scanner and the incremental archive
  * writer in scripts/build-core.js (pure) plus the thin file reader in
  * scripts/fs-io.js. Synthetic data only (tests/fixtures/x-export.js).
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -120,7 +120,7 @@ test("archiveChunks streams exactly what one JSON.stringify of the archive would
   assert.equal([...core.archiveChunks(meta, [], 5)].join(""), "window.CHAT_DATA = " + JSON.stringify(Object.assign({}, meta, { conversations: [] })) + ";\n");
 });
 
-// SP-10 fast proof of the streaming path: the file reader hands the scanner
+// Fast proof of the streaming path: the file reader hands the scanner
 // tiny byte chunks, so multi-byte UTF-8 (emoji, accents) straddles chunk
 // boundaries — the decoded result must still equal a whole-file parse.
 test("scanExportFile reads a file in tiny byte chunks with identical results (streaming path)", () => {

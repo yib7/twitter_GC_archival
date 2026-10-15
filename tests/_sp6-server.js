@@ -1,11 +1,11 @@
 /*
- * Shared harness for the SP6 server tests: spawns its OWN scripts/server.js on
+ * Shared harness for the setup-server tests: spawns its OWN scripts/server.js on
  * an OS-assigned port (GCA_PORT=0) with a fresh mkdtemp GCA_PERSONAL and the
  * root fallbacks off, so nothing here can ever read or serve real data.
  * GCA_NO_NATIVE_PICKER=1 makes the Windows file dialogs report "unsupported"
  * instead of opening, so no test can ever block on a real dialog.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");

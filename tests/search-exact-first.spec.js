@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// VC-18 (SP3): Fuzzy mode is exact-first. A query with literal hits shows just
+// Fuzzy mode is exact-first. A query with literal hits shows just
 // those (newest first) plus a "close matches" button that opts into the
 // typo-tolerant Fuse ranking for THAT query; a query with no literal hit falls
 // back to fuzzy automatically and says so. Exact mode stays literal-only.
@@ -35,7 +35,7 @@ async function boot(page, data) {
   await expect(page.locator("#s-input")).toBeVisible();
 }
 
-// Type a query and wait until the search has actually re-run (QA-15 data-gen).
+// Type a query and wait until the search has actually re-run (#s-meta data-gen).
 async function search(page, q) {
   const gen = await page.locator("#s-meta").getAttribute("data-gen");
   await page.locator("#s-input").fill(q);
@@ -89,7 +89,7 @@ test("Exact mode never offers or runs fuzzy", async ({ page }) => {
   await expect(page.locator("#s-meta")).toContainText("0 messages found");
 });
 
-// SP3 review: "incl. close matches" must be literal hits PLUS Fuse's, not Fuse's
+// "incl. close matches" must be literal hits PLUS Fuse's, not Fuse's
 // alone — a literal AND-hit Fuse can't score (reordered words, >32-char
 // patterns) used to vanish when the user opted in.
 const REORDER = {
@@ -117,7 +117,7 @@ test("forced close matches keep every literal hit, literal first", async ({ page
   await expect(page.locator("#s-list .msg").nth(1)).toContainText("movie nite");
 });
 
-// SP3 review: in Grid mode the fallback is decided on what the grid can show —
+// in Grid mode the fallback is decided on what the grid can show —
 // literal hits that carry no media must not block the close media matches.
 const GRID = {
   __sample: true,

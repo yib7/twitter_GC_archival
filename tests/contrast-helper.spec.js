@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { contrastFailures } = require("./_contrast.js");
 
-// SP10 / M-b: the rendered-text contrast audit (tests/_contrast.js) has to see
+// the rendered-text contrast audit (tests/_contrast.js) has to see
 // a ::before / ::after layer painted between an element's own background and
 // the text above it — the Wrapped slides' vignette is one. Synthetic markup,
 // no app data.

@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, collectErrors } = require("./_viewer-fixture.js");
 
-// SP10 / UX-23: Wrapped as a story — accent-derived colours in every theme,
+// Wrapped as a story — accent-derived colours in every theme,
 // tap zones, swipe, hold-to-pause, segmented progress, polite slide
 // announcements and keys that never steal from a focused control. Synthetic
 // data only: one 2024 chat that produces every slide kind.
@@ -38,7 +38,7 @@ const rgb = (c) => {
   return { r: a[0] * k, g: a[1] * k, b: a[2] * k, a: a.length > 3 ? a[3] : 1 };
 };
 
-test.describe("UX-23: Wrapped colours derive from the accent", () => {
+test.describe("Wrapped colours derive from the accent", () => {
   test("Lights-out, a pure red accent: every wash and the year are red-only (no violet / emerald / amber / pink)", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await bootViewer(page, DATA, { ls: { "gca.theme": "lightsout", "gca.settings": JSON.stringify({ accent: "#ff0000" }) } });
@@ -81,9 +81,9 @@ test.describe("UX-23: Wrapped colours derive from the accent", () => {
   }
 });
 
-// M-a: SP5 leaned ranks, names, dim copy and the big numbers toward --text
+// Ranks, names, dim copy and the big numbers toward --text
 // for Light and Dim; Lights-out didn't need it and keeps the pure colours.
-test.describe("SP5 M-a: the Wrapped text nudges are scoped to Light and Dim", () => {
+test.describe("the Wrapped text nudges are scoped to Light and Dim", () => {
   const people = async (page) => {
     await go(page, "wrapped");
     for (let k = 0; k < 6 && !(await page.locator(".pl-name").count()); k++) await page.locator("#wr-next").click();
@@ -127,7 +127,7 @@ async function openWrapped(page, opts = {}) {
   await expect(page.locator("#wr-slide .wr-inner")).toBeVisible();
 }
 
-test.describe("UX-23: story mechanics", () => {
+test.describe("story mechanics", () => {
   test("segmented progress replaces the dots: one segment per slide, none of them a control", async ({ page }) => {
     await openWrapped(page);
     await expect(page.locator(".wr-dot, #wr-dots")).toHaveCount(0);
@@ -271,13 +271,13 @@ test.describe("UX-23: story mechanics", () => {
   });
 });
 
-// SP10 review: a year change re-renders the view. The live region must be the
+// a year change re-renders the view. The live region must be the
 // one already on the page (a region inserted with its text is often not
 // read), and pause reasons owned by the old stage (a hold, focus) must not
 // outlive it.
 const T23 = Date.parse("2023-06-01T15:00:00Z");
 const DATA2 = { conversations: [conv("A", "Alpha", LIST.concat(Array.from({ length: 12 }, (_, k) => ({ i: "y" + k, s: ["u1", "u2"][k % 2], t: T23 + k * 3600000, x: "older chat " + k }))).sort((a, b) => a.t - b.t))] };
-test.describe("UX-23: a year change", () => {
+test.describe("a year change", () => {
   test("is announced in the live region that was already there", async ({ page }) => {
     await openWrapped(page, { data: DATA2 });
     const before = await live(page).elementHandle();
@@ -309,7 +309,7 @@ test.describe("UX-23: a year change", () => {
   });
 });
 
-test.describe("UX-23: story mechanics at 390px (touch)", () => {
+test.describe("story mechanics at 390px (touch)", () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   test("the progress fits on one line inside the stage; taps move the story", async ({ page }) => {
     await openWrapped(page);

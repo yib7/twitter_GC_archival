@@ -1,13 +1,13 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv, afterSearchRun } = require("./_viewer-fixture.js");
 
-// VC-2: runSearch() cleared and refilled the results list but never reset the
+// runSearch() cleared and refilled the results list but never reset the
 // scroller, so after scrolling the "show all" list a new query kept the old
 // offset: the best results were off-screen above and the infinite-scroll
 // sentinel had already pulled in page 2.
 const DATA = { conversations: [conv("A", "Alpha", msgs("m", 600, { x: (k) => (k % 5 ? "hello " + k : "pizza night " + k) }))] };
 
-test("VC-2: a new search starts at the top of the results", async ({ page }) => {
+test("a new search starts at the top of the results", async ({ page }) => {
   await bootViewer(page, DATA);
   await expect(page.locator("#s-list .msg").first()).toBeVisible();
   // Scroll to the bottom until the infinite-scroll sentinel has pulled in more

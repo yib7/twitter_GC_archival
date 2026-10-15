@@ -2,7 +2,7 @@
  *
  * The launcher starts the local server with `--open`; that server shuts itself
  * down once the browser is closed, so closing the browser also closes the
- * stray command window. SP-6: a hidden tab's timers are throttled (Chromium:
+ * stray command window. A hidden tab's timers are throttled (Chromium:
  * about one a minute after 5 minutes) or frozen (sleeping tabs, a closed
  * laptop), so silence can't mean "closed". Instead each page:
  *   - pings GET /api/ping?c=<its own id> now and every 15 s while it can;

@@ -83,7 +83,7 @@ function asNamesMap(v) {
 // own [[Prototype]] instead of adding a "__proto__" entry (classic
 // prototype-pollution shape). Skip that one key explicitly rather than
 // relying on Object.assign's default copy semantics.
-// SP-18: a posted empty / blank name is the explicit "forget this name"
+// a posted empty / blank name is the explicit "forget this name"
 // signal and deletes the id; an id missing from the post is left unchanged.
 function mergeNames(prev, posted) {
   const out = {};
@@ -244,7 +244,7 @@ function isIdleTimedOut(lastPing, now, idleMs) {
 // Liveness tracker for the launcher's auto-exit watchdog (server.js arms it only
 // under --open), so closing the browser also closes the command window.
 //
-// SP-6: silence is NOT a close signal — Chromium throttles timers in hidden
+// silence is NOT a close signal — Chromium throttles timers in hidden
 // tabs to about one a minute, sleeping tabs / Memory Saver / a laptop lid stop
 // them entirely, and the old "6 s without a ping" rule shut the server down
 // under a user who had only switched tabs. Each open page pings with its own
@@ -292,7 +292,7 @@ function makeLiveness(opts, clock) {
   };
 }
 
-/* ---- SP-1 / SP-17: plain-language failures ------------------------------- */
+/* ---- plain-language failures ------------------------------- */
 // A failed build (scripts/build.js) prints ONE "BUILD ERROR: <sentence>" line
 // meant for the user. Show exactly that; never raw stderr, which can hold a
 // native stack trace (an out-of-memory crash) and private paths.
@@ -327,7 +327,7 @@ function friendlyError(e) {
   }
 }
 
-/* ---- SP-7: what may be copied in as group media ------------------------- */
+/* ---- what may be copied in as group media ------------------------- */
 // X names group-DM media "<messageId>-<random>.<ext>"; nothing else in an
 // export (account.js, tweets, 1:1 DM media folders) looks like that.
 const MEDIA_FILE_RE = /^\d+-[^/\\]+\.(?:jpe?g|png|gif|webp|mp4|mov|m4v|webm)$/i;
@@ -346,7 +346,7 @@ function mediaFolderProblem(dirName, names) {
   return null;
 }
 
-/* ---- SP-10: a heap sized to the machine for the build -------------------- */
+/* ---- a heap sized to the machine for the build -------------------- */
 // The build streams the export files, but it still holds every message of the
 // archive at once. Node's default heap (~2-4 GB) is the limit that crashed big
 // archives; give the build about half the RAM, never less than 2 GB (Node's
@@ -360,7 +360,7 @@ function buildNodeArgs(buildJs, totalBytes) {
   return ["--max-old-space-size=" + buildHeapMb(totalBytes), buildJs];
 }
 
-/* ---- SP-11: who may open a native file dialog ---------------------------- */
+/* ---- who may open a native file dialog ---------------------------- */
 // The picker GETs freeze the server behind a blocking dialog, so they need
 // more than the Origin/Referer check: an <img referrerpolicy="no-referrer">
 // on any web page sends neither header. They also need the per-process token
@@ -378,7 +378,7 @@ function isPickerRequestAllowed(headers, token, port) {
   return isAllowedOrigin(h.origin, h.referer, port);
 }
 
-/* ---- SP-15: paths as people actually paste them -------------------------- */
+/* ---- paths as people actually paste them -------------------------- */
 // Explorer's "Copy as path" wraps the path in double quotes; macOS / Linux
 // users type ~/Downloads/... or paste a Terminal-escaped "My\ Archive". Undo
 // all three (one matching pair of quotes; a leading ~ or ~/; backslash-space
@@ -398,8 +398,8 @@ function pathNotFoundHint(platform, name) {
   return "Paste the full path, e.g. " + ex;
 }
 
-/* ---- SP-14: which copied media files the archive still uses --------------- */
-// SP7: each of these is a collector — message(conv, msg) per message,
+/* ---- which copied media files the archive still uses --------------- */
+// each of these is a collector — message(conv, msg) per message,
 // conversation(conv) once per conversation (msgs excluded), result() — so the
 // server folds them over a STREAMED data.js (fs-io foldArchive) and never
 // holds the archive's message bodies. The data-object forms below fold the
@@ -420,7 +420,7 @@ function createReferencedNames() {
   };
 }
 function referencedMediaNames(data) { return fold(data, createReferencedNames()); }
-// Fix round 1 (#3): what removing these groups / people would take out of the
+// What removing these groups / people would take out of the
 // built archive (`data` already excludes anything removed earlier, so this
 // counts only what is newly removed). A person's messages count in every group.
 function createRemovalCounter(ignoredGroups, ignoredUsers) {
@@ -444,7 +444,7 @@ function createRemovalCounter(ignoredGroups, ignoredUsers) {
   };
 }
 function removalPreview(data, ignoredGroups, ignoredUsers) { return fold(data, createRemovalCounter(ignoredGroups, ignoredUsers)); }
-// Fix round 1 (#3): who a media file belonged to, for the quarantine folder
+// Who a media file belonged to, for the quarantine folder
 // personal_data/.removed/<kind>/<id>/ — by message id, from the archive as it
 // was BEFORE the rebuild that drops them. Only messages being removed are mapped.
 function createOwnersCollector(ignoredGroups, ignoredUsers) {
@@ -461,7 +461,7 @@ function createOwnersCollector(ignoredGroups, ignoredUsers) {
   };
 }
 function removedMediaOwners(data, ignoredGroups, ignoredUsers) { return fold(data, createOwnersCollector(ignoredGroups, ignoredUsers)); }
-// SP7: the total number of messages (for replies after a rebuild).
+// the total number of messages (for replies after a rebuild).
 function createMessageCounter() {
   let n = 0;
   return { message() { n++; }, conversation() {}, result() { return n; } };
@@ -476,7 +476,7 @@ function sameIdSet(a, b) {
   return true;
 }
 
-/* ---- SP-23: room on disk for the copy ------------------------------------ */
+/* ---- room on disk for the copy ------------------------------------ */
 // The wizard copies the export and every media file into personal_data/; a
 // full disk mid-copy used to surface as a raw ENOSPC. Check first. Unknown
 // free space (NaN) never blocks.
@@ -487,7 +487,7 @@ function diskSpaceProblem(needBytes, freeBytes) {
     " free. Free up some space (or move the Group Chat Archive folder to a bigger drive) and try again.";
 }
 
-/* ---- SP7: the pre-flight preview's words --------------------------------- */
+/* ---- the pre-flight preview's words --------------------------------- */
 const qn = (f) => "“" + String(f) + "”";
 const fmtN = (n) => Number(n).toLocaleString("en-US");
 const plural = (n, one, many) => fmtN(n) + " " + (n === 1 ? one : many);
@@ -535,7 +535,7 @@ function preflightWarnings(p) {
   }
   if (sv.dm.conversations) add("dm-ignored", plural(sv.dm.conversations, "1:1 conversation", "1:1 conversations") + " (" + plural(sv.dm.messages, "message", "messages") + ") will be left out — only group chats are imported.");
   if (p.media && p.media.unmatched) add("unmatched-media", plural(p.media.unmatched, "file", "files") + " in the media folder don't belong to any message in this export and won't be copied.");
-  // SP7 fix round 1 (#2): an older download than the archive (or nothing new
+  // an older download than the archive (or nothing new
   // in it at all): merging keeps the archive's newer copies, but say so first.
   const mg = p.merge;
   if (mg && ((Number.isFinite(mg.exportNewest) && Number.isFinite(mg.archiveNewest) && mg.exportNewest < mg.archiveNewest) || (mg.added === 0 && mg.overlap > 0))) {

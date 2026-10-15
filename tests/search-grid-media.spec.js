@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv, afterSearchRun } = require("./_viewer-fixture.js");
 
-// VC-16: grid mode only renders messages with media, but the count, paging
+// grid mode only renders messages with media, but the count, paging
 // and empty state all used the unfiltered result list — "20 messages found ·
 // showing media only" over a blank page with 0 cells and no explanation.
 // In grid mode the result set is now the media subset.
@@ -10,7 +10,7 @@ const LIST = msgs("m", 20, { x: (k) => "text " + k,
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 const grid = (page) => page.locator('#f-viewtoggle button[data-mode="grid"]').click();
 
-test("VC-16: grid mode counts only media results", async ({ page }) => {
+test("grid mode counts only media results", async ({ page }) => {
   await bootViewer(page, DATA);
   await afterSearchRun(page, () => grid(page));
   await afterSearchRun(page, () => page.locator("#s-input").fill("text"));
@@ -18,7 +18,7 @@ test("VC-16: grid mode counts only media results", async ({ page }) => {
   await expect(page.locator("#s-meta")).toHaveText(/^2 media messages found/);
 });
 
-test("VC-16: grid mode with no media in the results shows an empty state", async ({ page }) => {
+test("grid mode with no media in the results shows an empty state", async ({ page }) => {
   await bootViewer(page, DATA);
   await afterSearchRun(page, () => grid(page));
   await afterSearchRun(page, () => page.locator('#f-matchtoggle button[data-mode="exact"]').click());

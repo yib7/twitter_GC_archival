@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout — required first, consistently, even though Playwright already ran it once at the top of playwright.config.js in this same worker process
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout — required first, consistently, even though Playwright already ran it once at the top of playwright.config.js in this same worker process
 const { test, expect } = require("@playwright/test");
 const { checkAndBuild } = require("./_setup-helpers.js");
 const { spawn } = require("child_process");
@@ -7,7 +7,7 @@ const os = require("os");
 const path = require("path");
 const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — see that file
 
-// Regression coverage for P1-1: apiIdentity used to overwrite cfg.names/local.js
+// Regression coverage: apiIdentity used to overwrite cfg.names/local.js
 // verbatim from the POST body, so reopening the wizard and saving again (with
 // the name fields empty/unloaded) silently wiped every previously saved name.
 //
@@ -19,7 +19,7 @@ const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — s
 // dir via env vars — instead of using the shared webServer from
 // playwright.config.js. The temp dir is created under the OS temp dir and
 // removed afterward; the real project's personal_data/ is never touched.
-// QA-1: a random port from a fixed range (8700-9599) used to let this collide
+// a random port from a fixed range (8700-9599) used to let this collide
 // with someone else's server — the range even included 8765, the default
 // archive port. Worse, the old "poll /api/ping, then check exitCode !== null"
 // guard has a race: if the port was already taken, the poll can succeed
@@ -72,7 +72,7 @@ test.afterAll(async () => {
 // Drives the real /api/source build (paths typed directly, no native picker)
 // so /api/parts has a real roster — matching how every other setup-*.spec.js
 // gets past step 1. On a reopened, already-built archive step 1 is locked;
-// SP7 (QA-6): the second visit now goes through the wizard's own "Add a
+// the second visit now goes through the wizard's own "Add a
 // newer export" (the same export again) instead of re-enabling the locked
 // fields by script — the identity saved on the first visit must survive it.
 async function buildAndGotoPeopleStep(page) {
@@ -82,8 +82,8 @@ async function buildAndGotoPeopleStep(page) {
   await page.locator("#src-group").fill(path.join(exportDir, "direct-messages-group.js"));
   await page.locator("#src-headers").fill(path.join(exportDir, "direct-message-group-headers.js"));
   await page.locator("#src-media").fill(path.join(exportDir, "media"));
-  // SP7: Check export → preview → Build. The same export again adds nothing
-  // new, so (SP7 fix round 1, #2) it needs the extra "merge anyway" confirm.
+  // Check export → preview → Build. The same export again adds nothing
+  // new, so it needs the extra "merge anyway" confirm.
   await checkAndBuild(page, { olderOk: locked });
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
   await page.locator('[data-pane="2"] [data-next]').click();

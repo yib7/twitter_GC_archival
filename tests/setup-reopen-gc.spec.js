@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const os = require("os");
@@ -6,7 +6,7 @@ const path = require("path");
 const X = require("./fixtures/x-export.js");
 const { startServer } = require("./_sp6-server.js");
 
-// SP-4: /api/status didn't return the saved group names and photos, and the
+// /api/status didn't return the saved group names and photos, and the
 // wizard's empty { name: "" } entry wiped a saved group name on the next
 // Save. A real server over a synthetic export (GCA_PORT=0, mkdtemp
 // GCA_PERSONAL, no native pickers): save a group name + photo, reopen the

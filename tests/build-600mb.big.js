@@ -1,5 +1,5 @@
 /*
- * SP-10, opt-in ONLY: a ~600 MB synthetic messages file must build.
+ * Opt-in ONLY: a ~600 MB synthetic messages file must build.
  *
  *   GCA_BIG=1 node --test tests/build-600mb.big.js      (or: npm run test:big)
  *
@@ -11,13 +11,13 @@
  * Nothing it writes is ever committed. The everyday proof of the streaming
  * path is the tiny-chunk scanner test in tests/build-ingest.test.js.
  *
- * Fix round 1: a second build merges a further ~400 MB export into the first
+ * A second build merges a further ~400 MB export into the first
  * build's data.js, and a third build reads that data.js back, which by then is
  * itself larger than V8's max string length (the old whole-file read of the
  * previous archive could not load it). tests/archive-stream.test.js is the
  * everyday proof of that path.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -67,7 +67,7 @@ function writeBigExport(file, target, firstId) {
   return { bytes, msgs };
 }
 
-test("SP-10: a ~600 MB messages file builds without ERR_STRING_TOO_LONG, and a >512 MB data.js merges", { timeout: 30 * 60e3 }, () => {
+test("a ~600 MB messages file builds without ERR_STRING_TOO_LONG, and a >512 MB data.js merges", { timeout: 30 * 60e3 }, () => {
   const exportDir = scratch("gca-big-export-");
   const personal = scratch("gca-big-personal-");
   const file = path.join(exportDir, "direct-messages-group.js");
@@ -97,7 +97,7 @@ test("SP-10: a ~600 MB messages file builds without ERR_STRING_TOO_LONG, and a >
   const b1 = run(file);
   assert.equal(b1.total, msgs);
   const out1Mb = mb(out);
-  console.log("[SP-10 big] export " + (bytes / 1048576).toFixed(1) + " MB, " + msgs + " messages in " + GROUPS + " groups; " +
+  console.log("[big build] export " + (bytes / 1048576).toFixed(1) + " MB, " + msgs + " messages in " + GROUPS + " groups; " +
     "generated in " + genSec.toFixed(1) + " s; built in " + b1.sec.toFixed(1) + " s (" + buildNodeArgs("build.js", os.totalmem())[0] +
     "); data.js " + out1Mb + " MB");
   fs.rmSync(file);   // keep the disk footprint down

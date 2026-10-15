@@ -34,7 +34,7 @@ async function build(page) {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
+  await checkAndBuild(page, { mock: true });   // Check export → preview → Build
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
 }
 

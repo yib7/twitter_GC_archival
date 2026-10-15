@@ -5,7 +5,7 @@ const { bootViewer, conv } = require("./_viewer-fixture.js");
 // z-index: var(--z-modal) / toasts to var(--z-toast), but those tokens were
 // never defined, so every overlay computed z-index:auto and painted UNDER the
 // mobile top bar (z30), tab bar (z40), More sheet, On-this-day toast and the
-// (since removed, UX-6) floating theme switch. Hit-tests prove what the user
+// (since removed) floating theme switch. Hit-tests prove what the user
 // can actually click/see, not just DOM presence. The theme toggle now lives in
 // the sidebar footer (desktop) and the More sheet (mobile).
 const T = Date.parse("2024-03-10T12:00:00Z");

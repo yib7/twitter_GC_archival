@@ -1,11 +1,11 @@
 /*
- * SP7 pre-flight preview: what an export holds and what to warn about, before
+ * Pre-flight preview: what an export holds and what to warn about, before
  * anything is written. The survey streams the export one message at a time;
  * the server endpoint is read-only (personal_data/ is byte-for-byte the same
  * afterwards). Synthetic exports only (tests/fixtures/x-export.js); every
  * server on GCA_PORT=0 with a mkdtemp GCA_PERSONAL (tests/_sp6-server.js).
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -191,7 +191,7 @@ describe("POST /api/preflight against a built archive (a newer export)", () => {
   });
 });
 
-// SP7 fix round 1 (#7): the survey (and the server's export id scan) held
+// the survey (and the server's export id scan) held
 // every message id twice — in `allIds` and again in `keepIds`. Each id is
 // now held once: kept ids and removed ids are two disjoint sets, and
 // `allIds` is a view over both.

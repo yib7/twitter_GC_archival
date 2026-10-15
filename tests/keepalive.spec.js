@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -6,7 +6,7 @@ const os = require("os");
 const path = require("path");
 const { waitForBootLine } = require("./wait-for-boot-line.js");
 
-// SP-6: the launcher's server must not quit under a tab that is merely hidden
+// the launcher's server must not quit under a tab that is merely hidden
 // (Chromium throttles hidden-tab timers to ~1/min; sleeping tabs stop them).
 // So each page pings with its own id, says goodbye with a beacon when it
 // closes, re-pings when it becomes visible again, and if the server is gone
@@ -60,7 +60,7 @@ test.describe("launcher auto-exit", () => {
     await page.unroute("**/api/ping*");
   });
 
-  // Fix round 1 (review #6): index.html loaded keepalive.js after the archive
+  // index.html loaded keepalive.js after the archive
   // data, so a big data.js took longer to load than the 5 s goodbye grace and
   // the server quit under the page that was still loading. keepalive.js now
   // loads first, and the grace is about 20 s.

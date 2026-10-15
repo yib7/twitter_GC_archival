@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv } = require("./_viewer-fixture.js");
 
-// VC-26: message text had no dir="auto", so an Arabic/Hebrew line took the
+// message text had no dir="auto", so an Arabic/Hebrew line took the
 // page's LTR base direction and its trailing punctuation landed on the wrong
 // side. Bubbles, bookmark cards and People samples now let the browser pick
 // the direction from the text.
@@ -14,7 +14,7 @@ const A = [
 const B = [{ i: "b0", s: "u1", t: T, x: "مرحبا بالجميع كيف حالكم اليوم؟" }];
 const DATA = { conversations: [conv("A", "Alpha", A), conv("B", "Beta", B)] };
 
-test("VC-26: message bubbles use dir=auto and resolve RTL text to rtl", async ({ page }) => {
+test("message bubbles use dir=auto and resolve RTL text to rtl", async ({ page }) => {
   await bootViewer(page, DATA);
   const bubble = page.locator("#s-list .bubble", { hasText: "שלום" });
   await expect(bubble).toHaveAttribute("dir", "auto");
@@ -23,14 +23,14 @@ test("VC-26: message bubbles use dir=auto and resolve RTL text to rtl", async ({
   expect(await ltr.evaluate((b) => getComputedStyle(b).direction)).toBe("ltr");
 });
 
-test("VC-26: bookmark cards from another conversation and People samples use dir=auto", async ({ page }) => {
+test("bookmark cards from another conversation and People samples use dir=auto", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.settings": JSON.stringify({ pins: ["b0"] }), "gca.lastView": "pins" } });
   await expect(page.locator("#view-pins .bubble", { hasText: "مرحبا" })).toHaveAttribute("dir", "auto");
   await page.locator('.nav-item[data-view="people"]').click();
   await expect(page.locator(".sample", { hasText: "שלום" }).first()).toHaveAttribute("dir", "auto");
 });
 
-test("VC-26: a share card draws RTL text right-to-left from the right edge", async ({ page }) => {
+test("a share card draws RTL text right-to-left from the right edge", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
   // Record how each body line is drawn (the Share dialog's preview draws the
   // card; x is in CSS px under the DPR transform, so scale it to canvas px).

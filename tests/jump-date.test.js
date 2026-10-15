@@ -1,11 +1,11 @@
-// UX-9 / VC-28 (SP8): GCAShared.parseJumpDate(input, clock) is the ONE date
+// GCAShared.parseJumpDate(input, clock) is the ONE date
 // parser behind the Timeline's jump-to-date (command palette + calendar input)
 // and the Search before:/after: operators. It reads YYYY-MM-DD, YYYY-MM, YYYY,
 // M/D/YYYY, "June 2021", "Jan 7 2024" and "7 Jan 2024"; rejects dates that do
 // not exist (2023-02-30 used to roll over to Mar 2); and returns the period as
 // [start, end) epoch-ms bounds at midnight IN THE CONFIGURED ZONE (clock).
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
@@ -92,7 +92,7 @@ test("zonedDayStart lands on the zone's wall-clock midnight, across DST days", (
   }
 });
 
-// SP8 fix round 1: a zone whose DST starts AT midnight (negative offsets:
+// a zone whose DST starts AT midnight (negative offsets:
 // Santiago, Havana, Asunción, old São Paulo) has no 00:00 that day. The day
 // must start at the transition instant (wall clock 01:00) — the earliest
 // instant whose wall clock is at/after midnight — never 23:00 of the day
@@ -140,14 +140,14 @@ test("the same holds for the browser's own zone (\"local\")", () => {
   }
 });
 
-// Fix round 2: switching TZ must not leak into later tests. On Windows Node
+// Switching TZ must not leak into later tests. On Windows Node
 // deleting process.env.TZ doesn't reset the zone; it has to be assigned back.
 test("the zone switch above is undone", () => {
   assert.strictEqual(Intl.DateTimeFormat().resolvedOptions().timeZone, ZONE_AT_LOAD);
   assert.strictEqual(new Date(Date.UTC(2024, 8, 8, 12)).getTimezoneOffset(), OFFSET_AT_LOAD);
 });
 
-// SP8 fix round 1: slashed dates are read month first (US). A first number
+// slashed dates are read month first (US). A first number
 // over 12 is almost certainly day-first (13/01/2024) — that's an "order"
 // error (the UI says to use YYYY-MM-DD or Jan 7 2024), not "no such date".
 test("a day-first slashed date is an order error, not an impossible date", () => {

@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
@@ -6,11 +6,11 @@ const os = require("node:os");
 const path = require("node:path");
 
 // copyMediaFlat() copies the group media folder into personal_data/media/.
-// SP-7 (deep audit) changed it: it used to walk the whole tree and copy every
+// The media-folder rework changed it: it used to walk the whole tree and copy every
 // file, so a mis-picked data/ folder dragged 1:1 DMs and account.js into the
 // servable media folder. It now copies ONLY top-level files named like X
 // message media and counts everything else as `unmatched`. Because it no
-// longer recurses, the old "same basename in two subfolders" case (P2-5) can't
+// longer recurses, the old "same basename in two subfolders" case can't
 // arise any more; that test is replaced by the ones below.
 //
 // require()ing scripts/server.js only works because it's guarded with

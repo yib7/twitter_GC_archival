@@ -1,9 +1,9 @@
 /*
- * SP6: scripts/build.js end to end, run as a child process exactly like the
+ * scripts/build.js end to end, run as a child process exactly like the
  * setup server runs it — GCA_PERSONAL points at an mkdtemp dir and the config
  * names synthetic export files (tests/fixtures/x-export.js). Never real data.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -43,7 +43,7 @@ test("a valid export builds; group chats only, 1:1 DMs skipped", () => {
   assert.equal(data.conversations.find((c) => c.id === "1000000001").count, 3);
 });
 
-test("SP-1: a messages file with a UTF-8 BOM builds normally", () => {
+test("a messages file with a UTF-8 BOM builds normally", () => {
   const { personal, files } = setup({ bom: true });
   const r = runBuild(personal, { sourceJs: [files.group], headersJs: files.headers });
   assert.equal(r.status, 0, r.stderr);
@@ -53,8 +53,8 @@ test("SP-1: a messages file with a UTF-8 BOM builds normally", () => {
 const FAILS = [
   ["the 1:1 direct-messages.js picked by mistake", (f) => ({ sourceJs: [f.dm], headersJs: f.headers }), /1:1/],
   ["account.js picked by mistake", (f) => ({ sourceJs: [f.account], headersJs: f.headers }), /account/],
-  ["the headers file given as the messages file (SP-8)", (f) => ({ sourceJs: [f.headers], headersJs: f.headers }), /headers file/i],
-  ["a headers-shaped file with no window.YTD prefix given as the messages file (SP-8, by content)", (f) => {
+  ["the headers file given as the messages file", (f) => ({ sourceJs: [f.headers], headersJs: f.headers }), /headers file/i],
+  ["a headers-shaped file with no window.YTD prefix given as the messages file (detected by content)", (f) => {
     fs.writeFileSync(f.group, JSON.stringify(X.defaultExport().headers));
     return { sourceJs: [f.group], headersJs: f.headers };
   }, /headers file/i],
@@ -69,7 +69,7 @@ const FAILS = [
   ["the messages file given as the headers file", (f) => ({ sourceJs: [f.group], headersJs: f.group }), /messages file/i],
 ];
 for (const [name, cfgOf, re] of FAILS) {
-  test("SP-1: fails loudly (non-zero exit, plain-language reason, no data.js) for " + name, () => {
+  test("fails loudly (non-zero exit, plain-language reason, no data.js) for " + name, () => {
     const { personal, files } = setup();
     const r = runBuild(personal, cfgOf(files));
     assert.notEqual(r.status, 0, "must exit non-zero; stdout:\n" + r.stdout);
@@ -81,7 +81,7 @@ for (const [name, cfgOf, re] of FAILS) {
   });
 }
 
-test("SP-9: an unreadable previous data.js stops the build instead of silently dropping that history", () => {
+test("an unreadable previous data.js stops the build instead of silently dropping that history", () => {
   const { personal, files } = setup();
   const cfg = { sourceJs: [files.group], headersJs: files.headers };
   assert.equal(runBuild(personal, cfg).status, 0);
@@ -92,13 +92,13 @@ test("SP-9: an unreadable previous data.js stops the build instead of silently d
   const r = runBuild(personal, cfg);
   assert.notEqual(r.status, 0, "must not rebuild over a damaged baseline; stdout:\n" + r.stdout);
   assert.match(r.stderr, /^BUILD ERROR: .*data\.js.*couldn't be read/m);
-  // fix round 1: never advise deleting the history without a backup first
+  // Never advise deleting the history without a backup first
   assert.match(r.stderr, /backup copy.*delete/i);
   noStack(r);
   assert.equal(fs.readFileSync(out, "utf8"), truncated, "the damaged file is left for the user to restore, not overwritten");
 });
 
-test("fix round 1: a data.js that parses but isn't an archive is reported as damaged, not merged", () => {
+test("a data.js that parses but isn't an archive is reported as damaged, not merged", () => {
   const { personal, files } = setup();
   const cfg = { sourceJs: [files.group], headersJs: files.headers };
   const out = path.join(personal, "data.js");
@@ -109,7 +109,7 @@ test("fix round 1: a data.js that parses but isn't an archive is reported as dam
   noStack(r);
 });
 
-test("fix round 1: the previous data.js is merged by streaming it (BOM and all), history kept", () => {
+test("the previous data.js is merged by streaming it (BOM and all), history kept", () => {
   const { personal, files } = setup();
   const cfg = { sourceJs: [files.group], headersJs: files.headers };
   assert.equal(runBuild(personal, cfg).status, 0);
@@ -125,7 +125,7 @@ test("fix round 1: the previous data.js is merged by streaming it (BOM and all),
   assert.ok(again.msgs.some((m) => m.x === "only in the old archive"));
 });
 
-test("fix round 1: a whole build + merge read in 7-byte chunks gives the same data.js as normal reads", () => {
+test("a whole build + merge read in 7-byte chunks gives the same data.js as normal reads", () => {
   const a = setup(), b = setup();
   const cfgA = { sourceJs: [a.files.group], headersJs: a.files.headers };
   const cfgB = { sourceJs: [b.files.group], headersJs: b.files.headers };
@@ -138,7 +138,7 @@ test("fix round 1: a whole build + merge read in 7-byte chunks gives the same da
   assert.deepEqual(strip(readData(b.personal)), strip(readData(a.personal)));
 });
 
-test("fix round 1: data.js.bak is the previous archive, rotated only by a successful build", () => {
+test("data.js.bak is the previous archive, rotated only by a successful build", () => {
   const { personal, files } = setup();
   const cfg = { sourceJs: [files.group], headersJs: files.headers };
   const out = path.join(personal, "data.js"), bak = out + ".bak";
@@ -155,13 +155,13 @@ test("fix round 1: data.js.bak is the previous archive, rotated only by a succes
   assert.deepEqual(fs.readdirSync(personal).filter((f) => f.endsWith(".tmp")), []);
 });
 
-test("SP-9: the build writes data.js through a temp file and leaves none behind", () => {
+test("the build writes data.js through a temp file and leaves none behind", () => {
   const { personal, files } = setup();
   assert.equal(runBuild(personal, { sourceJs: [files.group], headersJs: files.headers }).status, 0);
   assert.deepEqual(fs.readdirSync(personal).filter((f) => f.endsWith(".tmp")), []);
 });
 
-test("SP-1: a failed rebuild leaves the previous data.js untouched", () => {
+test("a failed rebuild leaves the previous data.js untouched", () => {
   const { personal, files } = setup();
   assert.equal(runBuild(personal, { sourceJs: [files.group], headersJs: files.headers }).status, 0);
   const before = fs.readFileSync(path.join(personal, "data.js"), "utf8");
@@ -170,7 +170,7 @@ test("SP-1: a failed rebuild leaves the previous data.js untouched", () => {
   assert.equal(fs.readFileSync(path.join(personal, "data.js"), "utf8"), before);
 });
 
-test("SP-20: the build attaches both media files of a message, not just the first", () => {
+test("the build attaches both media files of a message, not just the first", () => {
   const { personal, files } = setup();
   const r = runBuild(personal, { sourceJs: [files.group], headersJs: files.headers, mediaDir: files.media });
   assert.equal(r.status, 0, r.stderr);
@@ -181,7 +181,7 @@ test("SP-20: the build attaches both media files of a message, not just the firs
   assert.match(m.mx[0].m, /9002-ZzSecond\.jpg$/);
 });
 
-test("SP-2: every part file is ingested, merged in order and deduped", () => {
+test("every part file is ingested, merged in order and deduped", () => {
   const { personal, files } = setup();
   // part1 repeats a part0 message (same id) — it must not be double-counted
   const ex = X.defaultExport();
@@ -194,20 +194,20 @@ test("SP-2: every part file is ingested, merged in order and deduped", () => {
   assert.doesNotMatch(r.stdout, /no message text/);
 });
 
-test("SP-2: a missing part file is called out (headers list messages with no body)", () => {
+test("a missing part file is called out (headers list messages with no body)", () => {
   const { personal, files } = setup();
   const r = runBuild(personal, { sourceJs: [files.group], headersJs: files.headers });
   assert.equal(r.status, 0, r.stderr);
   assert.match(r.stdout, /Warning: 2 message\(s\) listed in the headers file have no message text.*-part/);
 });
 
-// SP7 carry-over (SP6 review #1): data.js missing while its backup or an
+// data.js missing while its backup or an
 // unfinished save sits next to it means the archive's history is in one of
 // those files (a crash mid-swap, or data.js deleted by hand). Building from
 // the export alone would silently replace that history, so stop and say what
 // to do. Nothing may be written.
 for (const leftover of ["data.js.bak", "data.js.4242.0a1b2c3d.tmp", "data.js.bak.4242.0a1b2c3d.tmp"]) {
-  test("SP7: no data.js but a leftover " + leftover + " stops the build with a plain sentence", () => {
+  test("no data.js but a leftover " + leftover + " stops the build with a plain sentence", () => {
     const { personal, files } = setup();
     fs.writeFileSync(path.join(personal, leftover), "window.CHAT_DATA = {\"conversations\":[]};\n");
     const r = runBuild(personal, { sourceJs: [files.group], headersJs: files.headers });

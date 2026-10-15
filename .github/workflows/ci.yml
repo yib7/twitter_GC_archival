@@ -6,19 +6,19 @@ on:
   pull_request:
   workflow_dispatch:
 
-# QA-17(b): explicit least-privilege default — this workflow only ever reads
+# explicit least-privilege default — this workflow only ever reads
 # the checkout, it never needs to write anything back.
 permissions:
   contents: read
 
-# QA-17(c): a new push to the same branch/PR cancels any run already in
+# a new push to the same branch/PR cancels any run already in
 # flight for it, instead of letting superseded runs keep burning minutes.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # QA-17(g): lint used to run once PER OS in the test matrix below (3x the
+  # lint used to run once PER OS in the test matrix below (3x the
   # same, OS-independent check). It needs exactly one Node + one OS.
   lint:
     runs-on: ubuntu-latest
@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          # QA-17(f): read from .nvmrc (the single source of truth for the
+          # read from .nvmrc (the single source of truth for the
           # supported Node version) instead of a second, independently
           # hardcoded "24" that can silently drift from it.
           node-version-file: ".nvmrc"
@@ -37,7 +37,7 @@ jobs:
         run: npm ci
 
       - name: Lint
-        # QA-17(h): --max-warnings=0 is also the default now via package.json's
+        # --max-warnings=0 is also the default now via package.json's
         # own "lint" script, so this matches what a contributor runs locally.
         run: npm run lint
 
@@ -61,7 +61,7 @@ jobs:
       - name: Unit tests (build core)
         run: npm run test:unit
 
-      # QA-17(d): the Playwright browser download (not the OS package install
+      # the Playwright browser download (not the OS package install
       # `--with-deps` also does) is the expensive part — about 3.5 of 4.7
       # minutes on Windows. Caching it keyed on the lockfile (bumps whenever
       # @playwright/test's pinned version changes) skips the re-download on a
@@ -94,7 +94,7 @@ jobs:
       - name: End-to-end tests
         run: npm run test:e2e
 
-      # QA-17(e): a Windows- or macOS-only failure was previously undebuggable
+      # a Windows- or macOS-only failure was previously undebuggable
       # from CI — no trace, no report, nothing but the console log. trace and
       # screenshot are already set to retain-on-failure in playwright.config.js
       # (so a green run uploads nothing extra); this just gets those artifacts

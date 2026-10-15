@@ -1,5 +1,5 @@
 /*
- * SP7: the wizard's step 1 is now two clicks — "Check export" shows the
+ * the wizard's step 1 is now two clicks — "Check export" shows the
  * pre-flight preview (POST /api/preflight, read-only), then "Build archive"
  * (or "Merge into archive") runs the build (POST /api/source).
  *
@@ -30,7 +30,7 @@ async function checkAndBuild(page, opts) {
   if (opts && opts.mock) await mockPreflight(page, opts.mock);
   await page.locator("#btn-build").click();
   await expect(page.locator("#preflight")).toBeVisible();
-  // SP7 fix round 1 (#2): an export older than the archive (or adding
+  // an export older than the archive (or adding
   // nothing new) needs the extra confirm ticked first
   if (opts && opts.olderOk) await page.locator("#pf-older-ok").check();
   await page.locator("#btn-confirm").click();

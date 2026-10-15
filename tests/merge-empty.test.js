@@ -1,11 +1,11 @@
 /*
- * SP7 fix round 1 (#5): an export with no group messages can't be merged.
+ * an export with no group messages can't be merged.
  * The build used to accept it (the archive's own groups satisfied its "any
  * group chats?" check), re-point config at the empty export and prune the
  * previous export's copies from personal_data/source/. Real server
  * (GCA_PORT=0, mkdtemp GCA_PERSONAL); synthetic exports only.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

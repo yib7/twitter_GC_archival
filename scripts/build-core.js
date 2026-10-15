@@ -21,7 +21,7 @@ const kindOf = (p) => {
 };
 
 // NaN (not 0 = 1970) for a missing or unparseable time — the accumulator skips
-// and counts those instead of storing a NaN/null timestamp (SP-21).
+// and counts those instead of storing a NaN/null timestamp.
 const toMs = (iso) => (iso ? Date.parse(iso) : NaN);
 
 // a 1:1 DM id looks like "{userA}-{userB}"; a group id is a single numeric id
@@ -36,7 +36,7 @@ function rawToRec(mc) {
       const rr = { k: r.reactionKey, s: r.senderId };
       // Custom-emoji reactions (reactionKey "emoji") carry the actual glyph in a
       // separate field so it isn't lost to the generic REACT.emoji placeholder
-      // (P2-1). ASSUMPTION: field name `emojiReaction` is taken from X's
+      //. ASSUMPTION: field name `emojiReaction` is taken from X's
       // documented export schema and has NOT been verified against a real
       // reaction object's keys (PROJECT HARD RULE forbids touching real
       // personal_data/exports) — flag for human verification. `r.emoji` is a
@@ -59,7 +59,7 @@ function toEvent(m) {
 }
 function eventKey(e) { return [e.type, e.t, e.name || "", (e.ids || []).join(","), e.s || ""].join("|"); }
 
-// SP7 fix round 1 (#2): two copies' reactions, once each (same key, sender, glyph).
+// two copies' reactions, once each (same key, sender, glyph).
 function unionReactions(a, b) {
   const out = [], seen = new Set();
   for (const r of (a || []).concat(b || [])) {
@@ -75,7 +75,7 @@ function makeConvo(id) {
 }
 
 /**
- * Incremental form of assembleConversations (SP-10): the streaming build folds
+ * Incremental form of assembleConversations: the streaming build folds
  * one message at a time as the scanner emits it, so no whole export array is
  * ever held. assembleConversations() below is the same thing for already-parsed
  * arrays (and what the unit tests drive).
@@ -99,12 +99,12 @@ function createAccumulator(opts) {
   };
   let prevCount = 0;
   const warnings = { badTime: 0, missingBodies: 0 };
-  // SP7 fix round 1 (#1): messages read from the quarantine of removed
+  // messages read from the quarantine of removed
   // messages (personal_data/.removed/messages.js), so finish() can tell which
   // of them come back into the archive (their group / person is no longer
   // removed) — ids only — and which conversations had their events there.
   const quarIds = new Set(), quarEventConvs = new Set();
-  // SP7 fix round 1 (#2): when the archive and the export both have a message,
+  // when the archive and the export both have a message,
   // the reactions are united and the text (an edit) comes from whichever is
   // newer — the export unless its newest message is older than the archive's
   // (merging an older download). Only the archive copies whose text differs
@@ -135,7 +135,7 @@ function createAccumulator(opts) {
       });
       (pc.events || []).forEach((e) => c.eventMap.set(eventKey(e), e));
       if (fromQuar && (pc.events || []).length) quarEventConvs.add(String(pc.id));
-      // SP-21: people known only from an earlier build's headers (lurkers,
+      // people known only from an earlier build's headers (lurkers,
       // joiners) stay on the roster even when the newer export has no headers.
       (pc.participants || []).forEach((id) => c.headerParts.add(id));
       if (!fromQuar) prevCount += (pc.msgs || []).length;
@@ -149,7 +149,7 @@ function createAccumulator(opts) {
     if (m.messageCreate) {
       const r = rawToRec(m.messageCreate);
       if (!r.i) return;
-      if (!Number.isFinite(r.t)) { warnings.badTime++; return; }   // SP-21: skip + warn
+      if (!Number.isFinite(r.t)) { warnings.badTime++; return; }   // skip + warn
       if (r.t > exportNewest && kept(convId, r.s)) exportNewest = r.t;
       const old = c.msgMap.get(r.i);
       if (old) {
@@ -174,7 +174,7 @@ function createAccumulator(opts) {
     const c = getConvo(convId);
     if (m.messageCreate) {
       const mc = m.messageCreate;
-      if (mc.id) c.headerIds.add(String(mc.id));   // SP-2: to spot bodies missing from the messages file(s)
+      if (mc.id) c.headerIds.add(String(mc.id));   // to spot bodies missing from the messages file(s)
       if (mc.senderId) c.headerParts.add(mc.senderId);
       if (mc.recipientId) c.headerParts.add(mc.recipientId);
     } else {
@@ -203,7 +203,7 @@ function createAccumulator(opts) {
     }
     displaced.clear();
     const conversations = [];
-    // SP7 fix round 1 (#1): what the archive leaves out because its group or
+    // what the archive leaves out because its group or
     // person is removed (`removed`, for the quarantine), and the quarantined
     // messages that come back now (`restored`) — see build.js.
     const removed = [], restored = [];
@@ -231,7 +231,7 @@ function createAccumulator(opts) {
       let withMedia = 0;
       const msgVals = [...c.msgMap.values()].filter((m) => !IGNORED.has(String(m.s)));
       for (const rec of msgVals) {
-        // SP-20: a message can have several files; the first stays m/k (what
+        // a message can have several files; the first stays m/k (what
         // every view already reads), the rest go to mx: [{ m, k }, ...].
         const mp = mediaIndex[rec.i];
         const list = Array.isArray(mp) ? mp : (mp ? [mp] : []);
@@ -271,7 +271,7 @@ function createAccumulator(opts) {
 }
 
 /**
- * SP7 fix round 1 (#1): the quarantine written BEFORE data.js — the messages
+ * the quarantine written BEFORE data.js — the messages
  * still removed plus the ones coming back — so a build cut off between the
  * two writes loses nothing (the next build narrows it again). Conversations
  * are joined by id; messages by id, events by key.
@@ -326,7 +326,7 @@ function assembleConversations(opts) {
 }
 
 /**
- * SP-2: X splits a large data file into "<name>.js", "<name>-part1.js", ...
+ * X splits a large data file into "<name>.js", "<name>-part1.js", ...
  * (the documented convention for tweets-partN.js; the exact DM spelling is
  * unconfirmed, so "-partN", "_partN" and ".partN", zero-padded or not, are
  * all accepted). Given a folder listing and the file the user picked, return
@@ -353,7 +353,7 @@ function exportPartFiles(names, chosen) {
 }
 
 /**
- * SP7: the group-chat families in a folder listing (the filename-scan fallback
+ * the group-chat families in a folder listing (the filename-scan fallback
  * when an archive has no usable data/manifest.js), each in part order.
  * @returns {{messages: string[], headers: string[]}}
  */
@@ -370,7 +370,7 @@ function exportFamilies(names) {
 }
 
 /**
- * SP7: read an archive's data/manifest.js. Real X archives write
+ * read an archive's data/manifest.js. Real X archives write
  *   window.__THAR_CONFIG = { …, "dataTypes": { "<type>": { "mediaDirectory"?: "data/…",
  *     "files": [ { "fileName": "data/<file>.js", "globalName": "YTD.<global>.part<N>", … } ] } } }
  * with paths relative to the archive root. Unknown and missing keys are
@@ -426,7 +426,7 @@ function parseManifest(text) {
 
 /**
  * Index a media folder's file names by message id. X names group-DM media
- * "<messageId>-<mediaId>.<ext>"; a message may own several files (SP-20), so
+ * "<messageId>-<mediaId>.<ext>"; a message may own several files, so
  * each id maps to ALL of its paths, sorted for a stable order.
  * @param {string[]} names   file names (no directories) in the media folder.
  * @param {string}   relDir  the folder's path as the app should load it.
@@ -436,7 +436,7 @@ function indexMediaFiles(names, relDir) {
   const idx = {};
   const prefix = relDir ? String(relDir).replace(/\/+$/, "") + "/" : "";
   for (const f of [...names].map(String).sort()) {
-    if (/\.\d+\.[0-9a-f]{8}\.tmp$/.test(f)) continue;   // SP7 fix round 1 (#3): a copy cut short
+    if (/\.\d+\.[0-9a-f]{8}\.tmp$/.test(f)) continue;   // a copy cut short
     const dash = f.indexOf("-");
     if (dash <= 0) continue;
     const id = f.slice(0, dash);
@@ -496,7 +496,7 @@ function createExportSink(acc, which) {
 }
 
 /**
- * SP7 pre-flight: what an export holds, read one message at a time and kept
+ * Pre-flight: what an export holds, read one message at a time and kept
  * as counts (plus the message ids, to match media and spot overlap with the
  * built archive). Nothing is assembled and nothing is written.
  *   const sv = createExportSurvey({ ignoredGroups, ignoredUsers });
@@ -507,7 +507,7 @@ function createExportSink(acc, which) {
  * groups' messages are counted in removedMsgs instead).
  */
 /**
- * SP7 fix round 1 (#7): an export's message ids, each held ONCE — the ones
+ * an export's message ids, each held ONCE — the ones
  * the archive keeps and the ones it leaves out (removed group / person) are
  * two disjoint Sets, and `all` is a read-only view over both ({ has, size }).
  *
@@ -549,7 +549,7 @@ function createExportSurvey(opts) {
       if (which === "headers") return;
       const t = toMs(mc.createdAt);
       if (!Number.isFinite(t)) { st.badTime++; return; }
-      // SP7 fix round 1 (#4): counted the way the build keeps them — once per
+      // counted the way the build keeps them — once per
       // id (the same message in two part files is one), none without an id
       if (mc.id == null || mc.id === "") return;
       const id = String(mc.id);
@@ -590,7 +590,7 @@ function createExportSurvey(opts) {
     }));
     const everyone = new Set();
     for (const g of groups.values()) if (!G.has(g.id)) g.people.forEach((p) => { if (!U.has(p)) everyone.add(p); });
-    const kept = list.filter((g) => !g.removed && g.count > 0);   // fix round 1 (#4): a group the build would leave empty isn't one
+    const kept = list.filter((g) => !g.removed && g.count > 0);   // A group the build would leave empty isn't one
     const firsts = kept.map((g) => g.first).filter((t) => t != null), lasts = kept.map((g) => g.last).filter((t) => t != null);
     return {
       groups: list,
@@ -605,7 +605,7 @@ function createExportSurvey(opts) {
   }
   return { sink, result, allIds, keepIds, removedIds };
 }
-// SP7: the part numbers missing from a family (0-based), e.g. [0, 1, 3] → [2].
+// the part numbers missing from a family (0-based), e.g. [0, 1, 3] → [2].
 function missingPartNumbers(nums) {
   const have = new Set(nums.filter((n) => Number.isInteger(n) && n >= 0));
   if (!have.size) return [];
@@ -647,7 +647,7 @@ function collectParticipants(data, groupId) {
   return foldConversations(data, [createParticipantCollector(groupId)])[0].result();
 }
 /**
- * SP7: collectParticipants as a collector, so the server can fold it over a
+ * collectParticipants as a collector, so the server can fold it over a
  * streamed archive (fsio.foldArchive) without holding any message bodies:
  * message(conv, msg) per message (conv = the conversation's fields, msgs
  * excluded), conversation(conv) once its fields are all read, result().
@@ -676,7 +676,7 @@ function createParticipantCollector(groupId) {
     },
     conversation(c) {
       if (!inScope(c)) return;
-      // SP-13: everyone on the roster gets a card, even with no messages (a
+      // everyone on the roster gets a card, even with no messages (a
       // lurker, or someone known only from the headers file) — plus when they
       // joined / left, as a memory jog for naming them.
       for (const id of (c.participants || [])) entry(String(id));
@@ -741,7 +741,7 @@ function identifyExport(head) {
   return { kind: KIND_OF_GLOBAL[m[1]] || "other", global: m[1], part: m[2] != null ? Number(m[2]) : null };
 }
 
-/* ---- streaming export scanner (SP-10) ------------------------------------- */
+/* ---- streaming export scanner ------------------------------------- */
 // A whole-file readFileSync + JSON.parse needs ~5-6x the export size in RAM and
 // cannot read a file over V8's ~512 MB string limit at all (ERR_STRING_TOO_LONG).
 // This scanner is fed the file as text chunks and only ever materialises ONE
@@ -998,7 +998,7 @@ function createExportScanner(handlers) {
   });
 }
 
-/* ---- previous-archive scanner (fix round 1) ------------------------------- */
+/* ---- previous-archive scanner ------------------------------- */
 // data.js is written by archiveChunks, so its shape is known:
 //   window.CHAT_DATA = { <meta…>, "conversations": [ { id, type, …, "msgs": [ <msg>, … ], "events": […] }, … ] };
 // It is the accumulated history and can outgrow V8's ~512 MB string limit, so
@@ -1009,7 +1009,7 @@ function createExportScanner(handlers) {
 // returned as `meta` by end().
 const ARCHIVE_HEAD_OK = /^\uFEFF?\s*(?:window\.CHAT_DATA\s*=\s*)?$/;
 /**
- * SP7: with `onMessage`, each message is handed over (with the conversation's
+ * with `onMessage`, each message is handed over (with the conversation's
  * fields read so far — id, type, title, participants and count come before
  * msgs) and NOT kept, so onConversation gets the conversation without `msgs`.
  * With `skipMessages`, messages aren't even parsed (a summary read).
@@ -1096,7 +1096,7 @@ function prevArchiveProblem(e) {
   return null;
 }
 
-/* ---- archive writer (SP-10) ----------------------------------------------- */
+/* ---- archive writer ----------------------------------------------- */
 // Yields the built data.js text piece by piece — byte-identical to
 //   "window.CHAT_DATA = " + JSON.stringify({ ...meta, conversations }) + ";\n"
 // but without ever holding the whole (possibly 100s of MB) string at once:

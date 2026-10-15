@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, afterSearchRun } = require("./_viewer-fixture.js");
 
-// SP9 (VC-12): a message shows its links by their display / expanded URL
+// a message shows its links by their display / expanded URL
 // ("youtube.com/watch?v=xyz") while its text holds the raw t.co short link.
 // Search indexes the expanded + display URLs too, so what you see is what you
 // can find (exact, fuzzy and -exclusions), with the visible link highlighted —

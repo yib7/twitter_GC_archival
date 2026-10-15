@@ -1,4 +1,4 @@
-// Deterministic synthetic archive generator (SP3 perf spec). NEVER real data:
+// Deterministic synthetic archive generator (perf spec). NEVER real data:
 // every id, name and line below is made up, and the output is flagged __sample.
 //
 // `generateArchive` is SELF-CONTAINED on purpose (no closures over module

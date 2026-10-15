@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
-// UX-11 / UX-22: contrast across Light / Dim / Lights-out.
+// contrast across Light / Dim / Lights-out.
 //  - --text / --text-dim / --text-faint reach 4.5:1 on the page and card
 //    surfaces (faint was ~3:1 in every theme);
 //  - every person-palette name colour reaches 4.5:1 (the bright dark-theme

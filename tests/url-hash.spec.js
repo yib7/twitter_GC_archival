@@ -3,7 +3,7 @@ const { pathToFileURL } = require("url");
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv, collectErrors, afterSearchRun } = require("./_viewer-fixture.js");
 
-// SP8: navigation lives in the URL hash — #v=<view>&c=<convId>&m=<msgId>, ids
+// navigation lives in the URL hash — #v=<view>&c=<convId>&m=<msgId>, ids
 // only — written with pushState (a new history entry per navigation) /
 // replaceState (search typing), and read back on load and on Back / Forward.
 // The search query is private-chat text, so it never goes in the URL (browser
@@ -178,7 +178,7 @@ test("garbage in the hash is ignored safely — no throw, nothing injected", asy
   expect(errors).toEqual([]);
 });
 
-test("restoring a hash for another conversation goes through the normal switch: filters don't leak (VC-4)", async ({ page }) => {
+test("restoring a hash for another conversation goes through the normal switch: filters don't leak", async ({ page }) => {
   await boot(page, "");
   await page.locator("#f-media").click();
   await expect(page.locator("#f-media")).toHaveClass(/active/);
@@ -239,7 +239,7 @@ test("file:// — the hash still drives navigation and Back works", async ({ pag
   expect(errors).toEqual([]);
 });
 
-// Fix round 1: #m= names the message a jump landed on. Once the reader scrolls
+// #m= names the message a jump landed on. Once the reader scrolls
 // away from it, the entry stops naming it (replaceState), so a reload reopens
 // the reading position instead of snapping back to the jump target.
 const firstVisibleText = (page) => page.evaluate(() => {
@@ -285,7 +285,7 @@ test("a shared #m= link: read on, reload, and you stay where you read to", async
   await expect(page.locator("#tl-list .msg.flash")).toHaveCount(0);
 });
 
-// Fix round 1: from file:// the full link would carry the local path (and with
+// From file:// the full link would carry the local path (and with
 // it the OS user name). Copy only the "#…" part there, and say how to use it.
 test("file:// — Copy link copies only the #… part, and pasting it at the end of the address opens it", async ({ page, context, browserName }) => {
   test.skip(browserName !== "chromium", "clipboard permissions");

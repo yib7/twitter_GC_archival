@@ -1,7 +1,7 @@
 /* Apply the saved theme before first paint to avoid a flash-of-wrong-theme.
    gca.theme is the single source of truth (default "lightsout"); app.js's theme
    module reconciles the theme toggles + Settings and persists here. The
-   theme-color meta follows the theme's page background (UX-6). Kept as a
+   theme-color meta follows the theme's page background. Kept as a
    same-origin file (not an inline <script>) so the served-mode CSP can stay a
    clean `script-src 'self'` with no per-file hash to keep in sync. A classic
    <script src> in <head> is still render-blocking, so it runs before paint. */

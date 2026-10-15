@@ -7,7 +7,7 @@ const { test, expect } = require("@playwright/test");
 // the landing date unambiguous across whatever timezone the runner is in.
 test.use({ timezoneId: "UTC" });
 
-// P2-8: served-mode Content-Security-Policy (defense-in-depth). The app already
+// served-mode Content-Security-Policy (defense-in-depth). The app already
 // escapes all archive content before it reaches innerHTML (esc() in src/app.js),
 // but shipped no CSP — a future escaping regression would have no second line of
 // defense. This spec proves the meta CSP added to index.html/setup.html:
@@ -84,7 +84,7 @@ test.describe("served-mode CSP (index.html + setup.html)", () => {
     // broken jump (always landing on index 0) would be caught here too.
     await page.keyboard.press("Control+K");
     await page.locator(".cmdk-input").fill("2024-01-20");
-    await page.getByText("Jump to Jan 20, 2024").click();   // SP8 UX-9: the row names the parsed day
+    await page.getByText("Jump to Jan 20, 2024").click();   // the row names the parsed day
     // See smoke.spec.js's identical jump assertion for why this checks
     // viewport position rather than the transient .flash class (which races
     // its own 1700ms removal timer in src/app.js).

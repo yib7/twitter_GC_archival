@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -8,7 +8,7 @@ const { waitForBootLine } = require("./wait-for-boot-line.js");
 const X = require("./fixtures/x-export.js");
 const { checkAndBuild } = require("./_setup-helpers.js");
 
-// SP7: the wizard builds from the unzipped archive folder alone — its
+// the wizard builds from the unzipped archive folder alone — its
 // data/manifest.js says where the group files, every part, the headers and
 // the media are. Own server (GCA_PORT=0, mkdtemp GCA_PERSONAL, root fallbacks
 // and native pickers off) over a synthetic export only.
@@ -73,7 +73,7 @@ test("picking only the archive folder builds every part, with the media", async 
   await page.goto(BASE + "/setup.html");
   await expect(page.locator(".setup-or")).toContainText(/or pick the three files yourself/i);
   await page.locator("#src-root").fill(F.root);
-  // SP7 pre-flight: the preview comes first, and nothing is written yet
+  // Pre-flight: the preview comes first, and nothing is written yet
   await page.locator("#btn-build").click();
   const pf = page.locator("#preflight");
   await expect(pf).toBeVisible();

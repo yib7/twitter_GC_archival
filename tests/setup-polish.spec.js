@@ -1,8 +1,8 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { mockPreflight } = require("./_setup-helpers.js");
 
-// SP-23: wizard polish. Server routes are mocked; nothing real is touched.
+// wizard polish. Server routes are mocked; nothing real is touched.
 
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/status", (route) =>
@@ -23,7 +23,7 @@ test("Build can't be started twice: the button is disabled while a build runs", 
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  // SP7: Check export shows the preview first; the build starts from its button
+  // Check export shows the preview first; the build starts from its button
   await page.locator("#btn-build").click();
   await page.locator("#btn-confirm").click();
   await expect(page.locator("#btn-confirm")).toBeDisabled();

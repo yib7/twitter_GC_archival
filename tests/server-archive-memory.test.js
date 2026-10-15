@@ -1,5 +1,5 @@
 /*
- * SP7 carry-over (SP6 review #2): the setup server parsed the whole built
+ * the setup server parsed the whole built
  * archive (every message body) on its default heap for /api/status,
  * /api/parts, /api/removal-preview and the identity save. A big archive could
  * crash the wizard even though the build itself (sized heap) handled it.
@@ -9,7 +9,7 @@
  * now streams the archive and keeps no message bodies. (The rebuild after a
  * removal runs in build.js, which gets its own heap sized to the machine.)
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

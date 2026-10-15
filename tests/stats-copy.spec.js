@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 
-// SP4 AN-20 / UX-31 / AN-21: copy and empty states.
+// copy and empty states.
 //  - counts are pluralised ("1 message", "1 thread shown"), a short chat's age
 //    is "3 days" (not "0.0 yrs");
 //  - "Msgs / day" says it is per ACTIVE day;

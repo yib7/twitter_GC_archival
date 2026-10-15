@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P1-2: analytics buckets and date filters must be computed in the configured
+// analytics buckets and date filters must be computed in the configured
 // Timezone setting, not browser-local time — and each bucket must agree with the
 // timestamp label shown on screen for the same message.
 //
@@ -55,7 +55,7 @@ test("UTC setting: boundary message buckets to 2024-01-01 and label agrees", asy
   await expect(boundaryMsg.locator(".msg-time")).toContainText("Jan 1, 2024");
 
   // Stats bucket: the two boundary-day messages make 2024-01-01 the busiest
-  // day. Since P2-4 the header shows the DAY-formatted label of that bucket
+  // day. The header shows the DAY-formatted label of that bucket
   // key, so the formatted date proves the bucket is zone-correct.
   await page.locator('.nav-item[data-view="stats"]').click();
   await expect(page.locator("#view-stats .section-h", { hasText: "busiest day" })).toContainText("January 1, 2024");
@@ -79,7 +79,7 @@ test("America/New_York setting: boundary message buckets to 2023-12-31 and label
   await expect(boundaryMsg.locator(".msg-time")).toContainText("Dec 31, 2023");
 
   await page.locator('.nav-item[data-view="stats"]').click();
-  // Formatted busiest-day header (P2-4) must reflect the NY-zone bucket.
+  // Formatted busiest-day header must reflect the NY-zone bucket.
   await expect(page.locator("#view-stats .section-h", { hasText: "busiest day" })).toContainText("December 31, 2023");
   await expect(page.locator("#view-stats .mile", { hasText: "Busiest single day" })).toContainText("December 31, 2023");
 
@@ -114,7 +114,7 @@ test("date-range search: America/New_York excludes the boundary from after:2024-
   await expect(page.locator("#s-list .msg", { hasText: "boundary message" })).toHaveCount(0);
 });
 
-// SP3 (UX-4 / AN-13): Stats reads the CACHED per-conversation time index; a
+// Stats reads the CACHED per-conversation time index; a
 // zone change must drop it, so an already-rendered Stats view re-buckets.
 test("changing the zone after Stats rendered rebuilds the cached time index", async ({ page }) => {
   const errors = [];

@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { archiveScript } = require("./fixtures/synthetic-archive.js");
 
-// VC-29 (SP3): the Search results list is windowed. Results still stream in
+// the Search results list is windowed. Results still stream in
 // 60-row pages as you scroll (infinite scroll), but pages far outside the
 // viewport are swapped for a fixed-height spacer and re-rendered when they come
 // back, so the DOM stays bounded however far you scroll a huge result set.
@@ -59,7 +59,7 @@ test("scrolling 3,000 results keeps the rendered rows bounded and reaches the en
   expect(errors).toEqual([]);
 });
 
-test("a hidden Search view does not unrender its pages (VC-1 guard)", async ({ page }) => {
+test("a hidden Search view does not unrender its pages", async ({ page }) => {
   await boot(page);
   await page.evaluate(() => { document.getElementById("s-scroll").scrollTop = 4000; });
   await expect.poll(() => page.locator("#s-list .msg").count()).toBeGreaterThan(60);

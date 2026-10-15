@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 
-// SP4 superlative definitions (AN-3 / AN-7 / AN-8 / AN-9):
+// Superlative definitions:
 //  - frequency awards are RATES (per 100 messages / % of messages) and need a
 //    minimum sample (MIN_MSGS messages), so a 3-message lurker who posted once
 //    at 3 AM is not the Late Night Owl and the top poster doesn't win every
@@ -12,7 +12,7 @@ const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 //  - The Laugh Track counts emoji 😂 reactions as well as "funny";
 //  - The Ghost includes members who never posted;
 //  - every card says how it is measured (.s-def);
-//  - profile badges come from the SAME list as the grid (AN-3: the top poster
+//  - profile badges come from the SAME list as the grid (the top poster
 //    used to get "The Sailor" for 0 swear messages).
 test.use({ timezoneId: "UTC" });
 
@@ -77,7 +77,7 @@ test("rates with a minimum sample, ties, hidden all-tie / zero cards", async ({ 
   expect(errors).toEqual([]);
 });
 
-test("profile badges are exactly the grid cards the person wins (AN-3)", async ({ page }) => {
+test("profile badges are exactly the grid cards the person wins", async ({ page }) => {
   await openStats(page);
   const won = await page.locator(".card.super").evaluateAll((els) => els
     .filter((e) => (e.dataset.winners || "").split(" ").includes("u1"))

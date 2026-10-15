@@ -8,7 +8,7 @@
  *
  * Run: npm run test:unit   (node --test)
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
@@ -155,7 +155,7 @@ test("drops messages + roster entries from ignoredUsers", () => {
   assert.ok(!g.participants.includes("bot"));
 });
 
-// ---- custom-emoji reaction capture (P2-1) ----------------------------------
+// ---- custom-emoji reaction capture ----------------------------------
 // X represents an arbitrary-emoji DM reaction with reactionKey:"emoji" and the
 // real glyph in a separate field (assumed `emojiReaction` per X's documented
 // export schema — NOT verified against a real reaction object; flagged for
@@ -208,8 +208,8 @@ test("title is the most recent name event, else 'Group <last4>'", () => {
   assert.equal(onlyGroup(unnamed, "987654").title, "Group 7654");
 });
 
-// ---- SP-21: merges keep silent participants; bad timestamps are skipped -----
-test("SP-21: a merge keeps header-only participants from the previous build", () => {
+// ---- merges keep silent participants; bad timestamps are skipped -----
+test("a merge keeps header-only participants from the previous build", () => {
   const prev = {
     conversations: [
       { id: "G1", type: "group", title: "G", participants: ["u1", "lurker"], count: 1,
@@ -223,13 +223,13 @@ test("SP-21: a merge keeps header-only participants from the previous build", ()
   assert.ok(g.participants.includes("u2"));
 });
 
-test("SP-21: a removed (ignored) user is not resurrected from the previous roster", () => {
+test("a removed (ignored) user is not resurrected from the previous roster", () => {
   const prev = { conversations: [{ id: "G1", type: "group", participants: ["u1", "gone"], msgs: [{ i: "m1", s: "u1", t: 1, x: "a" }], events: [] }] };
   const res = assemble({ prev, ignoredUsers: ["gone"] });
   assert.deepEqual(onlyGroup(res, "G1").participants, ["u1"]);
 });
 
-test("SP-21: a message or event with an unparseable createdAt is skipped and counted, never stored as NaN/null", () => {
+test("a message or event with an unparseable createdAt is skipped and counted, never stored as NaN/null", () => {
   const res = assemble({
     exportDatas: [[conv("G1", [
       msg("m1", "u1", "2020-05-01T10:00:00Z", "fine"),
@@ -245,8 +245,8 @@ test("SP-21: a message or event with an unparseable createdAt is skipped and cou
   assert.equal(res.warnings.badTime, 3);
 });
 
-// ---- SP-20: every media file of a message is kept --------------------------
-test("SP-20: indexMediaFiles groups ALL files per message id, sorted, ignoring non-matching names", () => {
+// ---- every media file of a message is kept --------------------------
+test("indexMediaFiles groups ALL files per message id, sorted, ignoring non-matching names", () => {
   const { indexMediaFiles } = require("../scripts/build-core.js");
   const idx = indexMediaFiles(["9002-b.jpg", "9002-a.png", "notes.txt", "9101-c.mp4", "-bad.png"], "personal_data/media");
   assert.deepEqual(idx, {
@@ -255,7 +255,7 @@ test("SP-20: indexMediaFiles groups ALL files per message id, sorted, ignoring n
   });
 });
 
-test("SP-20: a message with several media files keeps the first as m/k and the rest in mx", () => {
+test("a message with several media files keeps the first as m/k and the rest in mx", () => {
   const res = assemble({
     exportDatas: [[conv("G1", [msg("m1", "u1", "2020-05-01T10:00:00Z", "two pics"), msg("m2", "u1", "2020-05-01T11:00:00Z", "one")])]],
     mediaIndex: { m1: ["personal_data/media/m1-a.png", "personal_data/media/m1-b.mp4", "personal_data/media/m1-c.pdf"], m2: ["personal_data/media/m2-x.jpg"] },
@@ -269,8 +269,8 @@ test("SP-20: a message with several media files keeps the first as m/k and the r
   assert.equal(res.totalMedia, 2, "media counts messages with media");
 });
 
-// ---- SP-2: multi-part exports ---------------------------------------------
-test("SP-2: exportPartFiles finds every -partN sibling of the chosen file, in part order", () => {
+// ---- multi-part exports ---------------------------------------------
+test("exportPartFiles finds every -partN sibling of the chosen file, in part order", () => {
   const { exportPartFiles } = require("../scripts/build-core.js");
   const dir = ["account.js", "direct-messages-group-part2.js", "direct-messages-group.js", "direct-messages-group-part1.js",
     "direct-message-group-headers.js", "direct-message-group-headers-part1.js", "direct-messages.js", "direct-messages-part1.js"];
@@ -288,7 +288,7 @@ test("SP-2: exportPartFiles finds every -partN sibling of the chosen file, in pa
   assert.deepEqual(exportPartFiles(dir, "my-export.js"), ["my-export.js"]);
 });
 
-test("SP-2: headers that list message ids with no body are counted (missing part files?)", () => {
+test("headers that list message ids with no body are counted (missing part files?)", () => {
   const res = assemble({
     exportDatas: [[conv("G1", [msg("m1", "u1", "2020-05-01T10:00:00Z", "a")])]],
     headerDatas: [[conv("G1", [msg("m1", "u1", "2020-05-01T10:00:00Z", ""), msg("m2", "u2", "2020-05-01T11:00:00Z", ""), msg("m3", "u2", "2020-05-01T12:00:00Z", "")])]],

@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, msgs } = require("./_viewer-fixture.js");
 
-// SP9 (UX-8): Ctrl/Cmd+K searches messages too — the top hits show inline
+// Ctrl/Cmd+K searches messages too — the top hits show inline
 // (highlighted snippet, sender, date) after the commands, with "See all in
 // Search" opening the Search view on the same query. Same engine as Search
 // (operators included), debounced. The Timeline's "Search" button opens the

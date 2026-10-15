@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test } = require("node:test");
 const assert = require("node:assert");
 const { spawnSync } = require("node:child_process");
@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-// SP2 carry-over (SP1 review): playwright.config.js reused ANY inherited
+// playwright.config.js reused ANY inherited
 // GCA_E2E_PERSONAL_DIR as the shared webServer's GCA_PERSONAL, and
 // globalTeardown rmSync'd it recursively. A stray/typo'd env var pointing at a
 // real folder (worst case: a real personal_data/) would have been served to the

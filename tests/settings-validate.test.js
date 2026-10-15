@@ -1,9 +1,9 @@
 // Unit coverage for the pure settings validators in src/shared-core.js
-// (VC-5 / VC-6). The browser-level behaviour — boot never bricks, an import is
+//. The browser-level behaviour — boot never bricks, an import is
 // validated before it is saved — is covered end-to-end by
 // tests/settings-validate.spec.js; this file pins the validators themselves.
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
@@ -12,7 +12,7 @@ const {
 } = require("../src/shared-core.js");
 
 // Mirrors the viewer's DEFAULTS / slider range / density names (src/app.js).
-// UX-20 (SP3): the default zone is the browser's own ("local"); tzExplicit
+// the default zone is the browser's own ("local"); tzExplicit
 // marks a zone the user actually picked.
 const DEFAULTS = Object.freeze({
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
@@ -141,7 +141,7 @@ test("with rules.base (Import), absent or invalid fields keep the CURRENT value"
   assert.deepStrictEqual(t.pins, []);
 });
 
-// UX-20 (SP3): "UTC" used to be the DEFAULT zone, so a stored "UTC" without the
+// "UTC" used to be the DEFAULT zone, so a stored "UTC" without the
 // tzExplicit marker is indistinguishable from "never chose one" and migrates to
 // the new default (local). A UTC the user picked (marker set) is kept.
 test("an unmarked stored UTC is the old default and migrates to local", () => {
@@ -177,7 +177,7 @@ test("Import: an unmarked UTC in the file does not override the current zone", (
   assert.equal(validateSettings({ timezone: "Not/AZone", tzExplicit: true }, Object.assign({ base: validateSettings({}, RULES) }, RULES)).tzExplicit, false);
 });
 
-// UX-29: the custom Word Battles words persist in settings, so they come
+// the custom Word Battles words persist in settings, so they come
 // through the same gate — strings only, trimmed, ≤40 chars, de-duplicated
 // case-insensitively (first spelling wins), at most 30.
 test("validateSettings keeps battle words as a clean, de-duplicated list", () => {

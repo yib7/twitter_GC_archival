@@ -1,12 +1,12 @@
 /*
- * SP7 fix round 1 (#4): the preview's numbers are the build's numbers. The
+ * the preview's numbers are the build's numbers. The
  * survey counted a message id twice when two part files both carried it,
  * counted a group whose every message is removed as a group to import, and
  * the build's own media check didn't know the media the archive already has
  * (so it refused a folder the preview had accepted). Synthetic exports only;
  * real servers on GCA_PORT=0 with a mkdtemp GCA_PERSONAL.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -20,7 +20,7 @@ const tmpDirs = [];
 const scratch = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "gca-parity-")); tmpDirs.push(d); return d; };
 after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true }); });
 
-describe("SP7 fix 4: the survey counts what the build keeps", () => {
+describe("the survey counts what the build keeps", () => {
   const feed = (sv, convs) => {
     // the same calls the streaming scanner makes, one message at a time
     const s = sv.sink("messages");
@@ -55,7 +55,7 @@ describe("SP7 fix 4: the survey counts what the build keeps", () => {
   });
 });
 
-describe("SP7 fix 4: preview numbers equal the built archive's", () => {
+describe("preview numbers equal the built archive's", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());

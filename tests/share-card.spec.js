@@ -3,7 +3,7 @@ const fs = require("fs");
 const zlib = require("zlib");
 const { bootViewer, conv } = require("./_viewer-fixture.js");
 
-// SP10: one canvas share-card renderer for message cards, Hall of Fame cards
+// one canvas share-card renderer for message cards, Hall of Fame cards
 // and Wrapped slides, behind a Share dialog (modal stack) with a name-
 // redaction toggle and a PNG download. Offline: no request leaves the page.
 // Synthetic data only; the names below are made up for the test.
@@ -256,7 +256,7 @@ test.describe("Share at 390px", () => {
   });
 });
 
-// SP10 review fixes: a name said on its own, a stale render racing a newer
+// Review fixes: a name said on its own, a stale render racing a newer
 // one, and both Copy image paths plus a failing Download.
 test.describe("Share: review fixes", () => {
   test("Hide names: a two-letter first name said on its own (\"Jo\") is not drawn", async ({ page }) => {

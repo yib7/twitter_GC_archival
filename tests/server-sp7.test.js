@@ -1,9 +1,9 @@
 /*
- * SP7 (import upgrade) — the setup server end to end over synthetic exports
+ * Import upgrade — the setup server end to end over synthetic exports
  * only (tests/fixtures/x-export.js); every server on GCA_PORT=0 with a mkdtemp
  * GCA_PERSONAL, the root fallbacks off and no native pickers (_sp6-server.js).
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -17,9 +17,9 @@ function scratch(prefix) { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefi
 after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true }); });
 const source = (S, f) => S.post("/api/source", { groupJs: f.group, headersJs: f.headers, mediaDir: f.media });
 
-// SP6 review #3: a server killed mid-build leaves its *.prev-* backup folders
+// A server killed mid-build leaves its *.prev-* backup folders
 // (the copies a new source replaced). They were only removed by Start over.
-describe("SP7: a build that commits clears stale backup folders from earlier runs", () => {
+describe("a build that commits clears stale backup folders from earlier runs", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -36,12 +36,12 @@ describe("SP7: a build that commits clears stale backup folders from earlier run
   });
 });
 
-// SP6 review #5: un-removing restored media from the original folder with no
+// Un-removing restored media from the original folder with no
 // message-id filter, so a camera-roll picture next to the real media (which
 // the first copy had left out) was copied into the served media/ folder.
 // Also: a removed person's or group's media is never copied in by a later
 // copy of the export (it would sit unreferenced, but servable, in media/).
-describe("SP7: media copies and restores only take this export's kept messages' media", () => {
+describe("media copies and restores only take this export's kept messages' media", () => {
   let S, f;
   const media = () => fs.readdirSync(path.join(S.personal, "media")).sort();
   const identity = (extra) => S.post("/api/identity", Object.assign({ names: {}, pfps: {}, gc: {} }, extra));
@@ -84,9 +84,9 @@ describe("SP7: media copies and restores only take this export's kept messages' 
   });
 });
 
-// SP7: pick the archive folder; data/manifest.js says where the group files,
+// pick the archive folder; data/manifest.js says where the group files,
 // every part, the headers and the media are (a file-name scan is the fallback).
-describe("SP7: building from the archive folder", () => {
+describe("building from the archive folder", () => {
   let S;
   const cfg = () => JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
   before(async () => { S = await startServer(); });
@@ -142,11 +142,11 @@ describe("SP7: building from the archive folder", () => {
   });
 });
 
-// SP6 carry-over: the media copy reported progress nowhere — a big media
+// the media copy reported progress nowhere — a big media
 // folder looked frozen. It now runs without blocking the server, and
 // GET /api/progress says how far it is; while it runs, a second build, a
 // save or Start over is refused (409) instead of racing it.
-describe("SP7: media copy progress and the busy guard", () => {
+describe("media copy progress and the busy guard", () => {
   let S;
   before(async () => { S = await startServer({ GCA_TEST_COPY_DELAY_MS: "300" }); });
   after(() => S.stop());
@@ -189,9 +189,9 @@ describe("SP7: media copy progress and the busy guard", () => {
   });
 });
 
-// SP-5 / SP-4: "Add a newer export" is a true merge, and the wizard can see
+// "Add a newer export" is a true merge, and the wizard can see
 // (and so keep) the group names and photos saved earlier.
-describe("SP7: adding a newer export merges into the archive", () => {
+describe("adding a newer export merges into the archive", () => {
   let S;
   const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
   before(async () => { S = await startServer(); });

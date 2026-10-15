@@ -7,6 +7,6 @@ const { isOwnE2EPersonalDir } = require("./_e2e-personal-dir.js");
 // build output, if anything at all).
 module.exports = async function globalTeardown() {
   const dir = process.env.GCA_E2E_PERSONAL_DIR;
-  // SP2 carry-over: never rmSync a directory this run didn't create.
+  // never rmSync a directory this run didn't create.
   if (isOwnE2EPersonalDir(dir)) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) { /* best-effort */ } }
 };

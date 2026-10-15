@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv, collectErrors } = require("./_viewer-fixture.js");
 
-// VC-3 / UX-3: "Reset all" said it reset "names, colors, theme and saved
+// "Reset all" said it reset "names, colors, theme and saved
 // searches" but actually did Object.assign({}, DEFAULTS, …): it silently wiped
 // every bookmark, "this is me", ignored people/groups and the timezone, and it
 // aliased DEFAULTS.pins/ignored*/pfps/gc — bookmarking after a reset mutated
@@ -32,7 +32,7 @@ async function reset(page) {
 }
 const stored = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("gca.settings")));
 
-test("VC-3: Reset keeps bookmarks, me, ignored people, timezone and photos — and says so", async ({ page }) => {
+test("Reset keeps bookmarks, me, ignored people, timezone and photos — and says so", async ({ page }) => {
   const errors = collectErrors(page);
   await bootViewer(page, DATA, { ls: {
     "gca.settings": JSON.stringify(SEEDED), "gca.theme": "dim",
@@ -67,7 +67,7 @@ test("VC-3: Reset keeps bookmarks, me, ignored people, timezone and photos — a
   expect(errors).toEqual([]);
 });
 
-test("VC-3: Reset re-renders views that were already built (names, photos, timezone)", async ({ page }) => {
+test("Reset re-renders views that were already built (names, photos, timezone)", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.settings": JSON.stringify(SEEDED), "gca.pfps": JSON.stringify({ u2: PNG }) } });
   await expect(page.locator("#s-list .msg-name", { hasText: "Zed" }).first()).toBeVisible();
   await reset(page);
@@ -81,7 +81,7 @@ test("VC-3: Reset re-renders views that were already built (names, photos, timez
   await expect(page.locator("#s-list .msg-time").first()).toContainText("Mar 9, 2024");
 });
 
-test("VC-3: repeated resets never resurrect or drop bookmarks (no shared DEFAULTS arrays)", async ({ page }) => {
+test("repeated resets never resurrect or drop bookmarks (no shared DEFAULTS arrays)", async ({ page }) => {
   const errors = collectErrors(page);
   await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
   const pin = async (n) => {

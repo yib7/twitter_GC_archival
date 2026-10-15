@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
-// UX-6 / VC-27: the floating bottom-left theme switch overlapped content on
+// the floating bottom-left theme switch overlapped content on
 // every view (and sat over the mobile tab bar area). It is replaced by a
 // compact toggle in the sidebar footer (desktop) and in the More sheet
 // (mobile); both stay in sync with Settings, and <meta name="theme-color">

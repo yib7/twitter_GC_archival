@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P2-3: the timeline "Copy" action fired navigator.clipboard.writeText(...)
+// the timeline "Copy" action fired navigator.clipboard.writeText(...)
 // without awaiting or handling its promise, so it always toasted "Copied
 // text" even when the write rejected (no permission, unfocused document, or
 // navigator.clipboard missing entirely) — and left an unhandled rejection.
@@ -48,7 +48,7 @@ async function clickCopy(page) {
   await page.locator('.nav-item[data-view="timeline"]').click();
   const msg = page.locator("#view-timeline .msg", { hasText: "copy me please" }).first();
   await msg.hover();
-  await msg.getByRole("button", { name: "Copy", exact: true }).click();   // exact: SP8 adds "Copy link to message"
+  await msg.getByRole("button", { name: "Copy", exact: true }).click();   // exact: there is also "Copy link to message"
 }
 
 test("Copy toasts 'Copied text' when the clipboard write resolves", async ({ page }) => {

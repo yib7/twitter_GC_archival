@@ -1,8 +1,8 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { checkAndBuild } = require("./_setup-helpers.js");
 
-// SP-13: someone who never posted (a lurker, or a person known only from the
+// someone who never posted (a lurker, or a person known only from the
 // headers file) still gets a card in step 3, so they can be named instead of
 // staying "User 1234". Their card says "No messages" and, when known, when
 // they joined / left. All server routes are mocked with made-up data.
@@ -24,7 +24,7 @@ test.beforeEach(async ({ page }) => {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
+  await checkAndBuild(page, { mock: true });   // Check export → preview → Build
   await page.locator('[data-pane="2"] [data-next]').click();
 });
 

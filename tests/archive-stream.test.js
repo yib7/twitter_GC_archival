@@ -1,12 +1,12 @@
 /*
- * Fix round 1 (review #2): the previous data.js is the accumulated history,
+ * The previous data.js is the accumulated history,
  * and it can be bigger than V8's ~512 MB string limit. build.js used to read
  * it with one readFileSync + JSON.parse, which can't, and it called every
  * failure "damaged" (even a file locked by antivirus) and suggested deleting
  * it. Now it is streamed one message at a time through the same scanner
  * engine as the exports, and each kind of failure gets its own message.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

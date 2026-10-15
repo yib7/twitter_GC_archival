@@ -24,7 +24,7 @@
   <!-- Render-blocking in <head> so the saved theme applies before first paint. -->
   <script src="src/theme-boot.js"></script>
   <!-- First, before the (possibly very large) archive data: the launcher's
-       server stays up only while a page says it is open (fix round 1). -->
+       server stays up only while a page says it is open. -->
   <script src="src/keepalive.js"></script>
 </head>
 <body class="setup-body">
@@ -85,7 +85,7 @@
         <button class="btn primary" id="btn-build">Check export</button>
       </div>
       <div class="setup-result" id="src-result" hidden></div>
-      <!-- SP7: the pre-flight preview. Nothing is copied or built until Build. -->
+      <!-- the pre-flight preview. Nothing is copied or built until Build. -->
       <section class="fin-receipt preflight" id="preflight" hidden aria-labelledby="pf-title">
         <div class="fr-head">
           <div class="fr-mark" aria-hidden="true"></div>

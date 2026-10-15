@@ -1,5 +1,5 @@
 /*
- * Synthetic Twitter/X export generator for the SP6 ingestion tests.
+ * Synthetic Twitter/X export generator for the ingestion tests.
  *
  * Everything here is made up: numeric ids, invented text, fake media names.
  * It follows the export shape described in the deep audit's Appendix C:
@@ -90,8 +90,8 @@ function writeExport(root, opts) {
   fs.writeFileSync(files.headers, ytd("direct_message_group_headers", "part0", ex.headers));
   fs.writeFileSync(files.dm, ytd("direct_messages", "part0", [conv("111-222", [gmsg(8001, 111, T0, "private")])]));
   fs.writeFileSync(files.account, ytd("account", "part0", [{ account: { username: "nobody" } }]));
-  // group media: two files for 9002 (SP-20), one for 9101; a 1:1 media folder
-  // and a stray .js next to them exercise SP-7.
+  // group media: two files for 9002, one for 9101; a 1:1 media folder
+  // and a stray .js next to them exercise the media-folder checks.
   fs.writeFileSync(path.join(media, "9002-AbCdEf.png"), "png-1");
   fs.writeFileSync(path.join(media, "9002-ZzSecond.jpg"), "jpg-2");
   fs.writeFileSync(path.join(media, "9101-Other.mp4"), "mp4");
@@ -108,7 +108,7 @@ function writeExport(root, opts) {
   return files;
 }
 
-/* ---- SP7: data/manifest.js ---------------------------------------------- */
+/* ---- data/manifest.js ---------------------------------------------- */
 // A real X archive has data/manifest.js:
 //   window.__THAR_CONFIG = { "userInfo": {…}, "archiveInfo": {…}, "readmeInfo": {…},
 //     "dataTypes": { "<type>": { "mediaDirectory"?: "data/…", "files": [
@@ -138,7 +138,7 @@ function writeManifest(root, spec, opts) {
   return f;
 }
 
-/* ---- SP7: an older export A and a newer, overlapping export B ------------ */
+/* ---- an older export A and a newer, overlapping export B ------------ */
 // A (written by writeExport): G1 1000000001 = 9001-9005 (333 sent 9004),
 // G2 1000000002 = 9101-9102.
 // B, a later download of the same account:

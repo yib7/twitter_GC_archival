@@ -29,7 +29,7 @@
   // Shared kernel of colorOf: the plain palette lookup with no user-override. The
   // viewer wraps this to honor settings.colors first; the wizard uses it directly.
   function paletteColor(id) { return PALETTE[hashId(id) % PALETTE.length]; }
-  // UX-25: the person hue rule — ONE colour per person in the viewer AND the
+  // the person hue rule — ONE colour per person in the viewer AND the
   // setup wizard. 10 hue pairs defined per theme in styles.css: --p-<hue> (the
   // bright name colour) and --f-<hue> (the deep avatar fill under white
   // initials). A person maps to one hue by id hash.
@@ -37,13 +37,13 @@
   function personHue(id) { return HUES[hashId(id) % HUES.length]; }
   // The CSS values for an element's --p / --f (no user override applied).
   function hueVars(id) { const h = personHue(id); return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" }; }
-  /* ---- Settings validation (VC-5 / VC-6) ---------------------------------- */
+  /* ---- Settings validation ---------------------------------- */
   // Pure, DOM-free validators for the settings object. The viewer runs every
   // settings source through validateSettings(): the persisted gca.settings blob
   // at boot and an imported JSON file. Kept here (not in app.js) so node:test
   // can cover them directly — see tests/settings-validate.test.js.
 
-  // P1-3: photo values reach the DOM as raw style="…url('…')" interpolation or a
+  // photo values reach the DOM as raw style="…url('…')" interpolation or a
   // CSSOM background-image. Values the app writes itself are always a base64 image
   // data URL or a wizard-saved slug path; anything else collapses to "" (falsy),
   // which every call site treats as "no photo" (initials fallback).
@@ -53,14 +53,14 @@
     if (typeof v !== "string") return "";
     return (PHOTO_RE.test(v) || PHOTO_PATH_RE.test(v)) ? v : "";
   }
-  // VC-5: colours are interpolated into style="…" attributes, so only a plain hex
+  // colours are interpolated into style="…" attributes, so only a plain hex
   // colour (#rgb / #rrggbb / #rrggbbaa) is ever accepted; anything else is "".
   function sanitizeColor(v) {
     if (typeof v !== "string") return "";
     const s = v.trim();
     return /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(s) ? s : "";
   }
-  /* ---- Contrast (UX-11 / UX-22) -------------------------------------------
+  /* ---- Contrast -------------------------------------------
      WCAG 2.x relative luminance + contrast ratio, and two derivations the
      viewer applies at runtime: readableOn() nudges a colour toward white (on
      dark backgrounds) or black (on light ones) until it reaches `min` against
@@ -113,11 +113,11 @@
       ui: readableOn(accent, bgs.slice(0, 1), 3),
     };
   }
-  // True if `tz` is a zone Intl can build a formatter for (P1-4).
+  // True if `tz` is a zone Intl can build a formatter for.
   function isValidTimeZone(tz) {
     try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch (e) { return false; }
   }
-  /* ---- Zone clock (UX-4 / AN-13) ------------------------------------------
+  /* ---- Zone clock ------------------------------------------
      createZoneClock(tz) -> { zone, mode, offset(t), stats() }
      offset(t) is the zone's UTC offset in ms at epoch-ms t, so the wall clock
      is "UTC fields of t + offset(t)" (what Intl.formatToParts would report).
@@ -129,7 +129,7 @@
      analytics pass) into a few thousand per archive. mode: "utc" (offset 0,
      no Intl at all — "UTC", "Etc/UTC", …), "local" (native Date getters) or
      "intl" (any other IANA zone). An invalid zone throws RangeError, like Intl.
-     Outliers (SP4): the looked-up instant is clamped to [TI_T_LO, TI_T_HI]
+     Outliers: the looked-up instant is clamped to [TI_T_LO, TI_T_HI]
      (the same 1900..2199 window buildTimeIndex buckets in; NaN goes low), so
      the largest valid Date (8.64e15, whose UTC day ends past the Date range)
      can't throw inside Intl, and pre-year-1 instants can't yield garbage.
@@ -195,7 +195,7 @@
     return { zone: tz, mode, offset, stats: () => ({ exact: exactCalls, days: perDay.size }) };
   }
 
-  /* ---- Jump dates (UX-9 / VC-28, SP8) -----------------------------------------
+  /* ---- Jump dates -----------------------------------------
      zonedDayStart(y, mo, d, clock) -> epoch ms of wall-clock 00:00 on that day
      in clock's zone (no clock = UTC). Day overflow is fine (d + 1 on the last
      of the month is the 1st of the next). Two-pass solve: from a UTC-equals-
@@ -283,7 +283,7 @@
     return { unit, y, mo, d, key, label, start: zonedDayStart(y, mo, d, clock), end: zonedDayStart(endY, endMo, endD, clock) };
   }
 
-  /* ---- Search query (SP9: VC-10 / UX-21) -------------------------------------
+  /* ---- Search query -------------------------------------
      parseSearchQuery(input, { clock }) -> {
        needles   lowercased search text: "quoted phrases" first, then words
        phrases / words / excludes (lowercased)
@@ -458,7 +458,7 @@
     return /\s/.test(t) || !t ? '"' + t + '"' : t;
   }
 
-  /* ---- Time index (UX-4 / AN-13) ---------------------------------------------
+  /* ---- Time index ---------------------------------------------
      buildTimeIndex(msgs, clock) -> TI: zoned calendar fields for every message,
      as typed arrays parallel to msgs (index i = msgs[i]), in clock's zone:
        TI.n                    number of messages
@@ -504,7 +504,7 @@
     return TI;
   }
 
-  /* ---- Fuzzy-search prefilter (VC-18 / SP3) ----------------------------------
+  /* ---- Fuzzy-search prefilter ----------------------------------
      Fuse.js (threshold t, ignoreLocation) matches a text when some substring of
      it is within k = max{e < m : e/m <= t} edits of the length-m pattern (Bitap,
      insert/delete/substitute). By the q-gram lemma such a text contains at
@@ -609,13 +609,13 @@
     for (let i = 0, o = 0; i < mask.length; i++) if (mask[i]) out[o++] = i;
     return out;
   }
-  /* ---- Text analysis (SP4: AN-1 / AN-2 / AN-8 / AN-9 / AN-10 / AN-11) -------
+  /* ---- Text analysis -------
      One definition of "an emoji", "a word", "a laugh", "a swear", "a link to X"
      for every analytics view (Stats, Wrapped, Word Battles, the keyword
      trend), so the same message is always counted the same way. Pure and
      DOM-free; covered by tests/text-analysis.test.js. */
 
-  // --- Emoji (AN-1): whole emoji sequences, so 👍🏽 / 👨‍👩‍👧 / 🇺🇸 / ❤️ each
+  // --- Emoji: whole emoji sequences, so 👍🏽 / 👨‍👩‍👧 / 🇺🇸 / ❤️ each
   // count once and a skin-tone swatch or a regional-indicator letter never
   // counts on its own. RE_EMOJI_SEQ is the UTS #51 "possible emoji" grammar
   // (flag pair | keycap | pictograph + VS16/modifier + tags, ZWJ-joined), and
@@ -645,7 +645,7 @@
   try { RE_RGI = new RegExp("\\p{RGI_Emoji}", "gv"); } catch (e) { RE_RGI = null; }
   function extractEmojisRGI(text) { return RE_RGI ? ((text || "").match(RE_RGI) || []) : null; }
 
-  // --- Words (AN-2 / AN-11) -----------------------------------------------------
+  // --- Words -----------------------------------------------------
   // A word is a run of letters / digits / combining marks (so Cyrillic,
   // Arabic, Hebrew, Devanagari and accented Latin survive), optionally joined
   // by apostrophes — curly ones are folded to ' first, so "don’t" is one token,
@@ -716,7 +716,7 @@
     "youre theyre thats whats here there all any some more most then than too very can could would should will shall may might " +
     "must about into over under again only also even still much many lol lmao lmaooo yeah yea nah ok okay haha hahaha bro man " +
     "dude what when who whom how why which whose oh uh um yo idk imo tbh " +
-    // apostrophe-stripped contractions (AN-2)
+    // apostrophe-stripped contractions
     "its ive ill id lets theres heres youve youll youd weve wed well theyve theyll theyd hes shes isnt arent wasnt werent " +
     "doesnt havent hasnt hadnt wouldnt couldnt shouldnt aint whos wheres hows everyones someones thatll gotta wanna " +
     "his her him us their from by just really one now know think see going"
@@ -758,7 +758,7 @@
   }
   // Whole-token occurrences of `word` (which may be a phrase) in `text`,
   // apostrophe- and case-insensitive: "man" never matches "many"/"humans",
-  // "dont" matches "don’t". Used by Word Battles and the keyword trend (AN-10).
+  // "dont" matches "don’t". Used by Word Battles and the keyword trend.
   function wordKeys(word) { return tokenize(word).map(wordKey); }
   // countWord with the word already folded by wordKeys() — for loops over
   // many messages, so the query is tokenized once, not once per message.
@@ -783,7 +783,7 @@
     return lowerText.replace(RE_APOS, "").split("'").join("").indexOf(key) !== -1;
   }
 
-  // --- Keyword patterns (AN-8) -------------------------------------------------
+  // --- Keyword patterns -------------------------------------------------
   // Global regexes: count with countMatches() (String#match resets lastIndex).
   const LAUGH_SRC = "\\b(?:l+o+l+(?:o+l+)*|lm+f*a+o+|rofl+|a?(?:ha){2,}h?)\\b|💀|😭|😂|🤣";
   const KEYWORDS = {
@@ -837,7 +837,7 @@
     return false;
   }
 
-  // --- Links (AN-9): match the hostname, not a substring of the whole URL
+  // --- Links: match the hostname, not a substring of the whole URL
   // ("netflix.com" ends in "x.com"; "xbox.com" contains it).
   const PLATFORM_HOSTS = [["twitter", /(^|\.)(?:twitter|x)\.com$/], ["youtube", /(^|\.)(?:youtube\.com|youtu\.be)$/],
     ["tiktok", /(^|\.)tiktok\.com$/], ["instagram", /(^|\.)instagram\.com$/]];
@@ -853,17 +853,17 @@
     return null;
   }
 
-  // --- Copy (AN-20 / UX-31): "1 thread", "2 threads", "1,234 messages".
+  // --- Copy: "1 thread", "2 threads", "1,234 messages".
   function plural(n, one, many) {
     return Number(n).toLocaleString("en-US") + " " + (n === 1 ? one : (many || one + "s"));
   }
 
-  /* ---- Share cards (SP10) ---------------------------------------------------
+  /* ---- Share cards ---------------------------------------------------
      The pure half of the one canvas share-card renderer (app.js
      drawShareCard): grapheme splitting, text wrapping against a measure()
      the canvas supplies, and name redaction. DOM-free; tests/share-card.test.js. */
 
-  // User-perceived characters: an emoji sequence (the SP4 RE_EMOJI_SEQ
+  // User-perceived characters: an emoji sequence (the RE_EMOJI_SEQ
   // grammar: ZWJ families, flags, skin tones, keycaps) or a base character
   // with its combining marks is one grapheme. Intl.Segmenter when available.
   const GRAPHEME_SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
@@ -1060,7 +1060,7 @@
   // zone) — and otherwise `rules.defaults` (boot). Never literals, so changing a
   // default (e.g. the timezone) changes every fallback with it.
   //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
-  // UX-29: custom Word Battles words — strings only, trimmed, ≤40 chars,
+  // custom Word Battles words — strings only, trimmed, ≤40 chars,
   // de-duplicated case-insensitively (first spelling wins), at most 30.
   const BATTLE_WORD_MAX = 40, BATTLE_WORDS_MAX = 30;   // per word / per list
   function cleanBattleWords(a) {
@@ -1095,7 +1095,7 @@
     if (typeof src.timestamps === "boolean") s.timestamps = src.timestamps;
     if (src.me === null) s.me = null;                  // an explicit "nobody is me"
     else if (isId(src.me)) s.me = String(src.me);
-    // UX-20 (SP3): "UTC" was the DEFAULT zone before SP3, so an unmarked "UTC"
+    // "UTC" was the DEFAULT zone in older versions, so an unmarked "UTC"
     // means "never chose one" and keeps the fallback (the new default "local"
     // at boot, the current zone on Import). A zone the user picked carries
     // tzExplicit: true; any accepted zone takes the source's marker with it.

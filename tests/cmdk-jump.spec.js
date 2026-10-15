@@ -36,7 +36,7 @@ test("'Go to <person>'s first message' lands on that person's first message", as
 
   await page.keyboard.press("Control+K");
   await page.locator(".cmdk-input").fill("Bravo");
-  // SP9 (UX-8): the palette also lists message hits and a "Search messages
+  // the palette also lists message hits and a "Search messages
   // for …" row, so pick the person row by its own label.
   await page.locator(".cmdk-row", { hasText: "Go to Bravo" }).click();
 

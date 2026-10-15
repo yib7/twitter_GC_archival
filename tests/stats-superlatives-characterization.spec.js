@@ -1,10 +1,10 @@
 const { test, expect } = require("@playwright/test");
 
-// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// the default zone is now the viewer's own ("local"). This spec's
 // expected dates were written for UTC, so it pins the browser zone to UTC.
 test.use({ timezoneId: "UTC" });
 
-// SP8 characterization pin (behavior-preserving refactor of computeStats'
+// Characterization pin (behavior-preserving refactor of computeStats'
 // superlative winners into a data table + derive loop).
 //
 // This freezes the ENTIRE rendered Superlatives grid on the repo sample data

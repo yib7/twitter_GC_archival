@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P1-1: renderGallery() only rebuilds when #view-gallery is empty, and
+// renderGallery() only rebuilds when #view-gallery is empty, and
 // resetDerived() never cleared it on a conversation switch — so the gallery
 // stayed pinned to whichever group it was first opened on. The gallery must
 // track the active conversation in both directions (A → B → A), including

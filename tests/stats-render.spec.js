@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// SP3 Stats rendering:
+// Stats rendering:
 //  - the heavy, text-derived sections (superlatives, latency/pairings, yapping,
 //    double-text, generosity, vocab, platforms, emojis, word cloud) are filled
 //    AFTER the first paint — the hero, milestones, per-person bars and the four
@@ -106,7 +106,7 @@ test("switching conversation while Stats is hidden leaves no stale Stats DOM", a
   await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");
 });
 
-// SP3 review: a timezone change must cancel a pending Stats stage 2 (like a
+// a timezone change must cancel a pending Stats stage 2 (like a
 // conversation switch does) — otherwise the old-zone stage-1 DOM gets filled
 // with new-zone stage-2 numbers and marked ready.
 test("a timezone change cancels a pending deferred Stats stage", async ({ page }) => {

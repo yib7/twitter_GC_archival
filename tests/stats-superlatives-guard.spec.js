@@ -1,10 +1,10 @@
 const { test, expect } = require("@playwright/test");
 
-// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// the default zone is now the viewer's own ("local"). This spec's
 // expected dates were written for UTC, so it pins the browser zone to UTC.
 test.use({ timezoneId: "UTC" });
 
-// P2-1 regression guard: computeStats() used to compute ~21 superlative
+// Regression guard: computeStats() used to compute ~21 superlative
 // "winners" that no render path ever read; they were deleted as dead code.
 // This spec freezes the *rendered* stats surface on the repo sample data
 // (data.sample.js) so that deletion can never change what users see:
@@ -14,7 +14,7 @@ test.use({ timezoneId: "UTC" });
 // Captured from a pre-deletion run at HEAD 1d8080a; it must pass both before
 // and after the dead-stat removal.
 //
-// Updated for P1-2 (fix(stats): compare reaction keys not emoji glyphs):
+// Updated for the reaction-key fix (fix(stats): compare reaction keys not emoji glyphs):
 // "The Laugh Track" and "The Hater" now render too, since the sample
 // generator guarantees funny/disagree reactions and the comparison bug that
 // zeroed both counters (comparing r.k against emoji glyphs instead of the

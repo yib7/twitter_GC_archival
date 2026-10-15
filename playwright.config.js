@@ -1,4 +1,4 @@
-// QA-2/SP-16 (correction after review): globalSetup does NOT run before the
+// globalSetup does NOT run before the
 // webServer in @playwright/test 1.62.1 — plugin setup (which is what spawns
 // webServer) runs at node_modules/playwright/lib/runner/index.js:6003-6009,
 // BEFORE globalSetups are run; the webServer plugin itself is pushed onto that
@@ -13,7 +13,7 @@ require("./tests/_real-data-guard.js");
 const { defineConfig } = require("@playwright/test");
 const { ensureE2EPersonalDir } = require("./tests/_e2e-personal-dir.js");
 
-// QA-2/SP-16: the shared webServer used to run on the user's own archive port
+// the shared webServer used to run on the user's own archive port
 // (8765) with no GCA_PERSONAL and `reuseExistingServer: !process.env.CI` — run
 // from the main checkout (or with a real archive server already up on 8765)
 // the suite would silently load real messages into the browser, into
@@ -21,7 +21,7 @@ const { ensureE2EPersonalDir } = require("./tests/_e2e-personal-dir.js");
 //
 // Fix: a dedicated, non-default port (well away from 8765 — the archive
 // default — and 9000 — the port server.js itself tells users to try, see
-// QA-1), a fresh throwaway GCA_PERSONAL for the whole run, and
+// what server.js itself suggests when its port is taken), a fresh throwaway GCA_PERSONAL for the whole run, and
 // reuseExistingServer ALWAYS false so a stray real server on this port makes
 // the run fail loudly (EADDRINUSE) instead of silently reusing it.
 const TEST_PORT = 8799;
@@ -33,7 +33,7 @@ const baseURL = process.env.PLAYWRIGHT_BASE_URL || ("http://127.0.0.1:" + TEST_P
 // into the OS temp dir. `||=` makes only the FIRST evaluation (the test
 // runner's own process, which sets env vars workers inherit) create the dir;
 // every worker's re-evaluation sees GCA_E2E_PERSONAL_DIR already set and reuses it.
-// SP2 carry-over: an inherited value is only reused when it is a direct child
+// an inherited value is only reused when it is a direct child
 // of os.tmpdir() named gca-e2e-personal-* (see tests/_e2e-personal-dir.js) —
 // a stray GCA_E2E_PERSONAL_DIR pointing anywhere else is never served.
 const testPersonalDir = ensureE2EPersonalDir();
@@ -53,13 +53,13 @@ module.exports = defineConfig({
   // separates config-evaluation from webServer spawning.
   globalSetup: require.resolve("./tests/global-setup.js"),
   globalTeardown: require.resolve("./tests/global-teardown.js"),
-  // QA-10: a committed `.only` must fail CI loudly instead of quietly running
+  // a committed `.only` must fail CI loudly instead of quietly running
   // one test and reporting green.
   forbidOnly: !!process.env.CI,
   use: {
     baseURL,
     viewport: { width: 1280, height: 900 },
-    // QA-17(e): capture enough to debug an OS-only CI failure without having
+    // capture enough to debug an OS-only CI failure without having
     // to reproduce it locally — traces/screenshots/video only survive for a
     // FAILED test, so a green run costs nothing extra.
     trace: "retain-on-failure",
@@ -81,7 +81,7 @@ module.exports = defineConfig({
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     command: "node scripts/server.js",
     url: baseURL,
-    // QA-2/SP-16: never reuse whatever else might already be listening on
+    // never reuse whatever else might already be listening on
     // this port — a stray real server here must fail the run, not serve it.
     reuseExistingServer: false,
     timeout: 15 * 1000,
@@ -92,7 +92,7 @@ module.exports = defineConfig({
       // files that don't mock /api/*) get an unbuilt archive and fall back to
       // the committed data.sample.js, exactly like a clean `npm start` would.
       GCA_PERSONAL: testPersonalDir,
-      // QA-2/SP-16: GCA_PERSONAL alone does not stop server.js from reading a
+      // GCA_PERSONAL alone does not stop server.js from reading a
       // legacy ROOT/data.js or ROOT/names.local.js (readBuiltData's own
       // fallback, and the two static routes) — this switch turns that
       // fallback off entirely for the whole e2e run.

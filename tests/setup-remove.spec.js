@@ -26,7 +26,7 @@ async function gotoPeopleStep(page) {
   await page.locator("#src-group").fill("group.js");
   await page.locator("#src-headers").fill("headers.js");
   await page.locator("#src-media").fill("media");
-  await checkAndBuild(page, { mock: true });   // SP7: Check export → preview → Build
+  await checkAndBuild(page, { mock: true });   // Check export → preview → Build
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
   await page.locator('[data-pane="2"] [data-next]').click();
   await expect(page.locator(".su-person").first()).toBeVisible();
@@ -54,7 +54,7 @@ test("a removed participant is sent as ignored and their name is dropped", async
 
   await page.locator('[data-pane="3"] [data-next]').click();
   await page.locator("#btn-save").click();
-  await page.locator("#remove-go").click();   // fix round 1 (#3): removing asks first
+  await page.locator("#remove-go").click();   // Removing asks first
   await expect(page.locator("#finish-result")).toContainText(/Saved/);
 
   expect(body.ignoredUsers).toContain("3333");

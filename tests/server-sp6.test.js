@@ -1,9 +1,9 @@
 /*
- * SP6 (ingestion robustness) — the setup server end to end, over synthetic
+ * Ingestion robustness — the setup server end to end, over synthetic
  * exports only (tests/fixtures/x-export.js), each server on its own GCA_PORT=0
  * + mkdtemp GCA_PERSONAL (see tests/_sp6-server.js).
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -21,7 +21,7 @@ const source = (S, groupJs, headersJs, mediaDir) => S.post("/api/source", { grou
 
 const tmpLeftovers = (dir) => fs.readdirSync(dir).filter((f) => f.endsWith(".tmp"));
 
-describe("SP-9: crash-safe server writes", () => {
+describe("crash-safe server writes", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -46,7 +46,7 @@ describe("SP-9: crash-safe server writes", () => {
 });
 
 
-describe("SP-2: multi-part exports through the wizard", () => {
+describe("multi-part exports through the wizard", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -65,7 +65,7 @@ describe("SP-2: multi-part exports through the wizard", () => {
   });
 });
 
-describe("SP-8: swapped messages / headers files", () => {
+describe("swapped messages / headers files", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -93,7 +93,7 @@ describe("SP-8: swapped messages / headers files", () => {
   });
 });
 
-describe("SP-7: the media folder is validated and only message media is copied", () => {
+describe("the media folder is validated and only message media is copied", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -143,7 +143,7 @@ describe("SP-7: the media folder is validated and only message media is copied",
     assert.equal(j.mediaUnmatched, 3, "notes.txt, desktop.ini and the sub/ folder are left out and reported");
     assert.deepEqual(mediaNames(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
   });
-  // Fix round 1 (review #7): camera-roll names like 20230301-IMG.jpg match
+  // Camera-roll names like 20230301-IMG.jpg match
   // the "<digits>-<name>.<ext>" shape too, so a Pictures folder would be copied
   // into personal_data/media/. Only files whose number is a message id in this
   // export are copied; a folder where none match is refused.
@@ -174,7 +174,7 @@ describe("SP-7: the media folder is validated and only message media is copied",
   });
 });
 
-describe("SP-11: the native pickers need the setup page's token", () => {
+describe("the native pickers need the setup page's token", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -187,7 +187,7 @@ describe("SP-11: the native pickers need the setup page's token", () => {
     assert.equal(tokenFrom(await (await S.get("/index.html")).text()), undefined);
     await S.get("/api/pick-file", { "X-GCA-Token": token });
     await new Promise((r) => setTimeout(r, 200));   // let any output reach us
-    // fix round 1 (review #8): the harness records stdout/stderr from spawn on,
+    // The harness records stdout/stderr from spawn on,
     // so the startup banner is checked too, not just what came after boot
     assert.match(S.stdout(), /Group Chat Archive running at/, "the capture starts at spawn");
     assert.ok(!S.stderr().includes(token) && !S.stdout().includes(token), "the token is never logged");
@@ -219,7 +219,7 @@ describe("SP-11: the native pickers need the setup page's token", () => {
 const PNG1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 const pngOf = (bytes) => "data:image/png;base64," + Buffer.alloc(bytes, 7).toString("base64");
 
-describe("SP-12: photo limits are checked before anything is written", () => {
+describe("photo limits are checked before anything is written", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -244,7 +244,7 @@ describe("SP-12: photo limits are checked before anything is written", () => {
   });
 });
 
-describe("SP-19: group and person photos never share a file", () => {
+describe("group and person photos never share a file", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -273,7 +273,7 @@ describe("SP-19: group and person photos never share a file", () => {
   });
 });
 
-describe("SP-22: the pages can't be framed", () => {
+describe("the pages can't be framed", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -294,7 +294,7 @@ describe("SP-22: the pages can't be framed", () => {
   });
 });
 
-describe("SP-13: header-only members reach the naming step", () => {
+describe("header-only members reach the naming step", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -310,7 +310,7 @@ describe("SP-13: header-only members reach the naming step", () => {
   });
 });
 
-describe("SP-15: paths are accepted the way people paste them", () => {
+describe("paths are accepted the way people paste them", () => {
   let S, home;
   before(async () => {
     home = scratch("gca-sp6-home-");
@@ -343,7 +343,7 @@ describe("SP-15: paths are accepted the way people paste them", () => {
   });
 });
 
-describe("SP-18: 'This is YOU' and names can be cleared", () => {
+describe("'This is YOU' and names can be cleared", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -370,7 +370,7 @@ describe("SP-18: 'This is YOU' and names can be cleared", () => {
   });
 });
 
-describe("SP-14: removing a group or person deletes their messages and media", () => {
+describe("removing a group or person deletes their messages and media", () => {
   let S, f;
   before(async () => {
     S = await startServer();
@@ -421,12 +421,12 @@ describe("SP-14: removing a group or person deletes their messages and media", (
   });
 });
 
-// Fix round 1 (review #3): removing deletes data, so it is previewed (the
+// Removing deletes data, so it is previewed (the
 // wizard asks first, with real counts), removed media goes to a quarantine
 // folder instead of being deleted (un-removing brings it back even when the
 // original export folder is gone), and the previous data.js is kept as
 // data.js.bak. None of it is ever served; Start over erases all of it.
-describe("fix round 1: removal is previewed, quarantined and backed up", () => {
+describe("removal is previewed, quarantined and backed up", () => {
   let S, f;
   before(async () => {
     S = await startServer();
@@ -468,7 +468,7 @@ describe("fix round 1: removal is previewed, quarantined and backed up", () => {
   });
 
   test("quarantined media, the backup and config are never served", async () => {
-    assert.ok(fs.existsSync(P(".removed", "messages.js")), "the removed messages are quarantined too (SP7 fix round 1)");
+    assert.ok(fs.existsSync(P(".removed", "messages.js")), "the removed messages are quarantined too");
     for (const p of ["/personal_data/.removed/person/222/9002-AbCdEf.png", "/personal_data/.removed/group/1000000002/9101-Other.mp4", "/personal_data/.removed/messages.js", "/personal_data/data.js.bak"]) {
       assert.equal((await S.get(p)).status, 404, p);
     }
@@ -492,11 +492,11 @@ describe("fix round 1: removal is previewed, quarantined and backed up", () => {
   });
 });
 
-// Fix round 1 (review #5): "did the removed set change?" was answered from
+// "did the removed set change?" was answered from
 // config.json, which is saved BEFORE the rebuild runs — so after a failed
 // rebuild the next save saw "no change" and never retried. It is now answered
 // from what data.js itself was built without (its ignoredUsers/ignoredGroups).
-describe("fix round 1: a failed removal rebuild is retried by the next save", () => {
+describe("a failed removal rebuild is retried by the next save", () => {
   let S, f;
   before(async () => {
     S = await startServer();
@@ -524,7 +524,7 @@ describe("fix round 1: a failed removal rebuild is retried by the next save", ()
   });
 });
 
-describe("SP-23: not enough disk space is caught before copying", () => {
+describe("not enough disk space is caught before copying", () => {
   let S;
   before(async () => { S = await startServer({ GCA_TEST_FREE_BYTES: "1024" }); });   // pretend the disk is full
   after(() => S.stop());
@@ -540,10 +540,10 @@ describe("SP-23: not enough disk space is caught before copying", () => {
   });
 });
 
-// Fix round 1 (review #9): when the build after a new /api/source failed,
+// When the build after a new /api/source failed,
 // config.json was put back but source/ and media/ had already been
 // overwritten with the new (failing) export. They are now restored too.
-describe("fix round 1: a failed source build leaves the previous copies as they were", () => {
+describe("a failed source build leaves the previous copies as they were", () => {
   let S, f;
   before(async () => {
     S = await startServer();

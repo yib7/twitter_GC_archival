@@ -1,11 +1,11 @@
-// VC-18 (SP3): fuzzy search runs Fuse.js only on the messages that CAN match.
+// fuzzy search runs Fuse.js only on the messages that CAN match.
 // GCAShared.createBigramIndex / fuzzyCandidates implement a q-gram-lemma
 // prefilter: a text holding a substring within k edits of a length-m pattern
 // contains at least (m-1) - 2k of the pattern's bigram positions. It must be a
 // pure speed-up — Fuse over the candidates must return exactly what Fuse over
 // the whole archive returns (same messages, same scores, same order).
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 

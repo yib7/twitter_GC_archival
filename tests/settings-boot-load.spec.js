@@ -3,7 +3,7 @@ const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
 const DATA = { conversations: [conv("A", "Alpha", msgs("m", 12))] };
 
-// Found while restructuring loadSettings (SP2): PFPS_KEY / GC_KEY were declared
+// Found while restructuring loadSettings: PFPS_KEY / GC_KEY were declared
 // with `const` BELOW the top-level `let settings = loadSettings()`, so at boot
 // loadPfps()/loadGc() hit a temporal-dead-zone ReferenceError (swallowed by
 // their own try/catch) and silently fell back to {} — every photo uploaded in

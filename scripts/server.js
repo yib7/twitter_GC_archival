@@ -38,12 +38,12 @@ const ROOT = path.resolve(__dirname, "..");     // project root (this script liv
 const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(ROOT, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
 // `let`, not `const`: GCA_PORT=0 asks the OS for a free ephemeral port (used by
-// tests so no fixed port can ever collide with a real server — see QA-1). The
+// tests so no fixed port can ever collide with a real server). The
 // listen() callback below reassigns this to the port actually bound, BEFORE
 // anything else (the startup message, the Host-allowlist check) reads it.
 let PORT = process.env.GCA_PORT ? Number(process.env.GCA_PORT) : 8765;
 const HOST = "127.0.0.1";
-// QA-2/SP-16: when set (Playwright's own webServer sets this — see
+// when set (Playwright's own webServer sets this — see
 // playwright.config.js), skip the legacy ROOT/data.js + ROOT/names.local.js
 // fallbacks entirely, so a spawned test server can NEVER read or serve a
 // leftover root-level file even if one happens to exist on disk.
@@ -52,11 +52,11 @@ const NO_ROOT_FALLBACK = !!process.env.GCA_NO_ROOT_FALLBACK;
 // When launched via the double-click launcher (`--open`), shut the server down
 // once the browser is closed — so users aren't left with a stray command window.
 // Served pages ping GET /api/ping?c=<page id> and send a goodbye beacon
-// (POST /api/bye?c=<page id>) when they close; see makeLiveness (SP-6) for why
+// (POST /api/bye?c=<page id>) when they close; see makeLiveness for why
 // a quiet heartbeat alone is never taken as "closed".
 // GCA_AUTO_EXIT=1 turns the same behaviour on without opening a browser (tests).
 const AUTO_EXIT = process.argv.includes("--open") || process.env.GCA_AUTO_EXIT === "1";
-// Fix round 1 (#6): ~20 s of grace after the last goodbye, so the next page
+// ~20 s of grace after the last goodbye, so the next page
 // (a reload, the wizard's "Open your archive", a slow-loading big archive)
 // has time to say hello.
 const live = makeLiveness({ graceMs: 20000, idleMs: 30 * 60 * 1000 });
@@ -132,7 +132,7 @@ function readBody(req, res) {
         // which is the exact bug the note above describes), so closing the
         // connection there is safe and bounds the connection's lifetime too.
         //
-        // SP2 carry-over: destroying on "finish" itself was still too early
+        // destroying on "finish" itself was still too early
         // on Linux/macOS — "finish" means handed to the kernel, not read by
         // the peer, and closing a socket that still has unread request bytes
         // makes the kernel send a RST, which can discard the 413 before the
@@ -164,7 +164,7 @@ function loadConfig() {
   if (!fs.existsSync(CONFIG)) return {};
   try { return JSON.parse(fs.readFileSync(CONFIG, "utf8")); } catch (e) { return {}; }
 }
-// SP-9: every file the wizard writes goes through a temp file + rename, so a
+// every file the wizard writes goes through a temp file + rename, so a
 // crash or a full disk mid-write never leaves a truncated config/local.js.
 function saveConfig(cfg) {
   fs.mkdirSync(PERSONAL, { recursive: true });
@@ -172,7 +172,7 @@ function saveConfig(cfg) {
 }
 // data URL ("data:image/png;base64,....") → { buf, ext }
 // `whose` ("Ann's photo", "the group photo for Crew") names the photo in the
-// 413 so the user knows which one to replace (SP-12).
+// 413 so the user knows which one to replace.
 function decodeDataUrl(url, whose) {
   const m = /^data:([^;]+);base64,(.*)$/s.exec(String(url || ""));
   if (!m) return null;
@@ -185,23 +185,23 @@ function decodeDataUrl(url, whose) {
   }
   return { buf, ext };
 }
-// SP-7: copies only the top-level files of srcDir that are named like X's
+// copies only the top-level files of srcDir that are named like X's
 // message media ("<messageId>-<name>.<image/video ext>", MEDIA_FILE_RE).
 // Subfolders, symlinks and anything else are left behind and counted as
 // `unmatched`, so a mis-picked folder can never drag other private files
 // (1:1 DMs, account.js, other media) into the servable personal_data/media/.
 // X's group media folder is flat, so there are no same-name clashes to resolve.
-// `journal` (fix round 1, #9) records each copy so a failed build can undo it.
-// SP7 fix round 1 (#3): a file destDir already has is never replaced — X names
+// `journal` records each copy so a failed build can undo it.
+// a file destDir already has is never replaced — X names
 // media by message id + media id, so the same name is the same picture, and a
 // newer download's copy may be the damaged one. An EMPTY file there counts as
 // missing. `keepExisting` (a build) counts those kept as `same`;
-// `skipExisting` (SP-14 restore) just leaves them.
+// `skipExisting` (a restore) just leaves them.
 function planMediaCopy(srcDir, destDir, opts) {
   const skipExisting = !!(opts && opts.skipExisting);
   const keepExisting = !!(opts && opts.keepExisting);
   const skip = (opts && opts.skip) || null;   // names not to copy (e.g. still quarantined)
-  const ids = (opts && opts.ids) || null;     // only media of these message ids (fix round 1, #7)
+  const ids = (opts && opts.ids) || null;     // only media of these message ids
   const todo = [];
   let unmatched = 0, same = 0;
   for (const e of fs.readdirSync(srcDir, { withFileTypes: true })) {
@@ -220,7 +220,7 @@ function planMediaCopy(srcDir, destDir, opts) {
   }
   return { todo, unmatched, same };
 }
-// SP7 fix round 1 (#3): copy to "<dest>.<pid>.<hex>.tmp" and rename it into
+// copy to "<dest>.<pid>.<hex>.tmp" and rename it into
 // place, so a file under its real name is always complete — a crash mid-copy
 // leaves only a temp file, which the next build that commits clears
 // (clearCopyTemps). GCA_TEST_COPY_CRASH=<name> (tests only) stops the server
@@ -266,7 +266,7 @@ function copyMediaFlat(srcDir, destDir, opts) {
   }
   return { copied: plan.todo.length, unmatched: plan.unmatched, same: plan.same };
 }
-// SP7 (SP6 carry-over): the same copy, one file at a time without blocking
+// the same copy, one file at a time without blocking
 // the server, so GET /api/progress can report it while it runs.
 // GCA_TEST_COPY_DELAY_MS slows each file down so the tests can watch it.
 const COPY_DELAY_MS = Math.max(0, Number(process.env.GCA_TEST_COPY_DELAY_MS) || 0);
@@ -286,7 +286,7 @@ async function copyMediaFlatAsync(srcDir, destDir, opts, progress) {
   }
   return { copied: plan.todo.length, unmatched: plan.unmatched, same: plan.same };
 }
-// Fix round 1 (#9): a new source is copied over the previous one (source/ and
+// A new source is copied over the previous one (source/ and
 // media/) BEFORE its build runs, so a failed build used to leave the previous
 // copies overwritten. Every copy goes through this journal instead: a file it
 // would replace is first moved into `backupDir` (a rename, so no extra space),
@@ -319,7 +319,7 @@ function copyJournal(backupDir) {
     commit() { fs.rmSync(backupDir, { recursive: true, force: true }); },
   };
 }
-// SP7: once a build from a new export has committed, copies of an older
+// once a build from a new export has committed, copies of an older
 // export's files in personal_data/source/ that config no longer points at are
 // just stale private data (the archive's history lives in data.js).
 function pruneSource(keep) {
@@ -335,7 +335,7 @@ function pruneSource(keep) {
 }
 const PREV_DIR_RE = /^(?:source|media|removed)\.prev-\d+-[0-9a-f]+$/;
 const prevDirName = (name) => name + ".prev-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
-// SP7 fix round 2 (#2): keep `file` as it is now (a hard link — the build
+// keep `file` as it is now (a hard link — the build
 // replaces files by rename, so the link keeps the old content — or a copy),
 // to put back if the build fails. restore() → the paths it couldn't put back.
 function fileSnapshot(file, backupDir) {
@@ -358,7 +358,7 @@ function fileSnapshot(file, backupDir) {
     commit() { fs.rmSync(backupDir, { recursive: true, force: true }); },
   };
 }
-// SP7 (SP6 review #3): a server killed mid-build leaves its backup folders
+// a server killed mid-build leaves its backup folders
 // behind. Once a later build has committed, source/, media/ and the
 // quarantine are consistent again and those old copies are just stale
 // private data — remove them.
@@ -373,7 +373,7 @@ function clearStaleBackups() {
   }
 }
 
-// SP-7: the folder the user picked → the group media folder to copy from.
+// the folder the user picked → the group media folder to copy from.
 // Picking the archive (or its data/ folder) uses its direct_messages_group_media
 // inside; a folder that is clearly something else is refused with a reason.
 function resolveMediaDir(abs, typed) {
@@ -394,7 +394,7 @@ function resolveMediaDir(abs, typed) {
 // the values are constant strings we control, so there's no injection risk.
 // Returns "" on cancel, null when unsupported (not Windows), or { error } when
 // PowerShell couldn't show the dialog (e.g. Constrained Language Mode blocks
-// Add-Type) — SP-23: so a Windows user isn't told it "only works on Windows".
+// Add-Type) — so a Windows user isn't told it "only works on Windows".
 function nativePick(kind, which) {
   if (process.platform !== "win32") return null;
   // Tests set this so a picker request can never open a real, blocking dialog.
@@ -404,7 +404,7 @@ function nativePick(kind, which) {
     // Use the SAME modern file dialog as the .js pickers (FolderBrowserDialog is
     // the old tree-view style, which looks inconsistent). The user opens any file
     // inside their media folder and we return that file's parent directory.
-    // SP7: for=root picks the unzipped archive folder the same way.
+    // for=root picks the unzipped archive folder the same way.
     const title = which === "root"
       ? "Open ANY file in your unzipped Twitter/X archive folder (e.g. Your archive.html)"
       : "Open ANY file inside your direct_messages_group_media folder";
@@ -428,12 +428,12 @@ function pickReply(p) {
   return { path: p == null ? "" : p, supported: p !== null };
 }
 
-/* ---- fix round 1 (#3): the removed-media quarantine ---------------------- */
+/* ---- the removed-media quarantine ---------------------- */
 // personal_data/.removed/<group|person|other>/<id>/<file>: media of removed
 // group chats / people, kept so un-removing can restore it. Never served (it
 // isn't under an allowlisted prefix); Start over erases it.
 const REMOVED = path.join(PERSONAL, ".removed");
-// SP7 fix round 1 (#1): the messages build.js keeps out for removed people /
+// the messages build.js keeps out for removed people /
 // group chats (same format as data.js; never served).
 const REMOVED_MSGS = path.join(REMOVED, "messages.js");
 // name -> { kind, id, file } for every quarantined file.
@@ -470,7 +470,7 @@ function moveFile(src, dest) {
   }
 }
 
-// The built archive. SP7 (SP6 review #2): it is never loaded whole — the
+// The built archive. It is never loaded whole — the
 // server's default heap would have to hold every message body. It is streamed
 // instead, either as a summary (no message is even parsed) or through small
 // collectors that see one message at a time (see server-core.js).
@@ -496,7 +496,7 @@ function foldBuilt(make) {
   }
   return null;
 }
-// SP7 fix round 1 (#2): the newest message time in the built archive (streamed), or null.
+// the newest message time in the built archive (streamed), or null.
 function newestInArchive() {
   let newest = null;
   const cols = foldBuilt(() => [{
@@ -513,7 +513,7 @@ const absOfInput = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, 
 const userPathOf = (v) => normalizeUserPath(v, { platform: process.platform, home: os.homedir() });
 // What the user pointed at → the export files to read, or { status, error }.
 // Nothing is written. Two ways in:
-//   archiveRoot              SP7: the unzipped archive folder (or its data/
+//   archiveRoot              the unzipped archive folder (or its data/
 //                            folder, or any file in it). data/manifest.js says
 //                            where everything is; a file-name scan is the
 //                            fallback. Paths never leave the picked folder.
@@ -524,7 +524,7 @@ function resolveSource(body) {
   const rootIn = userPathOf(body.archiveRoot);
   if (rootIn) return resolveArchiveRoot(rootIn);
   // All three pieces of the group export are required.
-  // SP-15: accept paths as pasted ("quoted", ~/..., My\ Archive)
+  // accept paths as pasted ("quoted", ~/..., My\ Archive)
   const groupJs = userPathOf(body.groupJs);
   const headersJs = userPathOf(body.headersJs);
   const mediaDirIn = userPathOf(body.mediaDir);
@@ -533,7 +533,7 @@ function resolveSource(body) {
   if (!mediaDirIn) return { status: 400, error: "Choose your direct_messages_group_media folder." };
 
   let groupAbs = absOfInput(groupJs), headersAbs = absOfInput(headersJs);
-  // SP-1 / SP-17: check what was picked BEFORE copying anything, so a wrong,
+  // check what was picked BEFORE copying anything, so a wrong,
   // empty or missing file gets one plain sentence and nothing is half-written.
   const fileProblem = (abs, typed, role, expectName) => {
     let st;
@@ -546,7 +546,7 @@ function resolveSource(body) {
   if (groupBad) return { status: 400, error: groupBad };
   const headersBad = fileProblem(headersAbs, headersJs, "Headers file", "direct-message-group-headers.js");
   if (headersBad) return { status: 400, error: headersBad };
-  // SP-8: each file names itself (window.YTD.<name>), so two files picked the
+  // each file names itself (window.YTD.<name>), so two files picked the
   // wrong way round are simply swapped back; any other mix-up is refused.
   let groupKind = identifyExport(readExportHead(groupAbs)), headersKind = identifyExport(readExportHead(headersAbs));
   let swapped = false;
@@ -557,11 +557,11 @@ function resolveSource(body) {
   }
   const wrong = wrongKindMessage(groupKind, "messages", path.basename(groupAbs)) || wrongKindMessage(headersKind, "headers", path.basename(headersAbs));
   if (wrong) return { status: 400, error: wrong };
-  // SP-7: only the group media folder — never the whole data/ folder (1:1 DMs,
+  // only the group media folder — never the whole data/ folder (1:1 DMs,
   // account details …), which would become servable under personal_data/media/.
   const mediaPick = resolveMediaDir(absOfInput(mediaDirIn), mediaDirIn);
   if (mediaPick.error) return { status: 400, error: mediaPick.error };
-  // SP-2: X splits big files into <name>.js, <name>-part1.js, …; picking any
+  // X splits big files into <name>.js, <name>-part1.js, …; picking any
   // one of them brings its whole family (in part order), so messages in
   // part1+ are never silently left behind.
   return {
@@ -570,7 +570,7 @@ function resolveSource(body) {
     swapped, via: "files", notes: [],
   };
 }
-// SP7: the archive folder → its group files, checked by what they say they
+// the archive folder → its group files, checked by what they say they
 // are (window.YTD.<name>) rather than what the manifest or their names claim.
 function resolveArchiveRoot(rootIn) {
   const loc = locateExport(absOfInput(rootIn));
@@ -604,7 +604,7 @@ function resolveArchiveRoot(rootIn) {
     swapped, via: loc.via, notes: notes.map(withText), picked: loc.picked,
   };
 }
-// SP7 (SP6 carry-over): the copy + build in progress, for GET /api/progress
+// the copy + build in progress, for GET /api/progress
 // and the busy guard — null when none runs. One at a time: a second build,
 // a save or Start over while one runs gets a 409 instead of racing it.
 let job = null;
@@ -628,11 +628,11 @@ async function sourceAndBuild(body, res, progress) {
   const cfgBefore = fs.existsSync(CONFIG) ? fs.readFileSync(CONFIG) : null;
 
   const cfgNow = loadConfig();
-  // Fix round 1 (#7): "<digits>-<name>.jpg" is also how phones and cameras name
+  // "<digits>-<name>.jpg" is also how phones and cameras name
   // pictures (20230301-IMG_0001.jpg), so the name alone can't tell a Pictures
   // folder from the group media. Only files whose number is a message id in
   // this export are copied, and a folder where none are is refused.
-  // SP7: only the media of messages the archive keeps is copied — a removed
+  // only the media of messages the archive keeps is copied — a removed
   // group's or person's media would otherwise sit, unreferenced but servable,
   // in media/ (the camera-roll check below still looks at every message).
   let ids = null, keepIds = null, exportNewest = null;
@@ -640,29 +640,29 @@ async function sourceAndBuild(body, res, progress) {
     const got = duringBlocking(() => exportMessageIds(groupFiles, cfgNow.ignoredGroups, cfgNow.ignoredUsers));
     ids = got.all; keepIds = got.keep; exportNewest = got.newest;
   } catch (e) { /* unreadable: the build below says so plainly */ }
-  // SP7 fix round 1 (#5): merging an export with no group messages would
+  // merging an export with no group messages would
   // re-point config at it and prune the previous export's copies for nothing
   // (the archive's own groups satisfy the build's "any group chats?" check).
   if (ids && ids.size === 0 && builtArchiveFiles().length) {
     return sendJSON(res, 422, { error: "This export has no group chat messages, so there is nothing to add to your archive. Check you picked the right Twitter/X archive (the one with your group chats)." });
   }
-  // SP7 fix round 1 (#2): an export older than the archive is merged (its
+  // an export older than the archive is merged (its
   // missing messages added; the archive's newer copies kept), but the media
   // source folder stays the newer export's.
   const archiveNewest = duringBlocking(() => newestInArchive());
   const older = exportNewest != null && archiveNewest != null && exportNewest < archiveNewest;
   if (ids && mediaAbs) {
-    // fix round 1 (#4): the same check as the preview — media the archive
+    // The same check as the preview — media the archive
     // already has (a newer export's folder can hold it) isn't a mismatch
     const mismatch = mediaMismatch(surveyMedia(mediaAbs, ids, ids, knownMediaOf()), mediaAbs);
     if (mismatch) return sendJSON(res, 400, { error: mismatch });
   }
 
-  // SP-23: make sure the copy (and the build's output) fits before starting it
+  // make sure the copy (and the build's output) fits before starting it
   const spaceErr = diskSpaceProblem(copyBytesNeeded(groupFiles.concat(headerFiles), mediaAbs), freeBytesAt(PERSONAL));
   if (spaceErr) return sendJSON(res, 507, { error: spaceErr });
 
-  // SP7 fix round 2 (#1): an archive whose removals predate the quarantine
+  // an archive whose removals predate the quarantine
   // has never set its removed messages aside — they are only in the copies of
   // the export it was built from, which this merge re-points config away from
   // (and prunes). Rebuild once first with the archive's own, unchanged config,
@@ -682,11 +682,11 @@ async function sourceAndBuild(body, res, progress) {
   const srcDir = path.join(PERSONAL, "source");
   const mediaDestDir = path.join(PERSONAL, "media");
   fs.mkdirSync(srcDir, { recursive: true });
-  // Fix round 1 (#9): every copy is journaled so a failed build puts back the
+  // Every copy is journaled so a failed build puts back the
   // previous source/ and media/ files, not just config.json.
   const srcJournal = copyJournal(path.join(PERSONAL, prevDirName("source")));
   const mediaJournal = copyJournal(path.join(PERSONAL, prevDirName("media")));
-  // SP7 fix round 2 (#2): the quarantine too — a build that fails after
+  // the quarantine too — a build that fails after
   // writing it (as a superset, before data.js) must not leave it changed.
   const quarSnap = fileSnapshot(REMOVED_MSGS, path.join(PERSONAL, prevDirName("removed")));
   const undo = () => {
@@ -712,7 +712,7 @@ async function sourceAndBuild(body, res, progress) {
     const headerDests = headerFiles.map(copyInto);
     cfg.headersJs = headerDests.length === 1 ? headerDests[0] : headerDests;  // metadata only (roster + events)
 
-    // SP7: copied one file at a time without blocking the server, so the
+    // copied one file at a time without blocking the server, so the
     // wizard can show "N of M files" (GET /api/progress). An archive picked
     // by its folder may have no group media folder (none was sent); the
     // media already copied in stays. Files already there unchanged aren't
@@ -723,13 +723,13 @@ async function sourceAndBuild(body, res, progress) {
       : { copied: 0, unmatched: 0, same: 0 };
     fs.mkdirSync(mediaDestDir, { recursive: true });
     cfg.mediaDir = mediaDestDir;
-    // SP-14: remembered so media pruned for a removed group / person can be
+    // remembered so media pruned for a removed group / person can be
     // restored from the export if they're un-removed later.
     if (mediaAbs && !(older && cfg.mediaSourceDir)) cfg.mediaSourceDir = mediaAbs;
     saveConfig(cfg);
   } catch (e) { undo(); throw e; }   // a copy failed part-way (disk full, unreadable file …)
 
-  // SP-5: building over an existing archive merges into it (build.js streams
+  // building over an existing archive merges into it (build.js streams
   // the old data.js in as the baseline); say how much this export added.
   const before = duringBlocking(() => readSummary());
   const previousMsgs = before ? before.conversations.reduce((s, c) => s + (c.count || 0), 0) : 0;
@@ -752,7 +752,7 @@ async function sourceAndBuild(body, res, progress) {
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
   sendJSON(res, 200, { ok: true, merged: !!before, older, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
-// SP7 fix round 2 (#4): the ids of messages in the built archive and the
+// the ids of messages in the built archive and the
 // quarantine whose group chat and sender aren't removed (streamed).
 function archiveKeptIds(ignoredGroups, ignoredUsers) {
   const G = new Set(asList(ignoredGroups)), U = new Set(asList(ignoredUsers));
@@ -768,7 +768,7 @@ function archiveKeptIds(ignoredGroups, ignoredUsers) {
   }
   return ids;
 }
-// SP7 fix round 2 (#1): true when the built archive has removed people or
+// true when the built archive has removed people or
 // group chats but no quarantine (built before it existed) and the export
 // copies it was built from are all still there to rebuild from. Without those
 // copies the removed messages can't be recovered, so there is nothing to do.
@@ -810,7 +810,7 @@ function knownMediaOf() {
   if (!builtArchiveFiles().length) return null;
   return (name) => fs.existsSync(path.join(PERSONAL, "media", name));
 }
-// Fix round 1 (#7): "<digits>-<name>.jpg" is also how phones and cameras name
+// "<digits>-<name>.jpg" is also how phones and cameras name
 // pictures (20230301-IMG_0001.jpg), so a folder where none of the files
 // belong to this export's messages is refused.
 function mediaMismatch(m, dir) {
@@ -818,7 +818,7 @@ function mediaMismatch(m, dir) {
   return "None of the " + m.candidates.toLocaleString("en-US") + " picture and video files in “" + path.basename(dir) +
     "” belong to messages in this export, so it doesn't look like its group media folder. Pick the direct_messages_group_media folder from the same Twitter/X archive.";
 }
-// SP7: the part files missing from a family (part 2 of 0, 1, 3), by name.
+// the part files missing from a family (part 2 of 0, 1, 3), by name.
 function missingPartFiles(files) {
   if (!files.length) return [];
   const nums = files.map((f) => {
@@ -831,7 +831,7 @@ function missingPartFiles(files) {
   return missingPartNumbers(nums).map((n) => (n === 0 ? base + ".js" : base + "-part" + n + ".js"));
 }
 
-/* ---- endpoint: pre-flight preview (SP7) ----------------------------------- */
+/* ---- endpoint: pre-flight preview ----------------------------------- */
 // What a build from this export would bring in, before anything is written:
 // groups (messages, dates, people), media, what the archive already has, and
 // the warnings worth reading first. Read-only: nothing under personal_data/
@@ -853,7 +853,7 @@ function apiPreflight(body, res) {
       throw e;
     }
     const st = sink.finish();
-    // SP-8: a headers file read as messages has no text in any message
+    // a headers file read as messages has no text in any message
     if (which === "messages" && st.messages > 0 && st.withText === 0) {
       throw userError(label + " looks like the group headers file: its messages have no text. Pick direct-messages-group.js as the messages file and direct-message-group-headers.js as the headers file.");
     }
@@ -915,16 +915,16 @@ function surveyMerge(sv) {
       result: () => null,
     }]);
   } catch (e) { return { unreadable: true }; }
-  // SP7 fix round 1 (#2): both newest dates, to spot an older export
+  // both newest dates, to spot an older export
   return { existingMsgs: existing, existingGroups: groupIds.size, overlap, added: sv.keepIds.size - keptOverlap, groupIds, archiveNewest, exportNewest: sv.result().totals.last };
 }
 
 // Runs scripts/build.js (it reads personal_data/config.json and writes
 // personal_data/data.js). → { ok: true, log } or { ok: false, error, log }.
-// SP-1 / SP-17: the user gets build.js's one-sentence BUILD ERROR (never a raw
+// the user gets build.js's one-sentence BUILD ERROR (never a raw
 // stack trace); the full stderr goes to this server's console only. The log is
 // shown in the wizard, so ask for plain text (an inherited FORCE_COLOR would
-// wrap every number in ANSI colour codes). SP-10: heap sized to the machine.
+// wrap every number in ANSI colour codes). The heap is sized to the machine.
 function buildEnvOf() {
   const buildEnv = Object.assign({}, process.env, { NO_COLOR: "1" });
   delete buildEnv.FORCE_COLOR;
@@ -948,7 +948,7 @@ function runBuild() {
     return buildFailed(e.stdout, e.stderr ? e.stderr : String(e.message || e));
   }
 }
-// SP7: the same build without blocking the server (GET /api/progress and the
+// the same build without blocking the server (GET /api/progress and the
 // heartbeat keep answering while a big archive builds).
 function runBuildAsync() {
   return new Promise((resolve) => {
@@ -968,7 +968,7 @@ function runBuildAsync() {
     });
   });
 }
-// SP-23: bytes the wizard is about to write — each export file copied plus
+// bytes the wizard is about to write — each export file copied plus
 // about as much again for data.js, every media file that will be copied, and
 // a margin.
 function copyBytesNeeded(exportFiles, mediaDir) {
@@ -996,7 +996,7 @@ function freeBytesAt(dir) {
 function exportMessageIds(files, ignoredGroups, ignoredUsers) {
   const G = new Set((Array.isArray(ignoredGroups) ? ignoredGroups : []).map(String));
   const U = new Set((Array.isArray(ignoredUsers) ? ignoredUsers : []).map(String));
-  // fix round 1 (#7): each id held once — see idPartition in build-core.js
+  // Each id held once — see idPartition in build-core.js
   const { all, keep, removed } = idPartition();
   let newest = null;
   for (const f of files) {
@@ -1006,7 +1006,7 @@ function exportMessageIds(files, ignoredGroups, ignoredUsers) {
       onMessage: (ci, m) => {
         const mc = m && m.messageCreate;
         if (!mc || mc.id == null) return;
-        // fix round 1 (#5): group chat messages only, like the build (a 1:1
+        // Group chat messages only, like the build (a 1:1
         // message is never imported, and its media isn't group media)
         if (convOf[ci] != null && !isGroupId(convOf[ci])) return;
         const id = String(mc.id);
@@ -1021,7 +1021,7 @@ function exportMessageIds(files, ignoredGroups, ignoredUsers) {
   return { all, keep, newest };
 }
 const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean);
-// The chosen export file plus its -partN siblings in the same folder (SP-2).
+// The chosen export file plus its -partN siblings in the same folder.
 function partSiblings(abs) {
   const dir = path.dirname(abs);
   let names;
@@ -1044,7 +1044,7 @@ function apiParts(res, group) {
 function apiIdentity(body, res) {
   fs.mkdirSync(path.join(PERSONAL, "pfps"), { recursive: true });
   const cfg = loadConfig();
-  // Fix round 1 (#5): what the archive was actually BUILT without comes from
+  // What the archive was actually BUILT without comes from
   // data.js's own metadata (build.js records ignoredUsers/ignoredGroups), not
   // config.json — config is saved before the rebuild runs, so after a failed
   // rebuild it would claim the removal had already been applied and the next
@@ -1062,7 +1062,7 @@ function apiIdentity(body, res) {
   const gcIn = body.gc && typeof body.gc === "object" ? body.gc : {};
   const gcPrev = cfg.gc || {};
 
-  // SP-12: decode and size-check EVERY photo before writing anything, so one
+  // decode and size-check EVERY photo before writing anything, so one
   // over-size photo can't leave earlier ones orphaned on disk or half a save
   // applied. The 413 names whose photo it was.
   const pfpData = {}, gcData = {};
@@ -1077,7 +1077,7 @@ function apiIdentity(body, res) {
   }
 
   // Reserve filenames already on disk (from a previous save) so a fresh upload
-  // with the same name doesn't clobber them — person AND group photos (SP-19).
+  // with the same name doesn't clobber them — person AND group photos.
   const taken = new Set();
   const reserve = (p) => { const bn = String(p || "").split("/").pop(); if (bn) taken.add(bn); };
   if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) reserve(cfg.pfps[id]);
@@ -1119,7 +1119,7 @@ function apiIdentity(body, res) {
     const d = gcData[cid];
     if (d) {
       // Named group → group_<groupname>_pfp.<ext>; unnamed → gc-<cid>.<ext>.
-      // The group_ prefix keeps a group and a person of the same name apart (SP-19).
+      // The group_ prefix keeps a group and a person of the same name apart.
       const base = pfpFileName(name ? "group " + name : "", "gc-" + cid, d.ext, taken);
       taken.add(base);
       const fname = "pfps/" + base;
@@ -1135,7 +1135,7 @@ function apiIdentity(body, res) {
     gcOut[cid] = { name, photo };
   }
 
-  // SP-18: me "" clears it; me missing / null means "unchanged".
+  // me "" clears it; me missing / null means "unchanged".
   const me = body.me === "" ? null : body.me ? String(body.me) : (cfg.me || null);
 
   // participants the user deleted in the wizard (LOCAL_IGNORED_USERS hides them
@@ -1169,7 +1169,7 @@ function apiIdentity(body, res) {
   writeFileAtomic(path.join(PERSONAL, "local.js"), out);
   const reply = { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length, rebuilt: false };
 
-  // SP-14: "Remove" promises exclusion, not just hiding — when the removed
+  // "Remove" promises exclusion, not just hiding — when the removed
   // groups / people changed, rebuild data.js without them and delete media
   // no message references any more. (Un-removing rebuilds from the copied
   // export and restores pruned media from the original media folder.)
@@ -1177,7 +1177,7 @@ function apiIdentity(body, res) {
   if (changed && cfg.sourceJs && fs.existsSync(path.join(PERSONAL, "data.js"))) {
     const mediaDir = cfg.mediaDir ? path.resolve(cfg.mediaDir) : path.join(PERSONAL, "media");
     const mediaInside = isInsidePersonal(mediaDir, PERSONAL);
-    // Fix round 1 (#3): who owned each file about to be dropped, from the
+    // Who owned each file about to be dropped, from the
     // archive as it is now (the rebuild removes that knowledge).
     const ownerCols = duringBlocking(() => foldBuilt(() => [createOwnersCollector(ignoredGroups, ignoredUsers)]));
     const owners = ownerCols ? ownerCols[0].result() : new Map();
@@ -1192,9 +1192,9 @@ function apiIdentity(body, res) {
         if (moveFile(o.file, path.join(mediaDir, name))) quarantine.delete(name);
       }
       if (cfg.mediaSourceDir && fs.existsSync(cfg.mediaSourceDir)) {
-        // SP7 (SP6 review #5): the same message-id filter as the first copy —
-        // only media of messages that are no longer removed. Fix round 2 (#4):
-        // those ids come from the archive and the quarantine (after an older
+        // The same message-id filter as the first copy:
+        // only media of messages that are no longer removed.
+        // Those ids come from the archive and the quarantine (after an older
         // export is merged, config's message files are the older export's but
         // the media folder is the newer one's), plus config's own files (an
         // archive built before the quarantine has its removed messages only there).
@@ -1231,7 +1231,7 @@ function apiIdentity(body, res) {
   sendJSON(res, 200, reply);
 }
 
-/* ---- endpoint: what would removing these take out? (fix round 1, #3) ------ */
+/* ---- endpoint: what would removing these take out? ------ */
 // Read-only: the wizard asks before a save that removes more, with real counts.
 function apiRemovalPreview(body, res) {
   const list = (v) => (Array.isArray(v) ? v.map(String) : []);
@@ -1253,13 +1253,13 @@ function apiStatus(res) {
     built: !!sum,
     groups,
     ignoredGroups: Array.isArray(cfg.ignoredGroups) ? cfg.ignoredGroups : [],
-    // fix round 1 (#4): the wizard must know who is already removed, or its
+    // The wizard must know who is already removed, or its
     // next save un-removes them
     ignoredUsers: Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : [],
     me: cfg.me ?? null,
     names: cfg.names || {},
     pfps: cfg.pfps || {},
-    // SP-4: saved group names + photos, so a reopened wizard shows them and
+    // saved group names + photos, so a reopened wizard shows them and
     // its next save doesn't blank them
     gc: savedGroupIdentity(cfg.gc),
   });
@@ -1282,14 +1282,14 @@ function savedGroupIdentity(gc) {
 function apiReset(res) {
   const targets = ["config.json", "data.js", "data.js.bak", "local.js", "source", "media", "pfps", ".removed"];
   const removed = [];
-  // fix round 1 (#9): backups of a source change interrupted mid-build
+  // Backups of a source change interrupted mid-build
   if (fs.existsSync(PERSONAL)) for (const f of fs.readdirSync(PERSONAL)) if (PREV_DIR_RE.test(f)) targets.push(f);
   for (const name of targets) {
     const p = path.join(PERSONAL, name);
     if (!isInsidePersonal(p, PERSONAL)) continue;   // hard guard — never outside personal_data/
     if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force: true }); removed.push(name); }
   }
-  // SP-9: a write interrupted by a crash can leave "<target>.<pid>.<hex>.tmp"
+  // a write interrupted by a crash can leave "<target>.<pid>.<hex>.tmp"
   // beside its target — it holds the same private data, so erase it too.
   if (fs.existsSync(PERSONAL)) {
     for (const f of fs.readdirSync(PERSONAL)) {
@@ -1318,7 +1318,7 @@ function serveStatic(req, res) {
   // even though they live under ROOT alongside the app. See isServablePath's
   // own comment for the exact allow/deny shape.
   if (!isServablePath(p)) { res.writeHead(404); return res.end("not found"); }
-  // QA-2/SP-16: with the isolation switch on, the two ROOT-level real-data
+  // with the isolation switch on, the two ROOT-level real-data
   // overrides are never read from disk at all — treated exactly like a missing
   // optional override (empty 200) regardless of what actually sits at
   // ROOT/data.js or ROOT/names.local.js. GCA_PERSONAL alone does not stop these
@@ -1355,7 +1355,7 @@ function serveStatic(req, res) {
     // For HTML files served from the server, inject the server URL so client code
     // can use it instead of hardcoding localhost and the port.
     const isHtmlFile = type === "text/html" && (p === "/index.html" || p === "/setup.html");
-    // SP-22: a <meta> CSP can't say frame-ancestors, so send it (and the older
+    // a <meta> CSP can't say frame-ancestors, so send it (and the older
     // X-Frame-Options) as real headers: no other site may frame these pages to
     // trick a click on Build, Save or Start over. The page's own meta CSP
     // still carries the rest of the policy (and works over file:// too).
@@ -1411,7 +1411,7 @@ function serveStatic(req, res) {
           .replace(
             "</head>",
             `<script nonce="${nonce}">window.GCA_SERVER_URL="${serverUrl}";` +
-              // SP-11: only the setup wizard gets the picker token
+              // only the setup wizard gets the picker token
               (p === "/setup.html" ? `window.GCA_TOKEN="${PICKER_TOKEN}";` : "") + `</script>\n</head>`
           );
         const body = Buffer.from(injectedData, "utf8");
@@ -1439,7 +1439,7 @@ function serveStatic(req, res) {
 // event loop with a blocking native dialog, so a cross-origin page spamming
 // them is a DoS + dialog-spoofing vector, not a harmless read.
 const GUARDED = new Set(["/api/reset", "/api/source", "/api/preflight", "/api/identity", "/api/removal-preview", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
-// SP-11: the pickers additionally need this per-process token, which only
+// the pickers additionally need this per-process token, which only
 // setup.html receives (injected into its HTML). Random per start, held in
 // memory only: never logged, printed or written to disk.
 const PICKERS = new Set(["/api/pick-file", "/api/pick-folder"]);
@@ -1476,7 +1476,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/status") return apiStatus(res);
     if (req.method === "POST" && url === "/api/reset") return apiReset(res);
   } catch (e) {
-    // SP-17: one plain sentence for the user (no "EPERM: operation not
+    // one plain sentence for the user (no "EPERM: operation not
     // permitted, copyfile …" or stack); the full error stays in this console.
     if (!(e && e.statusCode)) console.error(e && e.stack || e);
     return sendJSON(res, e.statusCode || 500, { error: friendlyError(e) });

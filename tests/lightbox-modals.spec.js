@@ -1,17 +1,17 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, collectErrors, afterSearchRun } = require("./_viewer-fixture.js");
 
-// Lightbox + modal stacking (VC-7, VC-20/UX-26, VC-9/AN-12, AN-16).
-//  - VC-7: .lightbox (z 100) painted UNDER .ctx-modal (z 230), so a photo
+// Lightbox + modal stacking.
+//  - .lightbox (z 100) painted UNDER .ctx-modal (z 230), so a photo
 //    clicked in Context peek "did nothing" while the hidden lightbox stole
 //    focus and the arrow keys. In Search view the list came from the search
 //    results, so a peeked photo that isn't a result opened nothing or a
 //    different photo.
-//  - VC-20/UX-26: one Escape closed two layers (closeAllModals removed the ctx
+//  - one Escape closed two layers (closeAllModals removed the ctx
 //    modal first, then lbKeyHandler removed the lightbox).
-//  - VC-9/AN-12: "file" media (pdf…) was part of the lightbox list and
+//  - "file" media (pdf…) was part of the lightbox list and
 //    rendered as a broken <img>; the gallery file cell opened the lightbox.
-//  - AN-16: the list was always all media oldest-first, so arrows ran opposite
+//  - the list was always all media oldest-first, so arrows ran opposite
 //    to the newest-first Gallery and ignored the Hall of Fame ranking.
 const B = Date.parse("2024-03-10T08:00:00Z");
 const M = (k, extra) => Object.assign({ i: "m" + k, s: k % 2 ? "u1" : "u2", t: B + k * 60000, x: "text " + k }, extra || {});
@@ -35,7 +35,7 @@ async function peek(page, scope, n) {
   await expect(page.locator(".ctx-modal")).toBeVisible();
 }
 
-test("VC-7: a photo opened from Context peek shows ON TOP of the peek modal", async ({ page }) => {
+test("a photo opened from Context peek shows ON TOP of the peek modal", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
   await peek(page, "#view-timeline", 0);
   await page.locator('.ctx-modal .media img[src$="photo-1.svg"]').click();
@@ -49,7 +49,7 @@ test("VC-7: a photo opened from Context peek shows ON TOP of the peek modal", as
   expect(await page.evaluate(() => document.querySelector(".lightbox").contains(document.activeElement))).toBe(true);
 });
 
-test("VC-20/UX-26: Escape closes only the top layer, and focus goes back into the layer below", async ({ page }) => {
+test("Escape closes only the top layer, and focus goes back into the layer below", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
   await peek(page, "#view-timeline", 0);
   await page.locator('.ctx-modal .media img[src$="photo-1.svg"]').click();
@@ -62,7 +62,7 @@ test("VC-20/UX-26: Escape closes only the top layer, and focus goes back into th
   await expect(page.locator(".ctx-modal")).toHaveCount(0);
 });
 
-test("VC-20: arrow keys do not drive a lightbox that is not the top layer", async ({ page }) => {
+test("arrow keys do not drive a lightbox that is not the top layer", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "gallery" } });
   await page.locator("#view-gallery .gcell img").first().click();
   await expect(page.locator(".lightbox")).toBeVisible();
@@ -76,7 +76,7 @@ test("VC-20: arrow keys do not drive a lightbox that is not the top layer", asyn
   await expect(page.locator(".lightbox")).toBeVisible();
 });
 
-test("VC-7: in Search, a peeked photo that is not a search result opens THAT photo", async ({ page }) => {
+test("in Search, a peeked photo that is not a search result opens THAT photo", async ({ page }) => {
   await bootViewer(page, DATA);
   // results: only "second pic" (photo-2) -> peek it, click photo-1 (a neighbour, not a result)
   await afterSearchRun(page, () => page.locator('#f-matchtoggle button[data-mode="exact"]').click());
@@ -95,7 +95,7 @@ test("VC-7: in Search, a peeked photo that is not a search result opens THAT pho
   expect(await lbSrc(page)).toBe("sample_media/photo-1.svg");
 });
 
-test("VC-9/AN-12: file media is never a lightbox slide; its gallery cell does not open the lightbox", async ({ page }) => {
+test("file media is never a lightbox slide; its gallery cell does not open the lightbox", async ({ page }) => {
   const errors = collectErrors(page);
   await bootViewer(page, DATA, { ls: { "gca.lastView": "gallery" } });
   const fileCell = page.locator("#view-gallery .gcell", { has: page.locator("a.urlchip") });
@@ -111,7 +111,7 @@ test("VC-9/AN-12: file media is never a lightbox slide; its gallery cell does no
   expect(errors).toEqual([]);
 });
 
-test("AN-16: Gallery arrows follow the newest-first grid", async ({ page }) => {
+test("Gallery arrows follow the newest-first grid", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "gallery" } });
   const first = page.locator("#view-gallery .gcell img").first();
   await expect(first).toHaveAttribute("src", "sample_media/photo-3.svg");
@@ -125,7 +125,7 @@ test("AN-16: Gallery arrows follow the newest-first grid", async ({ page }) => {
   await expect(page.locator(".lightbox .lb-next")).toHaveCount(0);
 });
 
-test("AN-16: Hall of Fame arrows walk the ranked media set", async ({ page }) => {
+test("Hall of Fame arrows walk the ranked media set", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "hof" } });
   const cells = page.locator("#hof-media .gcell img");
   await expect(cells).toHaveCount(3);

@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { spawn } = require("child_process");
 const fs = require("fs");
@@ -8,7 +8,7 @@ const { waitForBootLine } = require("./wait-for-boot-line.js");
 const X = require("./fixtures/x-export.js");
 const { checkAndBuild } = require("./_setup-helpers.js");
 
-// SP6 checkpoint: the wizard over a REAL server + synthetic export shows a
+// Checkpoint: the wizard over a REAL server + synthetic export shows a
 // clear error — never a green "✓ Built 0 messages" — for a wrong, empty or
 // broken messages file, stays unlocked so the user can fix it, and builds a
 // BOM-prefixed export normally with the build log one click away.
@@ -36,7 +36,7 @@ test.afterAll(() => {
   for (const d of [personal, exportRoot]) if (d) fs.rmSync(d, { recursive: true, force: true });
 });
 
-// SP7: "Check export" reads the files first (POST /api/preflight); a file it
+// "Check export" reads the files first (POST /api/preflight); a file it
 // can't use is refused right there, before the preview and before any build.
 async function submit(page, groupJs) {
   await page.goto(BASE + "/setup.html");
@@ -84,7 +84,7 @@ test("a truncated messages file gets a clear error and the build log is availabl
   const s = fs.readFileSync(F.group, "utf8");
   fs.writeFileSync(cut, s.slice(0, s.length >> 1));
   await submit(page, cut);
-  // SP7: the pre-flight check reads the file and stops here, before a build
+  // the pre-flight check reads the file and stops here, before a build
   // runs — so there is no build log to show, only the plain sentence.
   await expect(page.locator("#src-result")).toContainText(/truncated/);
   await expect(page.locator("#preflight")).toBeHidden();

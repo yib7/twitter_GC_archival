@@ -30,7 +30,7 @@
   <!-- Render-blocking in <head> so the saved theme applies before first paint. -->
   <script src="src/theme-boot.js"></script>
   <!-- First, before the (possibly very large) archive data: the launcher's
-       server stays up only while a page says it is open (fix round 1). -->
+       server stays up only while a page says it is open. -->
   <script src="src/keepalive.js"></script>
 </head>
 <body>
@@ -88,7 +88,7 @@
         </div>
       </nav>
       <div class="sidebar-foot" id="sidebar-foot"><div id="sidebar-spark"></div><div id="sidebar-foot-text"></div></div>
-      <!-- Compact theme toggle (UX-6) — pinned to the bottom of the sidebar so it
+      <!-- Compact theme toggle — pinned to the bottom of the sidebar so it
            stays reachable when the nav scrolls. Light / Dim / Lights out → gca.theme -->
       <div class="sidebar-theme" id="sidebar-theme"><div class="theme-toggle" role="group" aria-label="Theme"><button type="button" data-set="light" title="Light" aria-label="Light" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button><button type="button" data-set="dim" title="Dim" aria-label="Dim" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button><button type="button" data-set="lightsout" title="Lights out" aria-label="Lights out" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z"/></svg></button></div></div>
     </aside>
@@ -156,7 +156,7 @@
     </div>
   </div>
 
-  <!-- UX-15: the one polite live region every toast() is announced through -->
+  <!-- the one polite live region every toast() is announced through -->
   <div id="sr-status" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
   <!-- Synthetic demo data ships with the repo. Real (gitignored) data loads
        afterward and overrides window.CHAT_DATA:

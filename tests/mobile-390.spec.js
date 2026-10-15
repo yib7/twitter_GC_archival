@@ -1,9 +1,9 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv } = require("./_viewer-fixture.js");
 
-// SP5 mobile checkpoint at 390px with a touch (coarse) pointer: UX-1 touch
-// actions, UX-5 / UX-34 / UX-36 no horizontal overflow, UX-18 44px targets,
-// UX-19 search filters sheet + no autofocus, UX-35 capsule height.
+// Mobile checkpoint at 390px with a touch (coarse) pointer: touch actions,
+// no horizontal overflow, 44px targets, the search filters sheet + no
+// autofocus, and the capsule height.
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
 const T = Date.parse("2024-03-10T12:00:00Z");
@@ -18,7 +18,7 @@ const LIST = [
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 const view = (page) => page.evaluate(() => document.querySelector(".nav-item[aria-current=page]").dataset.view);
 
-test.describe("UX-1: touch users reach message actions through a ⋯ button", () => {
+test.describe("touch users reach message actions through a ⋯ button", () => {
   test("tapping ⋯ on a search result opens its actions without navigating; an action closes them", async ({ page }) => {
     await bootViewer(page, DATA);
     const card = page.locator("#s-list .msg").first();
@@ -91,7 +91,7 @@ test.describe("I-3: on your own messages the ⋯ doesn't cover the avatar", () =
   });
 });
 
-test.describe("UX-17: the More sheet is a real dialog", () => {
+test.describe("the More sheet is a real dialog", () => {
   test("inert while closed; on open aria-modal with focus inside and trapped; Esc closes back to the More tab", async ({ page }) => {
     await bootViewer(page, DATA);
     const sheet = page.locator("#more-sheet");
@@ -172,7 +172,7 @@ async function overflowers(page) {
   }, STRIPS);
 }
 
-test.describe("UX-5 / UX-34 / UX-36: nothing overflows 390px", () => {
+test.describe("nothing overflows 390px", () => {
   for (const theme of ["lightsout", "dim", "light"]) {
     test("every view, " + theme, async ({ page }) => {
       await bootViewer(page, RICH_DATA, { ls: { "gca.theme": theme } });
@@ -210,7 +210,7 @@ test.describe("UX-5 / UX-34 / UX-36: nothing overflows 390px", () => {
   });
 });
 
-test.describe("UX-19: mobile search header is compact and doesn't grab the keyboard", () => {
+test.describe("mobile search header is compact and doesn't grab the keyboard", () => {
   test("no autofocus on a touch screen; filters collapse into a Filters (n) bottom sheet", async ({ page }) => {
     await bootViewer(page, RICH_DATA);
     await expect(page.locator("#s-list .msg").first()).toBeVisible();
@@ -302,7 +302,7 @@ async function smallTargets(page, root) {
   }, root);
 }
 
-test.describe("UX-18: 44px touch targets on a coarse pointer", () => {
+test.describe("44px touch targets on a coarse pointer", () => {
   test("every view, the filter sheet and the More sheet", async ({ page }) => {
     await bootViewer(page, RICH_DATA);
     const bad = [];
@@ -327,7 +327,7 @@ test.describe("UX-18: 44px touch targets on a coarse pointer", () => {
   });
 });
 
-test.describe("UX-35: the capsule is sized by layout, not a hardcoded height", () => {
+test.describe("the capsule is sized by layout, not a hardcoded height", () => {
   test("no inline height; the last memory scrolls fully clear of the tab bar", async ({ page }) => {
     await page.clock.setFixedTime(new Date("2025-05-01T18:00:00Z"));
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "capsule" } });
@@ -349,7 +349,7 @@ test.describe("UX-35: the capsule is sized by layout, not a hardcoded height", (
   });
 });
 
-// M-1: the rendered-text contrast audit (tests/_contrast.js) at 390px — the
+// the rendered-text contrast audit (tests/_contrast.js) at 390px — the
 // mobile-only chrome (top bar, tab bar, More sheet, filter sheet) and your own
 // messages, in every theme.
 const { contrastFailures } = require("./_contrast.js");
@@ -376,7 +376,7 @@ test.describe("Contrast of rendered text at 390px", () => {
       await expect(page.locator("#more-sheet")).toBeVisible();
       await check("more sheet", "#more-sheet");
       await page.keyboard.press("Escape");
-      // SP10 / M-c: every Wrapped slide at 390px, not only the desktop pass
+      // every Wrapped slide at 390px, not only the desktop pass
       await page.evaluate(() => document.querySelector('.nav-item[data-view="wrapped"]').click());
       const slides = await page.locator("#wr-segs .wr-seg").count();
       expect(slides).toBeGreaterThan(3);

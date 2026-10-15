@@ -1,4 +1,4 @@
-// SP9 (VC-10 / UX-21): GCAShared.parseSearchQuery(input, { clock }) is the ONE
+// GCAShared.parseSearchQuery(input, { clock }) is the ONE
 // parser behind Search, the command palette's message hits and the operator
 // chips. Pure and DOM-free. It splits the box into search text (words and
 // "quoted phrases"), -exclusions and operators (from:/sender:, before:/after:,
@@ -9,7 +9,7 @@
 // participants' names (display name + aliases); removeSearchToken /
 // replaceSearchToken edit the query text for the chips and the autocomplete.
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
@@ -124,7 +124,7 @@ test("before:/after: go through parseJumpDate (inclusive bounds in the clock's z
   assert.strictEqual(b.date.label, "March 2024");
   const NY = createZoneClock("America/New_York");
   assert.strictEqual(parseSearchQuery("after:2024-01-01", { clock: NY }).ops[0].date.start, Date.parse("2024-01-01T05:00:00Z"));
-  // dates that don't exist are dropped with a reason (VC-28), not rolled over
+  // dates that don't exist are dropped with a reason, not rolled over
   const [bad] = P("before:2024-01-32 x").ops;
   assert.strictEqual(bad.error, "invalid");
   assert.strictEqual(P("after:13/01/2024 ").ops[0].error, "order");

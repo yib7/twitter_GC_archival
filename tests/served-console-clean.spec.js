@@ -17,7 +17,7 @@ test("served app loads with no 404s or console errors (optional overrides are em
   await page.goto("/", { waitUntil: "networkidle" });
   await expect(page.locator(".msg").first()).toBeVisible();
 
-  // QA-4: `expect(locator).toBeTruthy()` checks that the Locator OBJECT is
+  // `expect(locator).toBeTruthy()` checks that the Locator OBJECT is
   // truthy, which it always is (a Locator is never null/undefined, matched or
   // not) — this passed even if the app never fell back to the sample at all.
   // Assert something that is actually only true when the fallback happened:

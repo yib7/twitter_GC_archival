@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, msgs, afterSearchRun } = require("./_viewer-fixture.js");
 
-// SP9: Search's "All chats" scope — one query across every visible
+// Search's "All chats" scope — one query across every visible
 // conversation, results grouped per chat (header + count + a button that
 // searches just that chat), windowed like This chat. Removed groups and
 // ignored people stay out; the scope rides in the address (#…&s=all), the
@@ -143,7 +143,7 @@ test("Export writes the groups, one record per line, under each chat's name", as
   expect(lines[1]).toContain("Ann: pizza party number 6");
 });
 
-// SP9 polish: the active chat's cached cross-chat index is dropped when it
+// The active chat's cached cross-chat index is dropped when it
 // becomes active (it searches through MSGS/LOWER then) and rebuilt lazily
 // once it is "another chat" again — results stay right across the switches.
 test("switching chats back and forth keeps All chats results right", async ({ page }) => {

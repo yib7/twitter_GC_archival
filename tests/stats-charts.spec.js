@@ -1,13 +1,13 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 
-// SP4 AN-6: every month series is continuous — a silent month is a 0, not a
+// every month series is continuous — a silent month is a 0, not a
 // missing point that makes Jan → Sep look like consecutive months (months
 // chart, hero sparkline, sidebar sparkline, keyword trend).
-// SP4 AN-5 / UX-7 / UX-24: the Stats charts follow the theme and accent LIVE —
+// the Stats charts follow the theme and accent LIVE —
 // switching theme or accent while Stats is open re-colours ticks, grid lines
 // and datasets (no hard-coded green trend line or white hero dot), and every
-// chart canvas is labelled for assistive tech (AN-21).
+// chart canvas is labelled for assistive tech.
 test.use({ timezoneId: "UTC" });
 
 const msgs = [];

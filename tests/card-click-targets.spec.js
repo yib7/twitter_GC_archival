@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
-// VC-8: clickable result cards (Search results, bookmark cards) handled click
+// clickable result cards (Search results, bookmark cards) handled click
 // and Enter/Space on the whole card, so their children's own interactions
 // were hijacked: clicking a link opened the tab AND jumped the app to the
 // Timeline; clicking an avatar jumped AND opened the profile; Enter on a
@@ -20,7 +20,7 @@ async function setup(page, ls) {
 }
 const view = (page) => page.evaluate(() => document.querySelector(".nav-item[aria-current=page]").dataset.view);
 
-test("VC-8: clicking a link inside a search result opens it without jumping to the Timeline", async ({ page }) => {
+test("clicking a link inside a search result opens it without jumping to the Timeline", async ({ page }) => {
   await setup(page);
   const link = page.locator('#s-list .msg a[href="' + URL_ + '"]');
   const popup = page.waitForEvent("popup");
@@ -29,14 +29,14 @@ test("VC-8: clicking a link inside a search result opens it without jumping to t
   expect(await view(page)).toBe("search");
 });
 
-test("VC-8: clicking an avatar in a search result opens the profile without jumping", async ({ page }) => {
+test("clicking an avatar in a search result opens the profile without jumping", async ({ page }) => {
   await setup(page);
   await page.locator("#s-list .msg .av").first().click();
   await expect(page.locator(".profile-modal")).toBeVisible();
   expect(await view(page)).toBe("search");
 });
 
-test("VC-8: Enter on a focused link opens the link; Enter on the card itself still jumps", async ({ page }) => {
+test("Enter on a focused link opens the link; Enter on the card itself still jumps", async ({ page }) => {
   await setup(page);
   const link = page.locator('#s-list .msg a[href="' + URL_ + '"]');
   await link.focus();
@@ -50,7 +50,7 @@ test("VC-8: Enter on a focused link opens the link; Enter on the card itself sti
   await expect.poll(() => view(page)).toBe("timeline");
 });
 
-test("VC-8: a bookmark card from another conversation does not hijack its link", async ({ page }) => {
+test("a bookmark card from another conversation does not hijack its link", async ({ page }) => {
   await setup(page, { "gca.settings": JSON.stringify({ pins: ["b0"] }), "gca.lastView": "pins" });
   const link = page.locator('#view-pins .msg a[href="' + URL_ + '"]');
   await expect(link).toBeVisible();

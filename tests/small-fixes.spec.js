@@ -1,15 +1,15 @@
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 
-// Cycle-5 audit batch (P2-4, P2-7, P2-9, P2-10) — four small src/app.js fixes:
-//  - P2-4: the Stats "busiest day" header showed the raw "YYYY-MM-DD" bucket
+// Cycle-5 audit batch — four small src/app.js fixes:
+//  - the Stats "busiest day" header showed the raw "YYYY-MM-DD" bucket
 //    key instead of the zone-aware formatted date Milestones already uses.
-//  - P2-7: plain-text exports (search results + pinned messages) emitted a
+//  - plain-text exports (search results + pinned messages) emitted a
 //    message body verbatim, so a multi-line body split one record across
 //    several output lines.
-//  - P2-9: the quote-card PNG always drew the initials disc even when the
+//  - the quote-card PNG always drew the initials disc even when the
 //    person has an uploaded data: URL profile photo.
-//  - P2-10: renderChains()'s gap-break left a stale `a`, so a >10-minute gap
+//  - renderChains()'s gap-break left a stale `a`, so a >10-minute gap
 //    inside one person's monologue could start a bogus "X & X" self-chain.
 
 // 1x1 PNG, matches sanitizePhoto()'s PHOTO_RE — a legit uploaded pfp shape.
@@ -33,7 +33,7 @@ const DATA = {
   ],
 };
 
-// P2-10 shape: one person, a >10-minute gap, then a quick monologue. The stale
+// Reply-chain shape: one person, a >10-minute gap, then a quick monologue. The stale
 // gap-break made person B resolve to person A again, and with a === b every
 // message extended the "chain", so this used to render a bogus "X & X" chain.
 const DATA_GAP = {
@@ -83,7 +83,7 @@ function collectErrors(page) {
   return errors;
 }
 
-/* ---- P2-4: busiest-day header is a formatted date, not the ISO key ------- */
+/* ---- busiest-day header is a formatted date, not the ISO key ------- */
 
 test("stats busiest-day header shows the formatted date, not the raw ISO key", async ({ page }) => {
   const errors = collectErrors(page);
@@ -104,7 +104,7 @@ test("stats busiest-day header shows the formatted date, not the raw ISO key", a
   expect(errors).toEqual([]);
 });
 
-/* ---- P2-7: plain-text exports keep one record per line ------------------- */
+/* ---- plain-text exports keep one record per line ------------------- */
 
 test("search-results export flattens multi-line bodies to one line per record", async ({ page }) => {
   const errors = collectErrors(page);
@@ -157,13 +157,13 @@ test("pins export flattens multi-line bodies to one line per record", async ({ p
   expect(errors).toEqual([]);
 });
 
-/* ---- P2-9: the share card (was: quote card) exports a PNG with and without a data: pfp --------- */
+/* ---- the share card (was: quote card) exports a PNG with and without a data: pfp --------- */
 
 async function exportQuote(page) {
   await page.locator('.nav-item[data-view="timeline"]').click();
   const msg = page.locator("#view-timeline .msg", { hasText: "quote me please" }).first();
   await msg.hover();
-  // SP10: Quote became Share — it opens the Share dialog; Download PNG saves
+  // Quote became Share — it opens the Share dialog; Download PNG saves
   await msg.getByRole("button", { name: "Share" }).click();
   const dlPromise = page.waitForEvent("download");
   await page.locator(".share-modal").getByRole("button", { name: "Download PNG" }).click();
@@ -187,7 +187,7 @@ test("quote card still exports a PNG on the initials-disc path (no pfp)", async 
   expect(errors).toEqual([]);
 });
 
-/* ---- P2-10: reply-chain gap-break restarts the outer scan cleanly -------- */
+/* ---- reply-chain gap-break restarts the outer scan cleanly -------- */
 
 test("a >10min gap inside a monologue does not start a bogus self-chain", async ({ page }) => {
   const errors = collectErrors(page);

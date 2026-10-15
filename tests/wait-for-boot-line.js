@@ -1,7 +1,7 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 
 // Shared by every test file that spawns its own scripts/server.js with
-// GCA_PORT=0 (QA-1): the OS hands back a genuinely free ephemeral port, so
+// GCA_PORT=0: the OS hands back a genuinely free ephemeral port, so
 // server.js prints the port it actually bound on stdout instead of the
 // caller guessing/polling one — parse that line rather than assuming.
 //

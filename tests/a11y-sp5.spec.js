@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 const { bootViewer, conv } = require("./_viewer-fixture.js");
 const { contrastFailures } = require("./_contrast.js");
 
-// SP5 accessibility checkpoint (UX-1/VC-19, UX-12 … UX-17). Synthetic data
+// Accessibility checkpoint: keyboard reach, focus rings, names, live regions, dialogs. Synthetic data
 // only. Each describe block is one audit item; they share this fixture.
 const T = Date.parse("2024-03-10T12:00:00Z");
 const LIST = [
@@ -26,7 +26,7 @@ async function installHelpers(page) {
     const lum = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
     window.__cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
     window.__tok = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-    // N-1: a ring that exists in the computed style but is painted entirely
+    // a ring that exists in the computed style but is painted entirely
     // outside what a clipping ancestor (overflow != visible, or paint
     // containment) shows is invisible. The ring band runs from the box
     // inflated by its offset (inner) to that plus its width (outer); it is
@@ -93,7 +93,7 @@ async function tabWalk(page, stops) {
   return { missing, seen };
 }
 
-test.describe("UX-12: a visible focus ring on every keyboard stop", () => {
+test.describe("a visible focus ring on every keyboard stop", () => {
   test("search view and sidebar: every Tab stop shows a ring", async ({ page }) => {
     await bootViewer(page, DATA);
     await installHelpers(page);
@@ -112,7 +112,7 @@ test.describe("UX-12: a visible focus ring on every keyboard stop", () => {
     expect(missing, "no focus ring on: " + missing.join(", ")).toEqual([]);
   });
 
-  // N-1: walk every other view too — a ring painted outside a clipping box
+  // walk every other view too — a ring painted outside a clipping box
   // (e.g. a photo inside .media{overflow:hidden}) counts as missing.
   for (const v of ["search", "timeline", "gallery", "pins", "hof", "wrapped", "capsule", "stats", "threads", "chains", "battles", "people"]) {
     test(v + " view: every Tab stop shows an unclipped ring", async ({ page }) => {
@@ -146,7 +146,7 @@ test.describe("UX-12: a visible focus ring on every keyboard stop", () => {
   });
 });
 
-test.describe("UX-1 / VC-19: message actions are reachable by keyboard", () => {
+test.describe("message actions are reachable by keyboard", () => {
   test("a timeline message takes focus and Tab walks into its actions", async ({ page }) => {
     await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
     await page.locator("#tl-search").focus();
@@ -167,7 +167,7 @@ test.describe("UX-1 / VC-19: message actions are reachable by keyboard", () => {
     await expect(pin).toHaveAttribute("aria-pressed", "true");
     await expect(pin).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(acts.getByRole("button", { name: "Copy", exact: true })).toBeFocused();   // exact: SP8 adds "Copy link to message"
+    await expect(acts.getByRole("button", { name: "Copy", exact: true })).toBeFocused();   // exact: there is also "Copy link to message"
     await page.keyboard.press("Tab");
     await expect(acts.getByRole("button", { name: "Context" })).toBeFocused();
     await page.keyboard.press("Enter");
@@ -219,7 +219,7 @@ async function clickOnly(page, root) {
       if (!b.width || !b.height) return false;
       const host = e.closest(ok);
       if (!host) return true;
-      // M-3: a focusable message (or result card) doesn't cover the media
+      // a focusable message (or result card) doesn't cover the media
       // inside it — an image opens the lightbox, which the message itself
       // can't do from the keyboard, so the media needs its own Tab stop.
       if (host.classList.contains("msg") && e.matches(".media img")) return true;
@@ -228,7 +228,7 @@ async function clickOnly(page, root) {
   }, root);
 }
 
-test.describe("UX-13: no click-only elements", () => {
+test.describe("no click-only elements", () => {
   for (const v of ["search", "timeline", "gallery", "hof", "stats", "threads", "chains", "wrapped", "people", "settings"]) {
     test(v + ": every pointer target is keyboard-operable", async ({ page }) => {
       await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": v === "timeline" ? "timeline" : "search" } });
@@ -301,7 +301,7 @@ test.describe("UX-13: no click-only elements", () => {
     await preset.press("Enter");
     await expect(page.locator("#set-accents .preset").nth(1)).toHaveAttribute("aria-pressed", "true");
 
-    // SP10 (UX-23): the slide dots are gone (segmented progress, no
+    // the slide dots are gone (segmented progress, no
     // controls); the story is a focus stop that takes the arrow keys
     await go(page, "wrapped");
     await page.locator("#wr-next").press("Enter");
@@ -346,7 +346,7 @@ async function unnamed(page, root) {
   }, root);
 }
 
-test.describe("UX-14: every icon-only control has a name", () => {
+test.describe("every icon-only control has a name", () => {
   test("views, search clear, back-to-top and the settings list", async ({ page }) => {
     await bootViewer(page, RICH_DATA, { ls: { "gca.settings": JSON.stringify({ saved: [{ name: "pizza", q: "pizza", f: {} }] }) } });
     await page.locator("#s-input").fill("pizza");
@@ -399,7 +399,7 @@ test.describe("UX-14: every icon-only control has a name", () => {
   });
 });
 
-test.describe("UX-15: toasts are announced", () => {
+test.describe("toasts are announced", () => {
   test("toast text lands in one persistent polite status region, even when repeated", async ({ page }) => {
     await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
     const live = page.locator("#sr-status");
@@ -435,7 +435,7 @@ test.describe("UX-15: toasts are announced", () => {
   });
 });
 
-test.describe("UX-16: the command palette is a combobox", () => {
+test.describe("the command palette is a combobox", () => {
   test("combobox + listbox + options, with aria-activedescendant following the arrows", async ({ page }) => {
     await bootViewer(page, DATA);
     await page.keyboard.press("Control+k");
@@ -463,7 +463,7 @@ test.describe("UX-16: the command palette is a combobox", () => {
     expect(third).toBe(2);
     await expect(lb.locator('[role=option][aria-selected="true"]')).toHaveCount(1);
     await page.keyboard.type("zzzz-no-such-command");
-    // SP9 (UX-8): with no command, date or message match the one option left
+    // with no command, date or message match the one option left
     // searches the messages (Search also finds close matches) — still a
     // combobox option, active, and "No matches" is announced.
     await expect(lb.getByRole("option")).toHaveCount(1);
@@ -474,7 +474,7 @@ test.describe("UX-16: the command palette is a combobox", () => {
   });
 });
 
-test.describe("UX-17: onboarding is a real dialog", () => {
+test.describe("onboarding is a real dialog", () => {
   test("role=dialog + aria-modal + labelled, focus moves in, Tab is trapped, Esc closes and restores focus", async ({ page }) => {
     await bootViewer(page, DATA, { ls: { "gca.onboarded": "0" } });
     const ov = page.locator(".onboard");
@@ -498,7 +498,7 @@ test.describe("UX-17: onboarding is a real dialog", () => {
   });
 });
 
-test.describe("UX-5 / UX-36: desktop keeps its two-up layouts", () => {
+test.describe("desktop keeps its two-up layouts", () => {
   test("Settings rows stay side by side; Stats two-up sections keep two columns", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "stats" } });
@@ -511,7 +511,7 @@ test.describe("UX-5 / UX-36: desktop keeps its two-up layouts", () => {
   });
 });
 
-test.describe("UX-19: desktop search is unchanged", () => {
+test.describe("desktop search is unchanged", () => {
   test("filters stay inline, no Filters toggle, the box is autofocused", async ({ page }) => {
     await bootViewer(page, DATA);
     await expect(page.locator("#s-input")).toBeFocused();
@@ -526,7 +526,7 @@ test.describe("UX-19: desktop search is unchanged", () => {
   });
 });
 
-test.describe("UX-27: empty states say what to do next", () => {
+test.describe("empty states say what to do next", () => {
   const PLAIN = { conversations: [conv("A", "Alpha", LIST.map((m) => ({ i: m.i, s: m.s, t: m.t, x: m.x || "text" })))] };
   const cta = (page, v) => page.locator("#view-" + v + " .empty").getByRole("button");
   const onView = (page, v) => expect(page.locator('.nav-item[data-view="' + v + '"]')).toHaveAttribute("aria-current", "page");
@@ -575,7 +575,7 @@ test.describe("UX-27: empty states say what to do next", () => {
   });
 });
 
-test.describe("UX-28: gallery basics", () => {
+test.describe("gallery basics", () => {
   const overlap = (a, b) => !(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y);
 
   test("standard page header with a count", async ({ page }) => {
@@ -615,7 +615,7 @@ test.describe("UX-28: gallery basics", () => {
   }
 });
 
-test.describe("UX-29: Word Battles keeps the words you add", () => {
+test.describe("Word Battles keeps the words you add", () => {
   test("custom words survive changing the people, de-duplicate, persist, and can be removed", async ({ page }) => {
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "battles" } });
     const word = page.locator("#battle-word");
@@ -648,13 +648,13 @@ test.describe("UX-29: Word Battles keeps the words you add", () => {
   });
 });
 
-test.describe("M-6: message actions are delegated", () => {
+test.describe("message actions are delegated", () => {
   test("toolbar buttons carry data-act and no per-button handlers; actions still run", async ({ page }) => {
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "timeline" } });
     const shape = await page.evaluate(() => [...document.querySelectorAll("#tl-list .msg-acts button, #tl-list .msg-more")].map((b) => (b.dataset.act || "-") + (b.onclick ? ":handler" : "")));
     expect(shape.length).toBeGreaterThan(0);
     expect(shape.filter((x) => x === "-" || x.endsWith(":handler")), "buttons without data-act or with their own onclick").toEqual([]);
-    expect(new Set(shape)).toEqual(new Set(["pin", "copy", "context", "share", "jump", "link", "more"]));   // SP8 adds "link" (Copy link to message); SP10 renames quote → share
+    expect(new Set(shape)).toEqual(new Set(["pin", "copy", "context", "share", "jump", "link", "more"]));   // "link" is Copy link to message; "share" was once "quote"
     // the delegated handler runs them: Bookmark toggles, Context opens the peek
     const msg = page.locator("#tl-list .msg").nth(2);
     await msg.hover();
@@ -666,7 +666,7 @@ test.describe("M-6: message actions are delegated", () => {
   });
 });
 
-test.describe("M-5: widening the window closes the filter sheet", () => {
+test.describe("widening the window closes the filter sheet", () => {
   test("open at 390px, widen to 1280: no dialog left behind, filters inline, Tab not trapped", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await bootViewer(page, RICH_DATA);
@@ -690,7 +690,7 @@ test.describe("M-5: widening the window closes the filter sheet", () => {
   });
 });
 
-test.describe("M-4: Word Battles says when a word is refused or dropped", () => {
+test.describe("Word Battles says when a word is refused or dropped", () => {
   test("a word over 40 characters is refused with a toast and kept in the box", async ({ page }) => {
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "battles" } });
     const word = page.locator("#battle-word");
@@ -715,7 +715,7 @@ test.describe("M-4: Word Battles says when a word is refused or dropped", () => 
   });
 });
 
-test.describe("UX-32: no flash of message 0", () => {
+test.describe("no flash of message 0", () => {
   const watchFlash = (page) => page.evaluate(() => {
     window.__flashed = [];
     new MutationObserver((ms) => ms.forEach((m) => {
@@ -723,8 +723,8 @@ test.describe("UX-32: no flash of message 0", () => {
     })).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
   });
 
-  // SP8 supersedes WHERE the first open lands — the newest message, not the
-  // top (scrollTop 0) — and keeps UX-32's guarantee: quiet, nothing flashes.
+  // The first open lands on the newest message, not the top (scrollTop 0),
+  // and stays quiet: nothing flashes.
   // timeline-newest.spec.js also checks message 0 is never painted first.
   test("opening the Timeline from the nav is quiet", async ({ page }) => {
     await bootViewer(page, DATA);
@@ -747,7 +747,7 @@ test.describe("UX-32: no flash of message 0", () => {
   });
 });
 
-test.describe("UX-33: the sticky day pill doesn't block what's under it", () => {
+test.describe("the sticky day pill doesn't block what's under it", () => {
   test("translucent + blurred, and clicks pass through to the media below", async ({ page }) => {
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "timeline" } });
     for (const th of THEMES) {
@@ -803,7 +803,7 @@ test.describe("Contrast of rendered text, every view × theme", () => {
         for (const f of await contrastFailures(page, "#view-" + v)) bad.push(v + ": " + f);
       }
       for (const f of await contrastFailures(page, ".sidebar")) bad.push("sidebar: " + f);
-      // SP8: the Timeline's "Jump to latest" pill (shown here regardless of
+      // the Timeline's "Jump to latest" pill (shown here regardless of
       // the scroll position) and the calendar dialog
       await go(page, "timeline");
       await page.evaluate(() => { document.getElementById("tl-latest").hidden = false; });
@@ -815,7 +815,7 @@ test.describe("Contrast of rendered text, every view × theme", () => {
       await page.keyboard.press("Escape");
       // every Wrapped slide, not just the first: each has its own backdrop wash
       await go(page, "wrapped");
-      const slides = await page.locator("#wr-segs .wr-seg").count();   // SP10: the dots became segments
+      const slides = await page.locator("#wr-segs .wr-seg").count();   // the dots became segments
       for (let k = 0; k < slides; k++) {
         if (k) await page.locator("#wr-next").click();
         await page.waitForTimeout(120);
@@ -826,9 +826,9 @@ test.describe("Contrast of rendered text, every view × theme", () => {
   }
 });
 
-// SP9: the new Search UI is held to the same audits — rendered-text contrast
+// the new Search UI is held to the same audits — rendered-text contrast
 // in every theme and a visible, unclipped focus ring on every keyboard stop.
-test.describe("SP9: search chips and the from: autocomplete", () => {
+test.describe("search chips and the from: autocomplete", () => {
   for (const th of THEMES) {
     test("contrast and focus rings · " + th, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
@@ -850,13 +850,13 @@ test.describe("SP9: search chips and the from: autocomplete", () => {
   }
 });
 
-// SP9: All chats (scope toggle + grouped results with their per-chat headers)
+// All chats (scope toggle + grouped results with their per-chat headers)
 // and the command palette's message hits, in every theme.
 const MULTI_DATA = { conversations: CONTRAST_DATA.conversations.concat([conv("B", "Beta", [
   { i: "b1", s: "u7", t: Date.parse("2024-06-01T12:00:00Z"), x: "volley at noon, bring pizza" },
   { i: "b2", s: "u8", t: Date.parse("2024-06-01T12:05:00Z"), x: "no volley today" },
 ])]) };
-test.describe("SP9: All chats results and palette message hits", () => {
+test.describe("All chats results and palette message hits", () => {
   for (const th of THEMES) {
     test("contrast and focus rings · " + th, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
@@ -889,10 +889,10 @@ test.describe("SP9: All chats results and palette message hits", () => {
   }
 });
 
-// SP10: the Share dialog and the Wrapped story controls are held to the same
+// the Share dialog and the Wrapped story controls are held to the same
 // audits — rendered-text contrast, a ring on every keyboard stop, named
 // controls and nothing click-only, in every theme.
-test.describe("SP10: Share dialog and Wrapped story controls", () => {
+test.describe("Share dialog and Wrapped story controls", () => {
   for (const th of THEMES) {
     test("contrast, focus rings, names · " + th, async ({ page }) => {
       await page.emulateMedia({ reducedMotion: "reduce" });
@@ -927,10 +927,10 @@ test.describe("SP10: Share dialog and Wrapped story controls", () => {
   }
 });
 
-// SP10 review: Wrapped's washes and gradient text are mixed from the accent,
+// Wrapped's washes and gradient text are mixed from the accent,
 // so the contrast pass runs again with extreme accents — a very light one
 // (#facc15) and a dark one (#1e3a8a) — over every slide, in every theme.
-test.describe("SP10: Wrapped contrast with a very light and a dark accent", () => {
+test.describe("Wrapped contrast with a very light and a dark accent", () => {
   for (const accent of ["#facc15", "#1e3a8a"]) {
     for (const th of THEMES) {
       test(accent + " · " + th, async ({ page }) => {

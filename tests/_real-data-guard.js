@@ -1,6 +1,6 @@
 "use strict";
 /*
- * tests/_real-data-guard.js — QA-2 enforced by code, not memory.
+ * tests/_real-data-guard.js — the clean-checkout rule enforced by code, not memory.
  *
  * PROJECT HARD RULE: real private group-chat data lives under a "personal_data"
  * (or "exports") directory at the repo root (plus a legacy root

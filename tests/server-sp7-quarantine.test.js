@@ -1,5 +1,5 @@
 /*
- * SP7 fix round 1 (#1, critical): removed MESSAGES are quarantined like
+ * removed MESSAGES are quarantined like
  * removed media. A merge re-points config at the newer export and prunes the
  * older copies, so un-removing used to rebuild from the newer export only —
  * a removed person's messages that only the older export had (9004) were
@@ -8,7 +8,7 @@
  * folds them back in. Real server (GCA_PORT=0, mkdtemp GCA_PERSONAL, no root
  * fallback, no native pickers) and synthetic exports only.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -30,7 +30,7 @@ const allIds = (data) => data.conversations.flatMap((c) => c.msgs.map((m) => Str
 const Q = (S) => path.join(S.personal, ".removed", "messages.js");
 const quarIds = (S) => (fs.existsSync(Q(S)) ? allIds(parseArchive(Q(S))) : []);
 
-describe("SP7 fix 1: remove → merge → un-remove keeps messages only the older export had", () => {
+describe("remove → merge → un-remove keeps messages only the older export had", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -67,7 +67,7 @@ describe("SP7 fix 1: remove → merge → un-remove keeps messages only the olde
   });
 });
 
-describe("SP7 fix 1: a still-removed group or person stays in quarantine", () => {
+describe("a still-removed group or person stays in quarantine", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -98,7 +98,7 @@ describe("SP7 fix 1: a still-removed group or person stays in quarantine", () =>
 // written as a superset (old + newly removed), data.js next, and only then is
 // it narrowed to what is still removed. data.js / data.js.bak stay as they
 // were when the build stops before data.js is written.
-describe("SP7 fix 1: a build cut off part-way keeps data.js, data.js.bak and the quarantine consistent", () => {
+describe("a build cut off part-way keeps data.js, data.js.bak and the quarantine consistent", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -147,12 +147,12 @@ describe("SP7 fix 1: a build cut off part-way keeps data.js, data.js.bak and the
   });
 });
 
-// SP7 fix round 2 (#1): an archive whose removals were made before the
+// an archive whose removals were made before the
 // quarantine existed has no .removed/messages.js. Its first merge used to be
 // the first build to fill it — after config was already re-pointed at the
 // newer export, so the older export's removed messages (9004) were lost. The
 // merge now rebuilds once with the archive's own (unchanged) config first.
-describe("SP7 fix round 2: a legacy archive (removals but no quarantine) keeps older-only removed messages through a merge", () => {
+describe("a legacy archive (removals but no quarantine) keeps older-only removed messages through a merge", () => {
   let S;
   before(async () => { S = await startServer(); });
   after(() => S.stop());
@@ -175,10 +175,10 @@ describe("SP7 fix round 2: a legacy archive (removals but no quarantine) keeps o
   });
 });
 
-// SP7 fix round 2 (#2): a merge whose build fails puts the quarantine back
+// a merge whose build fails puts the quarantine back
 // as it was, like config.json, source/ and media/ — not the superset the
 // failed build wrote before it stopped.
-describe("SP7 fix round 2: a failed merge build leaves the quarantine as it was", () => {
+describe("a failed merge build leaves the quarantine as it was", () => {
   let personal;
   before(() => { personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp7-quar-undo-")); tmpDirs.push(personal); });
 

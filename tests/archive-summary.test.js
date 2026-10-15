@@ -1,12 +1,12 @@
 /*
- * SP7 carry-over (SP6 review #2): the setup server used to parse the whole
+ * the setup server used to parse the whole
  * built archive (every message body) into its default heap for /api/status,
  * /api/parts, /api/removal-preview and the identity save. These tests pin the
  * streaming readers that replace it: a summary reader that keeps no message
  * at all, and a fold that hands each message to small collectors and drops
  * it, giving exactly what the old whole-archive functions gave.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

@@ -1,9 +1,9 @@
-// Replaces tests/shared-constants-drift.test.js (P2-11). The old guard existed
+// Replaces tests/shared-constants-drift.test.js. The old guard existed
 // only because PALETTE / X_LINK / hashId / initials / the colorOf palette-lookup
 // were hand-copied across src/app.js, src/setup.js and scripts/build-core.js — it
 // compared the copies to each other so they couldn't silently drift.
 //
-// P2-7 collapsed those copies into ONE module (src/shared-core.js), so "drift
+// The extraction collapsed those copies into ONE module (src/shared-core.js), so "drift
 // between copies" is no longer possible. This test instead:
 //   1. pins the shared logic — hashId / paletteColor / initials produce exactly
 //      the expected outputs over the same ID/NAME batteries the drift test used,
@@ -17,7 +17,7 @@
 // implementation of the (fixed, deterministic) algorithm — not from the module
 // under test — so they genuinely constrain its behavior.
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 const fs = require("node:fs");
@@ -110,7 +110,7 @@ test("initials returns the expected monogram for every name in the battery", () 
   });
 });
 
-/* ---- UX-25: the person hue rule ----------------------------------------- */
+/* ---- the person hue rule ----------------------------------------- */
 test("personHue / hueVars map an id to one of the 10 --p-/--f- hue pairs by its hash", () => {
   assert.deepEqual(shared.HUES, ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"]);
   for (const id of ID_BATTERY) {
@@ -128,7 +128,7 @@ test("the setup wizard paints avatars with the viewer's hue rule, not the old pa
 });
 
 /* ---- single-source guard ------------------------------------------------- */
-// The whole point of P2-7: no consumer may keep its own copy. If any of these
+// The whole point of the extraction: no consumer may keep its own copy. If any of these
 // declarations reappears in a consumer, the extraction has regressed.
 
 const NO_LOCAL_DECL = [
@@ -149,7 +149,7 @@ const NO_LOCAL_DECL = [
   { file: "src/app.js", name: "cleanMap", re: /^\s*function\s+cleanMap\b/m },
   { file: "src/app.js", name: "idList", re: /^\s*function\s+idList\b/m },
   { file: "src/app.js", name: "cleanSaved", re: /^\s*function\s+cleanSaved\b/m },
-  // UX-25: one person-hue rule for the viewer and the wizard
+  // one person-hue rule for the viewer and the wizard
   { file: "src/app.js", name: "HUES", re: /^\s*const\s+HUES\s*=/m },
   { file: "src/setup.js", name: "HUES", re: /^\s*const\s+HUES\s*=/m },
 ];
@@ -159,7 +159,7 @@ test("no consumer redeclares a shared constant/helper (single source of truth)",
     assert.ok(
       !re.test(read(file)),
       `${file} still declares its own ${name} — it must consume src/shared-core.js ` +
-        `instead. The extraction (P2-7) regressed; remove the local copy.`
+        `instead. The extraction regressed; remove the local copy.`
     );
   }
 });

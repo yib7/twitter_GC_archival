@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P2-6: fuzzy search results must be highlighted. The fuzzy branch matches via
+// fuzzy search results must be highlighted. The fuzzy branch matches via
 // Fuse.js (typo-tolerant), but rendering highlighted only the LITERAL query
 // terms — so a typo'd query that Fuse matched near-miss rendered with NO
 // <mark> at all, exactly where the visual cue matters most. The fix threads
@@ -51,7 +51,7 @@ test("fuzzy typo'd query renders the match AND highlights the matched word", asy
   const hit = page.locator("#s-list .msg", { hasText: "refrigerator" });
   await expect(hit).toBeVisible();
 
-  // The whole point of P2-6: the near-miss match must carry a visible <mark>
+  // The whole point: the near-miss match must carry a visible <mark>
   // covering (at least part of) the matched word, not render bare.
   const marks = hit.locator(".bubble mark");
   await expect(marks.first()).toBeVisible();

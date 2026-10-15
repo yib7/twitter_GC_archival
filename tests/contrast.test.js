@@ -1,4 +1,4 @@
-// UX-11 / UX-22: WCAG contrast helpers in src/shared-core.js. The viewer uses
+// WCAG contrast helpers in src/shared-core.js. The viewer uses
 // them to derive --on-accent / --accent-fill / --accent-text from the
 // user-selectable accent and to keep user-picked person colours readable in
 // every theme, so the maths is pinned here independently of the DOM.

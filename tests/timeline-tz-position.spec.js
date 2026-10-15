@@ -3,7 +3,7 @@ const { bootViewer, msgs, conv, settledTimeline } = require("./_viewer-fixture.j
 
 // Review Minor 1: a timezone change invalidated the Timeline (so its labels
 // rebuild in the new zone) but that reopened it at the top, throwing away the
-// reading position VC-1 protects. The first visible message is now recorded
+// reading position the round-trip test protects. The first visible message is now recorded
 // when leaving the Timeline and the rebuilt Timeline reopens on it, quietly
 // (no jump flash), with labels in the new zone.
 const DATA = { conversations: [conv("A", "Alpha", msgs("m", 3000, { s: ["u1", "u2", "u3"], step: 3600000, t0: Date.parse("2023-01-01T00:30:00Z") }))] };

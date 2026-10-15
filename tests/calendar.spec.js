@@ -2,7 +2,7 @@ const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, collectErrors } = require("./_viewer-fixture.js");
 const { contrastFailures } = require("./_contrast.js");
 
-// SP8: the Timeline's "Jump to date" opens a calendar: a year / month scrubber
+// the Timeline's "Jump to date" opens a calendar: a year / month scrubber
 // (bars = message volume) over a month heatmap of days. Built from the cached
 // time index (timeAgg — zone-aware days, incl. "local"), keyboard operable
 // (arrows move by day / week, Page Up/Down by month, Enter jumps; the month
@@ -176,7 +176,7 @@ test.describe("calendar at 390px on a touch screen", () => {
     }
   });
 
-  // Fix round 1: the Timeline toolbar is hidden on phones, so the calendar has
+  // The Timeline toolbar is hidden on phones, so the calendar has
   // its own entry in the More sheet (not only the palette).
   test("the More sheet opens the calendar on the Timeline; Escape returns to More", async ({ page }) => {
     await bootViewer(page, DATA, { ls: { "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
@@ -204,7 +204,7 @@ test.describe("calendar at 390px on a touch screen", () => {
   });
 });
 
-// Fix round 1: with a corrupt outlier the span tops 60 years and only years
+// With a corrupt outlier the span tops 60 years and only years
 // with messages are listed. Stepping out of a listed year (by day, by month,
 // or in the month strip) skips to the nearest listed year in that direction,
 // so the year strip always keeps a selected button and a Tab stop.

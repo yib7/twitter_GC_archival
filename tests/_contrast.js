@@ -6,7 +6,7 @@
 // primary buttons are covered too. Only url() images (photos, avatars with a
 // picture) can't be computed from styles and are skipped. A ::before/::after
 // that covers its element (inset 0: a vignette, a scrim) is one more layer of
-// that element's background (M-b). Gradient text
+// that element's background. Gradient text
 // (background-clip: text) uses its stops as the ink.
 // Normal text >= 4.5:1, large text (>= 24px, or >= 18.66px bold) >= 3:1.
 async function contrastFailures(page, root, skip) {
@@ -25,7 +25,7 @@ async function contrastFailures(page, root, skip) {
     // layer (or falls through to <body>). It is then composited bottom-up,
     // every stop of a gradient being one alternative, so a translucent
     // gradient (e.g. a radial glow fading to transparent) is laid OVER the
-    // ancestors under it instead of being replaced by them (N-2).
+    // ancestors under it instead of being replaced by them.
     const GRAD = /(?:repeating-)?(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/g;
     const COLOR = /(rgba?\([^)]*\)|color\([^)]*\))/g;
     // A radial gradient with an explicit "W H [at X Y]" ellipse (px or %) is position-
@@ -61,7 +61,7 @@ async function contrastFailures(page, root, skip) {
       const stack = [];
       let floor = [parse(getComputedStyle(document.body).backgroundColor)];
       walk: for (let n = e; n; n = n.parentElement) {
-        // M-b (SP10): an absolutely positioned ::after / ::before that covers
+        // an absolutely positioned ::after / ::before that covers
         // the element (inset 0 — a vignette, a scrim) paints over the
         // element's own background and under its content, so it is the top
         // layer of this element (::after above ::before).

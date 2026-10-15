@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const os = require("os");
@@ -7,7 +7,7 @@ const crypto = require("crypto");
 const X = require("./fixtures/x-export.js");
 const { startServer, readData } = require("./_sp6-server.js");
 
-// SP7 checkpoint, end to end through the wizard over a real server
+// Merge checkpoint, end to end through the wizard over a real server
 // (GCA_PORT=0, a mkdtemp GCA_PERSONAL, root fallbacks and native pickers off)
 // and two synthetic exports only:
 //   1. build from export A by picking its archive folder (found through

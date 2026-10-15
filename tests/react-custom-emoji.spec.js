@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P2-1: X represents an arbitrary-emoji DM reaction with reactionKey:"emoji"
+// X represents an arbitrary-emoji DM reaction with reactionKey:"emoji"
 // and the real glyph in a separate field (build-core.js rawToRec now captures
 // it as rec.r[i].e). Before this fix, every custom-emoji reaction collapsed
 // into the same generic REACT.emoji ("💬") chip — this spec proves:

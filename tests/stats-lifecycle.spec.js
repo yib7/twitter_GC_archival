@@ -1,10 +1,10 @@
 const { test, expect } = require("@playwright/test");
 
-// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// the default zone is now the viewer's own ("local"). This spec's
 // expected dates were written for UTC, so it pins the browser zone to UTC.
 test.use({ timezoneId: "UTC" });
 
-// P2-2: renderStats() used to create three untracked `new Chart(...)` instances
+// renderStats() used to create three untracked `new Chart(...)` instances
 // (#chart-months, #chart-hours, #chart-weekdays) on every render and only ever
 // destroyed trendChart — so each Stats re-render (view revisit, conversation
 // switch) leaked 3 live Chart.js instances holding detached canvases. The
@@ -12,7 +12,7 @@ test.use({ timezoneId: "UTC" });
 // keyed by chart id; construction adds, destroy() deletes), which lets us count
 // live instances from page context.
 //
-// P1-2: openProfileModal() used to run the full computeStats() sweep
+// openProfileModal() used to run the full computeStats() sweep
 // synchronously before painting anything. It now paints the shell first and
 // fills stats/badges from computeStats() asynchronously when STATS is cold —
 // the cold-open test pins that the final modal content is unchanged.

@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, before, after, describe } = require("node:test");
 const assert = require("node:assert");
 const http = require("node:http");
@@ -8,7 +8,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-// Integration regression for SP3 (Host/Origin CSRF + DNS-rebind guard): a
+// Integration regression for the Host/Origin CSRF + DNS-rebind guard: a
 // REAL spawned server, hit with a raw HTTP request carrying a forged Host or
 // Origin header, must 403 BEFORE any route handler (apiReset in particular)
 // ever runs. The isAllowedHost/isAllowedOrigin unit tests in
@@ -23,7 +23,7 @@ const path = require("node:path");
 // HARD RULE: GCA_PERSONAL points at a throwaway temp dir for this whole file.
 // The real project's personal_data/ is never read, written, or referenced.
 //
-// QA-1: this used to pick a random port from a range that includes 8765 (the
+// this used to pick a random port from a range that includes 8765 (the
 // default archive port) and 9000 (the port server.js itself tells users to
 // try), then poll /api/ping and treat serverProc.exitCode !== null as proof
 // the port was free — a race: if someone else already owned the port, the
@@ -140,7 +140,7 @@ test("a legit loopback Host + own-origin Origin is allowed through a guarded rou
   assert.equal(parsed.ok, true);
 });
 
-// QA-13: the most destructive and most security-sensitive server paths (reset
+// the most destructive and most security-sensitive server paths (reset
 // on populated data, HTTP Range serving, the two size caps, and the
 // __proto__ guard) had no integration test — apiReset was only ever exercised
 // against an EMPTY temp dir (the tests above), so nothing proved it deletes
@@ -148,7 +148,7 @@ test("a legit loopback Host + own-origin Origin is allowed through a guarded rou
 // pollution had no coverage at all. Each spawns its own server on its own
 // GCA_PORT=0 temp dir so it can freely populate/mutate without interfering
 // with the host-guard tests above.
-describe("QA-13: destructive & security-sensitive route coverage", () => {
+describe("destructive & security-sensitive route coverage", () => {
   let qPort, qTmp, qProc;
 
   before(async () => {
@@ -275,7 +275,7 @@ describe("QA-13: destructive & security-sensitive route coverage", () => {
         clearTimeout(closeTimer);
         reject(err);
       };
-      // SP2 carry-over (review of SP1): the close bound used to be measured
+      // the close bound used to be measured
       // from UPLOAD START, so a slow machine that simply took >2s to push the
       // 65 MB body would fail even with the fix in place. The upload itself
       // gets a generous budget; the tight bound below starts only once the
@@ -328,7 +328,7 @@ describe("QA-13: destructive & security-sensitive route coverage", () => {
     });
   });
 
-  // QA-13 review fix: the original version of this test asserted
+  // The original version of this test asserted
   // `{}.polluted === undefined` in THIS (the test runner's) process, but the
   // code under test runs in `qProc` — a separate spawned child process. A
   // child polluting or not polluting its own Object.prototype has zero effect
@@ -376,7 +376,7 @@ describe("QA-13: destructive & security-sensitive route coverage", () => {
     assert.equal(body.ok, true);
 
     // The filesystem side effect: unguarded code writes exactly this file
-    // (group photos are named group_<name>_pfp since SP-19, so "group_pwned_pfp.png"; the old name is checked too).
+    // (group photos are named group_<name>_pfp now, so "group_pwned_pfp.png"; the old name is checked too).
     // This IS visible cross-process — qTmp is a real directory on disk shared
     // by this test process and qProc, unlike Object.prototype (in-memory,
     // per-process, never shared between them).

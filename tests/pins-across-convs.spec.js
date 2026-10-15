@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 
-// P2-5: settings.pins is one global list of message ids, but renderPins()
+// settings.pins is one global list of message ids, but renderPins()
 // resolved them only through ID2IDX — which rebuildIndexes() rebuilds for the
 // ACTIVE conversation — so bookmarks made in other group chats silently
 // vanished from the Pinned view (and its export). Message ids are globally

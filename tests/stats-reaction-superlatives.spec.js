@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P1-2: "The Laugh Track" and "The Hater" superlative cards never rendered
+// "The Laugh Track" and "The Hater" superlative cards never rendered
 // because computeStats compared a reaction's *key* (e.g. "funny", "disagree")
 // against emoji *glyphs* (e.g. "😂", "👎") that reaction records never carry
 // (see scripts/build-core.js rawToRec and scripts/make_sample.js, both of

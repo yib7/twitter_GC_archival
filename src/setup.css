@@ -141,7 +141,7 @@
   border-color: transparent; box-shadow: 0 8px 22px -8px var(--accent-glow);
 }
 /* a button that can't be pressed yet looks it (e.g. the merge button waiting for the
-   older-export confirm, SP7 fix round 1) */
+   older-export confirm) */
 .setup-shell .btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .btn.primary:hover:not(:disabled) { box-shadow: 0 12px 30px -8px var(--accent-glow); }
 
@@ -151,7 +151,7 @@
 }
 .setup-result.ok { border-color: color-mix(in srgb, var(--success) 42%, var(--border-lift)); background: linear-gradient(90deg, var(--success-bg), transparent 70%); }
 .setup-result.err { border-color: color-mix(in srgb, var(--danger) 45%, var(--border-lift)); background: var(--danger-bg); color: var(--danger); }
-/* SP-1 / SP-17: build warnings + the collapsible build log */
+/* build warnings + the collapsible build log */
 .setup-result .build-warnings { margin: 8px 0 0; padding-left: 18px; color: var(--warning, var(--text)); }
 .setup-result .build-log { margin-top: 8px; }
 .setup-result .build-log summary { cursor: pointer; color: var(--text-muted, var(--text)); }
@@ -183,7 +183,7 @@
    ellipsis below) instead of blowing the card width out past its border. */
 .su-main { min-width: 0; }
 .su-left { display: flex; flex-direction: column; align-items: center; gap: 7px; }
-/* UX-25: the viewer's avatar look — the person's deep --f hue as a gradient
+/* the viewer's avatar look — the person's deep --f hue as a gradient
    under white initials (setup.js sets --p / --f from shared-core hueVars). A
    photo, set inline, replaces the gradient. */
 .su-av, .fr-av {
@@ -210,7 +210,7 @@
 .su-me { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-dim); cursor: pointer; }
 .su-me input { accent-color: var(--accent); }
 .su-me-row { display: flex; justify-content: flex-end; margin: 0 0 10px; }
-/* fix round 1 (#4): people removed in an earlier save, with a way back */
+/* people removed in an earlier save, with a way back */
 .su-removed-list { margin-top: 14px; padding: 10px 12px; border: 1px dashed var(--border); border-radius: 10px; font-size: 13px; color: var(--text-dim); }
 .su-removed-list[hidden] { display: none; }
 .su-removed-list ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -286,17 +286,17 @@
 .setup-locked { margin-top: 12px; padding: 11px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5; background: var(--success-bg); border: 1px solid color-mix(in srgb, var(--success) 34%, transparent); color: var(--text-dim); }
 
 /* ---- Floating theme switch (setup wizard only; the viewer moved to a compact
-   sidebar/More-sheet toggle in UX-6). Moved here from styles.css. ---------- */
+   sidebar/More-sheet toggle). Moved here from styles.css. ---------- */
 .theme-switch{position:fixed;left:16px;bottom:16px;z-index:200;display:flex;gap:2px;padding:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-pill);box-shadow:var(--el2)}
 .theme-switch button{width:34px;height:34px;border:0;background:none;border-radius:var(--radius-pill);display:grid;place-items:center;color:var(--text-dim);cursor:pointer;transition:background .15s,color .15s}
 .theme-switch button:hover{background:var(--hover);color:var(--text)}
 .theme-switch button.on{background:var(--accent);color:#fff}
 .theme-switch svg{width:17px;height:17px;stroke-width:1.9}
 
-/* SP-2: one-line hint under a source field */
+/* one-line hint under a source field */
 .setup-hint { margin: 0 0 6px; font-size: 12.5px; color: var(--text-dim); }
 
-/* SP7: archive-folder picking — the "easiest" tag and the divider above the
+/* archive-folder picking — the "easiest" tag and the divider above the
    three single-file fields */
 .setup-easy {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
@@ -306,7 +306,7 @@
   font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
 .setup-or::before, .setup-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
 
-/* SP7: the pre-flight preview (reuses the finish receipt's look) */
+/* the pre-flight preview (reuses the finish receipt's look) */
 .preflight { margin-top: 14px; }
 .pf-tag { color: var(--accent-soft); background: var(--accent-glow); border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
 .pf-groups { list-style: none; margin: 0; padding: 4px 17px 8px; border-top: 1px dashed var(--border-lift); }
@@ -320,7 +320,7 @@
 .pf-warnings:empty { display: none; }
 .pf-warnings li + li { margin-top: 4px; }
 .pf-warnings li.pf-ok { list-style: none; margin-left: -18px; color: var(--success); }
-/* SP7 fix round 1 (#2): the extra confirm for an export older than the archive */
+/* the extra confirm for an export older than the archive */
 .pf-older { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 10px 17px 0; font-size: 13px; line-height: 1.45; color: var(--text); cursor: pointer; }
 .pf-older[hidden] { display: none; }
 .pf-older input { margin: 2px 0 0; flex: none; width: 16px; height: 16px; accent-color: var(--accent); }
@@ -328,7 +328,7 @@
 .pf-actions { margin: 0; padding: 12px 17px 16px; justify-content: flex-end; }
 @media (max-width: 480px) { .pf-actions .btn { flex: 1 1 auto; } }
 
-/* SP7: media copy progress while a build runs */
+/* media copy progress while a build runs */
 .build-progress {
   -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 6px; margin-top: 10px;
   border: 0; border-radius: var(--radius-pill); background: var(--bg-hover); overflow: hidden; color: var(--accent);
@@ -338,7 +338,7 @@
 .build-progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), var(--accent-soft)); border-radius: var(--radius-pill); }
 @media (prefers-reduced-motion: reduce) { .build-progress::-webkit-progress-value { transition: none; } }
 
-/* SP7: "Add a newer export" (merge mode) notice under the unlocked fields */
+/* "Add a newer export" (merge mode) notice under the unlocked fields */
 .setup-merge { margin-top: 12px; padding: 11px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5;
   background: var(--accent-glow); border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); color: var(--text-dim); }
 .setup-merge b { color: var(--text); }

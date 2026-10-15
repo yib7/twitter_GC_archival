@@ -1,11 +1,11 @@
 const { test, expect } = require("@playwright/test");
 
-// SP3 review: one corrupt/outlier timestamp (here the largest valid Date, year
+// one corrupt/outlier timestamp (here the largest valid Date, year
 // 275760) used to wrap the Uint16 year and make timeAgg() allocate a dense
 // per-day array spanning ~100 million days. The time index now clamps the
 // instant it buckets, so the analytics views still render and stay sane.
 //
-// SP4 carry-over: this spec used to pin UTC, which hid that the zone clock
+// this spec used to pin UTC, which hid that the zone clock
 // (createZoneClock().offset) and zonedParts() were NOT clamped — in the
 // browser's own zone or a named (Intl) zone the same instant threw a
 // RangeError from updateBrand / the Stats hero. It now runs in four setups.

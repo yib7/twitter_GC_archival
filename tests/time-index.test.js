@@ -1,10 +1,10 @@
-// UX-4 / AN-13: GCAShared.buildTimeIndex(msgs, clock) is the pure core of the
+// GCAShared.buildTimeIndex(msgs, clock) is the pure core of the
 // viewer's per-conversation time index (app.js timeIndex() memoizes it per
 // conversation + zone). Every analytics bucket reads it, so each field must
-// agree with Intl.DateTimeFormat in the same zone — the pre-SP3 source of truth
+// agree with Intl.DateTimeFormat in the same zone — the older source of truth
 // — including across DST transition days.
 
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
@@ -66,7 +66,7 @@ test("buildTimeIndex is pure: no globals, empty input, typed arrays", () => {
   assert.ok(TI.day instanceof Int32Array && TI.year instanceof Uint16Array && TI.monthKey instanceof Int32Array);
 });
 
-// SP3 review: a corrupt/outlier timestamp (year 275760, before 1900, NaN, not a
+// a corrupt/outlier timestamp (year 275760, before 1900, NaN, not a
 // number) must not wrap the Uint16 year, throw inside the zone clock, or blow
 // the dense per-day span timeAgg() allocates. buildTimeIndex clamps the instant
 // it buckets to [1900-01-01, 2199-12-31] (the message keeps its own t).

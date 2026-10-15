@@ -1,12 +1,12 @@
 /*
- * SP6 pure helpers in scripts/server-core.js (no server, no filesystem).
+ * Pure helpers in scripts/server-core.js (no server, no filesystem).
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const core = require("../scripts/server-core.js");
 
-// ---- SP-1 / SP-17: what a failed build tells the user ----------------------
+// ---- what a failed build tells the user ----------------------
 test("buildFailureMessage shows only the build's own BUILD ERROR line", () => {
   const stderr = "something noisy\nBUILD ERROR: The file is empty.\n    at Object.<anonymous> (C:\\x\\build.js:1:1)\n";
   assert.equal(core.buildFailureMessage(stderr), "The file is empty.");
@@ -35,14 +35,14 @@ test("friendlyError turns common Node fs errors into plain sentences without sta
   assert.match(core.friendlyError(e("EISDIR", "/a/dir")), /folder/);
   const http = Object.assign(new Error("Uploaded images must be 10 MB or smaller."), { statusCode: 413 });
   assert.equal(core.friendlyError(http), "Uploaded images must be 10 MB or smaller.", "our own user-facing messages pass through");
-  // fix round 1: fs-io's "held by another program" errors carry their own sentence
+  // Fs-io's "held by another program" errors carry their own sentence
   const held = Object.assign(new Error("x"), { code: "EBUSY", path: "/a/data.js", userMessage: "Couldn't save data.js: close the other program." });
   assert.equal(core.friendlyError(held), "Couldn't save data.js: close the other program.");
   const odd = new Error("weird\n    at somewhere (x.js:1:1)");
   assert.doesNotMatch(core.friendlyError(odd), /at somewhere/);
 });
 
-// ---- SP-7: only the group media folder, only message media ---------------
+// ---- only the group media folder, only message media ---------------
 test("MEDIA_FILE_RE matches X message media names only", () => {
   for (const ok of ["9002-AbCdEf.png", "123-x.JPG", "1-a.jpeg", "77-clip.mp4", "8-a.webm", "9-b.mov", "10-c.m4v", "11-d.gif", "12-e.webp"]) assert.match(ok, core.MEDIA_FILE_RE, ok);
   for (const bad of ["direct-messages.js", "account.js", "photo.jpg", "9002-a.txt", "9002-.png", "abc-1.png", "9002-a.png.exe", "desktop.ini"]) assert.doesNotMatch(bad, core.MEDIA_FILE_RE, bad);
@@ -56,7 +56,7 @@ test("mediaFolderProblem refuses the data folder, any folder of .js files and 1:
   assert.equal(core.mediaFolderProblem("my media", []), null);
 });
 
-// ---- SP-10: the build gets a heap sized to the machine -------------------
+// ---- the build gets a heap sized to the machine -------------------
 test("buildHeapMb gives the build about half the RAM, clamped to 2-16 GB", () => {
   const GB = 1024 ** 3;
   assert.equal(core.buildHeapMb(8 * GB), 4096);
@@ -70,7 +70,7 @@ test("buildNodeArgs passes the heap flag before the build script", () => {
   assert.deepEqual(core.buildNodeArgs("/app/scripts/build.js", 16 * 1024 ** 3), ["--max-old-space-size=8192", "/app/scripts/build.js"]);
 });
 
-// ---- SP-11: the native pickers need the page's token, not just no Referer ----
+// ---- the native pickers need the page's token, not just no Referer ----
 test("isPickerRequestAllowed needs the per-process token AND an own/absent Origin", () => {
   const T = "a".repeat(64), P = 8765;
   const ok = (h) => core.isPickerRequestAllowed(h, T, P);
@@ -85,7 +85,7 @@ test("isPickerRequestAllowed needs the per-process token AND an own/absent Origi
   assert.equal(core.isPickerRequestAllowed({ "x-gca-token": "" }, "", P), false, "never allowed with an empty server token");
 });
 
-// ---- SP-15: pasted paths -------------------------------------------------
+// ---- pasted paths -------------------------------------------------
 test("normalizeUserPath strips one pair of surrounding quotes (Explorer's Copy as path)", () => {
   const win = { platform: "win32", home: "C:/Users/me" };
   assert.equal(core.normalizeUserPath('"C:/Users/me/Downloads/data/direct-messages-group.js"', win), "C:/Users/me/Downloads/data/direct-messages-group.js");
@@ -113,7 +113,7 @@ test("pathNotFoundHint gives a full-path example for the platform", () => {
   assert.match(core.pathNotFoundHint("darwin", "direct_messages_group_media"), /full path.*\/Users\/.*data\/direct_messages_group_media/);
 });
 
-// ---- SP-14: what a rebuild keeps -------------------------------------------
+// ---- what a rebuild keeps -------------------------------------------
 test("referencedMediaNames lists every m and mx file name; sameIdSet ignores order", () => {
   const data = { conversations: [{ msgs: [
     { i: "1", m: "personal_data/media/1-a.png", mx: [{ m: "personal_data/media/1-b.jpg" }] },
@@ -127,7 +127,7 @@ test("referencedMediaNames lists every m and mx file name; sameIdSet ignores ord
   assert.equal(core.sameIdSet(["1"], ["2"]), false);
 });
 
-// ---- SP-23: a free-space check before copying gigabytes ------------------------
+// ---- a free-space check before copying gigabytes ------------------------
 test("diskSpaceProblem says how much is needed and free, in plain units", () => {
   const MB = 1048576, GB = 1024 * MB;
   assert.equal(core.diskSpaceProblem(2 * GB, 10 * GB), null);

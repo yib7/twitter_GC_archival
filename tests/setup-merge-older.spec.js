@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const os = require("os");
@@ -6,7 +6,7 @@ const path = require("path");
 const X = require("./fixtures/x-export.js");
 const { startServer } = require("./_sp6-server.js");
 
-// SP7 fix round 1 (#2): adding an export OLDER than the archive needs an
+// adding an export OLDER than the archive needs an
 // explicit extra confirm in the wizard. Real server (GCA_PORT=0, mkdtemp
 // GCA_PERSONAL, no native pickers), synthetic exports only: the archive is
 // built from the newer export B, then the older A is offered as a merge.
@@ -65,7 +65,7 @@ test("a newer export shows no extra confirm", async ({ page }) => {
   await expect(page.locator("#pf-older-ok")).toBeHidden();
 });
 
-// SP7 fix round 1 (#5): an export with no group messages can't be merged —
+// an export with no group messages can't be merged —
 // the preview says so and its merge button stays off.
 test("an export with no group messages can't be merged", async ({ page }) => {
   const rd = fs.mkdtempSync(path.join(os.tmpdir(), "gca-older-d-"));
@@ -84,7 +84,7 @@ test("an export with no group messages can't be merged", async ({ page }) => {
   await expect(page.locator("#btn-confirm")).toBeDisabled();
 });
 
-// SP7 fix round 2 (#3): re-adding an export the archive already has isn't
+// re-adding an export the archive already has isn't
 // "older" — the confirm says what will actually happen.
 test("re-adding the same export asks to re-add anyway, not to merge an older one", async ({ page }) => {
   await page.goto(S.url("/setup.html"));

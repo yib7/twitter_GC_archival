@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// P1-1: renderChunk() only rendered a system event (create/name/join/leave) if
+// renderChunk() only rendered a system event (create/name/join/leave) if
 // its timestamp fell within [chunk's first msg t, chunk's last msg t]. Two
 // classes of event never satisfy that for ANY chunk:
 //  - create/name events, which fire at conversation-creation time, strictly
@@ -36,7 +36,7 @@ const DATA = {
       { t: BASE - 2000, type: "create", s: "alice001" },
       { t: BASE - 1000, type: "name", s: "alice001", name: "Boundary Test Group" },
       // Boundary-tie event: t === msgs[49].t === msgs[50].t. Actor "carol9999"
-      // never sends a message; since SP4 (AN-14) a join-only member is still a
+      // never sends a message; a join-only member is still a
       // person (PARTS/GENERIC), named "User 3" — a stable, unique needle.
       { t: TIE_T, type: "join", ids: ["carol9999"] },
     ],
@@ -69,7 +69,7 @@ test("timeline renders create/name system events that precede the first message"
   await expect(page.locator(".msg").first()).toBeVisible();
 
   await page.locator('.nav-item[data-view="timeline"]').click();
-  // SP8: the Timeline opens at the newest message now; Home goes to the
+  // the Timeline opens at the newest message now; Home goes to the
   // oldest, where these events live.
   await expect(page.locator('#tl-list .msg[data-idx="99"]')).toBeVisible();
   await page.keyboard.press("Home");
@@ -91,7 +91,7 @@ test("an event tied to a chunk boundary renders in exactly one chunk", async ({ 
   await expect(page.locator(".msg").first()).toBeVisible();
 
   await page.locator('.nav-item[data-view="timeline"]').click();
-  // SP8: the Timeline opens at the newest message now; Home goes to the
+  // the Timeline opens at the newest message now; Home goes to the
   // oldest, where these events live.
   await expect(page.locator('#tl-list .msg[data-idx="99"]')).toBeVisible();
   await page.keyboard.press("Home");

@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// UX-20 (SP3): the default timezone is the browser's own ("local"), not UTC.
+// the default timezone is the browser's own ("local"), not UTC.
 //  - fresh settings → local;
 //  - a stored "UTC" WITHOUT the tzExplicit marker is the old default: migrated
 //    once to local, and the migration is persisted;

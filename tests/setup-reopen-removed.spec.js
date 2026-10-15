@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 const os = require("os");
@@ -6,7 +6,7 @@ const path = require("path");
 const X = require("./fixtures/x-export.js");
 const { startServer, readData } = require("./_sp6-server.js");
 
-// Fix round 1 (review #4): /api/status didn't return ignoredUsers, so a
+// /api/status didn't return ignoredUsers, so a
 // reopened wizard started with nobody removed and its next save un-removed
 // everyone (rebuilding them back in). A real server over a synthetic export
 // (GCA_PORT=0, mkdtemp GCA_PERSONAL, no native pickers): remove a person,

@@ -1,8 +1,8 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { checkAndBuild } = require("./_setup-helpers.js");
 
-// UX-25: a person's avatar colour in the setup wizard is the colour the
+// a person's avatar colour in the setup wizard is the colour the
 // viewer gives them (shared-core hueVars → the theme's --f-<hue>), in every
 // theme. The viewer runs over the bundled sample archive; the wizard's /api
 // routes are mocked with the same person id. Nothing real is touched.

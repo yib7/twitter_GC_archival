@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer } = require("./_viewer-fixture.js");
 
-// SP4 AN-18: the "On This Day" toast samples from EVERY same-day match — it
+// the "On This Day" toast samples from EVERY same-day match — it
 // picks a random past year first, then a random message of that year. It used
 // to stop at the first 20 matches, so a chatty early year hid every later one.
 test.use({ timezoneId: "UTC" });

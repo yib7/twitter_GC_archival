@@ -1,4 +1,4 @@
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout — required first, consistently
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout — required first, consistently
 const { test, after } = require("node:test");
 const assert = require("node:assert");
 const { spawn } = require("node:child_process");
@@ -7,7 +7,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — see that file
 
-// QA-1: the host-guard/prefill test harness used to pick a RANDOM port from a
+// the host-guard/prefill test harness used to pick a RANDOM port from a
 // range that includes ports a real user (or Playwright's own webServer) might
 // already be listening on — 8765 (the default archive port) and 9000 (the
 // port server.js itself tells users to try). Polling /api/ping and treating

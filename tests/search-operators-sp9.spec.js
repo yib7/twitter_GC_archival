@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, afterSearchRun, collectErrors } = require("./_viewer-fixture.js");
 
-// SP9 (VC-10 / UX-21): Search operators are read by the shared
+// Search operators are read by the shared
 // GCAShared.parseSearchQuery — Unicode names, quoted names with spaces, an
 // operator at the very end of the box (no trailing space), and the new
 // has:photo|video|link|file and is:pinned. Synthetic data only.
@@ -94,6 +94,6 @@ test("has:photo | video | link | file and is:pinned", async ({ page }) => {
   // half-typed at the end: no filter yet, and not searched as text
   await search(page, "has:ph");
   await expect(page.locator("#s-meta")).toContainText("Showing all 6 messages");
-  // the Media / Links pills are untouched by operators (P2-3)
+  // the Media / Links pills are untouched by operators
   await expect(page.locator("#f-media")).not.toHaveClass(/active/);
 });

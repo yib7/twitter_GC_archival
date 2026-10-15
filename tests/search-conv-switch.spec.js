@@ -1,11 +1,11 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
-// UX-20 (SP3): the default zone is now the viewer's own ("local"). This spec's
+// the default zone is now the viewer's own ("local"). This spec's
 // expected dates were written for UTC, so it pins the browser zone to UTC.
 test.use({ timezoneId: "UTC" });
 
-// VC-4 / UX-2: the search filter state `F` is module-level and survived a
+// the search filter state `F` is module-level and survived a
 // conversation switch, while ensureSearch() rebuilt the toolbar with EMPTY
 // date inputs and a hard-coded "List" toggle. After switching, results were
 // still date-filtered / grid-only / people-filtered by the previous chat's
@@ -18,7 +18,7 @@ const A = msgs("a", 20, { s: ["u1", "u2"], t0: Date.parse("2024-03-10T08:00:00Z"
 const B = msgs("b", 20, { s: ["u3"], t0: Date.parse("2024-06-01T10:00:00Z"), step: 3600000 });
 const DATA = { conversations: [conv("A", "Alpha", A), conv("B", "Beta", B)] };
 
-test("VC-4/UX-2: search filters do not leak into another conversation", async ({ page }) => {
+test("search filters do not leak into another conversation", async ({ page }) => {
   await bootViewer(page, DATA);
   await expect(page.locator("#s-list .msg").first()).toBeVisible();
   // Alpha: From date far in the future, Grid mode, Media, a person.
@@ -42,7 +42,7 @@ test("VC-4/UX-2: search filters do not leak into another conversation", async ({
   await expect(page.locator("#f-clear-all")).toBeHidden();
 });
 
-test("VC-4: sort order and match mode are preferences and survive the switch — and the controls show them", async ({ page }) => {
+test("sort order and match mode are preferences and survive the switch — and the controls show them", async ({ page }) => {
   await bootViewer(page, DATA);
   await page.locator("#f-sort").selectOption("oldest");
   await page.locator('#f-matchtoggle button[data-mode="exact"]').click();
@@ -53,9 +53,9 @@ test("VC-4: sort order and match mode are preferences and survive the switch —
   await expect(page.locator("#s-list .msg .bubble").first()).toHaveText("b text 0");
 });
 
-// VC-15 / AN-17: threadFilter wasn't reset either — choosing 2022 in Alpha and
+// threadFilter wasn't reset either — choosing 2022 in Alpha and
 // switching to a chat with no 2022 threads left 0 cards and no active chip.
-test("VC-15/AN-17: the Threads year filter does not leak into another conversation", async ({ page }) => {
+test("the Threads year filter does not leak into another conversation", async ({ page }) => {
   const burst = (p, iso, n) => msgs(p, n, { t0: Date.parse(iso) });
   const TA = [...burst("x22-", "2022-05-01T10:00:00Z", 10), ...burst("x23-", "2023-05-01T10:00:00Z", 10)];
   const TB = burst("y24-", "2024-05-01T10:00:00Z", 10);
@@ -68,9 +68,9 @@ test("VC-15/AN-17: the Threads year filter does not leak into another conversati
   await expect(page.locator(".thr-card")).not.toHaveCount(0);
 });
 
-// VC-22: a timezone change left already-rendered Search results in the old
+// a timezone change left already-rendered Search results in the old
 // zone and kept the From/To filter bounds computed for the old zone.
-test("VC-22: changing the timezone re-runs the search with bounds recomputed for the new zone", async ({ page }) => {
+test("changing the timezone re-runs the search with bounds recomputed for the new zone", async ({ page }) => {
   // 10 msgs at 02:30Z on Mar 10 (= Mar 9 evening in New York) + 5 at 15:00Z.
   const early = msgs("e", 10, { t0: Date.parse("2024-03-10T02:30:00Z") });
   const late = msgs("l", 5, { t0: Date.parse("2024-03-10T15:00:00Z") });

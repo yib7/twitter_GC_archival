@@ -1,11 +1,11 @@
 /*
- * SP-23: the double-click launchers explain the three ways starting can fail
+ * the double-click launchers explain the three ways starting can fail
  * (no Node, run from inside the ZIP, Node too old) instead of showing raw
  * "'node' is not recognized" / "Cannot find module" output. Runs the launcher
  * for this platform (start-setup.cmd on Windows, start-setup.command elsewhere)
  * with a doctored PATH and stand-in `node` scripts; it never starts a server.
  */
-require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean checkout
+require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");

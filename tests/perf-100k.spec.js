@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { archiveScript } = require("./fixtures/synthetic-archive.js");
 
-// SP3 (UX-4 / AN-13 / VC-18): hard performance budgets on a deterministic
+// hard performance budgets on a deterministic
 // ~100k-message SYNTHETIC archive (tests/fixtures/synthetic-archive.js — never
 // real data). The archive is generated inside the page, so the spec stays well
 // under ~20 s and ships no 20 MB fixture.
@@ -18,11 +18,11 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 //   fuzzy keystroke (typo query) ... < 120   (was 160-620)
 //   exact keystroke ................ < 120
 //   "Show close matches" (forced) .. < 400   (a deliberate click, not a keystroke)
-//   palette keystroke (SP9 UX-8) ... < 120   (the palette's debounced message
+//   palette keystroke ... < 120   (the palette's debounced message
 //     hits — same budget as a Search keystroke)
-//   All chats keystroke (SP9) ...... < 120   (exact tier over BOTH chats,
+//   All chats keystroke ...... < 120   (exact tier over BOTH chats,
 //     120k messages, grouped — the same keystroke budget)
-//   All chats switch-on (SP9) ...... < 400   (a deliberate click: builds the
+//   All chats switch-on ...... < 400   (a deliberate click: builds the
 //     other chat's search index lazily, then runs the query — sampled with
 //     the 100k chat active (20k index built) AND with the 20k chat active
 //     (the 100k index built); each case must fit, so the worst is asserted)
@@ -30,14 +30,14 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 // CI robustness: shared CI runners are slower and noisier than a dev box, so
 // every budget is multiplied by GCA_PERF_MULT (default 1 locally, 2 when
 // process.env.CI is set — at 2 the Stats budgets, 800 ms, are still well under
-// the pre-SP3 ~1200 ms, so a full revert fails on CI too).
+// the earlier ~1200 ms, so a full revert fails on CI too).
 //
 // Machine-independent check: the two Stats metrics are ALSO held to a ratio
 // against an in-page yardstick (R.calib: 20k Intl formatToParts calls in
-// America/New_York, best of 3 — the per-message work pre-SP3 Stats did many
+// America/New_York, best of 3 — the per-message work the older Stats did many
 // times over). Both sides slow down together on a slower runner, so the ratio
-// needs no multiplier. On the dev box calib is ~29 ms: SP3 Stats sits at ~4x
-// calib, pre-SP3 Stats measured 31-34x, the limit is 14x.
+// needs no multiplier. On the dev box calib is ~29 ms: Stats sits at ~4x
+// calib, the older Stats measured 31-34x, the limit is 14x.
 // GCA_PERF_CPU_THROTTLE=<n> slows the page's CPU n-fold (CDP) to rehearse a
 // slow runner locally. Each metric is the BEST of a few runs where the
 // action can be repeated cold, so a neighbouring worker stealing the CPU for
@@ -116,7 +116,7 @@ function keystroke(page, q) {
   }, q);
 }
 
-// SP9 (UX-8): one debounced palette keystroke — from the palette's 150 ms
+// one debounced palette keystroke — from the palette's 150 ms
 // debounce firing to its message hits being drawn (.cmdk-list data-hits bump).
 function paletteKeystroke(page, q) {
   return page.evaluate(async (query) => {
@@ -134,7 +134,7 @@ function paletteKeystroke(page, q) {
   }, q);
 }
 
-test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page }, testInfo) => {
+test("@perf 100k synthetic archive stays inside the performance budgets", async ({ page }, testInfo) => {
   test.setTimeout(90 * 1000);
   // A named DST zone is the slowest path (no native fast path), so it is the
   // one the budgets are held to.
@@ -188,7 +188,7 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   R.capsule = [await timed(page, nav("capsule")), await timed(page, nav("capsule"))];
   await expect(page.locator("#capsule-body")).toBeVisible();
 
-  // --- SP8 calendar: open the Timeline's "Jump to date" heatmap right after a
+  // --- calendar: open the Timeline's "Jump to date" heatmap right after a
   // conversation switch (fresh time index / aggregate), best of 2.
   R.calendarOpen = [];
   for (let k = 0; k < 2; k++) {
@@ -211,7 +211,7 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
     const k = await keystroke(page, q);
     R.fuzzyKey.push(k.ms); R.fuzzyMeta.push(k.meta);
   }
-  // Forced fuzzy (VC-18): "hilarious" has exact hits, so it is exact-first;
+  // Forced fuzzy: "hilarious" has exact hits, so it is exact-first;
   // "+ Show close matches" then ranks the whole archive by similarity — the
   // most expensive search path. Timed from the click to the next frame.
   await expect(page.locator("#s-fuzzy-toggle")).toContainText("Show close matches");
@@ -223,7 +223,7 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   R.exactKey = [];
   for (const q of ["movie night", "the", "hilarious"]) R.exactKey.push((await keystroke(page, q)).ms);
 
-  // Command palette message hits (SP9 UX-8), over the 100k chat.
+  // Command palette message hits, over the 100k chat.
   await page.keyboard.press("Control+k");
   await expect(page.locator(".cmdk-input")).toBeFocused();
   R.paletteKey = [];
@@ -234,7 +234,7 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   }
   await page.keyboard.press("Escape");
 
-  // All chats scope (SP9): the exact tier across both conversations.
+  // All chats scope: the exact tier across both conversations.
   R.allChatsFirst = [await timed(page, "document.querySelector('#s-scope [data-scope=all]').click()")];
   await expect(page.locator("#s-meta")).toContainText("in 2 chats");
   R.allChatsKey = [];
