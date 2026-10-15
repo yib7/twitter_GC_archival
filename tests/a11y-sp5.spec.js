@@ -1,0 +1,98 @@
+const { test, expect } = require("@playwright/test");
+const { bootViewer, conv } = require("./_viewer-fixture.js");
+
+// SP5 accessibility checkpoint (UX-1/VC-19, UX-12 … UX-17). Synthetic data
+// only. Each describe block is one audit item; they share this fixture.
+const T = Date.parse("2024-03-10T12:00:00Z");
+const LIST = [
+  { i: "m0", s: "u1", t: T, x: "hello there, see https://example.test/a" },
+  { i: "m1", s: "u2", t: T + 60000, x: "a photo", m: "sample_media/photo-1.svg", k: "img", r: [{ s: "u1", k: "funny" }] },
+  { i: "m2", s: "u3", t: T + 120000, x: "third message" },
+  { i: "m3", s: "u1", t: T + 86400000, x: "next day hello" },
+  { i: "m4", s: "u2", t: T + 86400000 + 60000, x: "another photo", m: "sample_media/photo-2.svg", k: "img" },
+  { i: "m5", s: "u3", t: T + 86400000 + 120000, x: "the last word" },
+];
+const DATA = { conversations: [conv("A", "Alpha", LIST)] };
+const THEMES = ["lightsout", "dim", "light"];
+
+// In-page helpers: WCAG contrast of two CSS colours, and whether the focused
+// element shows a focus ring (an outline, or a box-shadow in the accent / ring
+// colour on the element or on the wrapper that draws it for an inner input).
+async function installHelpers(page) {
+  await page.evaluate(() => {
+    const probe = document.createElement("span"); probe.setAttribute("aria-hidden", "true"); document.body.appendChild(probe);
+    const rgb = (c) => { probe.style.color = ""; probe.style.color = c; return getComputedStyle(probe).color.match(/[\d.]+/g).slice(0, 3).map(Number); };
+    const lum = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    window.__cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    window.__tok = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    window.__ring = (el) => {
+      const ui = rgb(window.__tok("--accent-ui")).join(", ");
+      const hosts = [el, el.closest(".search-box, .pill"), el.matches(".switch input") ? el.nextElementSibling : null].filter(Boolean);
+      for (const h of hosts) {
+        const cs = getComputedStyle(h);
+        if (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) >= 2) return { ok: true, color: cs.outlineColor };
+        if (cs.boxShadow && cs.boxShadow.indexOf(ui) >= 0) return { ok: true, color: "rgb(" + ui + ")" };
+      }
+      return { ok: false };
+    };
+    window.__desc = (el) => el.tagName.toLowerCase() + (el.id ? "#" + el.id : "") + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : "");
+  });
+}
+
+// Tab through `stops` focus stops and report every one without a visible ring.
+// (Reduced motion + two frames let a `transition: all` control settle, so it
+// reports its final ring instead of the transition's start value.)
+async function tabWalk(page, stops) {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const missing = [], seen = [];
+  for (let k = 0; k < stops; k++) {
+    await page.keyboard.press("Tab");
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    const r = await page.evaluate(() => {
+      const el = document.activeElement;
+      if (!el || el === document.body) return null;
+      return { d: window.__desc(el), ring: window.__ring(el) };
+    });
+    if (!r) continue;
+    seen.push(r.d);
+    if (!r.ring.ok) missing.push(r.d);
+  }
+  return { missing, seen };
+}
+
+test.describe("UX-12: a visible focus ring on every keyboard stop", () => {
+  test("search view and sidebar: every Tab stop shows a ring", async ({ page }) => {
+    await bootViewer(page, DATA);
+    await installHelpers(page);
+    await page.locator('.nav-item[data-view="search"]').focus();
+    const { missing, seen } = await tabWalk(page, 40);
+    expect(seen.length).toBeGreaterThan(15);
+    expect(missing, "no focus ring on: " + missing.join(", ")).toEqual([]);
+  });
+
+  test("settings view: every Tab stop shows a ring", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "settings" } });
+    await installHelpers(page);
+    await page.locator('.nav-item[data-view="settings"]').focus();
+    const { missing, seen } = await tabWalk(page, 45);
+    expect(seen.some((d) => d.indexOf("set-") >= 0 || d.indexOf("input") === 0)).toBe(true);
+    expect(missing, "no focus ring on: " + missing.join(", ")).toEqual([]);
+  });
+
+  test("the ring colour reaches 3:1 against the page in every theme", async ({ page }) => {
+    await bootViewer(page, DATA);
+    await installHelpers(page);
+    for (const t of THEMES) {
+      await page.evaluate((th) => document.querySelector('#sidebar-theme button[data-set="' + th + '"]').click(), t);
+      await page.locator('.nav-item[data-view="timeline"]').focus();
+      await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Tab");
+      const r = await page.evaluate(() => {
+        const ring = window.__ring(document.activeElement);
+        return { ok: ring.ok, cr: ring.ok ? window.__cr(ring.color, window.__tok("--bg-page")) : 0 };
+      });
+      expect(r.ok, t).toBe(true);
+      expect(r.cr, t).toBeGreaterThanOrEqual(3);
+    }
+  });
+});

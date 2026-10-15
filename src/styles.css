@@ -1446,6 +1446,25 @@ html[data-theme="light"] .wr-slide::after {
 .onboard-dontshow input { accent-color: var(--accent); }
 
 /* ===========================================================================
+   Focus ring (UX-12) — one visible keyboard-focus indicator everywhere, in
+   --accent-ui (>= 3:1 on the page in every theme). Placed after the component
+   rules so their `outline: 0` resets can't hide it. Controls that suppress
+   their own outline (inputs inside a pill / the search box, the hidden switch
+   checkbox) light the wrapper that draws them with --focus-ring instead.
+   ======================================================================== */
+:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 2px; }
+.person-name-input:focus-visible, .gc-name-input:focus-visible, .conv-select:focus-visible,
+.tz-pick select:focus-visible, .battle-picker select:focus-visible, .meta-act:focus-visible {
+  outline: 2px solid var(--accent-ui); outline-offset: 2px;
+}
+/* inside a clipping box (overflow:hidden / paint containment): draw it inset */
+.seg button:focus-visible, .msg:focus-visible, .gcell:focus-visible, .sh-item:focus-visible, .tab:focus-visible { outline-offset: -2px; }
+.msg:focus-visible { border-radius: 12px; }
+.search-box input:focus-visible, .cmdk-input:focus-visible, .pill input:focus-visible, .pill select:focus-visible { outline: none; }
+.search-box:has(input:focus-visible), .pill:has(:focus-visible), .pill:has(input, select):focus-within { box-shadow: var(--focus-ring); }
+.switch input:focus-visible + .track { box-shadow: var(--focus-ring); }
+
+/* ===========================================================================
    Reduced motion — honor users who ask the OS to minimize animation.
    Collapses transitions and animations (Wrapped slides, fades, skeleton
    shimmer, etc.) to near-instant and disables smooth scrolling.
