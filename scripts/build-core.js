@@ -282,6 +282,18 @@ function indexMediaFiles(names, relDir) {
 function createExportSink(acc, which) {
   const add = which === "headers" ? acc.addHeader : acc.addMessage;
   const ids = [];
+  // Messages seen before their conversation's id are held here until the id
+  // arrives (onConversationId) or the file ends (finish). This buffer has no
+  // size cap, on purpose: X writes "conversationId" BEFORE "messages" in every
+  // dmConversation, so in a real export it stays empty and memory stays flat
+  // however big the file is. Only a hand-edited or re-serialized file with the
+  // keys the other way round fills it: a conversation's messages are held
+  // until its id arrives (usually right after them), and a conversation with
+  // no id at all is held until the file ends, then counted as orphaned. The
+  // worst case (no ids anywhere) holds the whole file's messages -- the same
+  // memory the pre-streaming JSON.parse build always needed, so it is never
+  // worse than before. Capping it would mean silently dropping messages,
+  // which a build must never do.
   const pending = new Map();
   const stats = { conversations: 0, groupConversations: 0, dmConversations: 0, messages: 0, withText: 0, events: 0, orphaned: 0 };
   function onConversationId(ci, id) {
