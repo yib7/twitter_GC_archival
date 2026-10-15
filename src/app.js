@@ -1190,7 +1190,9 @@ function msgFocusable(wrap, m) {
 // only the profile, a video only plays, and Enter on a focused link follows
 // the link. The card acts on clicks that land on its own non-interactive
 // parts, and on Enter/Space only while the card itself has focus.
-const CARD_CHILD_SEL = "a, button, input, select, textarea, video, .av-clickable";
+// (Only a video WITH controls is its own target — a gallery cell's bare
+// preview <video> is part of the cell.)
+const CARD_CHILD_SEL = "a, button, input, select, textarea, label, video[controls], .av-clickable";
 function cardActivation(wrap, go) {
   wrap.tabIndex = 0;
   wrap.addEventListener("click", (e) => { if (e.target.closest(CARD_CHILD_SEL)) return; go(); });
@@ -1198,6 +1200,24 @@ function cardActivation(wrap, go) {
     if (e.target !== wrap) return;
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
   });
+}
+// UX-13: the one helper for a click target that has to stay a <div> because it
+// holds structured content (gallery cells, thread / chain / Hall-of-Fame cards,
+// stats bars): role=button, a Tab stop, Enter/Space, children keep their own
+// clicks. Plain labelled targets (chips, swatches, dots) are real <button>s.
+function asButton(node, go, label) {
+  node.setAttribute("role", "button");
+  if (label) node.setAttribute("aria-label", label);
+  cardActivation(node, go);
+  return node;
+}
+// A real <button> with a type, an accessible name and optional pressed state.
+function btnEl(cls, html, label, pressed) {
+  const b = el("button", cls, html);
+  b.type = "button";
+  if (label) b.setAttribute("aria-label", label);
+  if (pressed != null) b.setAttribute("aria-pressed", pressed ? "true" : "false");
+  return b;
 }
 function renderMedia(m, i) {
   const d = el("div", "media");
@@ -1854,7 +1874,7 @@ function galleryCell(i, list) {
   else { const chip = renderMedia(m, i); chip.classList.add("gallery-cell"); c.appendChild(chip); }
   c.title = nameOf(m.s) + " · " + DT.format(m.t);
   // VC-9: a file cell is just its link chip — it must not also open a lightbox.
-  if (isViewable(i)) c.onclick = () => openLightbox(i, list);
+  if (isViewable(i)) asButton(c, () => openLightbox(i, list), (m.k === "vid" ? "Video" : "Photo") + " from " + nameOf(m.s) + " · " + DT.format(m.t));
   return c;
 }
 
@@ -1864,16 +1884,17 @@ function togglePeoplePopover() {
   const wrap = sEls.people.parentElement;
   const pop = el("div", "popover");
   PARTS.forEach((p) => {
-    const item = el("div", "pop-item");
+    // UX-13: a <label> around the checkbox — the whole row toggles it, by
+    // click or by Space on the (focusable) checkbox.
+    const item = el("label", "pop-item");
     const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = F.people.has(p.id);
-    const av = el("span", "av"); applyPfp(av, p.id);
+    const av = el("span", "av"); applyPfp(av, p.id); av.classList.remove("av-clickable");
     const lbl = el("span", "", esc(nameOf(p.id)) + ' <span style="color:var(--text-faint)">· ' + fmtNum(p.count) + "</span>");
     item.appendChild(cb); item.appendChild(av); item.appendChild(lbl);
-    item.onclick = (e) => {
-      if (e.target !== cb) cb.checked = !cb.checked;
+    cb.addEventListener("change", () => {
       if (cb.checked) F.people.add(p.id); else F.people.delete(p.id);
       updatePeopleBadge(); runSearch();
-    };
+    });
     pop.appendChild(item);
   });
   wrap.appendChild(pop);
@@ -1939,13 +1960,12 @@ function toggleSavedPopover() {
   const pop = el("div", "popover right");
   if (!settings.saved.length) { pop.appendChild(el("div", "pop-empty", "No saved searches yet.")); wrap.appendChild(pop); return; }
   settings.saved.forEach((s, idx) => {
-    const item = el("div", "pop-item");
-    item.style.justifyContent = "space-between";
-    const left = el("span", "", "★ " + esc(s.name));
-    const del = el("button", "icon-btn", cmdIco("trash")); del.title = "Delete";
+    const item = el("div", "pop-item pop-row");
+    const left = btnEl("pop-run", "★ " + esc(s.name));
+    left.onclick = () => { applySaved(s); closePopovers(); };
+    const del = btnEl("icon-btn", cmdIco("trash"), "Delete saved search " + s.name); del.title = "Delete";
     del.onclick = (e) => { e.stopPropagation(); settings.saved.splice(idx, 1); saveSettings(); toggleSavedPopover(); };
     item.appendChild(left); item.appendChild(del);
-    item.onclick = (e) => { if (e.target === del) return; applySaved(s); closePopovers(); };
     pop.appendChild(item);
   });
   wrap.appendChild(pop);
@@ -2925,7 +2945,7 @@ function renderStats() {
   // Clickable person bars → filter search by person
   v.querySelectorAll(".bar-clickable").forEach(row => {
     row.style.cursor = "pointer";
-    row.addEventListener("click", () => {
+    asButton(row, () => {
       const pid = row.dataset.personId;
       if (pid) {
         setView("search");
@@ -2934,7 +2954,7 @@ function renderStats() {
         updatePeopleBadge();
         runSearch();
       }
-    });
+    }, "Search messages from " + nameOf(row.dataset.personId));
   });
 
   if (window.Chart) {
@@ -3197,7 +3217,7 @@ function fillStatsDeferred(v, s, cloudWords) {
         const t = (c - cmin) / span;                 // 0..1
         const size = (13 + t * 23).toFixed(1);       // 13px → 36px
         const op = (0.6 + t * 0.4).toFixed(2);
-        const chip = el("div", "word cloud-word", esc(w) + "<b>" + fmtNum(c) + "</b>");
+        const chip = btnEl("word cloud-word", esc(w) + "<b>" + fmtNum(c) + "</b>", "Search “" + w + "” — " + fmtNum(c) + " uses");
         chip.style.fontSize = size + "px";
         chip.style.opacity = op;
         chip.title = fmtNum(c) + " uses — click to search";
@@ -3304,14 +3324,14 @@ function personCard(p) {
 
   const sws = el("div", "swatches");
   const override = sanitizeColor(settings.colors[p.id]);
-  const auto = el("button", "swatch swatch-auto" + (override ? "" : " sel"), "A");
-  auto.type = "button"; auto.title = "Automatic colour"; auto.setAttribute("aria-label", "Automatic colour");
+  const auto = btnEl("swatch swatch-auto" + (override ? "" : " sel"), "A", "Automatic colour", !override);
+  auto.title = "Automatic colour";
   auto.style.setProperty("--p", autoColor(p.id).p);   // the hash hue, not the override
   auto.onclick = () => { delete settings.colors[p.id]; saveSettings(); renderPeople(); };
   sws.appendChild(auto);
   PALETTE.forEach((col) => {
-    const sw = el("div", "swatch"); sw.style.background = col; sw.style.color = col;
-    if (override && override.toLowerCase() === col.toLowerCase()) sw.classList.add("sel");
+    const on = !!override && override.toLowerCase() === col.toLowerCase();
+    const sw = btnEl("swatch" + (on ? " sel" : ""), "", "Colour " + col, on); sw.style.background = col; sw.style.color = col;
     sw.onclick = () => { settings.colors[p.id] = col; saveSettings(); renderPeople(); };
     sws.appendChild(sw);
   });
@@ -3419,8 +3439,8 @@ function renderSettings() {
   // accents
   const ac = v.querySelector("#set-accents");
   ACCENTS.forEach((col) => {
-    const p = el("div", "preset"); p.style.background = col;
-    if (settings.accent.toLowerCase() === col.toLowerCase()) p.classList.add("sel");
+    const on = settings.accent.toLowerCase() === col.toLowerCase();
+    const p = btnEl("preset" + (on ? " sel" : ""), "", "Accent " + col, on); p.style.background = col;
     p.onclick = () => { settings.accent = col; saveSettings(); applyTheme(); renderSettings(); };
     ac.appendChild(p);
   });
@@ -4112,7 +4132,7 @@ function renderHallOfFame() {
       </div>
       <div class="hof-snip">${esc(snippet.slice(0, 140))}${snippet.length > 140 ? "…" : ""}</div>
       <div class="hof-rc">🔥 ${fmtNum(x.rc)} reaction${x.rc === 1 ? "" : "s"}</div>`;
-    card.onclick = () => jumpTo(x.i);
+    asButton(card, () => jumpTo(x.i), "#" + (k + 1) + ": " + nameOf(m.s) + ", " + DT.format(m.t) + ", " + plural(x.rc, "reaction") + " — jump to message");
     podium.appendChild(card);
   });
 
@@ -4237,7 +4257,7 @@ function renderWrapped() {
     <div class="page-body">
       <div class="wr-years">${chips}</div>
       <div class="wr-stage" id="wr-stage">
-        <div class="wr-progress"><div class="wr-segs" id="wr-segs"></div><div class="wr-ctx" id="wr-ctx"></div></div>
+        <div class="wr-progress"><div class="wr-segs" id="wr-segs" aria-hidden="true"></div><div class="wr-ctx" id="wr-ctx"></div></div>
         <div class="wr-slide" id="wr-slide"></div>
       </div>
       <div class="wr-controls">
@@ -4351,6 +4371,8 @@ function paintWrappedChrome(n) {
   if (segs) {
     segs.innerHTML = "";
     for (let i = 0; i < n; i++) {
+      // a pointer shortcut only — the container is aria-hidden; the dot
+      // buttons below are the keyboard / screen-reader way to pick a slide
       const sg = el("span", "wr-seg" + (i < wrappedSlide ? " done" : i === wrappedSlide ? " cur" : ""));
       sg.innerHTML = "<i></i>";
       sg.onclick = () => { wrappedSlide = i; drawWrappedSlide(); };
@@ -4370,7 +4392,8 @@ function paintWrappedDots(n) {
   if (!dots) return;
   dots.innerHTML = "";
   for (let i = 0; i < n; i++) {
-    const d = el("span", "wr-dot" + (i === wrappedSlide ? " on" : ""));
+    const d = btnEl("wr-dot" + (i === wrappedSlide ? " on" : ""), "", "Slide " + (i + 1) + " of " + n);
+    if (i === wrappedSlide) d.setAttribute("aria-current", "step");
     d.onclick = () => { wrappedSlide = i; drawWrappedSlide(); };
     dots.appendChild(d);
   }
@@ -5010,7 +5033,7 @@ function showOnThisDayToast() {
     <button class="otd-close" type="button" aria-label="Dismiss"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="otd-head"><span class="otd-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9a9 9 0 113 8.5M3.5 9V4.5M3.5 9H8M12 8v4.5l3 2"/></svg></span><span class="otd-title">On This Day</span><span class="otd-yr">${esc(plural(ago, "year"))} ago</span></div>
     <div class="otd-body">${pfpHtml(m.s, "width:30px;height:30px;font-size:11px")}<div class="otd-q"><span class="otd-name" style="color:${esc(hue.p)}">${esc(nameOf(m.s))}</span> · “${esc(snippet)}${snippet.length >= 60 ? "…" : ""}”</div></div>
-    <div class="otd-cta">Open Time Capsule <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>`;
+    <button class="otd-cta" type="button">Open Time Capsule <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>`;
   // The whole toast is one click target (→ Capsule); don't let the avatar's
   // global av-clickable handler stack a profile modal on top of the navigation.
   const tAv = otdToast.querySelector(".av");
@@ -5143,7 +5166,7 @@ function renderThreads() {
       </div>
       <div class="thr-preview">${preview ? esc(preview) + (preview.length >= 80 ? "…" : "") : "<i>media thread</i>"}</div>
       <div class="thr-people">${avs}${extra}</div>`;
-    card.onclick = () => jumpTo(t.startIdx);
+    asButton(card, () => jumpTo(t.startIdx), "Thread #" + (idx + 1) + ", " + DT.format(t.startT) + ", " + plural(t.count, "message") + " — open in timeline");
     frag.appendChild(card);
   });
   grid.appendChild(frag);
@@ -5383,7 +5406,7 @@ function renderChains() {
 
   v.querySelectorAll(".chain-card").forEach(card => {
     card.style.cursor = "pointer";
-    card.onclick = () => jumpTo(parseInt(card.dataset.idx));
+    asButton(card, () => jumpTo(parseInt(card.dataset.idx)));
   });
 }
 

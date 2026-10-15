@@ -138,3 +138,107 @@ test.describe("UX-1 / VC-19: message actions are reachable by keyboard", () => {
     await expect(card.locator(".msg-more")).toBeHidden();
   });
 });
+
+// A richer synthetic chat for the views that need volume: a long two-person
+// back-and-forth (a thread + a reply chain), reactions (Hall of Fame), media.
+const RICH = (() => {
+  const out = [];
+  let t = Date.parse("2024-05-01T15:00:00Z");
+  for (let k = 0; k < 40; k++) {
+    const m = { i: "r" + k, s: k % 2 ? "u2" : "u1", t: t + k * 60000, x: "volley number " + k + " about pizza and movies tonight" };
+    if (k % 7 === 0) m.r = [{ s: "u3", k: "funny" }, { s: k % 2 ? "u1" : "u2", k: "like" }];
+    out.push(m);
+  }
+  out.push({ i: "p1", s: "u3", t: t + 50 * 60000, x: "", m: "sample_media/photo-1.svg", k: "img", r: [{ s: "u1", k: "funny" }] });
+  out.push({ i: "p2", s: "u1", t: t + 51 * 60000, x: "", m: "sample_media/photo-2.svg", k: "img" });
+  return out;
+})();
+const RICH_DATA = { conversations: [conv("A", "Alpha", RICH)] };
+const go = (page, v) => page.locator('.nav-item[data-view="' + v + '"]').click();
+
+// Every visible element that looks clickable (cursor: pointer) must be
+// keyboard-operable: a native control, or a Tab stop with an Enter/Space
+// handler (role=button cards, focusable message cards), or inside one. Avatars (profile shortcut, also reachable from People) and aria-hidden
+// duplicates (Wrapped progress segments mirror the dot buttons) are excluded.
+async function clickOnly(page, root) {
+  return page.evaluate((sel) => {
+    const r = document.querySelector(sel);
+    const ok = "button, a[href], input, select, textarea, label, summary, [tabindex='0'], [role=option], [aria-hidden=true], .av-clickable";
+    return [...r.querySelectorAll("*")].filter((e) => {
+      if (getComputedStyle(e).cursor !== "pointer") return false;
+      const b = e.getBoundingClientRect();
+      if (!b.width || !b.height) return false;
+      return !e.closest(ok);
+    }).map((e) => e.tagName.toLowerCase() + "." + String(e.className).trim().split(/\s+/).join("."));
+  }, root);
+}
+
+test.describe("UX-13: no click-only elements", () => {
+  for (const v of ["gallery", "hof", "stats", "threads", "chains", "wrapped", "people", "settings"]) {
+    test(v + ": every pointer target is keyboard-operable", async ({ page }) => {
+      await bootViewer(page, RICH_DATA);
+      await go(page, v);
+      await page.waitForTimeout(v === "stats" ? 600 : 100);
+      const bad = await clickOnly(page, "#view-" + v);
+      expect(bad, "click-only: " + [...new Set(bad)].join(", ")).toEqual([]);
+    });
+  }
+
+  test("search popovers: people are labelled checkboxes, saved searches are buttons", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.settings": JSON.stringify({ saved: [{ name: "pizza", q: "pizza", f: {} }] }) } });
+    await page.locator("#f-people").click();
+    expect(await clickOnly(page, ".popover")).toEqual([]);
+    const cb = page.getByRole("checkbox", { name: /User 2/ });
+    await cb.focus();
+    await page.keyboard.press("Space");
+    await expect(cb).toBeChecked();
+    await page.keyboard.press("Escape");
+    await page.locator("#f-saved").click();
+    expect(await clickOnly(page, ".popover")).toEqual([]);
+    await page.getByRole("button", { name: "★ pizza" }).press("Enter");
+    await expect(page.locator("#s-input")).toHaveValue("pizza");
+  });
+
+  test("Enter / Space activate the converted targets", async ({ page }) => {
+    await bootViewer(page, RICH_DATA);
+    await go(page, "gallery");
+    const cell = page.locator("#view-gallery .gcell").first();
+    await expect(cell).toHaveAttribute("role", "button");
+    await expect(cell).toHaveAttribute("aria-label", /Photo from/);
+    await cell.press("Enter");
+    await expect(page.locator(".lightbox")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(cell).toBeFocused();
+
+    await go(page, "threads");
+    await page.locator("#thr-grid .thr-card").first().press("Enter");
+    await expect(page.locator('.nav-item[data-view="timeline"]')).toHaveAttribute("aria-current", "page");
+
+    await go(page, "stats");
+    const word = page.locator("#words .cloud-word").first();
+    await expect(word).toBeVisible();
+    expect(await word.evaluate((e) => e.tagName)).toBe("BUTTON");
+    await word.press("Space");
+    await expect(page.locator('.nav-item[data-view="search"]')).toHaveAttribute("aria-current", "page");
+
+    await go(page, "settings");
+    const preset = page.locator("#set-accents .preset").nth(1);
+    await expect(preset).toHaveAttribute("aria-pressed", "false");
+    await preset.press("Enter");
+    await expect(page.locator("#set-accents .preset").nth(1)).toHaveAttribute("aria-pressed", "true");
+
+    await go(page, "wrapped");
+    const dot = page.getByRole("button", { name: "Slide 3 of", exact: false });
+    await dot.press("Enter");
+    await expect(page.locator(".wr-ctx")).toContainText("3 / ");
+  });
+
+  test("the On-This-Day toast has a real button to open the capsule", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2025-05-01T18:00:00Z"));
+    await bootViewer(page, RICH_DATA);
+    const cta = page.locator(".otd-toast").getByRole("button", { name: /Open Time Capsule/ });
+    await expect(cta).toBeVisible();
+    await cta.press("Enter");
+    await expect(page.locator('.nav-item[data-view="capsule"]')).toHaveAttribute("aria-current", "page");
+  });
+});

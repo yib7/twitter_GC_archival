@@ -274,6 +274,8 @@ button, input, select, textarea { font-family: inherit; }
   cursor: pointer; font-size: 13.5px;
 }
 .pop-item:hover { background: var(--bg-card); }
+.pop-row { justify-content: space-between; cursor: default; }
+.pop-run { flex: 1; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 0; }
 .pop-item .av { width: 22px; height: 22px; font-size: 10px; }
 .pop-empty { color: var(--text-dim); font-size: 13px; padding: 12px; text-align: center; }
 
@@ -594,6 +596,7 @@ button, input, select, textarea { font-family: inherit; }
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-pill);
   padding: 6px 13px; font-size: 13px; cursor: pointer; transition: all 0.12s;
 }
+button.word { font-family: inherit; color: var(--text); line-height: inherit; }
 .word:hover { background: var(--accent-glow); border-color: var(--accent); }
 .word b { color: var(--accent-text); margin-left: 6px; font-variant-numeric: tabular-nums; }
 
@@ -627,7 +630,7 @@ button, input, select, textarea { font-family: inherit; }
 }
 .person-side { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
 .swatches { display: flex; gap: 6px; flex-wrap: wrap; max-width: 150px; justify-content: flex-end; }
-.swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+.swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; padding: 0; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px currentColor; }
 /* "Automatic" swatch: the person's hash hue; picking it clears the override. */
 .swatch-auto { padding: 0; font-size: 10px; font-weight: 700; line-height: 18px; color: #fff; background: var(--p); text-align: center; }
@@ -658,7 +661,7 @@ button, input, select, textarea { font-family: inherit; }
 .tz-pick select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 .preset-swatches { display: flex; gap: 8px; }
-.preset { width: 28px; height: 28px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; }
+.preset { width: 28px; height: 28px; border-radius: 8px; cursor: pointer; border: 2px solid transparent; padding: 0; }
 .preset.sel { border-color: #fff; }
 input[type="color"] { width: 34px; height: 30px; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); cursor: pointer; }
 input[type="range"] { accent-color: var(--accent); width: 160px; }
@@ -1271,7 +1274,7 @@ html[data-theme="light"] .wr-slide::after {
 }
 .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 .wr-dots { display: flex; gap: 7px; flex-wrap: wrap; justify-content: center; flex: 1; }
-.wr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-lift); cursor: pointer; transition: width 0.2s, background 0.2s, border-radius 0.2s; }
+.wr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-lift); cursor: pointer; transition: width 0.2s, background 0.2s, border-radius 0.2s; border: 0; padding: 0; }
 .wr-dot.on { width: 22px; border-radius: 4px; background: var(--accent); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1325,6 +1328,7 @@ html[data-theme="light"] .wr-slide::after {
 .otd-q { min-width: 0; }
 .otd-name { font-weight: 700; }
 .otd-cta {
+  background: none; border: 0; padding: 0; font-family: inherit; cursor: pointer;
   margin-top: 12px; display: flex; align-items: center; gap: 6px;
   font-size: 12px; font-weight: 700; color: var(--accent-text-soft);
   letter-spacing: 0.04em; text-transform: uppercase;
