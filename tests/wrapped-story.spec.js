@@ -122,7 +122,7 @@ const live = (page) => page.locator("#wr-live");
 // Open Wrapped with autoplay off (reduced motion) unless `motion` is set.
 async function openWrapped(page, opts = {}) {
   if (!opts.motion) await page.emulateMedia({ reducedMotion: "reduce" });
-  await bootViewer(page, DATA, { ls: opts.ls || {} });
+  await bootViewer(page, opts.data || DATA, { ls: opts.ls || {} });
   await go(page, "wrapped");
   await expect(page.locator("#wr-slide .wr-inner")).toBeVisible();
 }
@@ -268,6 +268,44 @@ test.describe("UX-23: story mechanics", () => {
     expect(await slideNo(page)).toBe(5);
     await page.keyboard.press("ArrowLeft");
     expect(await slideNo(page)).toBe(4);
+  });
+});
+
+// SP10 review: a year change re-renders the view. The live region must be the
+// one already on the page (a region inserted with its text is often not
+// read), and pause reasons owned by the old stage (a hold, focus) must not
+// outlive it.
+const T23 = Date.parse("2023-06-01T15:00:00Z");
+const DATA2 = { conversations: [conv("A", "Alpha", LIST.concat(Array.from({ length: 12 }, (_, k) => ({ i: "y" + k, s: ["u1", "u2"][k % 2], t: T23 + k * 3600000, x: "older chat " + k }))).sort((a, b) => a.t - b.t))] };
+test.describe("UX-23: a year change", () => {
+  test("is announced in the live region that was already there", async ({ page }) => {
+    await openWrapped(page, { data: DATA2 });
+    const before = await live(page).elementHandle();
+    await page.locator(".wr-yr", { hasText: "2023" }).click();
+    await expect(live(page)).toHaveText(/^Slide 1 of \d+: 2023 Wrapped$/);
+    expect(await before.evaluate((n) => n.isConnected && n.id === "wr-live"), "the same, persistent live node").toBe(true);
+    expect(await page.locator("#wr-live").count()).toBe(1);
+  });
+
+  test("never leaves autoplay stuck paused by a hold or focus on the old stage", async ({ page }) => {
+    await openWrapped(page, { motion: true, data: DATA2 });
+    const stage = page.locator("#wr-stage");
+    const yr = (y) => page.evaluate((t) => [...document.querySelectorAll(".wr-yr")].find((b) => b.textContent === t).click(), y);
+    // a press-and-hold, then the view re-renders under the finger
+    const b = await stageBox(page);
+    await page.mouse.move(b.x + b.width * 0.5, b.y + b.height * 0.6);
+    await page.mouse.down();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+    await yr("2023");
+    await page.mouse.up();
+    await expect(stage).toHaveClass(/\bwr-auto\b/);
+    await expect(stage).not.toHaveClass(/\bwr-paused\b/);
+    // keyboard focus on the story pauses it; the stage is replaced while focused
+    await stage.focus();
+    await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+    await yr("2024");
+    await expect(stage).not.toHaveClass(/\bwr-paused\b/);
   });
 });
 

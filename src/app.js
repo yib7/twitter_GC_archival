@@ -5196,6 +5196,10 @@ function renderWrapped() {
   const years = wrappedYears();
   if (!years.length) { v.innerHTML = '<div class="page"><div class="empty"><div class="big">' + cmdIco("wrapped") + '</div><div>No data to wrap.</div></div></div>'; return; }
   if (wrappedYear == null || years.indexOf(wrappedYear) < 0) wrappedYear = years[years.length - 1];
+  // the old stage goes away with whatever it held: a press in progress or
+  // focus (removing a focused node fires no blur) must not pause the new one
+  wrHolds.delete("hold"); wrHolds.delete("focus");
+  wrLiveNode();
 
   const chips = years.map((y) => '<button class="pill wr-yr' + (y === wrappedYear ? " active" : "") + '" data-yr="' + y + '">' + y + "</button>").join("");
   v.innerHTML = `<div class="page"><div class="page-head">
@@ -5207,7 +5211,6 @@ function renderWrapped() {
         <div class="wr-progress"><div class="wr-segs" id="wr-segs" aria-hidden="true"></div><div class="wr-ctx" id="wr-ctx" aria-hidden="true"></div></div>
         <div class="wr-slide" id="wr-slide"></div>
       </div>
-      <div class="sr-only" id="wr-live" aria-live="polite" aria-atomic="true"></div>
       <div class="wr-controls">
         <button class="nav-btn" id="wr-prev" type="button">${WR_ICON.back}Back</button>
         <div class="wr-mid">
@@ -5281,9 +5284,22 @@ function wrappedGo(dir, manual) {
   drawWrappedSlide();
   if (manual) wrAnnounce();
 }
+// The polite live region lives outside the re-rendered view, so a year change
+// (which rebuilds the view) updates a region assistive tech already watches.
+function wrLiveNode() {
+  let live = document.getElementById("wr-live");
+  if (!live) {
+    live = el("div", "sr-only");
+    live.id = "wr-live";
+    live.setAttribute("aria-live", "polite");
+    live.setAttribute("aria-atomic", "true");
+    document.body.appendChild(live);
+  }
+  return live;
+}
 function wrAnnounce() {
-  const live = document.getElementById("wr-live");
-  if (!live) return;
+  if (!document.getElementById("wr-stage")) return;
+  const live = wrLiveNode();
   const w = computeWrapped(wrappedYear), slides = wrappedSlides(w);
   live.textContent = "Slide " + (wrappedSlide + 1) + " of " + slides.length + ": " + wrappedSummary(slides[wrappedSlide], w);
 }
