@@ -525,6 +525,7 @@ function sourceNoteText(n) {
     case "no-headers": return "No group headers file was found, so people who never sent a message won't be listed.";
     case "no-media": return "No group media folder was found, so no photos or videos will be copied.";
     case "dm-file": return "Your 1:1 direct messages are left out — only group chats are imported.";
+    case "post-archive-step-failed": return "Your archive was updated, but a last step after it failed: " + String(n.error || "").trim() + " Nothing is missing; the next build finishes that step.";
     case "legacy-removed-lost": return "The messages of people and group chats you removed earlier couldn't be kept aside: the export copies they came from are gone. If you un-remove them later, only what this export has comes back.";
     default: return null;
   }

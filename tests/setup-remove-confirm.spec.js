@@ -90,3 +90,15 @@ test("a save that removes nothing new doesn't ask", async ({ page }) => {
   await expect(page.locator("#remove-modal")).toBeHidden();
   expect(previewed).toBe(null);
 });
+
+test("a note in the save reply (a last build step failed) is shown with the result", async ({ page }) => {
+  const text = "Your archive was updated, but a last step after it failed: A file is locked by another program.";
+  await page.route("**/api/identity", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, names: 0, pfps: 0, ignored: 1, rebuilt: true, mediaRemoved: 0, notes: [{ code: "post-archive-step-failed", text }] }) }));
+  await page.locator(".su-person").nth(1).locator(".su-remove").click();
+  await toFinish(page);
+  await page.locator("#btn-save").click();
+  await page.locator("#remove-go").click();
+  await expect(page.locator("#finish-result")).toContainText(/Saved/);
+  await expect(page.locator("#finish-result .build-notes")).toContainText(text);
+});

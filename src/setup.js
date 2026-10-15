@@ -787,7 +787,7 @@ $("#btn-save").onclick = async () => {
       // removals are applied to the archive itself, not just hidden
       (j.rebuilt ? ` Rebuilt the archive without the removed chats/people` +
         (j.mediaRemoved ? ` and set aside <b>${Number(j.mediaRemoved).toLocaleString()}</b> of their media files (in personal_data/.removed, so un-removing can bring them back)` : "") + "." : "") +
-      ` <a href="index.html">Open your archive →</a>`, "ok");
+      ` <a href="index.html">Open your archive →</a>` + buildNotesHtml(j), "ok");
   } catch (e) {
     flash($("#finish-result"), "✗ " + escapeHtml(e.message), "err");
   }

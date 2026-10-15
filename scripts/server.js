@@ -746,12 +746,16 @@ async function sourceAndBuild(body, res, progress) {
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
   progress.phase = "build";
   const built = await runBuildAsync();
-  if (!built.ok) {
+  if (!built.ok && !built.archiveWritten) {
     // A failed build wrote no data.js; put config.json, source/ and media/ back
     // the way they were so the wizard isn't left pointing at the file that just failed.
     undo();
     return sendJSON(res, 422, { error: built.error, log: built.log });
   }
+  // Failed after data.js was written: the archive already has this export's
+  // messages, so keep the copies they point at (the quarantine is still a
+  // superset; the next build narrows it) and say a last step failed.
+  if (!built.ok) notes.push(withText({ code: "post-archive-step-failed", error: built.error }));
   srcJournal.commit(); mediaJournal.commit(); quarSnap.commit();
   clearStaleBackups();
   clearCopyTemps([srcDir, mediaDestDir]);
@@ -952,7 +956,8 @@ function runBuild() {
       { cwd: ROOT, env: buildEnvOf(), stdio: ["ignore", "pipe", "pipe"] }));
     return { ok: true, log: plainText(out).trim() };
   } catch (e) {
-    return buildFailed(e.stdout, e.stderr ? e.stderr : String(e.message || e));
+    // exit code 3: data.js was written, a step after it failed (see build.js)
+    return Object.assign(buildFailed(e.stdout, e.stderr ? e.stderr : String(e.message || e)), { archiveWritten: e.status === 3 });
   }
 }
 // the same build without blocking the server (GET /api/progress and the
@@ -971,7 +976,7 @@ function runBuildAsync() {
     child.on("close", (code) => {
       const stdout = Buffer.concat(out), stderr = Buffer.concat(err);
       if (code === 0) resolve({ ok: true, log: plainText(stdout).trim() });
-      else resolve(buildFailed(stdout, stderr.length ? stderr : "The build exited with code " + code + "."));
+      else resolve(Object.assign(buildFailed(stdout, stderr.length ? stderr : "The build exited with code " + code + "."), { archiveWritten: code === 3 }));
     });
   });
 }
@@ -1221,7 +1226,7 @@ function apiIdentity(body, res) {
       }
     }
     const built = runBuild();
-    if (!built.ok) {
+    if (!built.ok && !built.archiveWritten) {
       return sendJSON(res, 422, { error: "Your names and photos were saved, but the archive couldn't be rebuilt without the removed chats/people: " + built.error, log: built.log });
     }
     let removed = 0;
@@ -1238,6 +1243,7 @@ function apiIdentity(body, res) {
       }
     }
     Object.assign(reply, { rebuilt: true, mediaRemoved: removed, totalMsgs: after ? after[1].result() : 0 });
+    if (!built.ok) reply.notes = [withText({ code: "post-archive-step-failed", error: built.error })];
   }
   sendJSON(res, 200, reply);
 }

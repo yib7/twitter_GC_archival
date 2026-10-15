@@ -50,6 +50,11 @@ const log = (...a) => console.log(...a);
 // Test-only: stop the build at a named point, as a crash would.
 const crashPoint = (name) => { if (process.env.GCA_TEST_BUILD_CRASH === name) fail("Simulated crash (" + name + ")."); };
 
+// Set once the new data.js is in place. A failure after that exits with
+// code 3 instead of 2: the archive already holds the new messages, so the
+// server keeps the copies they point at instead of rolling them back.
+let archiveWritten = false;
+
 // A user-facing failure: its message is the whole story, shown as-is.
 class BuildError extends Error {}
 function fail(msg) { throw new BuildError(msg); }
@@ -255,6 +260,7 @@ function main() {
   if (anyRemoved || anyBack || hadQuarantine || anyIgnored) writeQuarantine(core.mergeQuarantine(removed, restored), anyIgnored);
   crashPoint("after-quarantine");
   writeArchive({ generatedAt: new Date().toISOString(), ignoredUsers, ignoredGroups }, conversations);
+  archiveWritten = true;
   crashPoint("after-archive");
   if (anyBack) writeQuarantine(removed, anyIgnored);
   if (anyRemoved) log("Kept out (removed people / group chats):", removed.reduce((n, c) => n + c.count, 0), "message(s), in personal_data/.removed/messages.js.");
@@ -289,6 +295,6 @@ if (require.main === module) {
   catch (e) {
     console.error("BUILD ERROR: " + describeFailure(e));
     if (process.env.GCA_DEBUG && !(e instanceof BuildError)) console.error(e && e.stack);
-    process.exit(2);
+    process.exit(archiveWritten ? 3 : 2);
   }
 }

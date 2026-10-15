@@ -227,3 +227,52 @@ describe("a legacy archive whose export copies are gone says its removed message
     assert.deepEqual(quarIds(S), ["9008"], "only B's removed message could be kept aside");
   });
 });
+
+// Once data.js is in place, the archive holds the new messages and points at
+// their media. A step that fails after that (narrowing the quarantine, say)
+// must not roll media/, source/ and config.json back under it: the merge or
+// save is kept, and the reply says a last step failed.
+describe("a build that fails after data.js is written keeps what it wrote", () => {
+  let personal, S;
+  before(async () => {
+    personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp7-post-archive-")); tmpDirs.push(personal);
+    const S1 = await startServer({}, { personal });
+    try {
+      assert.equal((await source(S1, X.writeExport(scratch()))).status, 200);
+      assert.equal((await identity(S1, ["333"])).status, 200);
+    } finally { S1.proc.kill(); }
+    S = await startServer({ GCA_TEST_BUILD_CRASH: "after-archive" }, { personal });
+  });
+  after(() => S.proc.kill());
+  const note = (j) => (j.notes || []).find((n) => n.code === "post-archive-step-failed");
+
+  test("a merge: 200 with a note, config, media and data.js all on the new export", async () => {
+    const B = X.writeExportB(scratch());
+    const r = await S.post("/api/source", { archiveRoot: B.root });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.ok(note(j) && note(j).text.length > 20, JSON.stringify(j.notes));
+    const cfg = JSON.parse(fs.readFileSync(path.join(personal, "config.json"), "utf8"));
+    assert.equal(path.resolve(cfg.mediaSourceDir), path.resolve(B.media), "config points at B");
+    assert.ok(fs.existsSync(path.join(personal, "media", "9007-NewPic.jpg")), "B's media stays");
+    assert.ok(fs.existsSync(path.join(personal, "media", "9201-Group3.png")));
+    assert.ok(allIds(readData(personal)).includes("9007"), "data.js has B's messages");
+    assert.ok(!fs.readdirSync(personal).some((n) => /\.prev-/.test(n)), "no backups left: " + fs.readdirSync(personal).join(", "));
+    const ok = spawnSync(process.execPath, [path.join(__dirname, "..", "scripts", "build.js")], {
+      cwd: path.join(__dirname, ".."), encoding: "utf8",
+      env: Object.assign({}, process.env, { GCA_PERSONAL: personal, GCA_NO_ROOT_FALLBACK: "1", GCA_TEST_BUILD_CRASH: "" }),
+    });
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.deepEqual(quarIds({ personal }), ["9004", "9008"]);
+  });
+
+  test("a removal save: rebuilt, with a note, and the removed group's media set aside", async () => {
+    const r = await identity(S, ["333"], ["1000000002"]);
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.rebuilt, true);
+    assert.ok(note(j), JSON.stringify(j));
+    assert.ok(!fs.existsSync(path.join(personal, "media", "9101-Other.mp4")), "no longer servable");
+    assert.ok(fs.existsSync(path.join(personal, ".removed", "group", "1000000002", "9101-Other.mp4")), "kept aside");
+  });
+});
