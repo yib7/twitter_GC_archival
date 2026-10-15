@@ -628,3 +628,32 @@ describe("config.json that isn't plain JSON", () => {
     assert.ok(!fs.existsSync(path.join(S.personal, "local.js")), "nothing else was written either");
   });
 });
+
+// The free-space check counts only what the merge will copy: media the
+// archive already has is kept, not copied again, so it needs no new space.
+describe("adding a newer export whose media the archive mostly has", () => {
+  let personal;
+  before(() => { personal = scratch("gca-sp6-space-"); });
+
+  test("is not refused for space the copy won't use", async () => {
+    const big = Buffer.alloc(8 * 1048576, 7);   // a big video both exports have
+    const A = X.writeExport(scratch());
+    fs.writeFileSync(path.join(A.media, "9002-AbCdEf.png"), big);
+    const S1 = await startServer({}, { personal });
+    try { assert.equal((await source(S1, A.group, A.headers, A.media)).status, 200); }
+    finally { S1.proc.kill(); }
+    assert.equal(fs.statSync(path.join(personal, "media", "9002-AbCdEf.png")).size, big.length);
+
+    const B = X.writeExportB(scratch());
+    fs.writeFileSync(path.join(B.media, "9002-AbCdEf.png"), big);
+    // room for the 64 MB margin, twice B's small .js files and its few new
+    // pictures, but not for copying the big file again
+    const S2 = await startServer({ GCA_TEST_FREE_BYTES: String(65 * 1048576) }, { personal });
+    try {
+      const r = await S2.post("/api/source", { archiveRoot: B.root });
+      const j = await r.json();
+      assert.equal(r.status, 200, JSON.stringify(j));
+      assert.ok(fs.existsSync(path.join(personal, "media", "9007-NewPic.jpg")), "B's new picture is copied");
+    } finally { S2.proc.kill(); }
+  });
+});

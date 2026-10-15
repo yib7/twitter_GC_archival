@@ -667,7 +667,7 @@ async function sourceAndBuild(body, res, progress) {
   }
 
   // make sure the copy (and the build's output) fits before starting it
-  const spaceErr = diskSpaceProblem(copyBytesNeeded(groupFiles.concat(headerFiles), mediaAbs), freeBytesAt(PERSONAL));
+  const spaceErr = diskSpaceProblem(copyBytesNeeded(groupFiles.concat(headerFiles), mediaAbs, keepIds), freeBytesAt(PERSONAL));
   if (spaceErr) return sendJSON(res, 507, { error: spaceErr });
 
   // an archive whose removals predate the quarantine
@@ -977,16 +977,15 @@ function runBuildAsync() {
   });
 }
 // bytes the wizard is about to write — each export file copied plus
-// about as much again for data.js, every media file that will be copied, and
-// a margin.
-function copyBytesNeeded(exportFiles, mediaDir) {
+// about as much again for data.js, every media file the copy will make (the
+// same plan it runs: not media the archive already has, nor media of removed
+// people / groups), and a margin.
+function copyBytesNeeded(exportFiles, mediaDir, keepIds) {
   let n = 64 * 1048576;
   for (const f of exportFiles) { try { n += 2 * fs.statSync(f).size; } catch (e) { /* gone: the build will say */ } }
   try {
-    for (const e of fs.readdirSync(mediaDir, { withFileTypes: true })) {
-      if (e.isFile() && MEDIA_FILE_RE.test(e.name)) { try { n += fs.statSync(path.join(mediaDir, e.name)).size; } catch (err) { /* skip */ } }
-    }
-  } catch (e) { /* unreadable: the copy will report it */ }
+    for (const f of planMediaCopy(mediaDir, path.join(PERSONAL, "media"), { ids: keepIds || new Set(), keepExisting: true }).todo) n += f.size;
+  } catch (e) { /* no or unreadable folder: the copy will report it */ }
   return n;
 }
 // Free bytes on the disk holding `dir` (its nearest existing parent); NaN when
