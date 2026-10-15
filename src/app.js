@@ -2360,22 +2360,12 @@ function acToken() {
   }) || null;
 }
 function acCandidates(value) {
-  const v = GCAShared.foldName(value);
-  const rank = (names) => {
-    let best = 9;
-    for (const nm of names.map(GCAShared.foldName)) {
-      if (!v) best = Math.min(best, 3);
-      else if (nm === v) best = 0;
-      else if (nm.indexOf(v) === 0) best = Math.min(best, 1);
-      else if (nm.split(" ").some((w) => w.indexOf(v) === 0)) best = Math.min(best, 2);
-      else if (nm.indexOf(v) >= 0) best = Math.min(best, 4);
-    }
-    return best;
-  };
-  const scored = scopeParts().map((p) => ({ p, names: personNames(p.id) })).map((x) => Object.assign(x, { r: rank(x.names) })).filter((x) => x.r < 9);
-  // the substring tier only when nothing matches a name / word start
-  const tier = scored.some((x) => x.r <= 3) ? scored.filter((x) => x.r <= 3) : scored;
-  return tier.sort((a, b) => a.r - b.r || b.p.count - a.p.count).slice(0, 8);
+  // the same matcher as from: itself (GCAShared.rankPeople), best rank first,
+  // then whoever posts most
+  const people = scopeParts().map((p) => ({ id: p.id, names: personNames(p.id), p }));
+  return GCAShared.rankPeople(value, people)
+    .map((x) => ({ p: x.person.p, names: x.person.names, r: x.rank }))
+    .sort((a, b) => a.r - b.r || b.p.count - a.p.count).slice(0, 8);
 }
 function updateAutocomplete() {
   const tok = acToken();

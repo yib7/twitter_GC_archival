@@ -13,7 +13,7 @@ require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean check
 const test = require("node:test");
 const assert = require("node:assert");
 
-const { parseSearchQuery, resolvePeople, removeSearchToken, replaceSearchToken, quoteOpValue, createZoneClock } = require("../src/shared-core.js");
+const { parseSearchQuery, resolvePeople, rankPeople, removeSearchToken, replaceSearchToken, quoteOpValue, createZoneClock } = require("../src/shared-core.js");
 
 const UTC = createZoneClock("UTC");
 const P = (s) => parseSearchQuery(s, { clock: UTC });
@@ -166,6 +166,27 @@ const PEOPLE = [
   { id: "u4", names: ["Mary-Jane", "User 4"] },
   { id: "u5", names: ["Ana María", "User 5"] },
 ];
+
+// rankPeople is the ONE matcher behind resolvePeople (from:) and the from:
+// autocomplete: rank 0 exact, 1 a name starts with it, 2 a later word does,
+// 3 a name contains it — and the substring tier only when nothing starts with it.
+test("rankPeople: one ranked matcher, tiered, people passed through", () => {
+  const r = (v, list) => rankPeople(v, list || PEOPLE).map((x) => [x.person.id, x.rank]);
+  assert.deepStrictEqual(r("bob"), [["u1", 0]]);
+  assert.deepStrictEqual(r("b"), [["u1", 1], ["u2", 1]]);
+  assert.deepStrictEqual(r("alv"), [["u3", 2]]);                       // a later word
+  assert.deepStrictEqual(r("ALVAREZ"), [["u3", 2]]);                   // case + accents folded
+  assert.deepStrictEqual(r("ar"), [["u3", 3], ["u4", 3], ["u5", 3]]);  // only substrings: that tier
+  assert.deepStrictEqual(r("user 2"), [["u2", 0]]);                    // an alias, exactly
+  assert.deepStrictEqual(r("zzz"), []);
+  assert.deepStrictEqual(r(""), PEOPLE.map((p) => [p.id, 1]));         // nothing typed: everyone
+  // exact and prefix matches share the first tier (the caller orders by rank)
+  const withB = PEOPLE.concat([{ id: "u6", names: ["B"] }]);
+  assert.deepStrictEqual(r("b", withB), [["u1", 1], ["u2", 1], ["u6", 0]]);
+  // the objects passed in come back as-is (extra fields kept for the caller)
+  const tagged = [{ id: "x", names: ["Zed"], count: 7 }];
+  assert.strictEqual(rankPeople("z", tagged)[0].person, tagged[0]);
+});
 
 test("resolvePeople: exact name, then name / word prefix, then substring", () => {
   assert.deepStrictEqual(resolvePeople("bob", PEOPLE).ids, ["u1"]);

@@ -393,23 +393,47 @@
     if (t.normalize) t = t.normalize("NFD");
     return t.replace(/\p{M}+/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
   }
-  // from: value -> the people it names. people: [{ id, names: [display name,
-  // aliases…] }] (already without hidden / ignored people). An exact name wins,
-  // then names (or a later word of one) starting with the value, then names
+  // The ONE people matcher (from: and its autocomplete): every person whose
+  // display name or an alias matches `value`, accent- and case-folded, with
+  // the rank of their best name — 0 exact, 1 a name starts with it, 2 a later
+  // word of a name does, 3 a name merely contains it. Only the best tier comes
+  // back: names / words starting with the value (ranks 0-2) when there are
+  // any, else the substring matches. Nothing typed matches everyone (rank 1).
+  // people: [{ id, names: [display name, aliases…], …anything }] (already
+  // without hidden / ignored people); returns [{ person, rank }] in input order.
+  function rankPeople(value, people) {
+    const v = foldName(value);
+    const out = [];
+    for (const person of people || []) {
+      let rank = 9;
+      for (const raw of person.names || []) {
+        const nm = foldName(raw);
+        if (!nm) continue;
+        if (!v) rank = Math.min(rank, 1);
+        else if (nm === v) rank = 0;
+        else if (nm.indexOf(v) === 0) rank = Math.min(rank, 1);
+        else if (nm.split(" ").some((w) => w.indexOf(v) === 0)) rank = Math.min(rank, 2);
+        else if (nm.indexOf(v) >= 0) rank = Math.min(rank, 3);
+      }
+      if (rank < 9) out.push({ person, rank });
+    }
+    const starts = out.filter((x) => x.rank <= 2);
+    return starts.length ? starts : out;
+  }
+  // from: value -> the people it names (rankPeople): an exact name wins, then
+  // names (or a later word of one) starting with the value, then names
   // containing it. At the end of the input (open: true) a value that still
   // names several people is `pending` — the user is choosing between them; a
   // bounded one applies to all of them. A value naming nobody applies too (no
   // results), so a typo never silently searches everyone.
   function resolvePeople(value, people, opts) {
-    const v = foldName(value);
     const open = !!(opts && opts.open);
-    if (!v) return { ids: [], how: "none", pending: open };
-    const list = (people || []).map((p) => ({ id: p.id, names: (p.names || []).map(foldName).filter(Boolean) }));
-    const pick = (fn) => list.filter((p) => p.names.some(fn)).map((p) => p.id);
-    let ids = pick((nm) => nm === v), how = "exact";
-    if (!ids.length) { ids = pick((nm) => nm.indexOf(v) === 0 || nm.split(" ").some((w) => w.indexOf(v) === 0)); how = "prefix"; }
-    if (!ids.length) { ids = pick((nm) => nm.indexOf(v) >= 0); how = "contains"; }
-    if (!ids.length) how = "none";
+    if (!foldName(value)) return { ids: [], how: "none", pending: open };
+    const ranked = rankPeople(value, people);
+    const exact = ranked.filter((x) => x.rank === 0);
+    const tier = exact.length ? exact : ranked;
+    const how = !tier.length ? "none" : exact.length ? "exact" : tier[0].rank === 3 ? "contains" : "prefix";
+    const ids = tier.map((x) => x.person.id);
     return { ids, how, pending: open && how !== "exact" && ids.length > 1 };
   }
   // Drop one token from the query text. When the token was the last one, the
@@ -933,7 +957,7 @@
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
     relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant, zonedDayStart, parseJumpDate, MONTH_NAMES,
-    parseSearchQuery, resolvePeople, removeSearchToken, replaceSearchToken, quoteOpValue, foldName,
+    parseSearchQuery, resolvePeople, rankPeople, removeSearchToken, replaceSearchToken, quoteOpValue, foldName,
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
