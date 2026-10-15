@@ -143,6 +143,35 @@ describe("SP-7: the media folder is validated and only message media is copied",
     assert.equal(j.mediaUnmatched, 3, "notes.txt, desktop.ini and the sub/ folder are left out and reported");
     assert.deepEqual(mediaNames(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
   });
+  // Fix round 1 (review #7): camera-roll names like 20230301-IMG.jpg match
+  // the "<digits>-<name>.<ext>" shape too, so a Pictures folder would be copied
+  // into personal_data/media/. Only files whose number is a message id in this
+  // export are copied; a folder where none match is refused.
+  test("a folder of camera-roll pictures (none of them this export's media) is refused, nothing copied", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    const pics = scratch("gca-pictures-");
+    for (const n of ["20230301-IMG_0001.jpg", "20230302-VID_0002.mp4", "20230303-Screenshot.png"]) fs.writeFileSync(path.join(pics, n), "x");
+    const r = await source(S, f.group, f.headers, pics);
+    const j = await r.json();
+    assert.equal(r.status, 400, JSON.stringify(j));
+    assert.match(j.error, /none of the .*files .*belong to/i);
+    assert.match(j.error, /direct_messages_group_media/);
+    assert.ok(!fs.existsSync(path.join(S.personal, "media")), "no media copied");
+    assert.ok(!fs.existsSync(path.join(S.personal, "source")), "no export copied");
+  });
+
+  test("a stray camera-roll file next to the real media is left out and counted", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    fs.writeFileSync(path.join(f.media, "20230301-IMG_0001.jpg"), "x");
+    const r = await source(S, f.group, f.headers, f.media);
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.mediaCopied, 3);
+    assert.equal(j.mediaUnmatched, 1);
+    assert.deepEqual(mediaNames(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
+  });
 });
 
 describe("SP-11: the native pickers need the setup page's token", () => {

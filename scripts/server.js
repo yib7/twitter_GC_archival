@@ -22,7 +22,7 @@ const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
-const { writeFileAtomic, readExportHead, scanArchiveFile, readArchiveMeta, TMP_RE } = require("./fs-io.js");
+const { writeFileAtomic, readExportHead, scanExportFile, scanArchiveFile, readArchiveMeta, TMP_RE } = require("./fs-io.js");
 const { removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
@@ -189,10 +189,11 @@ function decodeDataUrl(url, whose) {
 function copyMediaFlat(srcDir, destDir, opts) {
   const skipExisting = !!(opts && opts.skipExisting);
   const skip = (opts && opts.skip) || null;   // names not to copy (e.g. still quarantined)
+  const ids = (opts && opts.ids) || null;     // only media of these message ids (fix round 1, #7)
   fs.mkdirSync(destDir, { recursive: true });
   let copied = 0, unmatched = 0;
   for (const e of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    if (e.isFile() && MEDIA_FILE_RE.test(e.name)) {
+    if (e.isFile() && MEDIA_FILE_RE.test(e.name) && (!ids || ids.has(e.name.split("-")[0]))) {
       const dest = path.join(destDir, e.name);
       if (skip && skip.has(e.name)) continue;
       if (skipExisting && fs.existsSync(dest)) continue;
@@ -361,6 +362,33 @@ function apiSource(body, res) {
   // part1+ are never silently left behind.
   const groupFiles = partSiblings(groupAbs);
   const headerFiles = partSiblings(headersAbs);
+  // Fix round 1 (#7): "<digits>-<name>.jpg" is also how phones and cameras name
+  // pictures (20230301-IMG_0001.jpg), so the name alone can't tell a Pictures
+  // folder from the group media. Only files whose number is a message id in
+  // this export are copied, and a folder where none are is refused.
+  let ids = new Set();
+  try {
+    duringBlocking(() => {
+      for (const f of groupFiles) {
+        scanExportFile(f, { onMessage: (ci, m) => { if (m && m.messageCreate && m.messageCreate.id != null) ids.add(String(m.messageCreate.id)); } });
+      }
+    });
+  } catch (e) { ids = null; /* unreadable: the build below says so plainly */ }
+  if (ids) {
+    let candidates = 0, matching = 0;
+    try {
+      for (const e of fs.readdirSync(mediaAbs, { withFileTypes: true })) {
+        if (!e.isFile() || !MEDIA_FILE_RE.test(e.name)) continue;
+        candidates++;
+        if (ids.has(e.name.split("-")[0])) matching++;
+      }
+    } catch (e) { /* unreadable: the copy reports it */ }
+    if (candidates && !matching) {
+      return sendJSON(res, 400, { error: "None of the " + candidates.toLocaleString("en-US") + " picture and video files in “" + path.basename(mediaAbs) +
+        "” belong to messages in this export, so it doesn't look like its group media folder. Pick the direct_messages_group_media folder from the same Twitter/X archive." });
+    }
+  }
+
   // SP-23: make sure the copy (and the build's output) fits before starting it
   const spaceErr = diskSpaceProblem(copyBytesNeeded(groupFiles.concat(headerFiles), mediaAbs), freeBytesAt(PERSONAL));
   if (spaceErr) return sendJSON(res, 507, { error: spaceErr });
@@ -387,7 +415,7 @@ function apiSource(body, res) {
   // otherwise the auto-exit watchdog could mistake the frozen event loop for
   // the browser having closed.
   const mediaDestDir = path.join(PERSONAL, "media");
-  const media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir));
+  const media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids }));
   cfg.mediaDir = mediaDestDir;
   // SP-14: remembered so media pruned for a removed group / person can be
   // restored from the export if they're un-removed later.
