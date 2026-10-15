@@ -57,6 +57,47 @@ All notable changes to this project are recorded here.
   day", "<1s" replies; empty Stats panels are hidden, an empty gallery says so,
   and the keyboard help shows ⌘ on Apple devices.
 
+### Accessibility
+
+- Every keyboard stop shows a visible focus ring, and every clickable card,
+  chip, swatch, cloud word and chart bar is a real button or link (Enter and
+  Space work; nothing is click-only).
+- Timeline messages are keyboard stops. Their Reply / Bookmark / Copy toolbar
+  appears on focus as well as on hover, and on touch a ⋯ button opens it.
+- Icon-only buttons and every input have accessible names; decorative icons
+  are hidden from screen readers.
+- Toasts are announced through a polite live region.
+- The command palette is a proper combobox/listbox: arrow keys move the
+  active option for screen readers, and "No matches" is announced.
+- The mobile More sheet and onboarding are real modal dialogs: focus moves in,
+  Tab is trapped, Escape closes them and focus returns to what opened them.
+- Person names, text tokens and on-accent text reach WCAG AA in Light, Dim
+  and Lights-out. A new rendered-text audit checks every view in every theme,
+  which also fixed faded word-cloud words, superlative definitions, green
+  "received" counts in Light, and the automatic-colour "A" swatch.
+- The theme switch lives in the sidebar and the More sheet instead of
+  floating over content.
+
+### Changed (mobile and UX)
+
+- On phones, search filters collapse into a "Filters" sheet with an active-
+  filter badge, and the search box no longer autofocuses (no surprise
+  keyboard).
+- On touch screens, controls have 44px targets.
+- Settings rows and Stats grids reflow to one column on narrow screens
+  instead of overflowing.
+- Empty states say what to do next and offer a button (Clear search &
+  filters, Switch to List, Open Timeline, Search messages).
+- Gallery has the standard page header with an item count; the lightbox has
+  one top toolbar with "n / N", Bookmark, Download and Close.
+- Word Battles keeps the words you add when you change the people and across
+  reloads. Duplicates are refused, each custom word can be removed, Reset
+  keeps them, and Import/Export treats them as their own section.
+- Opening the Timeline no longer flashes message 0 before your place, and the
+  sticky day pill is translucent and no longer blocks taps on media under it.
+- Time Capsule sizes itself by layout, so it no longer ends up as a scroller
+  inside the page scroller.
+
 ## v1.4.0 (unreleased) — code-audit remediation
 
 ### Added
