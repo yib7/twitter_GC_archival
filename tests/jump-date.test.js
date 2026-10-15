@@ -91,3 +91,47 @@ test("zonedDayStart lands on the zone's wall-clock midnight, across DST days", (
     assert.strictEqual(new Date(t - 1).getTime() < t, true);
   }
 });
+
+// SP8 fix round 1: a zone whose DST starts AT midnight (negative offsets:
+// Santiago, Havana, Asunción, old São Paulo) has no 00:00 that day. The day
+// must start at the transition instant (wall clock 01:00) — the earliest
+// instant whose wall clock is at/after midnight — never 23:00 of the day
+// before, which would bucket the previous evening into it.
+const startsAt = (zone, y, mo, d) => {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+  const t = zonedDayStart(y, mo, d, createZoneClock(zone));
+  const p = {}; for (const x of f.formatToParts(t)) p[x.type] = x.value;
+  return { t, wall: `${p.year}-${p.month}-${p.day} ${String(+p.hour % 24).padStart(2, "0")}:${p.minute}` };
+};
+test("a midnight skipped by DST resolves to the transition instant (Santiago, Havana, Asunción, São Paulo)", () => {
+  const cases = [
+    ["America/Santiago", 2024, 8, 8, Date.UTC(2024, 8, 8, 4), "2024-09-08 01:00"],
+    ["America/Havana", 2024, 2, 10, Date.UTC(2024, 2, 10, 5), "2024-03-10 01:00"],
+    ["America/Asuncion", 2023, 9, 1, Date.UTC(2023, 9, 1, 4), "2023-10-01 01:00"],
+    ["America/Sao_Paulo", 2018, 10, 4, Date.UTC(2018, 10, 4, 3), "2018-11-04 01:00"],
+  ];
+  for (const [zone, y, mo, d, at, wall] of cases) {
+    const r = startsAt(zone, y, mo, d);
+    assert.deepStrictEqual(r, { t: at, wall }, zone);
+    // the day before is a full 24 h (it runs up to the transition) and the
+    // skipped-midnight day itself is 23 h
+    assert.strictEqual(r.t - startsAt(zone, y, mo, d - 1).t, 24 * 3600000, zone + " previous day length");
+    assert.strictEqual(startsAt(zone, y, mo, d + 1).t - r.t, 23 * 3600000, zone + " day length");
+  }
+  // the day bound used by jumps / before: / after: follows
+  assert.strictEqual(parseJumpDate("2024-09-08", createZoneClock("America/Santiago")).start, Date.UTC(2024, 8, 8, 4));
+  assert.strictEqual(parseJumpDate("2024-09-07", createZoneClock("America/Santiago")).end, Date.UTC(2024, 8, 8, 4));
+});
+
+test("the same holds for the browser's own zone (\"local\")", () => {
+  const saved = process.env.TZ;
+  try {
+    process.env.TZ = "America/Santiago";
+    const local = createZoneClock("local");
+    assert.strictEqual(zonedDayStart(2024, 8, 8, local), Date.UTC(2024, 8, 8, 4));
+    assert.strictEqual(zonedDayStart(2024, 8, 9, local), Date.UTC(2024, 8, 9, 3));
+    assert.strictEqual(zonedDayStart(2024, 8, 7, local), Date.UTC(2024, 8, 7, 4));
+  } finally {
+    if (saved === undefined) delete process.env.TZ; else process.env.TZ = saved;
+  }
+});

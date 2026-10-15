@@ -201,8 +201,9 @@
      of the month is the 1st of the next). Two-pass solve: from a UTC-equals-
      wall guess, measure the wall clock the zone shows there and shift by the
      difference; the second pass corrects a DST change straddling the guess.
-     A midnight that doesn't exist (spring-forward at 00:00) resolves to the
-     post-transition instant, like the viewer always has.
+     A midnight that doesn't exist (DST starting at 00:00) resolves to the
+     transition instant — the earliest instant whose wall clock is at/after
+     00:00 (wall 01:00) — never 23:00 of the day before.
 
      parseJumpDate(input, clock) — the ONE parser behind jump-to-date (command
      palette, calendar input) and the Search before:/after: operators:
@@ -226,7 +227,19 @@
       if (delta === 0) break;
       guess += delta;
     }
-    return guess;
+    if (guess + clock.offset(guess) === target) return guess;
+    // No such wall-clock midnight (DST starting AT 00:00 — Santiago, Havana,
+    // Asunción, old São Paulo): the day starts at the transition, i.e. the
+    // earliest instant whose wall clock is at/after the target. Bisect (to the
+    // second; offsets are whole seconds) over ±26 h, where the wall clock is
+    // below the target at the low end and above it at the high end.
+    const wallAt = (t) => t + clock.offset(t);
+    let lo = target - 26 * 3600000, hi = target + 26 * 3600000;
+    while (hi - lo > 1000) {
+      const mid = lo + Math.floor((hi - lo) / 2000) * 1000;
+      if (wallAt(mid) >= target) hi = mid; else lo = mid;
+    }
+    return hi;
   }
   // "jan", "Jan.", "sept", "January" -> 0-11; -1 if not a month name (3+ letters).
   function monthIndex(word) {
