@@ -68,9 +68,9 @@ test("GCA_NO_ROOT_FALLBACK isolates a spawned server from a synthetic ROOT's fak
   const repoRoot = path.join(__dirname, "..");
   // server.js's ROOT = path.resolve(__dirname, ".."), so it resolves to
   // synthRoot only if server.js itself physically lives at synthRoot/scripts/.
-  // server-core.js and build-core.js are its two same-directory requires;
-  // build-core.js in turn requires ../src/shared-core.js.
-  for (const f of ["server.js", "server-core.js", "build-core.js"]) {
+  // server-core.js, build-core.js and fs-io.js (SP6) are its same-directory
+  // requires; build-core.js in turn requires ../src/shared-core.js.
+  for (const f of ["server.js", "server-core.js", "build-core.js", "fs-io.js"]) {
     fs.copyFileSync(path.join(repoRoot, "scripts", f), path.join(scriptsDir, f));
   }
   fs.copyFileSync(path.join(repoRoot, "src", "shared-core.js"), path.join(srcDir, "shared-core.js"));

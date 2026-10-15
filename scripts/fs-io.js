@@ -8,6 +8,7 @@
 "use strict";
 
 const fs = require("fs");
+const crypto = require("crypto");
 const { StringDecoder } = require("string_decoder");
 const { createExportScanner } = require("./build-core.js");
 
@@ -56,4 +57,70 @@ function readExportHead(file, max) {
   }
 }
 
-module.exports = { scanExportFile, readExportHead };
+/* ---- crash-safe writes (SP-9) --------------------------------------------- */
+// Write to a temp file in the SAME directory (so the rename can't cross
+// volumes), flush it, then rename it over the target: readers see either the
+// old file or the complete new one, never a truncated mix — whatever happens
+// mid-write (crash, power loss, full disk, an AV/OneDrive lock).
+//
+// Windows: renaming over a file another process holds open can fail with
+// EPERM/EBUSY/EACCES. Retry with a short, growing back-off; if it still fails,
+// copy the (already complete) temp file over the target as a last resort.
+const RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
+// Leftover temp files from a crashed write match this (see apiReset).
+const TMP_RE = /\.\d+\.[0-9a-f]{8}\.tmp$/;
+function tmpNameFor(dest) {
+  return dest + "." + process.pid + "." + crypto.randomBytes(4).toString("hex") + ".tmp";
+}
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+function unlinkQuiet(f) { try { fs.unlinkSync(f); } catch (e) { /* already gone */ } }
+// Move a finished temp file into place. Returns "renamed" or "copied".
+function replaceFile(tmp, dest, opts) {
+  opts = opts || {};
+  const rename = opts.rename || fs.renameSync;
+  const retries = opts.retries != null ? opts.retries : 8;
+  const delay = opts.delayMs != null ? opts.delayMs : 40;
+  for (let attempt = 0; ; attempt++) {
+    try { rename(tmp, dest); return "renamed"; }
+    catch (e) {
+      if (!RETRY_CODES.has(e.code)) throw e;
+      if (attempt >= retries) break;
+      sleepSync(delay * (attempt + 1));
+    }
+  }
+  fs.copyFileSync(tmp, dest);
+  unlinkQuiet(tmp);
+  return "copied";
+}
+function writeFileAtomic(dest, data, opts) {
+  const tmp = tmpNameFor(dest);
+  try {
+    const fd = fs.openSync(tmp, "wx");
+    try { fs.writeFileSync(fd, data); fs.fsyncSync(fd); }
+    finally { fs.closeSync(fd); }
+    return replaceFile(tmp, dest, opts);
+  } catch (e) {
+    unlinkQuiet(tmp);
+    throw e;
+  }
+}
+// Same, for content produced piece by piece (data.js from archiveChunks), so
+// the whole archive never has to exist as one string.
+function writeChunksAtomic(dest, chunks, opts) {
+  const tmp = tmpNameFor(dest);
+  try {
+    const fd = fs.openSync(tmp, "wx");
+    try {
+      for (const c of chunks) if (c) fs.writeSync(fd, c);
+      fs.fsyncSync(fd);
+    } finally { fs.closeSync(fd); }
+    return replaceFile(tmp, dest, opts);
+  } catch (e) {
+    unlinkQuiet(tmp);
+    throw e;
+  }
+}
+
+module.exports = { scanExportFile, readExportHead, writeFileAtomic, writeChunksAtomic, replaceFile, TMP_RE };

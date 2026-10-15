@@ -21,6 +21,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants } = require("./build-core.js");
+const { writeFileAtomic, TMP_RE } = require("./fs-io.js");
 const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
@@ -150,9 +151,11 @@ function loadConfig() {
   if (!fs.existsSync(CONFIG)) return {};
   try { return JSON.parse(fs.readFileSync(CONFIG, "utf8")); } catch (e) { return {}; }
 }
+// SP-9: every file the wizard writes goes through a temp file + rename, so a
+// crash or a full disk mid-write never leaves a truncated config/local.js.
 function saveConfig(cfg) {
   fs.mkdirSync(PERSONAL, { recursive: true });
-  fs.writeFileSync(CONFIG, JSON.stringify(cfg, null, 2) + "\n");
+  writeFileAtomic(CONFIG, JSON.stringify(cfg, null, 2) + "\n");
 }
 // data URL ("data:image/png;base64,....") → { buf, ext }
 function decodeDataUrl(url) {
@@ -316,7 +319,7 @@ function apiIdentity(body, res) {
     // never write unless the resolved path is strictly inside personal_data/pfps/.
     const dest = path.join(PERSONAL, fname);
     if (!isInsidePersonal(dest, pfpsDir)) continue;
-    fs.writeFileSync(dest, d.buf);
+    writeFileAtomic(dest, d.buf);
     pfpPaths[id] = "personal_data/" + fname;
   }
   // carry forward pfps saved in a previous run that weren't re-uploaded
@@ -346,7 +349,7 @@ function apiIdentity(body, res) {
       // Defense in depth: cid is untrusted; only write inside personal_data/pfps/.
       const dest = path.join(PERSONAL, fname);
       if (isInsidePersonal(dest, pfpsDir)) {
-        fs.writeFileSync(dest, d.buf);
+        writeFileAtomic(dest, d.buf);
         photo = "personal_data/" + fname;
       }
     } else if (typeof entry.photo === "string" && entry.photo && !entry.photo.startsWith("data:")) {
@@ -385,7 +388,7 @@ function apiIdentity(body, res) {
     "window.LOCAL_GC = " + JSON.stringify(gcOut, null, 2) + ";\n" +
     "window.LOCAL_IGNORED_USERS = " + JSON.stringify(ignoredUsers, null, 2) + ";\n" +
     "window.LOCAL_IGNORED_GROUPS = " + JSON.stringify(ignoredGroups, null, 2) + ";\n";
-  fs.writeFileSync(path.join(PERSONAL, "local.js"), out);
+  writeFileAtomic(path.join(PERSONAL, "local.js"), out);
   sendJSON(res, 200, { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length });
 }
 
@@ -419,6 +422,15 @@ function apiReset(res) {
     const p = path.join(PERSONAL, name);
     if (!isInsidePersonal(p, PERSONAL)) continue;   // hard guard — never outside personal_data/
     if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force: true }); removed.push(name); }
+  }
+  // SP-9: a write interrupted by a crash can leave "<target>.<pid>.<hex>.tmp"
+  // beside its target — it holds the same private data, so erase it too.
+  if (fs.existsSync(PERSONAL)) {
+    for (const f of fs.readdirSync(PERSONAL)) {
+      if (!/^(?:config\.json|data\.js|local\.js)\./.test(f) || !TMP_RE.test(f)) continue;
+      const p = path.join(PERSONAL, f);
+      if (isInsidePersonal(p, PERSONAL)) fs.rmSync(p, { force: true });
+    }
   }
   fs.mkdirSync(PERSONAL, { recursive: true });   // leave an empty personal_data/ behind
   sendJSON(res, 200, { ok: true, removed });

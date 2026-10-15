@@ -33,7 +33,7 @@
 const fs = require("fs");
 const path = require("path");
 const core = require("./build-core.js");
-const { scanExportFile, readExportHead } = require("./fs-io.js");
+const { scanExportFile, readExportHead, writeChunksAtomic } = require("./fs-io.js");
 
 const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
 const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(here, "personal_data");
@@ -107,14 +107,19 @@ function loadPrev() {
   try {
     const s = fs.readFileSync(OUT, "utf8").replace(/^\uFEFF/, "").replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, "");
     return JSON.parse(s);
-  } catch (e) { log("(existing data.js unreadable — rebuilding from source only)"); return null; }
+  } catch (e) {
+    // SP-9: this file IS the accumulated history (messages that may no longer
+    // be in any export). Rebuilding without it would silently drop them, so
+    // stop and let the user decide.
+    fail("Your existing archive (personal_data/data.js) couldn't be read — it may have been damaged by a crash or a full disk. " +
+      "The build stopped so the history in it isn't silently replaced. Restore data.js from a backup, or delete it (or use Start over) to rebuild from this export only.");
+  }
 }
 
 function writeArchive(meta, conversations) {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
-  const fd = fs.openSync(OUT, "w");
-  try { for (const chunk of core.archiveChunks(meta, conversations)) fs.writeSync(fd, chunk); }
-  finally { fs.closeSync(fd); }
+  // SP-9: temp file + rename, so a crash mid-write can't leave a truncated data.js
+  writeChunksAtomic(OUT, core.archiveChunks(meta, conversations));
 }
 
 /* ========================================================================= */

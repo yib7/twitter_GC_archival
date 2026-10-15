@@ -81,6 +81,27 @@ for (const [name, cfgOf, re] of FAILS) {
   });
 }
 
+test("SP-9: an unreadable previous data.js stops the build instead of silently dropping that history", () => {
+  const { personal, files } = setup();
+  const cfg = { sourceJs: [files.group], headersJs: files.headers };
+  assert.equal(runBuild(personal, cfg).status, 0);
+  const out = path.join(personal, "data.js");
+  const full = fs.readFileSync(out, "utf8");
+  const truncated = full.slice(0, full.length >> 1);   // what a crash mid-write used to leave
+  fs.writeFileSync(out, truncated);
+  const r = runBuild(personal, cfg);
+  assert.notEqual(r.status, 0, "must not rebuild over a damaged baseline; stdout:\n" + r.stdout);
+  assert.match(r.stderr, /^BUILD ERROR: .*data\.js.*couldn't be read/m);
+  noStack(r);
+  assert.equal(fs.readFileSync(out, "utf8"), truncated, "the damaged file is left for the user to restore, not overwritten");
+});
+
+test("SP-9: the build writes data.js through a temp file and leaves none behind", () => {
+  const { personal, files } = setup();
+  assert.equal(runBuild(personal, { sourceJs: [files.group], headersJs: files.headers }).status, 0);
+  assert.deepEqual(fs.readdirSync(personal).filter((f) => f.endsWith(".tmp")), []);
+});
+
 test("SP-1: a failed rebuild leaves the previous data.js untouched", () => {
   const { personal, files } = setup();
   assert.equal(runBuild(personal, { sourceJs: [files.group], headersJs: files.headers }).status, 0);
