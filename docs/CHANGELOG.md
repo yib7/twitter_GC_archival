@@ -16,6 +16,33 @@ All notable changes to this project are recorded here.
 - An invalid saved timezone now falls back to the browser's zone (it used to
   fall back to UTC).
 
+### Added (Wrapped and sharing)
+
+- Wrapped plays like a story: tap the left or right third of a slide (or
+  swipe) to move, press and hold to pause, and a segmented progress bar
+  replaces the dots and fits a phone screen. Slides advance on their own
+  (with a Pause/Play button) unless you prefer reduced motion; screen readers
+  hear which slide you moved to, but not every automatic step. Arrow keys and
+  Space move the story only when focus isn't on a control inside it.
+- Share any message, Hall of Fame entry or Wrapped slide as an image. One
+  renderer draws all three in your current theme and accent. The Share
+  dialog previews the card, saves a PNG, and can copy it to the clipboard
+  where the browser supports it. Nothing is uploaded and file names only
+  carry ids and years. This replaces the old "Quote" PNG export.
+- "Hide names & photos" in the Share dialog swaps every name, alias, @handle
+  and photo for "Person A/B/C" and plain discs, in titles and rankings too.
+  It is on by default for Wrapped slides that rank people, and your last
+  choice is remembered on this device.
+
+### Changed (Wrapped)
+
+- Wrapped backdrops and highlights are mixed from your accent colour in all
+  three themes instead of fixed violet/amber washes.
+- The softer text tweaks made for contrast now apply only to Light and Dim;
+  Lights-out keeps its original colours. The Wrapped secondary text was
+  silently ignoring its contrast tweak (a CSS variable referring to itself)
+  and now reads at full contrast.
+
 ### Performance
 
 - On a 100,000-message archive, opening Stats or switching conversations with

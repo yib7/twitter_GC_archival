@@ -106,13 +106,17 @@ internet. Have several group chats? A picker switches between them.
 - Reactions render inline under each message, including custom emoji
   reactions shown as the actual glyph rather than a generic placeholder.
 - Hall of Fame: most-reacted messages, podium and leaderboards by year.
-- Wrapped, an animated year-in-review slideshow.
+- Wrapped, a year-in-review story: tap or swipe between slides, hold to
+  pause, with backdrops mixed from your accent colour.
 - Stats covering per-person activity, word clouds, milestones, busiest hours,
   and superlatives.
 - Threads, Chains, and Battles for playful analytics and head-to-head.
 - A Pinned view that collects bookmarked messages from every group chat, a
   Cmd/Ctrl-K command palette, a Time Capsule ("on this day"), Random Quote,
-  context-peek, and quote-card PNG export.
+  and context-peek.
+- Share cards: save any message, Hall of Fame entry or Wrapped slide as a
+  PNG in your theme, fully offline, with an optional "Hide names & photos"
+  that swaps every name, @handle and photo for Person A/B/C.
 - Theming: three modes (Light, Dim, and Lights-out, a black-and-blue default),
   with a customizable accent, adjustable density, and a theme shuffle. All
   preferences are saved to `localStorage`.
