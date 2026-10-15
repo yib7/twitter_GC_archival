@@ -52,3 +52,17 @@ test("mediaFolderProblem refuses the data folder, any folder of .js files and 1:
   assert.equal(core.mediaFolderProblem("direct_messages_group_media", ["9002-a.png"]), null);
   assert.equal(core.mediaFolderProblem("my media", []), null);
 });
+
+// ---- SP-10: the build gets a heap sized to the machine -------------------
+test("buildHeapMb gives the build about half the RAM, clamped to 2-16 GB", () => {
+  const GB = 1024 ** 3;
+  assert.equal(core.buildHeapMb(8 * GB), 4096);
+  assert.equal(core.buildHeapMb(4 * GB), 2048);
+  assert.equal(core.buildHeapMb(2 * GB), 2048, "never below Node's usual default");
+  assert.equal(core.buildHeapMb(64 * GB), 16384, "capped");
+  assert.equal(core.buildHeapMb(NaN), 2048, "unknown RAM falls back to the floor");
+});
+
+test("buildNodeArgs passes the heap flag before the build script", () => {
+  assert.deepEqual(core.buildNodeArgs("/app/scripts/build.js", 16 * 1024 ** 3), ["--max-old-space-size=8192", "/app/scripts/build.js"]);
+});

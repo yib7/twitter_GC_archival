@@ -311,4 +311,18 @@ function mediaFolderProblem(dirName, names) {
   return null;
 }
 
-module.exports = { buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP-10: a heap sized to the machine for the build -------------------- */
+// The build streams the export files, but it still holds every message of the
+// archive at once. Node's default heap (~2-4 GB) is the limit that crashed big
+// archives; give the build about half the RAM, never less than 2 GB (Node's
+// usual default) and never more than 16 GB.
+function buildHeapMb(totalBytes) {
+  const half = Math.floor(Number(totalBytes) / 2 / 1048576);
+  if (!Number.isFinite(half)) return 2048;
+  return Math.min(16384, Math.max(2048, half));
+}
+function buildNodeArgs(buildJs, totalBytes) {
+  return ["--max-old-space-size=" + buildHeapMb(totalBytes), buildJs];
+}
+
+module.exports = { buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

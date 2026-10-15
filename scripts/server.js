@@ -18,11 +18,12 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
-const { buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -321,7 +322,7 @@ function apiSource(body, res) {
   delete buildEnv.FORCE_COLOR;
   // eslint-disable-next-line no-control-regex -- matching ESC is the point
   const plain = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
-  try { buildLog = plain(duringBlocking(() => execFileSync(process.execPath, [path.join(__dirname, "build.js")], { cwd: ROOT, env: buildEnv, stdio: ["ignore", "pipe", "pipe"] }))); }
+  try { buildLog = plain(duringBlocking(() => execFileSync(process.execPath, buildNodeArgs(path.join(__dirname, "build.js"), os.totalmem()), { cwd: ROOT, env: buildEnv, stdio: ["ignore", "pipe", "pipe"] }))); }
   catch (e) {
     // SP-1 / SP-17: the user gets build.js's one-sentence BUILD ERROR (never a
     // raw stack trace); the full stderr goes to this server's console only.
