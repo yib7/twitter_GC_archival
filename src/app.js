@@ -1108,19 +1108,7 @@ function renderMsg(i, opts) {
   // VC-25: Copy and Quote only make sense with text — on a media-only message
   // Copy used to copy "" and still toast "Copied text".
   const hasText = !!(m.x || "").trim();
-  const copy = () => {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(m.x).then(() => toast("Copied text")).catch(() => toast("Copy failed"));
-    } else {
-      toast("Copy failed");
-    }
-  };
-  const acts = msgActions(wrap, m, [
-    hasText && ["Copy", copy],
-    ["Context", () => openContextPeek(i)],
-    hasText && ["Quote", () => exportQuoteCard(i)],
-    ["Jump", () => jumpTo(i)],
-  ]);
+  const acts = msgActions(wrap, m, { i }, [hasText && "copy", "context", hasText && "quote", "jump"]);
   body.appendChild(acts);
 
   const txt = (m.x || "").trim();
@@ -1161,33 +1149,70 @@ function renderMsg(i, opts) {
 // keyboard user tabs to the message (a focusable article) and on into the
 // toolbar, which shows while focus is inside the card; a touch user — who has
 // no hover — opens it with the "⋯" button. Running an action closes it.
-function msgActions(wrap, m, items) {
+// M-6: the buttons only carry data-act; ONE delegated listener (below) runs
+// them for every message on the page — Search, Timeline, Pinned, Hall of
+// Fame, Context peek — instead of 4-6 closures per rendered message. What an
+// action needs is kept on the card (wrap._msgAct: the message, its index in
+// the active chat, or the conversation of a foreign pin).
+const MSG_ACT_LABELS = { copy: "Copy", context: "Context", quote: "Quote", jump: "Jump" };
+function msgActions(wrap, m, ctx, keys) {
+  wrap._msgAct = { m, i: ctx.i, conv: ctx.conv };
   const acts = el("div", "msg-acts");
   acts.setAttribute("role", "toolbar");
   acts.setAttribute("aria-label", "Message actions");
   const actPin = el("button", "act-pin");
-  actPin.type = "button"; actPin.dataset.mid = m.i; setPinBtn(actPin, isPinned(m.i));
-  actPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); closeMsgActs(); };
+  actPin.type = "button"; actPin.dataset.act = "pin"; actPin.dataset.mid = m.i; setPinBtn(actPin, isPinned(m.i));
   acts.appendChild(actPin);
-  items.forEach((it) => {
-    if (!it) return;
-    const b = el("button", "", it[0]); b.type = "button";
-    b.onclick = (e) => { e.stopPropagation(); closeMsgActs(); it[1](); };
+  keys.forEach((k) => {
+    if (!k) return;
+    const b = el("button", "", MSG_ACT_LABELS[k]); b.type = "button"; b.dataset.act = k;
     acts.appendChild(b);
   });
   const more = el("button", "msg-more", "⋯");
-  more.type = "button";
+  more.type = "button"; more.dataset.act = "more";
   more.setAttribute("aria-label", "Message actions");
   more.setAttribute("aria-expanded", "false");
-  more.onclick = (e) => {
-    e.stopPropagation();
-    const open = !wrap.classList.contains("acts-open");
-    closeMsgActs();
-    if (open) { wrap.classList.add("acts-open"); more.setAttribute("aria-expanded", "true"); }
-  };
   wrap.appendChild(more);
   return acts;
 }
+function copyMsgText(m) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(m.x).then(() => toast("Copied text")).catch(() => toast("Copy failed"));
+  } else {
+    toast("Copy failed");
+  }
+}
+// Switch to a (possibly other) conversation and jump to one of its messages.
+function jumpToConvMsg(convId, mid) {
+  activateConversation(convId, true);
+  const idx = ID2IDX.get(mid);
+  jumpTo(idx == null ? 0 : idx);
+}
+const MSG_ACTS = {
+  copy: (a) => copyMsgText(a.m),
+  context: (a) => openContextPeek(a.i),
+  quote: (a) => exportQuoteCard(a.i),
+  jump: (a) => (a.conv != null ? jumpToConvMsg(a.conv, a.m.i) : jumpTo(a.i)),
+};
+// Capture phase + stopPropagation: like the old per-button handlers, an action
+// click never reaches the card's own click (open / jump) or any list handler.
+document.addEventListener("click", (e) => {
+  const b = e.target.closest && e.target.closest(".msg-acts [data-act], .msg > .msg-more[data-act]");
+  if (!b) return;
+  const wrap = b.closest(".msg"), a = wrap && wrap._msgAct;
+  if (!a) return;
+  e.stopPropagation();
+  const k = b.dataset.act;
+  if (k === "more") {
+    const open = !wrap.classList.contains("acts-open");
+    closeMsgActs();
+    if (open) { wrap.classList.add("acts-open"); b.setAttribute("aria-expanded", "true"); }
+  } else if (k === "pin") {
+    togglePin(a.m.i); closeMsgActs();
+  } else if (MSG_ACTS[k]) {
+    closeMsgActs(); MSG_ACTS[k](a);
+  }
+}, true);
 function closeMsgActs() {
   let closed = false;
   document.querySelectorAll(".msg.acts-open").forEach((w) => {
@@ -4766,13 +4791,9 @@ function renderForeignPin(conv, m) {
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
-  const go = () => {
-    activateConversation(conv.id, true);
-    const idx = ID2IDX.get(m.i);
-    jumpTo(idx == null ? 0 : idx);
-  };
+  const go = () => jumpToConvMsg(conv.id, m.i);
 
-  body.appendChild(msgActions(wrap, m, [["Jump", go]]));
+  body.appendChild(msgActions(wrap, m, { conv: conv.id }, ["jump"]));
 
   const txt = (m.x || "").trim();
   if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.dir = "auto"; bubbleEl.innerHTML = renderText(m.x, m.u); body.appendChild(bubbleEl); }

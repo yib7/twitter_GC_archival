@@ -589,6 +589,24 @@ test.describe("UX-29: Word Battles keeps the words you add", () => {
   });
 });
 
+test.describe("M-6: message actions are delegated", () => {
+  test("toolbar buttons carry data-act and no per-button handlers; actions still run", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "timeline" } });
+    const shape = await page.evaluate(() => [...document.querySelectorAll("#tl-list .msg-acts button, #tl-list .msg-more")].map((b) => (b.dataset.act || "-") + (b.onclick ? ":handler" : "")));
+    expect(shape.length).toBeGreaterThan(0);
+    expect(shape.filter((x) => x === "-" || x.endsWith(":handler")), "buttons without data-act or with their own onclick").toEqual([]);
+    expect(new Set(shape)).toEqual(new Set(["pin", "copy", "context", "quote", "jump", "more"]));
+    // the delegated handler runs them: Bookmark toggles, Context opens the peek
+    const msg = page.locator("#tl-list .msg").nth(2);
+    await msg.hover();
+    await msg.getByRole("button", { name: "Bookmark" }).click();
+    await expect(msg.getByRole("button", { name: "Bookmark" })).toHaveAttribute("aria-pressed", "true");
+    await msg.hover();
+    await msg.getByRole("button", { name: "Context" }).click();
+    await expect(page.locator(".ctx-modal")).toBeVisible();
+  });
+});
+
 test.describe("M-5: widening the window closes the filter sheet", () => {
   test("open at 390px, widen to 1280: no dialog left behind, filters inline, Tab not trapped", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
