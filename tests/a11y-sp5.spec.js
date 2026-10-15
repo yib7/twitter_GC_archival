@@ -425,3 +425,18 @@ test.describe("UX-5 / UX-36: desktop keeps its two-up layouts", () => {
     expect(await page.locator(".set-row").first().evaluate((e) => getComputedStyle(e).flexDirection)).toBe("row");
   });
 });
+
+test.describe("UX-19: desktop search is unchanged", () => {
+  test("filters stay inline, no Filters toggle, the box is autofocused", async ({ page }) => {
+    await bootViewer(page, DATA);
+    await expect(page.locator("#s-input")).toBeFocused();
+    await expect(page.locator("#s-filters")).toBeVisible();
+    await expect(page.locator("#f-toggle")).toBeHidden();
+    await expect(page.locator("#s-filters #s-matchhint")).toBeVisible();
+    expect(await page.locator("#s-filters").getAttribute("role")).toBeNull();
+    // Tab moves on out of the filter bar (it is not a focus trap on desktop)
+    await page.locator("#f-save").focus();
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement.closest("#s-filters"))).toBe(false);
+  });
+});

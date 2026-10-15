@@ -711,7 +711,7 @@ function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 // UX-17: the mobile More sheet (persistent markup, a layer only while .on) and
 // the onboarding card join the same stack; a layer that isn't simply removed
 // supplies its own box._close().
-const MODAL_SEL = ".sheet.on, .onboard, .cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal";
+const MODAL_SEL = ".sheet.on, .filters.open, .onboard, .cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal";
 function topModal() {
   const all = document.querySelectorAll(MODAL_SEL);
   return all.length ? all[all.length - 1] : null;
@@ -724,6 +724,7 @@ function focusablesIn(root) {
 function trapTab(e) {
   if (e.key !== "Tab") return;
   const box = e.currentTarget;
+  if (box.getAttribute("aria-modal") !== "true") return;   // a box that is only sometimes a dialog (the filter bar)
   const f = focusablesIn(box);
   if (!f.length) { e.preventDefault(); return; }
   const first = f[0], last = f[f.length - 1], act = document.activeElement;
@@ -1445,8 +1446,10 @@ function ensureSearch() {
           <input id="s-input" type="text" aria-label="Search messages" placeholder="Search ${fmtNum(N)} messages…  (use &quot;quotes&quot; for exact phrases)" autocomplete="off" spellcheck="false" />
           <button class="search-clear" id="s-clear" type="button" title="Clear" aria-label="Clear search" hidden>✕</button>
         </div>
+        <button class="pill f-toggle" id="f-toggle" type="button" aria-expanded="false" aria-controls="s-filters">${cmdIco("settings")} Filters <span class="badge" id="f-toggle-n" hidden>0</span></button>
       </div>
-      <div class="filters">
+      <div class="filters" id="s-filters">
+        <div class="f-sheet-head"><span class="f-sheet-title">Filters</span><button class="btn sm" id="f-done" type="button">Done</button></div>
         <div class="popwrap">
           <button class="pill" id="f-people">${cmdIco("people")} People <span class="badge" id="f-people-n" hidden>0</span></button>
         </div>
@@ -1478,8 +1481,8 @@ function ensureSearch() {
           <button class="pill" id="f-saved">★ Saved ▾</button>
         </div>
         <button class="pill" id="f-save">＋ Save search</button>
+        <div class="match-hint" id="s-matchhint"></div>
       </div>
-      <div class="match-hint" id="s-matchhint"></div>
       <div class="result-meta" id="s-meta"></div>
     </div>
     <div class="scroll" id="s-scroll"><div class="list" id="s-list"></div></div>
@@ -1495,7 +1498,11 @@ function ensureSearch() {
     clearAll: v.querySelector("#f-clear-all"), exportBtn: v.querySelector("#f-export"), btt: v.querySelector("#s-btt"),
     sort: v.querySelector("#f-sort"),
     matchtoggle: v.querySelector("#f-matchtoggle"), matchhint: v.querySelector("#s-matchhint"),
+    filters: v.querySelector("#s-filters"), ftoggle: v.querySelector("#f-toggle"), ftoggleN: v.querySelector("#f-toggle-n"),
   };
+  // UX-19: on a phone the filter bar is a bottom sheet behind "Filters (n)".
+  sEls.ftoggle.onclick = (e) => { e.stopPropagation(); if (sEls.filters.classList.contains("open")) closeFilterSheet(); else openFilterSheet(); };
+  v.querySelector("#f-done").onclick = () => closeFilterSheet();
 
   // Every control is rendered FROM F (VC-4) so the UI can never disagree with
   // the filters actually applied.
@@ -1939,7 +1946,38 @@ function updateMatchHint() {
 function updateClearAllBtn() {
   const hasFilter = (F.needles && F.needles.length) || F.people.size || F.from || F.to || F.media || F.links || F.reacts || (sEls.input && sEls.input.value.trim());
   if (sEls.clearAll) sEls.clearAll.hidden = !hasFilter;
+  // the mobile "Filters (n)" toggle counts the filters in effect
+  const n = (F.people.size ? 1 : 0) + (F.from || F.to ? 1 : 0) + (F.media ? 1 : 0) + (F.links ? 1 : 0) + (F.reacts ? 1 : 0);
+  if (sEls.ftoggleN) {
+    sEls.ftoggleN.hidden = !n; sEls.ftoggleN.textContent = n;
+    sEls.ftoggle.classList.toggle("active", n > 0);
+    sEls.ftoggle.setAttribute("aria-label", "Filters" + (n ? ", " + n + " active" : ""));
+  }
 }
+// UX-19: the mobile filter sheet — a layer of the shared modal stack while
+// open (Esc / Done / a tap outside close it, focus returns to the toggle); on
+// desktop the same .filters bar is inline and none of this applies.
+function openFilterSheet() {
+  const f = sEls.filters;
+  if (!f) return;
+  f.classList.add("open");
+  sEls.ftoggle.setAttribute("aria-expanded", "true");
+  f._close = closeFilterSheet;
+  applyDialog(f, "Search filters", { initial: "#f-people" });
+}
+function closeFilterSheet() {
+  const f = sEls.filters;
+  if (!f || !f.classList.contains("open")) return false;
+  closePopovers();
+  f.classList.remove("open");
+  ["role", "aria-modal", "aria-label"].forEach((a) => f.removeAttribute(a));
+  sEls.ftoggle.setAttribute("aria-expanded", "false");
+  restoreFocus(f);
+  return true;
+}
+document.addEventListener("click", (e) => {
+  if (sEls.filters && sEls.filters.classList.contains("open") && !e.target.closest("#s-filters, #f-toggle")) closeFilterSheet();
+});
 function clearAllFilters() {
   sEls.input.value = ""; sEls.clear.hidden = true;
   F.media = false; F.links = false; F.reacts = false;
@@ -3749,7 +3787,10 @@ function setView(name) {
   });
   reflectMobileNav(name);
   // never pull focus out of an open dialog layer (e.g. first-run onboarding)
-  if (name === "search") { ensureSearch(); setTimeout(() => { if (sEls.input && !topModal()) sEls.input.focus(); }, 0); }
+  // UX-19: and only with a fine pointer — on a phone focusing the box pops the
+  // soft keyboard over the results.
+  if (name !== "search") closeFilterSheet();
+  if (name === "search") { ensureSearch(); setTimeout(() => { if (sEls.input && !topModal() && matchMedia("(pointer: fine)").matches) sEls.input.focus(); }, 0); }
   else if (name === "timeline") {
     if (!tlBuilt) {
       if (tlResume) openTimeline(Math.min(tlResume.idx, Math.max(0, N - 1)), { quiet: true, off: tlResume.off });

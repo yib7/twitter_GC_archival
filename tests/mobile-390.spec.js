@@ -172,3 +172,54 @@ test.describe("UX-5 / UX-34 / UX-36: nothing overflows 390px", () => {
     for (const c of cols) expect(c).toBe(1);
   });
 });
+
+test.describe("UX-19: mobile search header is compact and doesn't grab the keyboard", () => {
+  test("no autofocus on a touch screen; filters collapse into a Filters (n) bottom sheet", async ({ page }) => {
+    await bootViewer(page, RICH_DATA);
+    await expect(page.locator("#s-list .msg").first()).toBeVisible();
+    await page.waitForTimeout(100);
+    await expect(page.locator("#s-input")).not.toBeFocused();
+    // the header no longer eats half the screen
+    const tb = await page.locator("#view-search .toolbar").boundingBox();
+    expect(tb.height).toBeLessThanOrEqual(170);
+    const filters = page.locator("#s-filters");
+    await expect(filters).toBeHidden();
+    const tog = page.getByRole("button", { name: /^Filters/ });
+    await expect(tog).toBeVisible();
+    await expect(tog).toHaveAttribute("aria-expanded", "false");
+    await tog.tap();
+    await expect(filters).toBeVisible();
+    await expect(filters).toHaveAttribute("role", "dialog");
+    await expect(filters).toHaveAttribute("aria-modal", "true");
+    await expect(tog).toHaveAttribute("aria-expanded", "true");
+    expect(await page.evaluate(() => !!document.activeElement.closest("#s-filters"))).toBe(true);
+    // the whole sheet is on screen, above the tab bar
+    const fb = await filters.boundingBox();
+    expect(fb.y).toBeGreaterThanOrEqual(0);
+    expect(fb.y + fb.height).toBeLessThanOrEqual(844 + 1);
+    expect(fb.x + fb.width).toBeLessThanOrEqual(390 + 1);
+    // …and painted above the tab bar
+    expect(await page.evaluate(() => { const r = document.getElementById("s-filters").getBoundingClientRect(); const hit = document.elementFromPoint(195, r.bottom - 12); return !!(hit && hit.closest("#s-filters")); })).toBe(true);
+    // the match hint lives in the sheet now, not in the header
+    await expect(filters.locator("#s-matchhint")).toBeVisible();
+    // a filter applied in the sheet is counted on the toggle
+    await filters.locator("#f-media").tap();
+    await expect(filters.locator("#f-media")).toHaveClass(/active/);
+    // the People popover opens inside the sheet, fully on screen
+    await filters.locator("#f-people").tap();
+    const pop = filters.locator(".popover");
+    await expect(pop).toBeVisible();
+    const pb = await pop.boundingBox();
+    expect(pb.y).toBeGreaterThanOrEqual(0);
+    expect(pb.y + pb.height).toBeLessThanOrEqual(844 + 1);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await expect(filters).toBeHidden();
+    await expect(tog).toBeFocused();
+    await expect(tog).toHaveText(/Filters\s*1/);
+    // Done also closes it
+    await tog.tap();
+    await filters.getByRole("button", { name: "Done" }).tap();
+    await expect(filters).toBeHidden();
+  });
+});

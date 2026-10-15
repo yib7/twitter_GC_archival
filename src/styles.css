@@ -257,7 +257,9 @@ button, input, select, textarea { font-family: inherit; }
 .meta-act { white-space: nowrap; background: none; border: 0; padding: 0; font: inherit; color: var(--accent-text); cursor: pointer; }
 .meta-act:hover { text-decoration: underline; }
 .meta-act:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-.match-hint { color: var(--text-faint); font-size: 12px; margin-top: 2px; }
+.match-hint { color: var(--text-faint); font-size: 12px; margin-top: 2px; flex-basis: 100%; }
+/* UX-19: mobile-only pieces of the filter sheet */
+.f-toggle, .f-sheet-head { display: none; }
 .match-hint b { color: var(--text-dim); font-weight: 600; }
 
 /* popover (people filter, saved searches) */
@@ -298,6 +300,7 @@ button, input, select, textarea { font-family: inherit; }
    itself a keyboard stop there, so a tapped action doesn't leave it pinned open). */
 @media (hover: hover) { .msg:hover .msg-acts { display: flex; } }
 .msg:focus-within .msg-acts, .msg.acts-open .msg-acts { display: flex; }
+.msg { -webkit-tap-highlight-color: transparent; }
 .msg-more { display: none; position: absolute; top: 0; right: 0; z-index: 6; background: none; border: 0; border-radius: 999px; color: var(--text-dim); font-size: 18px; line-height: 1; cursor: pointer; min-width: 44px; min-height: 44px; }
 .msg-more[aria-expanded="true"] { color: var(--accent-text); background: var(--bg-hover); }
 @media (hover: none), (pointer: coarse) {
@@ -884,6 +887,25 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   .sheet .sh-item.active svg { color: var(--accent-text); }
 
   .back-to-top { bottom: 74px; }   /* clear the fixed tab bar */
+  /* UX-19: the filter bar collapses into a "Filters (n)" bottom sheet */
+  .f-toggle { display: inline-flex; flex-shrink: 0; align-self: stretch; }
+  .filters { display: none; }
+  .filters.open {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: var(--z-modal);
+    max-height: 80dvh; overflow: auto; align-content: flex-start;
+    background: var(--bg-panel); border-top: 1px solid var(--border); border-radius: 18px 18px 0 0;
+    padding: 14px 14px calc(16px + env(safe-area-inset-bottom));
+    box-shadow: 0 0 0 100vmax rgba(2, 4, 9, 0.6), var(--el2);
+  }
+  /* the toolbar's backdrop-filter would make it the sheet's containing block,
+     and its z-index would trap the sheet under the tab bar — lift both while open */
+  .toolbar:has(.filters.open) { backdrop-filter: none; -webkit-backdrop-filter: none; z-index: var(--z-modal); }
+  .filters.open .f-sheet-head { display: flex; align-items: center; justify-content: space-between; flex-basis: 100%; margin-bottom: 4px; }
+  .f-sheet-title { font-size: 15px; font-weight: 800; color: var(--text); }
+  .filters.open .spacer { display: none; }
+  /* popovers open in-flow inside the sheet instead of hanging off its edge */
+  .filters.open .popwrap:has(.popover) { flex-basis: 100%; }
+  .filters.open .popover { position: static; margin-top: 8px; max-height: 40dvh; min-width: 0; }
   .toolbar { padding: 10px 14px 8px; }
   .search-box input { font-size: 16px; padding: 12px 0; }
   .filters { gap: 6px; }
