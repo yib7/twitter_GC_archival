@@ -7,8 +7,9 @@
  * laptop), so silence can't mean "closed". Instead each page:
  *   - pings GET /api/ping?c=<its own id> now and every 15 s while it can;
  *   - says goodbye with a beacon (POST /api/bye?c=<id>) when it is closed or
- *     navigated away from — the server exits a few seconds after the LAST
- *     open page said goodbye (a reload pings again well within that);
+ *     navigated away from — the server exits about 20 s after the LAST
+ *     open page said goodbye (a reload pings again well within that; this
+ *     script loads first, before the archive data, for the same reason);
  *   - re-pings as soon as it is shown again, and if the server is gone shows
  *     a banner saying so (and how to restart it) instead of a later
  *     "Failed to fetch".

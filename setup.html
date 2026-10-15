@@ -23,6 +23,9 @@
   <link rel="stylesheet" href="src/setup.css" />
   <!-- Render-blocking in <head> so the saved theme applies before first paint. -->
   <script src="src/theme-boot.js"></script>
+  <!-- First, before the (possibly very large) archive data: the launcher's
+       server stays up only while a page says it is open (fix round 1). -->
+  <script src="src/keepalive.js"></script>
 </head>
 <body class="setup-body">
   <div class="setup-shell">
@@ -186,7 +189,6 @@
     <button data-set="lightsout" title="Lights out" aria-label="Lights out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z"/></svg></button>
   </div>
 
-  <script src="src/keepalive.js"></script>
   <script src="src/shared-core.js"></script>
   <script src="src/setup.js"></script>
 </body>

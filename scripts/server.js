@@ -50,7 +50,10 @@ const NO_ROOT_FALLBACK = !!process.env.GCA_NO_ROOT_FALLBACK;
 // a quiet heartbeat alone is never taken as "closed".
 // GCA_AUTO_EXIT=1 turns the same behaviour on without opening a browser (tests).
 const AUTO_EXIT = process.argv.includes("--open") || process.env.GCA_AUTO_EXIT === "1";
-const live = makeLiveness({ graceMs: 5000, idleMs: 30 * 60 * 1000 });
+// Fix round 1 (#6): ~20 s of grace after the last goodbye, so the next page
+// (a reload, the wizard's "Open your archive", a slow-loading big archive)
+// has time to say hello.
+const live = makeLiveness({ graceMs: 20000, idleMs: 30 * 60 * 1000 });
 let idleWatch = null;
 const clientIdOf = (qs) => { const m = /(?:^|&)c=([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(qs || ""); return m ? m[1] : "anon"; };
 function notePing(id) {

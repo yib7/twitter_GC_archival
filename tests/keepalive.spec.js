@@ -60,7 +60,22 @@ test.describe("launcher auto-exit", () => {
     await page.unroute("**/api/ping*");
   });
 
+  // Fix round 1 (review #6): index.html loaded keepalive.js after the archive
+  // data, so a big data.js took longer to load than the 5 s goodbye grace and
+  // the server quit under the page that was still loading. keepalive.js now
+  // loads first, and the grace is about 20 s.
+  test("a slow-loading archive page survives the goodbye from the page before it", async ({ context }) => {
+    const page = await context.newPage();
+    await page.goto(base + "/setup.html");
+    await page.route("**/data.sample.js", async (route) => { await new Promise((r) => setTimeout(r, 12000)); await route.continue().catch(() => {}); });
+    await page.goto(base + "/index.html", { waitUntil: "commit" });   // setup.html says goodbye
+    await page.waitForTimeout(9000);                                     // longer than the old 5 s grace
+    expect(proc.exitCode, "still running while the archive page loads").toBe(null);
+    await page.unroute("**/data.sample.js");
+  });
+
   test("reloading and moving between pages keeps the server; closing the last page stops it", async ({ context }) => {
+    test.setTimeout(60000);   // the goodbye grace is ~20 s
     const page = await context.newPage();
     await page.goto(base + "/setup.html");
     await page.reload();
@@ -68,9 +83,17 @@ test.describe("launcher auto-exit", () => {
     await page.waitForTimeout(6500);                       // longer than the grace
     expect(proc.exitCode, "still running after reload + navigation").toBe(null);
     await page.close({ runBeforeUnload: false });
-    const gone = await Promise.race([exited, new Promise((res) => setTimeout(() => res(false), 12000))]);
-    expect(gone, "server exits a few seconds after the last page closed").toBe(true);
+    const gone = await Promise.race([exited, new Promise((res) => setTimeout(() => res(false), 35000))]);
+    expect(gone, "server exits within the grace after the last page closed").toBe(true);
   });
+});
+
+test("index.html and setup.html load keepalive.js before anything else (it has no dependencies)", () => {
+  for (const f of ["index.html", "setup.html"]) {
+    const html = fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
+    expect(scripts.filter((s) => s !== "src/theme-boot.js")[0], f).toBe("src/keepalive.js");
+  }
 });
 
 test("coming back to the tab re-pings at once", async ({ page }) => {

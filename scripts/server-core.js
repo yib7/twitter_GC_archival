@@ -258,7 +258,7 @@ function isIdleTimedOut(lastPing, now, idleMs) {
 // `clock` is injectable for tests.
 function makeLiveness(opts, clock) {
   const o = opts || {};
-  const graceMs = o.graceMs != null ? o.graceMs : 5000;
+  const graceMs = o.graceMs != null ? o.graceMs : 20000;
   const idleMs = o.idleMs != null ? o.idleMs : 30 * 60 * 1000;
   const now = clock || Date.now;
   const clients = new Set();
