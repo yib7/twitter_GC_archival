@@ -11,8 +11,8 @@
  *    (direct-message-group-headers.js) is folded in too: it has no message
  *    bodies, so it never adds empty messages, but it completes the participant
  *    roster (people who never sent a surviving message) plus join/leave/name events.
- *  - Merge-aware: reads the previous data.js as a baseline, so re-running the
- *    wizard with a newer export accumulates history instead of losing it.
+ *  - Merge-aware: streams the previous data.js in as a baseline, so re-running
+ *    the wizard with a newer export accumulates history instead of losing it.
  *  - Dedupes messages by id, re-sorts chronologically, resolves local media by
  *    the {messageId}-… filename convention. Group chats only — 1:1 DMs are skipped.
  *
@@ -33,7 +33,7 @@
 const fs = require("fs");
 const path = require("path");
 const core = require("./build-core.js");
-const { scanExportFile, readExportHead, writeChunksAtomic } = require("./fs-io.js");
+const { scanExportFile, scanArchiveFile, readExportHead, writeChunksAtomic } = require("./fs-io.js");
 
 const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
 const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(here, "personal_data");
@@ -85,7 +85,7 @@ function ingest(acc, file, which) {
   const wrong = core.wrongKindMessage(core.identifyExport(readExportHead(file)), which, label);
   if (wrong) fail(wrong);
   const sink = core.createExportSink(acc, which);
-  try { scanExportFile(file, sink.handlers); }
+  try { scanExportFile(file, sink.handlers, scanOpts()); }
   catch (e) {
     if (e instanceof core.ExportScanError) fail("\u201c" + label + "\u201d: " + e.message + ".");
     throw e;
@@ -99,18 +99,26 @@ function ingest(acc, file, which) {
   return stats;
 }
 
-function loadPrev() {
+// The previous data.js is the baseline (the accumulated history). It is
+// streamed into the accumulator one conversation at a time, so it may be any
+// size (fix round 1: no ~512 MB ceiling). Returns null when there is none.
+function loadPrev(acc) {
   if (!fs.existsSync(OUT)) return null;
   try {
-    const s = fs.readFileSync(OUT, "utf8").replace(/^\uFEFF/, "").replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, "");
-    return JSON.parse(s);
+    return scanArchiveFile(OUT, { onConversation: (c) => acc.addPrev({ conversations: [c] }) }, scanOpts());
   } catch (e) {
-    // SP-9: this file IS the accumulated history (messages that may no longer
-    // be in any export). Rebuilding without it would silently drop them, so
-    // stop and let the user decide.
-    fail("Your existing archive (personal_data/data.js) couldn't be read — it may have been damaged by a crash or a full disk. " +
-      "The build stopped so the history in it isn't silently replaced. Restore data.js from a backup, or delete it (or use Start over) to rebuild from this export only.");
+    // SP-9: never rebuild over history that couldn't be read. Each cause gets
+    // its own sentence; only real damage is called damaged.
+    const msg = core.prevArchiveProblem(e);
+    if (msg) fail(msg);
+    throw e;
   }
+}
+// Read size for the streaming readers; GCA_SCAN_CHUNK (bytes) lets tests force
+// tiny reads through the whole build.
+function scanOpts() {
+  const n = Number(process.env.GCA_SCAN_CHUNK);
+  return n > 0 ? { chunkSize: n } : undefined;
 }
 
 function writeArchive(meta, conversations) {
@@ -131,8 +139,9 @@ function main() {
   if (!exportFiles.length) fail("No messages file is set up. Run the setup wizard and pick direct-messages-group.js.");
 
   const acc = core.createAccumulator({ ignoredUsers, ignoredGroups });
-  const prev = loadPrev();
-  acc.addPrev(prev);
+  const prev = loadPrev(acc);
+  // an old single-conversation archive keeps its messages at the root
+  if (prev && prev.meta.conversationId != null) acc.addPrev(prev.meta);
 
   log("Export files:", exportFiles.length, exportFiles.map((f) => path.basename(f)).join(", "));
   const seen = { dm: 0 };
@@ -178,7 +187,7 @@ function describeFailure(e) {
   if (e instanceof BuildError) return e.message;
   if (e && e.userMessage) return e.userMessage;   // fs-io: a file held by another program
   const code = e && e.code;
-  if (code === "ERR_STRING_TOO_LONG") return "A file is too large to read in one piece. Please report this — the build should stream it.";
+  if (code === "ERR_STRING_TOO_LONG") return "A file has a single entry too large to read. Please report this.";
   if (code === "ENOSPC") return "The disk is full. Free up some space and try again.";
   if (code === "EACCES" || code === "EPERM") return "Permission denied while reading or writing " + (e.path ? "\u201c" + e.path + "\u201d" : "a file") + ". Close any program using it (or move the archive out of a protected folder) and try again.";
   if (code === "EBUSY") return "A file is locked by another program (antivirus or a sync app?). Wait a moment and try again.";

@@ -436,49 +436,53 @@ const HEAD_MAX = 4096;
 const HEAD_OK = /^\uFEFF?\s*(?:window\.YTD\.([A-Za-z0-9_]+)(?:\.part(\d+))?\s*=\s*)?$/;
 
 /**
- * @param {{onConversationId?: (convIndex:number, id:any)=>void, onMessage?: (convIndex:number, msg:any)=>void}} handlers
- * @returns {{push(text:string):void, end():{global:string|null, part:number|null}}}
+ * The streaming engine behind both scanners: it navigates only the containers
+ * `spec.child` asks for, JSON.parses only the values it asks to capture (one at
+ * a time), and skips everything else without keeping it.
+ *
+ * spec.rootChar  "[" or "{": the top-level container after the optional prefix
+ * spec.headOk    regex the text before rootChar must match
+ * spec.headInfo(m)          what end() returns, from that match
+ * spec.notThis   message for text that isn't this kind of file
+ * spec.what      "…It may be damaged or not <what>"
+ * spec.child(parentRole, key, charCode) -> { role, nav: "obj"|"arr"|null, cap: bool, bad?: string }
+ * spec.onOpen(role) / spec.onClose(role) / spec.onValue(role, key, value)
  */
-function createExportScanner(handlers) {
-  handlers = handlers || {};
-  const onConvId = handlers.onConversationId || (() => {});
-  const onMsg = handlers.onMessage || (() => {});
+function createStreamScanner(spec) {
+  const onOpen = spec.onOpen || (() => {});
+  const onClose = spec.onClose || (() => {});
+  const onValue = spec.onValue || (() => {});
   const STR_RE = /["\\]/g, CONT_RE = /["{}[\]]/g, BARE_END = /[,\]}\s]/g;
 
   let base = 0;                 // characters consumed before the current chunk
   let mode = M_HEAD, head = "";
-  let info = { global: null, part: null };
+  let info = null;
   const stack = [];             // navigated containers: { arr, role, st, key }
-  let convIndex = -1;
   // value mode (a captured or skipped value)
-  let vKind = V_STR, vDepth = 0, vInStr = false, vEsc = false, vCap = false, vRole = null, vParts = null, vStart = 0, vPos = 0;
+  let vKind = V_STR, vDepth = 0, vInStr = false, vEsc = false, vCap = false, vRole = null, vKey = null, vParts = null, vStart = 0, vPos = 0;
   // key mode
   let kParts = null, kStart = 0, kEsc = false;
 
   const at = (pos) => " (at character " + pos.toLocaleString("en-US") + ")";
   function fail(msg, pos) { throw new ExportScanError(msg + at(pos), pos); }
-  function unreadable(why, pos) { fail("The file couldn't be read: " + why + ". It may be damaged or not a Twitter/X export", pos); }
+  function unreadable(why, pos) { fail("The file couldn't be read: " + why + ". It may be damaged or not " + spec.what, pos); }
 
   function close(i) {
-    stack.pop();
+    onClose(stack.pop().role);
     if (!stack.length) mode = M_DONE;
     return i + 1;
   }
   function startValue(s, i, parent, key) {
     const c = s.charCodeAt(i);
     parent.st = S_COMMA_OR_END;   // what the parent expects once this value is done
-    const pr = parent.role;
-    let role = null, navArr = false, navObj = false;
-    if (pr === "root") { role = "conv"; convIndex++; navObj = c === 123; }
-    else if (pr === "conv" && key === "dmConversation") { role = "dmc"; navObj = c === 123; }
-    else if (pr === "dmc" && key === "messages") { role = "msgs"; navArr = c === 91; }
-    else if (pr === "dmc" && key === "conversationId") role = "convId";
-    else if (pr === "msgs") role = "msg";
-    if (navObj) { stack.push({ arr: false, role, st: S_KEY_OR_END, key: null }); return i + 1; }
-    if (navArr) { stack.push({ arr: true, role, st: S_VAL_OR_END, key: null }); return i + 1; }
+    const ch = spec.child(parent.role, key, c);
+    if (ch.bad) unreadable(ch.bad, base + i);
+    const role = ch.role;
+    if (ch.nav === "obj" && c === 123) { stack.push({ arr: false, role, st: S_KEY_OR_END, key: null }); onOpen(role); return i + 1; }
+    if (ch.nav === "arr" && c === 91) { stack.push({ arr: true, role, st: S_VAL_OR_END, key: null }); onOpen(role); return i + 1; }
     mode = M_VALUE;
-    vCap = role === "msg" || role === "convId";
-    vRole = role; vParts = vCap ? [] : null; vStart = i; vPos = base + i; vEsc = false;
+    vCap = !!ch.cap;
+    vRole = role; vKey = key; vParts = vCap ? [] : null; vStart = i; vPos = base + i; vEsc = false;
     if (c === 34) { vKind = V_STR; vInStr = true; return i + 1; }
     if (c === 123 || c === 91) { vKind = V_CONT; vDepth = 1; vInStr = false; return i + 1; }
     if (c === 125 || c === 93 || c === 44 || c === 58) unreadable("a value is missing", base + i);
@@ -494,8 +498,7 @@ function createExportScanner(handlers) {
     let val;
     try { val = JSON.parse(txt); }
     catch (e) { unreadable("a message is malformed", vPos); }
-    if (vRole === "msg") onMsg(convIndex, val);
-    else onConvId(convIndex, val);
+    onValue(vRole, vKey, val);
     return end;
   }
   function struct(s, i) {
@@ -595,20 +598,21 @@ function createExportScanner(handlers) {
     let i = 0;
     const n = s.length;
     if (mode === M_HEAD) {
-      const b = s.indexOf("[");
+      const b = s.indexOf(spec.rootChar);
       if (b === -1) {
         head += s;
         // a real prefix is a few dozen characters; don't buffer a huge non-export
-        if (head.length > HEAD_MAX) fail("This file isn't a Twitter/X export data file", 0);
+        if (head.length > HEAD_MAX) fail(spec.notThis, 0);
         base += n;
         return;
       }
       head += s.slice(0, b);
-      const m = HEAD_OK.exec(head);
-      if (!m) fail("This file isn't a Twitter/X export data file", 0);
-      info = { global: m[1] || null, part: m[2] != null ? Number(m[2]) : null };
+      const m = spec.headOk.exec(head);
+      if (!m) fail(spec.notThis, 0);
+      info = spec.headInfo(m);
       head = "";
-      stack.push({ arr: true, role: "root", st: S_VAL_OR_END, key: null });
+      const arr = spec.rootChar === "[";
+      stack.push({ arr, role: "root", st: arr ? S_VAL_OR_END : S_KEY_OR_END, key: null });
       mode = M_STRUCT;
       i = b + 1;
     }
@@ -627,12 +631,132 @@ function createExportScanner(handlers) {
   function end() {
     if (mode === M_HEAD) {
       if (/^\uFEFF?\s*$/.test(head)) fail("The file is empty", 0);
-      fail("This file isn't a Twitter/X export data file", 0);
+      fail(spec.notThis, 0);
     }
     if (mode !== M_DONE) fail("The file ends early — it looks truncated or incompletely copied", base);
     return info;
   }
   return { push, end };
+}
+/**
+ * An X export: [ { "dmConversation": { "conversationId": …, "messages": [ <msg>, … ] } }, … ]
+ * @param {{onConversationId?: (convIndex:number, id:any)=>void, onMessage?: (convIndex:number, msg:any)=>void}} handlers
+ * @returns {{push(text:string):void, end():{global:string|null, part:number|null}}}
+ */
+function createExportScanner(handlers) {
+  handlers = handlers || {};
+  const onConvId = handlers.onConversationId || (() => {});
+  const onMsg = handlers.onMessage || (() => {});
+  let convIndex = -1;
+  return createStreamScanner({
+    rootChar: "[",
+    headOk: HEAD_OK,
+    headInfo: (m) => ({ global: m[1] || null, part: m[2] != null ? Number(m[2]) : null }),
+    notThis: "This file isn't a Twitter/X export data file",
+    what: "a Twitter/X export",
+    child(pr, key) {
+      if (pr === "root") { convIndex++; return { role: "conv", nav: "obj" }; }
+      if (pr === "conv" && key === "dmConversation") return { role: "dmc", nav: "obj" };
+      if (pr === "dmc" && key === "messages") return { role: "msgs", nav: "arr" };
+      if (pr === "dmc" && key === "conversationId") return { role: "convId", cap: true };
+      if (pr === "msgs") return { role: "msg", cap: true };
+      return { role: null };
+    },
+    onValue(role, key, val) {
+      if (role === "msg") onMsg(convIndex, val);
+      else onConvId(convIndex, val);
+    },
+  });
+}
+
+/* ---- previous-archive scanner (fix round 1) ------------------------------- */
+// data.js is written by archiveChunks, so its shape is known:
+//   window.CHAT_DATA = { <meta…>, "conversations": [ { id, type, …, "msgs": [ <msg>, … ], "events": […] }, … ] };
+// It is the accumulated history and can outgrow V8's ~512 MB string limit, so
+// it is streamed like an export: each message is parsed on its own, each other
+// conversation field as one value, and onConversation gets one conversation at
+// a time. Root keys other than "conversations" (generatedAt, ignoredUsers, …,
+// or an old single-conversation archive's conversationId/msgs/events) are
+// returned as `meta` by end().
+const ARCHIVE_HEAD_OK = /^\uFEFF?\s*(?:window\.CHAT_DATA\s*=\s*)?$/;
+/**
+ * @param {{onConversation?: (conv:object)=>void}} handlers
+ * @returns {{push(text:string):void, end():{meta:object, conversations:number}}}
+ */
+function createArchiveScanner(handlers) {
+  handlers = handlers || {};
+  const onConv = handlers.onConversation || (() => {});
+  const meta = {};
+  let conv = null, count = 0, sawList = false;
+  const sc = createStreamScanner({
+    rootChar: "{",
+    headOk: ARCHIVE_HEAD_OK,
+    headInfo: () => ({}),
+    notThis: "This file isn't a Group Chat Archive data.js",
+    what: "a Group Chat Archive data.js",
+    child(pr, key, c) {
+      if (pr === "root") {
+        if (key !== "conversations") return { role: "meta", cap: true };
+        return c === 91 ? { role: "convs", nav: "arr" } : { bad: "\"conversations\" isn't a list" };
+      }
+      if (pr === "convs") return c === 123 ? { role: "conv", nav: "obj" } : { bad: "a conversation isn't an object" };
+      if (pr === "conv") {
+        if (key !== "msgs") return { role: "field", cap: true };
+        return c === 91 ? { role: "msgs", nav: "arr" } : { bad: "a conversation's messages aren't a list" };
+      }
+      if (pr === "msgs") return c === 123 ? { role: "msg", cap: true } : { bad: "a message isn't an object" };
+      return { role: null };
+    },
+    onOpen(role) {
+      if (role === "convs") sawList = true;
+      else if (role === "conv") conv = { msgs: [] };
+    },
+    onClose(role) {
+      if (role !== "conv") return;
+      const c = conv;
+      conv = null;
+      count++;
+      onConv(c);
+    },
+    onValue(role, key, val) {
+      if (role === "msg") conv.msgs.push(val);
+      else if (role === "field") conv[key] = val;
+      else if (role === "meta") meta[key] = val;
+    },
+  });
+  return {
+    push: sc.push,
+    end() {
+      sc.end();
+      if (!sawList && meta.conversationId == null) throw new ExportScanError("The file has no conversations list", 0);
+      return { meta, conversations: count };
+    },
+  };
+}
+
+// The plain sentence for a previous data.js that couldn't be read, by cause —
+// or null when the error isn't one of these (the caller reports it as
+// unexpected). Only real damage is called damaged, and deleting is never
+// suggested without a backup copy first: this file IS the history (messages
+// that may no longer be in any export).
+function prevArchiveProblem(e) {
+  const where = "Your existing archive (personal_data/data.js)";
+  const code = e && e.code;
+  if (e instanceof ExportScanError) {
+    return where + " couldn't be read — it looks damaged (" + String(e.message).replace(/\.$/, "") + "), perhaps by a crash or a full disk. " +
+      "The build stopped so the history in it isn't silently replaced. First make a backup copy of data.js. Then restore an older copy of it, " +
+      "or delete it (or use Start over) to rebuild from this export only.";
+  }
+  if (code === "EBUSY" || code === "EPERM" || code === "EACCES") {
+    return where + " couldn't be opened: another program is holding it, or access was denied (antivirus, OneDrive, an editor?). " +
+      "Close that program, or move the archive out of a protected folder, and try again. Nothing was changed.";
+  }
+  if (code === "EISDIR") return where + " is a folder, not a file. Move it aside and try again. Nothing was changed.";
+  if (code === "ERR_STRING_TOO_LONG") return where + " has a single entry too large to read. Nothing was changed; please report this.";
+  if (e instanceof RangeError && /memory|allocation/i.test(e.message || "")) {
+    return where + " is too large for the memory available to the build. Close other programs and try again. Nothing was changed.";
+  }
+  return null;
 }
 
 /* ---- archive writer (SP-10) ----------------------------------------------- */
@@ -670,5 +794,5 @@ function* archiveChunks(meta, conversations, batch) {
 
 module.exports = {
   assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, exportPartFiles, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
-  identifyExport, createExportScanner, ExportScanError, archiveChunks,
+  identifyExport, createExportScanner, createArchiveScanner, prevArchiveProblem, ExportScanError, archiveChunks,
 };

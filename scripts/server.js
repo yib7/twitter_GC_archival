@@ -22,7 +22,7 @@ const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
-const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
+const { writeFileAtomic, readExportHead, scanArchiveFile, TMP_RE } = require("./fs-io.js");
 const { diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
@@ -254,9 +254,12 @@ function readBuiltData() {
     : [path.join(PERSONAL, "data.js"), path.join(ROOT, "data.js")];
   for (const f of candidates) {
     if (!fs.existsSync(f)) continue;
+    // Streamed (fix round 1), so an archive over V8's ~512 MB string limit
+    // still reads; a BOM or an old single-conversation archive is accepted.
     try {
-      const s = fs.readFileSync(f, "utf8").replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, "");
-      return JSON.parse(s);
+      const conversations = [];
+      const { meta } = scanArchiveFile(f, { onConversation: (c) => conversations.push(c) });
+      return Object.assign(meta, { conversations });
     } catch (e) { /* try next */ }
   }
   return null;

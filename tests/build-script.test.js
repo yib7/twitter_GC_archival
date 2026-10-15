@@ -23,9 +23,9 @@ function setup(exportOpts) {
   const files = X.writeExport(scratch("gca-build-export-"), exportOpts);
   return { personal, files };
 }
-function runBuild(personal, cfg) {
+function runBuild(personal, cfg, extraEnv) {
   fs.writeFileSync(path.join(personal, "config.json"), JSON.stringify(cfg));
-  const r = spawnSync(process.execPath, [BUILD], { env: Object.assign({}, process.env, { GCA_PERSONAL: personal }), encoding: "utf8" });
+  const r = spawnSync(process.execPath, [BUILD], { env: Object.assign({}, process.env, { GCA_PERSONAL: personal }, extraEnv || {}), encoding: "utf8" });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 function readData(personal) {
@@ -92,8 +92,50 @@ test("SP-9: an unreadable previous data.js stops the build instead of silently d
   const r = runBuild(personal, cfg);
   assert.notEqual(r.status, 0, "must not rebuild over a damaged baseline; stdout:\n" + r.stdout);
   assert.match(r.stderr, /^BUILD ERROR: .*data\.js.*couldn't be read/m);
+  // fix round 1: never advise deleting the history without a backup first
+  assert.match(r.stderr, /backup copy.*delete/i);
   noStack(r);
   assert.equal(fs.readFileSync(out, "utf8"), truncated, "the damaged file is left for the user to restore, not overwritten");
+});
+
+test("fix round 1: a data.js that parses but isn't an archive is reported as damaged, not merged", () => {
+  const { personal, files } = setup();
+  const cfg = { sourceJs: [files.group], headersJs: files.headers };
+  const out = path.join(personal, "data.js");
+  fs.writeFileSync(out, "window.CHAT_DATA = {\"conversations\":[1,2]};\n");
+  const r = runBuild(personal, cfg);
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /^BUILD ERROR: .*data\.js.*damaged.*backup copy/m);
+  noStack(r);
+});
+
+test("fix round 1: the previous data.js is merged by streaming it (BOM and all), history kept", () => {
+  const { personal, files } = setup();
+  const cfg = { sourceJs: [files.group], headersJs: files.headers };
+  assert.equal(runBuild(personal, cfg).status, 0);
+  const out = path.join(personal, "data.js");
+  const data = readData(personal);
+  // a message only the old archive knows about (no longer in any export)
+  data.conversations[0].msgs.unshift({ i: "1", s: data.conversations[0].msgs[0].s, t: 1, x: "only in the old archive" });
+  fs.writeFileSync(out, "\uFEFFwindow.CHAT_DATA = " + JSON.stringify(data) + ";\n");
+  const r = runBuild(personal, cfg);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Baseline from data\.js: \d+ messages/);
+  const again = readData(personal).conversations.find((c) => c.id === data.conversations[0].id);
+  assert.ok(again.msgs.some((m) => m.x === "only in the old archive"));
+});
+
+test("fix round 1: a whole build + merge read in 7-byte chunks gives the same data.js as normal reads", () => {
+  const a = setup(), b = setup();
+  const cfgA = { sourceJs: [a.files.group], headersJs: a.files.headers };
+  const cfgB = { sourceJs: [b.files.group], headersJs: b.files.headers };
+  for (let i = 0; i < 2; i++) {   // the second run merges into the first run's data.js
+    assert.equal(runBuild(a.personal, cfgA).status, 0);
+    const r = runBuild(b.personal, cfgB, { GCA_SCAN_CHUNK: "7" });
+    assert.equal(r.status, 0, r.stderr);
+  }
+  const strip = (d) => Object.assign(d, { generatedAt: null });
+  assert.deepEqual(strip(readData(b.personal)), strip(readData(a.personal)));
 });
 
 test("SP-9: the build writes data.js through a temp file and leaves none behind", () => {

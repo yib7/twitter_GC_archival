@@ -11,20 +11,16 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { StringDecoder } = require("string_decoder");
-const { createExportScanner } = require("./build-core.js");
+const { createExportScanner, createArchiveScanner } = require("./build-core.js");
 
 const DEFAULT_CHUNK = 1 << 20;   // 1 MiB
 
-/**
- * Stream an export file through the scanner in `chunkSize`-byte reads, so the
- * file is never one giant string (SP-10). A StringDecoder keeps multi-byte
- * UTF-8 characters that straddle a chunk boundary intact.
- * @returns {{global: string|null, part: number|null}}
- */
-function scanExportFile(file, handlers, opts) {
+// Feed a file to a streaming scanner in `chunkSize`-byte reads, so the file is
+// never one giant string (SP-10). A StringDecoder keeps multi-byte UTF-8
+// characters that straddle a chunk boundary intact.
+function feedFile(file, scanner, opts) {
   opts = opts || {};
   const size = Math.max(1, opts.chunkSize || DEFAULT_CHUNK);
-  const scanner = createExportScanner(handlers);
   const dec = new StringDecoder("utf8");
   const buf = Buffer.allocUnsafe(size);
   const fd = fs.openSync(file, "r");
@@ -42,6 +38,32 @@ function scanExportFile(file, handlers, opts) {
     fs.closeSync(fd);
   }
   return scanner.end();
+}
+/**
+ * Stream an export file through the export scanner.
+ * @returns {{global: string|null, part: number|null}}
+ */
+function scanExportFile(file, handlers, opts) {
+  return feedFile(file, createExportScanner(handlers), opts);
+}
+/**
+ * Stream a previously built data.js, one conversation at a time (fix round 1:
+ * the accumulated history can outgrow V8's ~512 MB string limit).
+ * @returns {{meta: object, conversations: number}}
+ */
+function scanArchiveFile(file, handlers, opts) {
+  return feedFile(file, createArchiveScanner(handlers), opts);
+}
+// The metadata at the head of a data.js (generatedAt, ignoredUsers,
+// ignoredGroups — archiveChunks writes it before "conversations"), without
+// reading the rest. null when the file is missing or doesn't start that way.
+const ARCHIVE_META_RE = /^\uFEFF?\s*window\.CHAT_DATA\s*=\s*(\{[\s\S]*?),?"conversations"\s*:/;
+function readArchiveMeta(file) {
+  let head;
+  try { head = readExportHead(file, 64 * 1024); } catch (e) { return null; }
+  const m = ARCHIVE_META_RE.exec(head);
+  if (!m) return null;
+  try { return JSON.parse(m[1] === "{" ? "{}" : m[1] + "}"); } catch (e) { return null; }
 }
 
 // The first `max` bytes of a file as text — enough to read its window.YTD
@@ -156,4 +178,4 @@ function writeChunksAtomic(dest, chunks, opts) {
   }
 }
 
-module.exports = { scanExportFile, readExportHead, writeFileAtomic, writeChunksAtomic, replaceFile, TMP_RE };
+module.exports = { scanExportFile, scanArchiveFile, readArchiveMeta, readExportHead, writeFileAtomic, writeChunksAtomic, replaceFile, TMP_RE };
