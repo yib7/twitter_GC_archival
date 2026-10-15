@@ -376,11 +376,11 @@ describe("QA-13: destructive & security-sensitive route coverage", () => {
     assert.equal(body.ok, true);
 
     // The filesystem side effect: unguarded code writes exactly this file
-    // (pfpFileName("pwned", "gc-__proto__", "png", taken) === "pwned_pfp.png").
+    // (group photos are named group_<name>_pfp since SP-19, so "group_pwned_pfp.png"; the old name is checked too).
     // This IS visible cross-process — qTmp is a real directory on disk shared
     // by this test process and qProc, unlike Object.prototype (in-memory,
     // per-process, never shared between them).
-    assert.ok(!fs.existsSync(path.join(pfpsDir, "pwned_pfp.png")), "the __proto__ guard must stop pfps/pwned_pfp.png from ever being written");
+    for (const f of ["group_pwned_pfp.png", "pwned_pfp.png"]) assert.ok(!fs.existsSync(path.join(pfpsDir, f)), "the __proto__ guard must stop pfps/" + f + " from ever being written");
     assert.deepEqual(fs.existsSync(pfpsDir) ? fs.readdirSync(pfpsDir) : [], pfpsBefore, "pfps/ must be unchanged");
 
     const cfgText = fs.readFileSync(path.join(qTmp, "config.json"), "utf8");
