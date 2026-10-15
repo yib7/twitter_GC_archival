@@ -6864,6 +6864,12 @@ function renderThreads() {
 let battleP1 = null, battleP2 = null;
 function renderBattles() {
   const v = document.getElementById("view-battles");
+  // fewer than two people who posted (others quiet or ignored): nothing to compare
+  if (PARTS.filter((p) => p.count > 0).length < 2) {
+    v.innerHTML = '<div class="page"><div class="page-head"><div class="page-title">Word Battles</div></div><div class="page-body"></div></div>';
+    v.querySelector(".page-body").appendChild(emptyState("battles", "A word battle needs two people who posted."));
+    return;
+  }
 
   if (!battleP1 && PARTS.length >= 2) { battleP1 = PARTS[0].id; battleP2 = PARTS[1].id; }
 
