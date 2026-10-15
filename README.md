@@ -15,28 +15,54 @@ internet. Have several group chats? A picker switches between them.
 
 ## Screenshots
 
+All from the synthetic demo data (the wizard preview uses a synthetic test export).
+
 <table>
 <tr>
 <td width="50%">
 
-![Group Chat Archive search view on the default dark Lights-out theme: a fuzzy search for the misspelled "hilarous" highlights the matching text in several "that's hilarious" messages from the synthetic Demo Squad chat](docs/screenshot.png)
+![Search view on the default dark Lights-out theme: a fuzzy search for the misspelled "hilarous" finds no exact match and lists five close matches, highlighting "hilarious" in each "that's hilarious" message from the synthetic Demo Squad chat](docs/screenshot.png)
 
 </td>
 <td width="50%">
 
-![Timeline view showing the synthetic Demo Squad chat with a sticky date pill, a "created the conversation" / "named the group" system event pair, inline reaction chips under several messages, and the day's message thread](docs/screenshot-timeline.png)
+![Search across All chats for "weekend has:reacts after:2024-03": the operators show as removable "Has reactions" and "Since March 2024" chips under the box, and the five exact matches are grouped by chat, Demo Squad first, each group with a "Search only" link](docs/screenshot-search.png)
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-![Stats view for the synthetic Demo Squad chat: an overview card with message/people/active-day counts, a milestones row (longest streak, busiest day, total words, reactions given), and the start of the superlatives grid](docs/screenshot-stats.png)
+![Timeline view opened at the start of the synthetic Demo Squad chat: a date pill, the "created the conversation" and "named the group" system events, and messages with reaction chips under them](docs/screenshot-timeline.png)
 
 </td>
 <td width="50%">
 
-![Wrapped year-in-review slideshow opening slide for the synthetic Demo Squad chat, showing a segmented progress bar and a large animated "2024 Wrapped" title over a themed gradient backdrop](docs/screenshot-wrapped.png)
+![The Jump to date calendar over the Timeline: a date box that accepts natural dates, 2024 and 2025 year buttons, month bars sized by message volume with March 2024 selected, and a month of days where days with messages are highlighted](docs/screenshot-calendar.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+![Wrapped year-in-review story for 2024 in the synthetic Demo Squad chat: a segmented progress bar, a large "2024 Wrapped" title over an accent-coloured backdrop, and Back, Share and Next buttons](docs/screenshot-wrapped.png)
+
+</td>
+<td width="50%">
+
+![The Share image dialog for a Wrapped ranking slide with "Hide names & photos" ticked: the preview card reads "61 messages from Person A" and ranks Person A, B and C with plain grey discs instead of avatars, above Copy image and Download PNG buttons](docs/screenshot-share.png)
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+![Stats view for the synthetic Demo Squad chat: an overview card with 360 messages over a year and a half and a monthly sparkline, a milestones grid (longest streak, busiest day, total words, reactions given, chat age, peak hour) and the start of the superlatives grid](docs/screenshot-stats.png)
+
+</td>
+<td width="50%">
+
+![The setup wizard's preview before merging a newer export into an existing archive, from a synthetic test export: counts of group chats, messages, people, dates and media, what the archive already holds, new messages and group chats to add, and plain warnings, with "Change files" and "Merge into archive" buttons](docs/screenshot-import.png)
 
 </td>
 </tr>
@@ -261,10 +287,11 @@ hand-edit `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` /
 
 ## Demo
 
-A quick tour through search, the timeline, the media gallery, Hall of Fame, the
-Wrapped recap, and the stats dashboard (synthetic demo data):
+A quick tour through search (a fuzzy match, then operators across All chats), the
+timeline and its date calendar, the media gallery, Hall of Fame, the Wrapped
+recap, and the stats dashboard (synthetic demo data):
 
-![Animated walkthrough of the Group Chat Archive: typing a fuzzy search, scrolling the virtual timeline, opening the media gallery, Hall of Fame, the Wrapped year-in-review slideshow, and the stats dashboard](docs/demo.gif)
+![Animated walkthrough of the Group Chat Archive on synthetic data: typing the fuzzy search "hilarous", searching All chats with an operator, the Timeline and its Jump to date calendar, the media gallery, Hall of Fame, a few Wrapped 2024 slides, and the Stats dashboard](docs/demo.gif)
 
 ---
 
