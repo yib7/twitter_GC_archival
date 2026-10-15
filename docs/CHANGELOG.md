@@ -108,8 +108,10 @@ All notable changes to this project are recorded here.
 
 ### Added (navigation)
 
-- The address bar now tracks where you are (`#v=view&c=conversation`, plus the
-  message a Timeline jump landed on and the search query). Back and Forward
+- The address bar now tracks where you are, as ids only (`#v=view&c=conversation`,
+  plus the message a Timeline jump landed on). Your search text is never put in
+  the address or its history entry's URL: Back, Forward and reload restore it
+  from the browser's per-tab history state instead. Back and Forward
   walk your view switches, conversation switches and jumps; after jumping from
   a search result, Back returns to the result list at the same scroll
   position. Links work from `file://` too. A link into a hidden or missing

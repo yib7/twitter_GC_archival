@@ -3,11 +3,13 @@ const { pathToFileURL } = require("url");
 const { test, expect } = require("@playwright/test");
 const { bootViewer, msgs, conv, collectErrors, afterSearchRun } = require("./_viewer-fixture.js");
 
-// SP8: navigation lives in the URL hash — #v=<view>&c=<convId>&m=<msgId>&q=<query>
-// — written with pushState (a new history entry per navigation) / replaceState
-// (search typing), and read back on load and on Back / Forward. Ids only in
-// the link a user copies; garbage is ignored safely; a link into a hidden or
-// missing conversation / message says so and falls back.
+// SP8: navigation lives in the URL hash — #v=<view>&c=<convId>&m=<msgId>, ids
+// only — written with pushState (a new history entry per navigation) /
+// replaceState (search typing), and read back on load and on Back / Forward.
+// The search query is private-chat text, so it never goes in the URL (browser
+// history can sync to the cloud): it rides in history.state instead, which
+// Back / Forward and a reload restore. Garbage is ignored safely; a link into
+// a hidden or missing conversation / message says so and falls back.
 const A = msgs("a", 400, { s: ["u1", "u2", "u3"], step: 3600000, t0: Date.parse("2023-01-01T00:30:00Z"), x: (k) => "alpha note " + k + (k % 2 ? " odd" : " even") });
 const B = msgs("b", 200, { s: ["u1", "u2"], step: 3600000, t0: Date.parse("2023-06-01T00:30:00Z"), x: (k) => "bravo line " + k });
 const DATA = { conversations: [conv("A", "Alpha", A), conv("B", "Bravo", B), conv("H", "Hidden", msgs("h", 5))] };
@@ -15,6 +17,14 @@ const SETTINGS = JSON.stringify({ timezone: "UTC", tzExplicit: true, ignoredGrou
 
 const hashOf = (page) => page.evaluate(() => location.hash);
 const params = async (page) => Object.fromEntries(new URLSearchParams((await hashOf(page)).slice(1)));
+const stateQ = (page) => page.evaluate(() => history.state && history.state.q);
+// nothing typed in Search ever reaches the address bar
+async function noTextInUrl(page, text) {
+  const url = await page.evaluate(() => location.href);
+  expect(url).not.toContain(encodeURIComponent(text));
+  expect(decodeURIComponent(url)).not.toContain(text);
+  expect((await params(page)).q).toBeUndefined();
+}
 const flashed = (page, idx) => expect(page.locator('#tl-list .msg[data-idx="' + idx + '"]')).toHaveClass(/flash/);
 const viewShown = (page, v) => expect(page.locator("#view-" + v)).toBeVisible();
 
@@ -61,7 +71,10 @@ test("Back after a Jump returns to the result list at its scroll position; Forwa
   await boot(page, "");
   await afterSearchRun(page, () => page.locator("#s-input").fill("odd"));
   const lenTyped = await page.evaluate(() => history.length);
-  expect((await params(page)).q).toBe("odd");     // typing replaces the entry, it doesn't add one
+  // typing replaces the entry, it doesn't add one — and the query is in
+  // history.state, not the URL
+  expect(await stateQ(page)).toBe("odd");
+  await noTextInUrl(page, "odd");
   const scroll = page.locator("#s-scroll");
   await scroll.evaluate((s) => { s.scrollTop = 2400; });
   await expect.poll(() => scroll.evaluate((s) => s.scrollTop)).toBeGreaterThan(2000);
@@ -75,9 +88,12 @@ test("Back after a Jump returns to the result list at its scroll position; Forwa
   expect(await page.evaluate(() => history.length)).toBe(lenTyped + 1);
   expect((await params(page)).m).toBe("a" + k);
 
+  await noTextInUrl(page, "odd");
+
   await page.goBack();
   await viewShown(page, "search");
   await expect(page.locator("#s-input")).toHaveValue("odd");
+  await noTextInUrl(page, "odd");
   expect(await scroll.evaluate((s) => s.scrollTop)).toBe(before);
   expect(before).toBeGreaterThan(1000);
   await expect(page.locator('#s-list .msg[data-idx="' + idx + '"]')).toBeInViewport();
@@ -87,12 +103,44 @@ test("Back after a Jump returns to the result list at its scroll position; Forwa
   await flashed(page, idx);
 });
 
-test("#v=search&q= restores the query on load", async ({ page }) => {
-  await boot(page, "#v=search&q=" + encodeURIComponent('"alpha note 7" even'));
-  await expect(page.locator("#s-input")).toHaveValue('"alpha note 7" even');
+test("the query is restored from history.state on Back and on reload, never from or into the URL", async ({ page }) => {
+  const Q = '"alpha note 7" even';
+  await boot(page, "");
+  await afterSearchRun(page, () => page.locator("#s-input").fill(Q));
+  expect(await stateQ(page)).toBe(Q);
+  await noTextInUrl(page, "alpha note 7");
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await viewShown(page, "stats");
+  await page.goBack();
+  await viewShown(page, "search");
+  await expect(page.locator("#s-input")).toHaveValue(Q);
+  await page.reload();
+  await viewShown(page, "search");
+  await expect(page.locator("#s-input")).toHaveValue(Q);
   await expect(page.locator("#s-meta")).toContainText("found");
-  expect(await page.locator("#s-list .msg").count()).toBeGreaterThan(0);
   for (const t of await page.locator("#s-list .msg .bubble").allTextContents()) expect(t).toContain("alpha note 7");
+  await noTextInUrl(page, "alpha note 7");
+  // two entries with the same hash but different queries: Back still restores
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await page.locator('.nav-item[data-view="search"]').click();
+  await afterSearchRun(page, () => page.locator("#s-input").fill("bravo"));
+  const h = await hashOf(page);
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await page.goBack();
+  await expect(page.locator("#s-input")).toHaveValue("bravo");
+  await page.goBack();
+  await viewShown(page, "stats");
+  await page.goBack();
+  await viewShown(page, "search");
+  expect(await hashOf(page)).toBe(h);
+  await expect(page.locator("#s-input")).toHaveValue(Q);
+});
+
+test("a legacy #q= in a pasted address is ignored and stripped", async ({ page }) => {
+  await boot(page, "#v=search&q=" + encodeURIComponent("alpha note 7"));
+  await viewShown(page, "search");
+  await expect(page.locator("#s-input")).toHaveValue("");
+  await noTextInUrl(page, "alpha note 7");
 });
 
 test("a link to a hidden conversation, a missing one, or a missing message says so and falls back", async ({ page }) => {
@@ -173,6 +221,17 @@ test("file:// — the hash still drives navigation and Back works", async ({ pag
   await page.locator('.nav-item[data-view="stats"]').click();
   expect((await params(page)).v).toBe("stats");
   await page.goBack();
+  await viewShown(page, "timeline");
+  // search text stays out of the file:// URL too, and Back restores it
+  await page.locator('.nav-item[data-view="search"]').click();
+  await page.locator("#s-input").fill("hello");
+  await expect.poll(() => page.evaluate(() => history.state && history.state.q)).toBe("hello");
+  expect(decodeURIComponent(await page.evaluate(() => location.href))).not.toContain("hello");
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await page.goBack();
+  await viewShown(page, "search");
+  await expect(page.locator("#s-input")).toHaveValue("hello");
+  await page.locator('.nav-item[data-view="timeline"]').click();
   await viewShown(page, "timeline");
   const first = await page.evaluate(() => window.CHAT_DATA.conversations[0].msgs[3].i);
   await page.evaluate((h) => { location.hash = h; }, "#m=" + encodeURIComponent(first));

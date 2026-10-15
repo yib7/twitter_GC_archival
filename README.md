@@ -73,9 +73,11 @@ internet. Have several group chats? A picker switches between them.
   keyboard-browsable month of days) or the Cmd/Ctrl-K palette, which both
   accept natural dates ("June 2021", "Jan 7 2024") and say plainly when a date
   doesn't exist or falls outside the archive.
-- Deep links: the address bar tracks the view, conversation, jumped-to
-  message and search query, so Back / Forward work across views and jumps
-  (also from `file://`), and "Link" on a message copies an ids-only link to it.
+- Deep links: the address bar tracks the view, conversation and jumped-to
+  message by id only, so Back / Forward work across views and jumps (also
+  from `file://`), and "Link" on a message copies an ids-only link to it. Your
+  search text never goes in the URL; Back / Forward and reload restore it from
+  the tab's history state.
 - Gallery of every photo and video, with a lightbox.
 - Reactions render inline under each message, including custom emoji
   reactions shown as the actual glyph rather than a generic placeholder.

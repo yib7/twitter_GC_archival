@@ -3979,9 +3979,13 @@ let curView = null;
 const VIEWS = ["search", "timeline", "stats", "people", "settings", "capsule", "gallery", "pins", "hof", "wrapped", "threads", "battles", "chains"];
 
 /* ---- URL hash state (SP8) ----------------------------------------------------
-   The address bar carries where you are: #v=<view>&c=<conversation id>
-   [&m=<message id> — the message a Timeline jump landed on][&q=<search query>].
-   Hash-only, so it works from file:// as well as the server. A navigation
+   The address bar carries where you are, as ids only: #v=<view>&c=<conversation
+   id>[&m=<message id> — the message a Timeline jump landed on]. The search
+   query is private-chat text and browser history can sync to the cloud, so it
+   NEVER goes in the URL: it rides in history.state ({ q }), which Back /
+   Forward and a reload restore (file:// included); a legacy #q= is ignored and
+   dropped by the canonical rewrite. Hash-only, so it works from file:// as
+   well as the server. A navigation
    (view switch, conversation switch, jump to a message) is a history entry
    (pushState); typing in Search only rewrites the current one (replaceState).
    Back / Forward (popstate) and an edited or pasted hash (hashchange) are read
@@ -3995,16 +3999,20 @@ const VIEWS = ["search", "timeline", "stats", "people", "settings", "capsule", "
 let navMsg = null;          // id of the message the Timeline was jumped to (#m=)
 let navReady = false;       // init() done: before that nothing is written
 let hashApplying = false;   // applying a hash: don't write one back mid-way
-let navPending = 0, navQueued = false, lastHash = null;
+let navPending = 0, navQueued = false, lastNav = null;
 function navHash() {
   const p = [];
   if (curView) p.push("v=" + encodeURIComponent(curView));
   if (CONV) p.push("c=" + encodeURIComponent(CONV.id));
   if (curView === "timeline" && navMsg != null) p.push("m=" + encodeURIComponent(navMsg));
-  const q = curView === "search" && sEls.input ? sEls.input.value : "";
-  if (q.trim()) p.push("q=" + encodeURIComponent(q));
   return "#" + p.join("&");
 }
+// The search query this history entry carries (history.state.q), "" outside Search.
+function navQ() { return curView === "search" && sEls.input ? sEls.input.value : ""; }
+// A history entry's query: a capped string, or null (no state / not ours).
+function stateQ(st) { return st && typeof st.q === "string" && st.q.length <= 1000 ? st.q : null; }
+// Identity of a history entry: two entries can share a hash and differ by query.
+const navKey = (h, q) => h + "\n" + (q || "");
 function navCommit(mode) {
   if (!navReady || hashApplying) return;
   navPending = Math.max(navPending, mode === "push" ? 2 : 1);
@@ -4018,18 +4026,26 @@ function navCommit(mode) {
   });
 }
 function writeHash(h, push) {
-  if (h === location.hash) { lastHash = location.hash; return; }
+  const q = navQ();
+  if (h === location.hash) {
+    // same place: only the query may have changed — rewrite this entry's
+    // state, never push a duplicate
+    if ((stateQ(history.state) || "") !== q) { try { history.replaceState({ q }, ""); } catch (e) { /* state unavailable */ } }
+    lastNav = navKey(location.hash, q);
+    return;
+  }
   const url = location.href.split("#")[0] + h;
-  try { history[push ? "pushState" : "replaceState"](null, "", url); }
+  try { history[push ? "pushState" : "replaceState"]({ q }, "", url); }
   catch (e) {
     // a browser that refuses history entries for this URL: fall back to the
-    // plain hash (still a history entry when pushing)
+    // plain hash (still a history entry when pushing; the query isn't kept)
     try { if (push) location.hash = h; else location.replace(url); } catch (e2) { /* give up quietly */ }
   }
-  lastHash = location.hash;
+  lastNav = navKey(location.hash, stateQ(history.state));
 }
-// "#v=…&c=…" -> { v, c, m, q } (first of each; undecodable / unknown keys
-// dropped; values length-capped). Plain strings — never markup.
+// "#v=…&c=…" -> { v, c, m } (first of each; undecodable / unknown keys —
+// including a legacy q — dropped; values length-capped). Plain strings —
+// never markup.
 function parseHash(h) {
   const out = {};
   const s = String(h || "").replace(/^#/, "");
@@ -4038,10 +4054,10 @@ function parseHash(h) {
     const k = part.indexOf("=");
     if (k <= 0) continue;
     const key = part.slice(0, k);
-    if ((key !== "v" && key !== "c" && key !== "m" && key !== "q") || Object.prototype.hasOwnProperty.call(out, key)) continue;
+    if ((key !== "v" && key !== "c" && key !== "m") || Object.prototype.hasOwnProperty.call(out, key)) continue;
     let val;
     try { val = decodeURIComponent(part.slice(k + 1).replace(/\+/g, " ")); } catch (e) { continue; }
-    if (val.length > (key === "q" ? 1000 : 200)) continue;
+    if (val.length > 200) continue;
     out[key] = val;
   }
   return out;
@@ -4053,11 +4069,11 @@ function idxForMsgId(id) {
   if (i == null && /^\d{1,17}$/.test(id)) i = ID2IDX.get(Number(id));
   return i == null ? -1 : i;
 }
-// Apply a hash. Returns true if it set a view (boot falls back to the last
-// view otherwise).
-function applyHash(h) {
+// Apply a hash (+ the entry's history.state for the search query). Returns
+// true if it set a view (boot falls back to the last view otherwise).
+function applyHash(h, state) {
   const st = parseHash(h);
-  if (st.v == null && st.c == null && st.m == null && st.q == null) return false;
+  if (st.v == null && st.c == null && st.m == null) return false;
   hashApplying = true;
   let viewSet = false;
   try {
@@ -4084,9 +4100,11 @@ function applyHash(h) {
     } else if (view) {
       if (view !== curView || view === "search") setView(view);
       viewSet = true;
-      if (view === "search" && sEls.input) {
-        const q = st.q || "";
-        if (sEls.input.value !== q) { sEls.input.value = q; sEls.clear.hidden = !q; runSearch(); }
+      // the entry's own query (no state — a typed / pasted address — leaves
+      // the box alone)
+      const q = stateQ(state);
+      if (view === "search" && sEls.input && q != null && sEls.input.value !== q) {
+        sEls.input.value = q; sEls.clear.hidden = !q; runSearch();
       }
     }
   } finally { hashApplying = false; }
@@ -4094,11 +4112,12 @@ function applyHash(h) {
 }
 // Back / Forward / an edited hash: close whatever overlay is open, then follow.
 function onHashNav() {
-  if (location.hash === lastHash) return;
-  lastHash = location.hash;
+  const key = navKey(location.hash, stateQ(history.state));
+  if (key === lastNav) return;
+  lastNav = key;
   for (let k = 0; k < 10 && closeTopModal(); k++) { /* pop every layer */ }
   closeMsgActs(); closePopovers();
-  applyHash(location.hash);
+  applyHash(location.hash, history.state);
   writeHash(navHash(), false);   // canonical form of whatever was applied
 }
 // A shareable link to one message: ids only.
@@ -4282,7 +4301,7 @@ function init() {
   try { lastView = localStorage.getItem("gca.lastView"); } catch (e) { /* storage blocked */ }
   // SP8: a #v=/c=/m=/q= hash (a shared link, a reload, Back into the app)
   // wins over the last view.
-  if (!applyHash(location.hash)) setView((lastView && VIEWS.includes(lastView)) ? lastView : "search");
+  if (!applyHash(location.hash, history.state)) setView((lastView && VIEWS.includes(lastView)) ? lastView : "search");
   navReady = true;
   writeHash(navHash(), false);
   window.addEventListener("popstate", onHashNav);
