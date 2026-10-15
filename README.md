@@ -117,6 +117,11 @@ internet. Have several group chats? A picker switches between them.
 - Share cards: save any message, Hall of Fame entry or Wrapped slide as a
   PNG in your theme, fully offline, with an optional "Hide names & photos"
   that swaps every name, @handle and photo for Person A/B/C.
+- A setup wizard that takes the unzipped archive folder, shows a read-only
+  preview of what it found (chats, counts, dates, people, media, plain
+  warnings) before writing anything, and later merges a newer export into the
+  archive without losing names, photos or removals. Builds stream, so a
+  ~600 MB export imports.
 - Theming: three modes (Light, Dim, and Lights-out, a black-and-blue default),
   with a customizable accent, adjustable density, and a theme shuffle. All
   preferences are saved to `localStorage`.
@@ -168,7 +173,8 @@ cd twitter_GC_archival
 node scripts/server.js      # -> http://localhost:8765
 ```
 
-You'll get a 3-group synthetic demo. Regenerate the demo data anytime:
+You'll get a synthetic demo: three group chats, 660 messages over about 18
+months. Regenerate the demo data anytime (the output is identical on every run):
 
 ```bash
 node scripts/make_sample.js     # writes data.sample.js + sample_media/
@@ -269,10 +275,12 @@ Wrapped recap, and the stats dashboard (synthetic demo data):
 ```js
 window.CHAT_DATA = {
   generatedAt: "ISO",
+  ignoredUsers?: [ids], ignoredGroups?: [ids],     // what the build left out
   conversations: [
     {
       id, type: "group", title, participants: [ids], count,
-      msgs:  [ { i, s, t, x, u?, m?, k?, r? } ],   // id, sender, time(ms), text, urls, media, kind, reactions
+      msgs:  [ { i, s, t, x, u?, m?, k?, mx?, r? } ], // id, sender, time(ms), text, urls,
+                                                      // media, kind, more media, reactions
       events:[ { t, type, ... } ]                  // name/join/leave/create
     },
     ...
@@ -295,17 +303,26 @@ local override.
 ```
 index.html          app shell + script loading
 setup.html          first-run setup wizard (served)
+start-setup.cmd     double-click launchers for the wizard (Windows / macOS)
+start-setup.command
 src/app.js          all UI logic (vanilla JS, no framework)
+src/shared-core.js  helpers shared by the viewer, the wizard and the build
+src/theme-boot.js   applies the saved theme before first paint
+src/keepalive.js    lets the launcher's server exit once its pages close
 src/styles.css      theme tokens + app styles (Light / Dim / Lights out)
 src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
 scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
+scripts/build-core.js    pure archive-assembly logic used by build.js
 scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
 scripts/server.js   static server + setup-wizard API (range requests for video)
-lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored
+scripts/server-core.js   pure server helpers (path allowlist, Host/Origin guard)
+scripts/fs-io.js    streaming export readers + atomic writes
+lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored, with licenses
 data.sample.js      committed synthetic demo data
 sample_media/       committed placeholder media
-docs/               architecture notes
+tests/              node:test units (*.test.js) + Playwright specs (*.spec.js)
+docs/               architecture, security, changelog, credits, screenshots
 personal_data/      (git-ignored) wizard output: config.json, data.js(.bak), local.js,
                     source/, media/, pfps/, .removed/ (all your real, private data in one place)
 ```
@@ -345,9 +362,11 @@ messages, media, profile pictures, names, and packaged archives are listed in
 [`.gitignore`](.gitignore). The only data committed is the fully synthetic
 sample.
 
-When you run the local setup server (`scripts/server.js`), its pages
-carry a strict Content-Security-Policy (`script-src 'self'` plus a per-response
-nonce) and are sent with `X-Frame-Options: DENY` and a `frame-ancestors 'none'`
+Both pages carry a strict Content-Security-Policy in a `<meta>` tag
+(`script-src 'self'`, no inline scripts), which the browser enforces over
+`file://` as well. When you run the local setup server (`scripts/server.js`),
+it adds a fresh per-response nonce for the one config script it injects, and
+sends every page with `X-Frame-Options: DENY` and a `frame-ancestors 'none'`
 CSP header so no other site can frame them. It also validates every request's
 Host/Origin against a loopback allowlist, and the native file pickers need a
 per-run token only the setup page receives, rejecting cross-origin and DNS-rebinding

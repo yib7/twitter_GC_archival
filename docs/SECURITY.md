@@ -6,9 +6,10 @@ Group Chat Archive runs entirely on your own machine. The viewer is a static
 page that reads a local data file; the optional setup server binds to
 `127.0.0.1` only and is meant to be run for the few minutes setup takes, not left
 listening. Nothing is sent to any external service, and your real export stays in
-the git-ignored `personal_data/` folder. The setup server's pages
-carry a strict Content-Security-Policy (`<meta>`, with a per-response nonce) and
-are sent with `X-Frame-Options: DENY` and a `frame-ancestors 'none'` CSP header
+the git-ignored `personal_data/` folder. Both pages carry a strict
+Content-Security-Policy in a `<meta>` tag (`script-src 'self'`, enforced over
+`file://` too). When served, the setup server adds a per-response nonce for
+the one config script it injects, and the pages are sent with `X-Frame-Options: DENY` and a `frame-ancestors 'none'` CSP header
 (they can't be framed). It validates every request's Host/Origin against
 a loopback allowlist, requires a per-run token for the native file pickers, rejecting cross-origin and DNS-rebinding attempts (see
 [docs/ARCHITECTURE.md](ARCHITECTURE.md)).
