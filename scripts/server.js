@@ -160,9 +160,17 @@ function readBody(req, res) {
     req.on("error", reject);
   });
 }
+// {} only when there is no config.json yet. One that can't be read or parsed
+// stops the request, so no save ever writes an empty config over it.
 function loadConfig() {
-  if (!fs.existsSync(CONFIG)) return {};
-  try { return JSON.parse(fs.readFileSync(CONFIG, "utf8")); } catch (e) { return {}; }
+  let text;
+  try { text = fs.readFileSync(CONFIG, "utf8"); }
+  catch (e) {
+    if (e && e.code === "ENOENT") return {};
+    throw httpError(500, "Your setup file personal_data/config.json couldn't be read. Close any program using it and try again.");
+  }
+  try { return JSON.parse(text.replace(/^\uFEFF/, "")); }
+  catch (e) { throw httpError(500, "Your setup file personal_data/config.json is damaged. Use Start over in the setup wizard."); }
 }
 // every file the wizard writes goes through a temp file + rename, so a
 // crash or a full disk mid-write never leaves a truncated config/local.js.

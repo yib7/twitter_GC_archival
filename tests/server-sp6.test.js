@@ -600,3 +600,31 @@ describe("a malformed group id in /api/parts", () => {
     assert.doesNotMatch(S.stderr(), /URIError|^\s+at /m);
   });
 });
+
+// config.json is the only record of where the export copies are and who is
+// removed. A BOM (Notepad) is read like build.js reads it; a file that can't
+// be parsed is reported, never taken as empty and saved over.
+describe("config.json that isn't plain JSON", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+  const cfgFile = () => path.join(S.personal, "config.json");
+
+  test("a config.json saved with a BOM is still read", async () => {
+    fs.writeFileSync(cfgFile(), "\uFEFF" + JSON.stringify({ names: { "111": "Ann" }, ignoredUsers: ["333"] }));
+    const j = await (await S.get("/api/status")).json();
+    assert.deepEqual(j.names, { "111": "Ann" });
+    assert.deepEqual(j.ignoredUsers, ["333"]);
+  });
+
+  test("a damaged config.json makes a save fail plainly and is left exactly as it was", async () => {
+    const damaged = "{\"sourceJs\":[\"C:/x/direct-messages-group.js\"],\"names\":{\"111\":";
+    fs.writeFileSync(cfgFile(), damaged);
+    const r = await S.post("/api/identity", { names: { "222": "Bo" }, pfps: {}, gc: {}, ignoredUsers: [], ignoredGroups: [] });
+    const j = await r.json();
+    assert.ok(r.status >= 400, JSON.stringify(j));
+    assert.match(j.error, /config\.json/);
+    assert.equal(fs.readFileSync(cfgFile(), "utf8"), damaged);
+    assert.ok(!fs.existsSync(path.join(S.personal, "local.js")), "nothing else was written either");
+  });
+});
