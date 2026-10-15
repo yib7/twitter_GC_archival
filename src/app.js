@@ -2004,7 +2004,7 @@ function openFilterSheet() {
   f._close = closeFilterSheet;
   applyDialog(f, "Search filters", { initial: "#f-people" });
 }
-function closeFilterSheet() {
+function closeFilterSheet(opts) {
   const f = sEls.filters;
   if (!f || !f.classList.contains("open")) return false;
   closePopovers();
@@ -2012,12 +2012,21 @@ function closeFilterSheet() {
   document.getElementById("filter-scrim").classList.remove("on");
   ["role", "aria-modal", "aria-label"].forEach((a) => f.removeAttribute(a));
   sEls.ftoggle.setAttribute("aria-expanded", "false");
-  restoreFocus(f);
+  // after a widen the sheet IS the inline bar: focus inside it stays put
+  if (!(opts && opts.keepFocus && f.contains(document.activeElement))) restoreFocus(f);
   return true;
 }
 document.addEventListener("click", (e) => {
   if (sEls.filters && sEls.filters.classList.contains("open") && !e.target.closest("#s-filters, #f-toggle")) closeFilterSheet();
 });
+// M-5: the sheet only exists at the mobile breakpoint — widening the window
+// past it closes the sheet, so the inline desktop bar isn't left behind as an
+// aria-modal dialog with a focus trap.
+if (window.matchMedia) {
+  const mobileMq = window.matchMedia("(max-width: 760px)");
+  const onMq = (e) => { if (!e.matches) closeFilterSheet({ keepFocus: true }); };
+  if (mobileMq.addEventListener) mobileMq.addEventListener("change", onMq); else if (mobileMq.addListener) mobileMq.addListener(onMq);
+}
 function clearAllFilters() {
   sEls.input.value = ""; sEls.clear.hidden = true;
   F.media = false; F.links = false; F.reacts = false;

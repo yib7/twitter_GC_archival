@@ -589,6 +589,30 @@ test.describe("UX-29: Word Battles keeps the words you add", () => {
   });
 });
 
+test.describe("M-5: widening the window closes the filter sheet", () => {
+  test("open at 390px, widen to 1280: no dialog left behind, filters inline, Tab not trapped", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await bootViewer(page, RICH_DATA);
+    const filters = page.locator("#s-filters");
+    await page.locator("#f-toggle").click();
+    await expect(filters).toHaveAttribute("aria-modal", "true");
+    await filters.locator("#f-media").focus();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect(filters).not.toHaveClass(/\bopen\b/);
+    await expect(filters).not.toHaveAttribute("role", "dialog");
+    await expect(filters).not.toHaveAttribute("aria-modal", "true");
+    await expect(page.locator("#f-toggle")).toHaveAttribute("aria-expanded", "false");
+    await expect(page.locator("#filter-scrim")).not.toHaveClass(/\bon\b/);
+    await expect(filters.locator("#f-media")).toBeVisible();
+    // focus that was in the sheet stays on the same (now inline) control
+    await expect(filters.locator("#f-media")).toBeFocused();
+    // Tab leaves the filter bar (no trap)
+    await filters.locator("#f-media").focus();
+    for (let k = 0; k < 25; k++) await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => !!document.activeElement.closest("#s-filters"))).toBe(false);
+  });
+});
+
 test.describe("M-4: Word Battles says when a word is refused or dropped", () => {
   test("a word over 40 characters is refused with a toast and kept in the box", async ({ page }) => {
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "battles" } });
