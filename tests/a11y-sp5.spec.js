@@ -208,7 +208,7 @@ const go = (page, v) => page.locator('.nav-item[data-view="' + v + '"]').click()
 // Every visible element that looks clickable (cursor: pointer) must be
 // keyboard-operable: a native control, or a Tab stop with an Enter/Space
 // handler (role=button cards, focusable message cards), or inside one. Avatars (profile shortcut, also reachable from People) and aria-hidden
-// duplicates (Wrapped progress segments mirror the dot buttons) are excluded.
+// parts are excluded.
 async function clickOnly(page, root) {
   return page.evaluate((sel) => {
     const r = document.querySelector(sel);
@@ -301,9 +301,11 @@ test.describe("UX-13: no click-only elements", () => {
     await preset.press("Enter");
     await expect(page.locator("#set-accents .preset").nth(1)).toHaveAttribute("aria-pressed", "true");
 
+    // SP10 (UX-23): the slide dots are gone (segmented progress, no
+    // controls); the story is a focus stop that takes the arrow keys
     await go(page, "wrapped");
-    const dot = page.getByRole("button", { name: "Slide 3 of", exact: false });
-    await dot.press("Enter");
+    await page.locator("#wr-next").press("Enter");
+    await page.locator("#wr-stage").press("ArrowRight");
     await expect(page.locator(".wr-ctx")).toContainText("3 / ");
   });
 
@@ -813,9 +815,9 @@ test.describe("Contrast of rendered text, every view × theme", () => {
       await page.keyboard.press("Escape");
       // every Wrapped slide, not just the first: each has its own backdrop wash
       await go(page, "wrapped");
-      const slides = await page.locator("#wr-dots button").count();
+      const slides = await page.locator("#wr-segs .wr-seg").count();   // SP10: the dots became segments
       for (let k = 0; k < slides; k++) {
-        await page.locator("#wr-dots button").nth(k).click();
+        if (k) await page.locator("#wr-next").click();
         await page.waitForTimeout(120);
         for (const f of await contrastFailures(page, "#view-wrapped")) bad.push("wrapped slide " + (k + 1) + ": " + f);
       }

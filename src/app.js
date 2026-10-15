@@ -4728,10 +4728,7 @@ function init() {
       if (closeMsgActs()) return;       // UX-1: an open ⋯ action toolbar
       closePopovers();
     }
-    if (curView === "wrapped" && !topModal() && document.activeElement.tagName !== "INPUT") {
-      if (e.key === "ArrowRight") { e.preventDefault(); wrappedGo(1); return; }
-      if (e.key === "ArrowLeft") { e.preventDefault(); wrappedGo(-1); return; }
-    }
+    if (curView === "wrapped" && !topModal() && wrappedKey(e)) return;
     // VC-21: "/" focuses the search box — on the Search view too (it used to
     // be a no-op there), never while typing or with an overlay open.
     if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable && !topModal()) {
@@ -5167,10 +5164,35 @@ const WR_ICON = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
   restart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 108-8M4 4v4h4"/></svg>',
+  pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>',
+  play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
 };
-// slide kind → mock backdrop wash (intro/outro share the violet hero wash;
-// star gets an amber wash of its own — the mock has no star slide).
+// slide kind → backdrop wash (intro/outro share the hero wash; every wash is
+// mixed from the accent, UX-23).
 const WR_BG = { intro: "wr-bg-hero", outro: "wr-bg-hero", stat: "wr-bg-vol", person: "wr-bg-people", words: "wr-bg-word", star: "wr-bg-star" };
+
+// UX-23 story state. Autoplay runs unless the OS asks for reduced motion; the
+// current segment's fill is a CSS animation (--wr-dur) whose end advances the
+// story, so pausing is animation-play-state and resuming continues the fill.
+// Pause reasons: the Pause button (wrUserPaused), a press-and-hold, keyboard
+// focus on the story, an open dialog (the share preview) — `wrHolds`.
+let wrUserPaused = false, wrEnded = false;
+const wrHolds = new Set();
+const wrAutoplayAllowed = () => !matchMedia("(prefers-reduced-motion: reduce)").matches;
+const wrPlaying = () => wrAutoplayAllowed() && !wrUserPaused && !wrEnded && !wrHolds.size;
+function wrHold(reason, on) {
+  if (on) wrHolds.add(reason); else wrHolds.delete(reason);
+  paintWrappedPlay();
+}
+// What a slide says, for the polite live region ("Slide 3 of 9: …").
+function wrappedSummary(s, w) {
+  if (s.kind === "intro") return w.year + " Wrapped";
+  if (s.kind === "outro") return s.label;
+  if (s.kind === "words") return s.label + ": " + s.big;
+  if (s.kind === "star") return "Most-reacted message of " + w.year + ", " + plural(s.rc, "reaction");
+  if (s.emoji && s.big === s.emoji) return s.label + ": " + s.emoji;
+  return s.big + " " + s.label;
+}
 
 function renderWrapped() {
   const v = document.getElementById("view-wrapped");
@@ -5181,34 +5203,109 @@ function renderWrapped() {
   const chips = years.map((y) => '<button class="pill wr-yr' + (y === wrappedYear ? " active" : "") + '" data-yr="' + y + '">' + y + "</button>").join("");
   v.innerHTML = `<div class="page"><div class="page-head">
       <div class="page-title">Wrapped</div>
-      <div class="page-sub">Your group chat, recapped year by year. Use the arrows (or ← →) to flip through.</div></div>
+      <div class="page-sub">Your group chat, recapped year by year. Tap the sides or swipe to flip through (or use ← →); press and hold to pause.</div></div>
     <div class="page-body">
       <div class="wr-years">${chips}</div>
-      <div class="wr-stage" id="wr-stage">
-        <div class="wr-progress"><div class="wr-segs" id="wr-segs" aria-hidden="true"></div><div class="wr-ctx" id="wr-ctx"></div></div>
+      <div class="wr-stage" id="wr-stage" tabindex="0" role="group" aria-roledescription="story" aria-label="${wrappedYear} Wrapped">
+        <div class="wr-progress"><div class="wr-segs" id="wr-segs" aria-hidden="true"></div><div class="wr-ctx" id="wr-ctx" aria-hidden="true"></div></div>
         <div class="wr-slide" id="wr-slide"></div>
       </div>
+      <div class="sr-only" id="wr-live" aria-live="polite" aria-atomic="true"></div>
       <div class="wr-controls">
-        <button class="nav-btn" id="wr-prev">${WR_ICON.back}Back</button>
-        <div class="wr-dots" id="wr-dots"></div>
-        <button class="nav-btn primary" id="wr-next">Next${WR_ICON.next}</button>
+        <button class="nav-btn" id="wr-prev" type="button">${WR_ICON.back}Back</button>
+        <div class="wr-mid">
+          <button class="nav-btn wr-icon-btn" id="wr-play" type="button"></button>
+        </div>
+        <button class="nav-btn primary" id="wr-next" type="button">Next${WR_ICON.next}</button>
       </div>
     </div></div>`;
 
-  v.querySelectorAll(".wr-yr").forEach((b) => { b.onclick = () => { wrappedYear = +b.dataset.yr; wrappedSlide = 0; renderWrapped(); }; });
-  v.querySelector("#wr-prev").onclick = () => wrappedGo(-1);
+  v.querySelectorAll(".wr-yr").forEach((b) => { b.onclick = () => { wrappedYear = +b.dataset.yr; wrappedSlide = 0; wrEnded = false; renderWrapped(); wrAnnounce(); }; });
+  v.querySelector("#wr-prev").onclick = () => wrappedGo(-1, true);
   // Next becomes "Restart" on the last slide → jump back to the intro.
   v.querySelector("#wr-next").onclick = () => {
     const n = wrappedSlides(computeWrapped(wrappedYear)).length;
-    if (wrappedSlide >= n - 1) { wrappedSlide = 0; drawWrappedSlide(); } else wrappedGo(1);
+    if (wrappedSlide >= n - 1) { wrappedSlide = 0; wrEnded = false; drawWrappedSlide(); wrAnnounce(); } else wrappedGo(1, true);
   };
+  v.querySelector("#wr-play").onclick = () => {
+    if (wrEnded) { wrEnded = false; wrUserPaused = false; wrappedSlide = 0; drawWrappedSlide(); wrAnnounce(); return; }
+    wrUserPaused = !wrUserPaused; paintWrappedPlay();
+  };
+  wireWrappedStage(v.querySelector("#wr-stage"));
   drawWrappedSlide();
 }
-function wrappedGo(dir) {
+// Tap zones (left / right third), swipe, press-and-hold to pause, and the end
+// of the current segment's fill (autoplay). A press that starts on something
+// interactive inside the slide (an avatar, the star message) is left to it.
+const WR_TAP_SKIP = CARD_CHILD_SEL + ", .msg, [role=button]";
+function wireWrappedStage(stage) {
+  let down = null;
+  const end = () => { if (down && down.timer) clearTimeout(down.timer); if (down && down.held) wrHold("hold", false); down = null; };
+  stage.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || (e.target.closest && e.target.closest(WR_TAP_SKIP))) return;
+    end();
+    down = { x: e.clientX, y: e.clientY, id: e.pointerId, held: false };
+    down.timer = setTimeout(() => { if (down) { down.held = true; wrHold("hold", true); } }, 280);
+    try { stage.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
+  });
+  stage.addEventListener("pointerup", (e) => {
+    if (!down || e.pointerId !== down.id) return;
+    const dx = e.clientX - down.x, dy = e.clientY - down.y, held = down.held;
+    end();
+    if (held) return;                                   // a hold only pauses
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) { wrappedGo(dx < 0 ? 1 : -1, true); return; }
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return; // a scroll / stray drag
+    const r = stage.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
+    if (f > 2 / 3) wrappedGo(1, true);
+    else if (f < 1 / 3) wrappedGo(-1, true);
+  });
+  stage.addEventListener("pointercancel", end);
+  // a long press on touch would open the callout menu instead of pausing
+  stage.addEventListener("contextmenu", (e) => { if (down) e.preventDefault(); });
+  // APG carousel: keyboard focus on the story pauses autoplay.
+  stage.addEventListener("focus", () => { if (stage.matches(":focus-visible")) wrHold("focus", true); });
+  stage.addEventListener("blur", () => wrHold("focus", false));
+  stage.addEventListener("animationend", (e) => {
+    if (e.animationName !== "wrFill" || !e.target.closest(".wr-seg.cur") || !wrPlaying()) return;
+    const n = wrappedSlides(computeWrapped(wrappedYear)).length;
+    if (wrappedSlide >= n - 1) { wrEnded = true; paintWrappedPlay(); return; }
+    wrappedGo(1, false);
+  });
+}
+// manual = the user moved the story (announced); autoplay steps are not.
+function wrappedGo(dir, manual) {
   const w = computeWrapped(wrappedYear);
   const slides = wrappedSlides(w);
-  wrappedSlide = Math.max(0, Math.min(slides.length - 1, wrappedSlide + dir));
+  const to = Math.max(0, Math.min(slides.length - 1, wrappedSlide + dir));
+  if (to === wrappedSlide) return;
+  wrappedSlide = to; wrEnded = false;
   drawWrappedSlide();
+  if (manual) wrAnnounce();
+}
+function wrAnnounce() {
+  const live = document.getElementById("wr-live");
+  if (!live) return;
+  const w = computeWrapped(wrappedYear), slides = wrappedSlides(w);
+  live.textContent = "Slide " + (wrappedSlide + 1) + " of " + slides.length + ": " + wrappedSummary(slides[wrappedSlide], w);
+}
+// ←/→/Space move the story — never from a text field, never while a control
+// inside Wrapped (a year chip, Back / Next, an avatar) has focus, and Space
+// never from any control at all (it activates it). The story itself is a
+// focus stop that takes all three.
+const WR_KEY_OWNERS = "button, a[href], input, select, textarea, summary, [role=button], [role=option], [tabindex]";
+function wrappedKey(e) {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false;
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" && e.key !== " ") return false;
+  const a = document.activeElement;
+  const stage = document.getElementById("wr-stage");
+  if (!stage || !a) return false;
+  if (a !== stage && a !== document.body) {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable) return false;
+    if (a.matches(WR_KEY_OWNERS) && (e.key === " " || a.closest("#view-wrapped"))) return false;
+  }
+  e.preventDefault();
+  wrappedGo(e.key === "ArrowLeft" ? -1 : 1, true);
+  return true;
 }
 function drawWrappedSlide() {
   const stage = document.getElementById("wr-stage");
@@ -5293,17 +5390,15 @@ function animateWrappedFills(rootEl) {
     f.style.width = f.dataset.w + "%";
   });
 }
-// Segmented progress + context label + dots + nav buttons (mock go()).
+// Segmented progress (UX-23: replaces the dots; non-interactive, aria-hidden —
+// the live region says where you are) + context label + nav buttons.
 function paintWrappedChrome(n) {
   const segs = document.getElementById("wr-segs");
   if (segs) {
     segs.innerHTML = "";
     for (let i = 0; i < n; i++) {
-      // a pointer shortcut only — the container is aria-hidden; the dot
-      // buttons below are the keyboard / screen-reader way to pick a slide
       const sg = el("span", "wr-seg" + (i < wrappedSlide ? " done" : i === wrappedSlide ? " cur" : ""));
       sg.innerHTML = "<i></i>";
-      sg.onclick = () => { wrappedSlide = i; drawWrappedSlide(); };
       segs.appendChild(sg);
     }
   }
@@ -5313,18 +5408,25 @@ function paintWrappedChrome(n) {
   if (prev) prev.disabled = wrappedSlide === 0;
   const next = document.getElementById("wr-next");
   if (next) next.innerHTML = wrappedSlide === n - 1 ? "Restart" + WR_ICON.restart : "Next" + WR_ICON.next;
-  paintWrappedDots(n);
+  paintWrappedPlay();
 }
-function paintWrappedDots(n) {
-  const dots = document.getElementById("wr-dots");
-  if (!dots) return;
-  dots.innerHTML = "";
-  for (let i = 0; i < n; i++) {
-    const d = btnEl("wr-dot" + (i === wrappedSlide ? " on" : ""), "", "Slide " + (i + 1) + " of " + n);
-    if (i === wrappedSlide) d.setAttribute("aria-current", "step");
-    d.onclick = () => { wrappedSlide = i; drawWrappedSlide(); };
-    dots.appendChild(d);
-  }
+// Autoplay classes on the stage + the Pause / Play button (hidden when
+// reduced motion turns autoplay off). A hold or focus pauses the fill but
+// doesn't flip the button — only the button's own choice (or the end) does.
+function paintWrappedPlay() {
+  const stage = document.getElementById("wr-stage");
+  if (!stage) return;
+  const allowed = wrAutoplayAllowed();
+  stage.classList.toggle("wr-auto", allowed);
+  stage.classList.toggle("wr-paused", allowed && !wrPlaying());
+  const b = document.getElementById("wr-play");
+  if (!b) return;
+  b.hidden = !allowed;
+  const on = !wrUserPaused && !wrEnded;
+  const label = on ? "Pause" : "Play";
+  b.setAttribute("aria-label", label + " autoplay");
+  b.title = label + " autoplay";
+  b.innerHTML = (on ? WR_ICON.pause : WR_ICON.play) + '<span class="wr-btn-txt">' + label + "</span>";
 }
 
 /* ---- Keyboard shortcuts modal ------------------------------------------- */

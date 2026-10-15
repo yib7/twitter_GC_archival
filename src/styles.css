@@ -1290,16 +1290,27 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   position: relative; height: clamp(420px, 62vh, 680px); border-radius: 20px; overflow: hidden;
   background: var(--bg-panel); border: 1px solid var(--border-accent);
   box-shadow: var(--el3), var(--glow-accent);
+  /* UX-23: tap zones / swipe / hold are pointer gestures on the stage —
+     vertical panning stays the browser's, a drag never selects text and a
+     long press never opens the touch callout */
+  touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+  --wr-dur: 8s;   /* autoplay time per slide (the current segment's fill) */
 }
+.wr-stage:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 3px; }
 /* segmented progress (mock .progress): one flexible seg per slide + context */
 .wr-progress { position: absolute; top: 16px; left: 20px; right: 20px; z-index: 20; display: flex; align-items: center; gap: 12px; }
 .wr-segs { flex: 1; display: flex; gap: 6px; }
 .wr-seg {
-  flex: 1; height: 5px; border-radius: 3px; overflow: hidden; cursor: pointer;
+  flex: 1; min-width: 0; height: 5px; border-radius: 3px; overflow: hidden;
   background: color-mix(in srgb, var(--text) 18%, transparent);
 }
 .wr-seg i { display: block; height: 100%; width: 0; background: var(--text); border-radius: 3px; transition: width 0.3s ease; }
 .wr-seg.done i, .wr-seg.cur i { width: 100%; }
+/* autoplay: the current segment fills over --wr-dur; its end advances the
+   story (app.js), so pausing just freezes the fill */
+.wr-stage.wr-auto .wr-seg.cur i { width: 0; transition: none; animation: wrFill var(--wr-dur) linear forwards; }
+.wr-stage.wr-auto.wr-paused .wr-seg.cur i { animation-play-state: paused; }
+@keyframes wrFill { from { width: 0; } to { width: 100%; } }
 .wr-ctx {
   font-size: 12px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap;
   color: color-mix(in srgb, var(--text) 85%, transparent); font-variant-numeric: tabular-nums;
@@ -1438,9 +1449,8 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
   border-color: transparent; color: var(--on-accent); box-shadow: 0 8px 22px -8px var(--accent-glow);
 }
 .nav-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
-.wr-dots { display: flex; gap: 7px; flex-wrap: wrap; justify-content: center; flex: 1; }
-.wr-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border-lift); cursor: pointer; transition: width 0.2s, background 0.2s, border-radius 0.2s; border: 0; padding: 0; }
-.wr-dot.on { width: 22px; border-radius: 4px; background: var(--accent); }
+.wr-mid { display: flex; gap: 10px; justify-content: center; flex: 1; }
+.nav-btn[hidden] { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
   /* the global reduce block collapses durations; also pin end states so
@@ -1454,7 +1464,11 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
   .wr-slide { padding: 48px 16px 24px; }
   .wr-progress { left: 14px; right: 14px; }
   .wr-ctx { display: none; }
-  .wr-controls { flex-wrap: wrap; }
+  .wr-controls { gap: 8px; }
+  .wr-controls .nav-btn { padding: 0 14px; }
+  /* Pause / Share keep their icon; the word stays in the accessible name */
+  .wr-icon-btn { padding: 0; width: 44px; justify-content: center; }
+  .wr-icon-btn .wr-btn-txt { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
 /* ====================================================================== */
@@ -1671,13 +1685,6 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
   input[type="color"] { width: 44px; height: 44px; }
   .preset, .swatch { width: 44px; height: 44px; }
   .swatch-auto { line-height: 40px; font-size: 13px; }
-  /* Wrapped dots: a 44px hit box per dot, overlapped so the row keeps its
-     rhythm; the visible dot is drawn inside it. */
-  .wr-dots { gap: 0; }
-  .wr-dot, .wr-dot.on { position: relative; width: 44px; height: 44px; margin: 0 -14px; background: none; border-radius: 0; }
-  .wr-dot::after { content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--border-lift); transition: width 0.2s, background 0.2s; }
-  .wr-dot.on::after { width: 22px; border-radius: 4px; background: var(--accent); }
-  .wr-dot.on { z-index: 1; }
 }
 
 /* ===========================================================================
