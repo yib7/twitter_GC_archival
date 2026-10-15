@@ -522,8 +522,11 @@ $("#btn-save").onclick = async () => {
     if (!r.ok) { flash($("#finish-result"), "✗ " + escapeHtml(j.error || "Save failed"), "err"); return; }
     flash($("#finish-result"),
       `✓ Saved <b>${j.names}</b> name(s) and <b>${j.pfps}</b> photo(s)` +
-      (j.ignored ? ` and removed <b>${j.ignored}</b> user(s)` : "") +
-      `. <a href="index.html">Open your archive →</a>`, "ok");
+      (j.ignored ? ` and removed <b>${j.ignored}</b> user(s)` : "") + "." +
+      // SP-14: removals are applied to the archive itself, not just hidden
+      (j.rebuilt ? ` Rebuilt the archive without the removed chats/people` +
+        (j.mediaRemoved ? ` and deleted <b>${Number(j.mediaRemoved).toLocaleString()}</b> of their media files` : "") + "." : "") +
+      ` <a href="index.html">Open your archive →</a>`, "ok");
   } catch (e) {
     flash($("#finish-result"), "✗ " + escapeHtml(e.message), "err");
   }

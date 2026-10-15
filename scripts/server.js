@@ -23,7 +23,7 @@ const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
-const { normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -182,12 +182,17 @@ function decodeDataUrl(url, whose) {
 // `unmatched`, so a mis-picked folder can never drag other private files
 // (1:1 DMs, account.js, other media) into the servable personal_data/media/.
 // X's group media folder is flat, so there are no same-name clashes to resolve.
-function copyMediaFlat(srcDir, destDir) {
+// `skipExisting` (SP-14 restore) copies only files destDir doesn't have yet.
+function copyMediaFlat(srcDir, destDir, opts) {
+  const skipExisting = !!(opts && opts.skipExisting);
   fs.mkdirSync(destDir, { recursive: true });
   let copied = 0, unmatched = 0;
   for (const e of fs.readdirSync(srcDir, { withFileTypes: true })) {
-    if (e.isFile() && MEDIA_FILE_RE.test(e.name)) { fs.copyFileSync(path.join(srcDir, e.name), path.join(destDir, e.name)); copied++; }
-    else unmatched++;
+    if (e.isFile() && MEDIA_FILE_RE.test(e.name)) {
+      const dest = path.join(destDir, e.name);
+      if (skipExisting && fs.existsSync(dest)) continue;
+      fs.copyFileSync(path.join(srcDir, e.name), dest); copied++;
+    } else unmatched++;
   }
   return { copied, unmatched };
 }
@@ -324,37 +329,51 @@ function apiSource(body, res) {
   const mediaDestDir = path.join(PERSONAL, "media");
   const media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir));
   cfg.mediaDir = mediaDestDir;
+  // SP-14: remembered so media pruned for a removed group / person can be
+  // restored from the export if they're un-removed later.
+  cfg.mediaSourceDir = mediaAbs;
   saveConfig(cfg);
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
-  let buildLog;
-  // The log is shown in the wizard, so ask for plain text (an inherited
-  // FORCE_COLOR would otherwise wrap every number in ANSI colour codes).
-  const buildEnv = Object.assign({}, process.env, { NO_COLOR: "1" });
-  delete buildEnv.FORCE_COLOR;
-  // eslint-disable-next-line no-control-regex -- matching ESC is the point
-  const plain = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
-  try { buildLog = plain(duringBlocking(() => execFileSync(process.execPath, buildNodeArgs(path.join(__dirname, "build.js"), os.totalmem()), { cwd: ROOT, env: buildEnv, stdio: ["ignore", "pipe", "pipe"] }))); }
-  catch (e) {
-    // SP-1 / SP-17: the user gets build.js's one-sentence BUILD ERROR (never a
-    // raw stack trace); the full stderr goes to this server's console only.
-    const stderr = e.stderr ? plain(e.stderr) : String(e.message || e);
-    console.error("Build failed:\n" + stderr.trim());
+  const built = runBuild();
+  if (!built.ok) {
     // A failed build wrote no data.js; put config.json back the way it was so
     // the wizard isn't left pointing at the file that just failed.
     try {
       if (cfgBefore) writeFileAtomic(CONFIG, cfgBefore);
       else fs.rmSync(CONFIG, { force: true });
     } catch (err) { /* best effort — the next build overwrites it anyway */ }
-    const error = buildFailureMessage(stderr);
-    const log = ((e.stdout ? plain(e.stdout).trim() : "") + "\nBUILD ERROR: " + error).trim();
-    return sendJSON(res, 422, { error, log });
+    return sendJSON(res, 422, { error: built.error, log: built.log });
   }
+  const buildLog = built.log;
 
   const data = readBuiltData();
   const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: mediaPick.descended || null, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog.trim() });
+  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: mediaPick.descended || null, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
+}
+// Runs scripts/build.js (it reads personal_data/config.json and writes
+// personal_data/data.js). → { ok: true, log } or { ok: false, error, log }.
+// SP-1 / SP-17: the user gets build.js's one-sentence BUILD ERROR (never a raw
+// stack trace); the full stderr goes to this server's console only. The log is
+// shown in the wizard, so ask for plain text (an inherited FORCE_COLOR would
+// wrap every number in ANSI colour codes). SP-10: heap sized to the machine.
+function runBuild() {
+  const buildEnv = Object.assign({}, process.env, { NO_COLOR: "1" });
+  delete buildEnv.FORCE_COLOR;
+  // eslint-disable-next-line no-control-regex -- matching ESC is the point
+  const plain = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
+  try {
+    const out = duringBlocking(() => execFileSync(process.execPath, buildNodeArgs(path.join(__dirname, "build.js"), os.totalmem()),
+      { cwd: ROOT, env: buildEnv, stdio: ["ignore", "pipe", "pipe"] }));
+    return { ok: true, log: plain(out).trim() };
+  } catch (e) {
+    const stderr = e.stderr ? plain(e.stderr) : String(e.message || e);
+    console.error("Build failed:\n" + stderr.trim());
+    const error = buildFailureMessage(stderr);
+    const log = ((e.stdout ? plain(e.stdout).trim() : "") + "\nBUILD ERROR: " + error).trim();
+    return { ok: false, error, log };
+  }
 }
 // The chosen export file plus its -partN siblings in the same folder (SP-2).
 function partSiblings(abs) {
@@ -379,6 +398,7 @@ function apiParts(res, group) {
 function apiIdentity(body, res) {
   fs.mkdirSync(path.join(PERSONAL, "pfps"), { recursive: true });
   const cfg = loadConfig();
+  const ignoredBefore = { users: cfg.ignoredUsers, groups: cfg.ignoredGroups };
   // Carry forward names from a previous save (like pfps/me/gc already do) —
   // otherwise reopening the wizard and saving with names untyped/unloaded
   // wipes out every name assigned in an earlier run.
@@ -493,7 +513,37 @@ function apiIdentity(body, res) {
     "window.LOCAL_IGNORED_USERS = " + JSON.stringify(ignoredUsers, null, 2) + ";\n" +
     "window.LOCAL_IGNORED_GROUPS = " + JSON.stringify(ignoredGroups, null, 2) + ";\n";
   writeFileAtomic(path.join(PERSONAL, "local.js"), out);
-  sendJSON(res, 200, { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length });
+  const reply = { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length, rebuilt: false };
+
+  // SP-14: "Remove" promises exclusion, not just hiding — when the removed
+  // groups / people changed, rebuild data.js without them and delete media
+  // no message references any more. (Un-removing rebuilds from the copied
+  // export and restores pruned media from the original media folder.)
+  const changed = !sameIdSet(ignoredBefore.users, ignoredUsers) || !sameIdSet(ignoredBefore.groups, ignoredGroups);
+  if (changed && cfg.sourceJs && fs.existsSync(path.join(PERSONAL, "data.js"))) {
+    const mediaDir = cfg.mediaDir ? path.resolve(cfg.mediaDir) : path.join(PERSONAL, "media");
+    const mediaInside = isInsidePersonal(mediaDir, PERSONAL);
+    if (mediaInside && cfg.mediaSourceDir && fs.existsSync(cfg.mediaSourceDir)) {
+      try { duringBlocking(() => copyMediaFlat(cfg.mediaSourceDir, mediaDir, { skipExisting: true })); }
+      catch (e) { console.error("Couldn't restore media from " + cfg.mediaSourceDir + ": " + (e && e.message)); }
+    }
+    const built = runBuild();
+    if (!built.ok) {
+      return sendJSON(res, 422, { error: "Your names and photos were saved, but the archive couldn't be rebuilt without the removed chats/people: " + built.error, log: built.log });
+    }
+    let removed = 0;
+    const data = readBuiltData();
+    if (data && mediaInside && fs.existsSync(mediaDir)) {
+      const keep = referencedMediaNames(data);
+      for (const e of fs.readdirSync(mediaDir, { withFileTypes: true })) {
+        if (!e.isFile() || keep.has(e.name)) continue;
+        fs.rmSync(path.join(mediaDir, e.name), { force: true });
+        removed++;
+      }
+    }
+    Object.assign(reply, { rebuilt: true, mediaRemoved: removed, totalMsgs: (data && data.conversations || []).reduce((n, c) => n + (c.count || 0), 0) });
+  }
+  sendJSON(res, 200, reply);
 }
 
 /* ---- endpoint: has a build already happened? ----------------------------- */

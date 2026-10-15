@@ -396,4 +396,25 @@ function pathNotFoundHint(platform, name) {
   return "Paste the full path, e.g. " + ex;
 }
 
-module.exports = { normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP-14: which copied media files the archive still uses --------------- */
+// The file names (basenames) every message's m / mx[].m points at.
+function referencedMediaNames(data) {
+  const out = new Set();
+  const add = (p) => { if (typeof p === "string" && p) out.add(p.split("/").pop()); };
+  for (const c of (data && data.conversations) || []) {
+    for (const m of c.msgs || []) {
+      add(m.m);
+      if (Array.isArray(m.mx)) for (const x of m.mx) add(x && x.m);
+    }
+  }
+  return out;
+}
+// True when the removed groups / people differ between two saves (order-free).
+function sameIdSet(a, b) {
+  const x = new Set((Array.isArray(a) ? a : []).map(String)), y = new Set((Array.isArray(b) ? b : []).map(String));
+  if (x.size !== y.size) return false;
+  for (const v of x) if (!y.has(v)) return false;
+  return true;
+}
+
+module.exports = { referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

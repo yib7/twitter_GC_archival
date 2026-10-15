@@ -109,3 +109,17 @@ test("pathNotFoundHint gives a full-path example for the platform", () => {
   assert.match(core.pathNotFoundHint("win32", "direct-messages-group.js"), /full path.*C:.*Users.*data.*direct-messages-group\.js/);
   assert.match(core.pathNotFoundHint("darwin", "direct_messages_group_media"), /full path.*\/Users\/.*data\/direct_messages_group_media/);
 });
+
+// ---- SP-14: what a rebuild keeps -------------------------------------------
+test("referencedMediaNames lists every m and mx file name; sameIdSet ignores order", () => {
+  const data = { conversations: [{ msgs: [
+    { i: "1", m: "personal_data/media/1-a.png", mx: [{ m: "personal_data/media/1-b.jpg" }] },
+    { i: "2" },
+  ] }, { msgs: [{ i: "3", m: "personal_data/media/3-c.mp4" }] }] };
+  assert.deepEqual([...core.referencedMediaNames(data)].sort(), ["1-a.png", "1-b.jpg", "3-c.mp4"]);
+  assert.deepEqual([...core.referencedMediaNames(null)], []);
+  assert.equal(core.sameIdSet(["1", "2"], [2, "1"]), true);
+  assert.equal(core.sameIdSet(undefined, []), true);
+  assert.equal(core.sameIdSet(["1"], []), false);
+  assert.equal(core.sameIdSet(["1"], ["2"]), false);
+});

@@ -338,3 +338,54 @@ describe("SP-18: 'This is YOU' and names can be cleared", () => {
     assert.doesNotMatch(local(), /Ann/);
   });
 });
+
+describe("SP-14: removing a group or person deletes their messages and media", () => {
+  let S, f;
+  before(async () => {
+    S = await startServer();
+    f = X.writeExport(scratch());
+    assert.equal((await source(S, f.group, f.headers, f.media)).status, 200);
+  });
+  after(() => S.stop());
+  const media = () => fs.readdirSync(path.join(S.personal, "media")).sort();
+  const dataText = () => fs.readFileSync(path.join(S.personal, "data.js"), "utf8");
+  const identity = (extra) => S.post("/api/identity", Object.assign({ names: {}, pfps: {}, gc: {} }, extra));
+
+  test("saving names without changing what's removed does not rebuild", async () => {
+    const before = fs.statSync(path.join(S.personal, "data.js")).mtimeMs;
+    const r = await identity({ names: { "111": "Ann" }, ignoredGroups: [], ignoredUsers: [] });
+    assert.equal(r.status, 200);
+    assert.equal((await r.json()).rebuilt, false);
+    assert.equal(fs.statSync(path.join(S.personal, "data.js")).mtimeMs, before);
+  });
+
+  test("a removed group chat is gone from data.js and its media from media/", async () => {
+    const r = await identity({ ignoredGroups: ["1000000002"], ignoredUsers: [] });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.rebuilt, true);
+    assert.equal(j.mediaRemoved, 1);
+    const d = readData(S.personal);
+    assert.deepEqual(d.conversations.map((c) => c.id), ["1000000001"]);
+    assert.doesNotMatch(dataText(), /other group message/);
+    assert.deepEqual(media(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg"]);
+  });
+
+  test("a removed person's messages and media are gone too", async () => {
+    const r = await identity({ ignoredGroups: ["1000000002"], ignoredUsers: ["222"] });
+    assert.equal(r.status, 200);
+    const g = readData(S.personal).conversations[0];
+    assert.ok(!g.msgs.some((m) => m.s === "222"), "no message from 222 is left");
+    assert.ok(!g.participants.includes("222"));
+    assert.deepEqual(media(), [], "9002's two files were 222's");
+  });
+
+  test("un-removing brings the group, the person and their media back from the export", async () => {
+    const r = await identity({ ignoredGroups: [], ignoredUsers: [] });
+    assert.equal(r.status, 200);
+    const d = readData(S.personal);
+    assert.deepEqual(d.conversations.map((c) => c.id).sort(), ["1000000001", "1000000002"]);
+    assert.ok(d.conversations.find((c) => c.id === "1000000001").msgs.some((m) => m.s === "222"));
+    assert.deepEqual(media(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
+  });
+});
