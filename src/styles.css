@@ -26,9 +26,10 @@
   /* Person palette — bright (name text) */
   --p-rose:#f76d8e; --p-coral:#ff865c; --p-amber:#e8b64c; --p-lime:#9fd15a; --p-emerald:#43c98a;
   --p-teal:#33c2c2; --p-sky:#54a6f5; --p-indigo:#8a8cf2; --p-violet:#b579ef; --p-magenta:#e06fc6;
-  /* Person palette — deep (avatar fill) */
-  --f-rose:#d94b6f; --f-coral:#e86a3c; --f-amber:#c79320; --f-lime:#7fb43c; --f-emerald:#2aa971;
-  --f-teal:#1ba3a3; --f-sky:#2f89e6; --f-indigo:#6b6ee6; --f-violet:#9a4fe0; --f-magenta:#cf4fae;
+  /* Person palette — deep (avatar fill). White initials sit on these, so each
+     is >= 4.9:1 against #fff (the old fills were 2.5-4.6:1). */
+  --f-rose:#bf4262; --f-coral:#b3522e; --f-amber:#8d6817; --f-lime:#567a29; --f-emerald:#1f7d54;
+  --f-teal:#157c7c; --f-sky:#2770bd; --f-indigo:#6063cf; --f-violet:#924bd5; --f-magenta:#b24496;
   /* Radii — X uses 16px cards, 12px controls, full pills */
   --radius-card:16px; --radius-sm:12px; --radius-pill:9999px;
   /* Spacing — 4px base */
@@ -319,12 +320,16 @@ button, input, select, textarea { font-family: inherit; }
 .msg-acts button { background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 11px; padding: 4px 8px; border-radius: 4px; }
 .msg-acts button:hover { background: var(--bg-card); color: var(--text); }
 
+/* Initials must clear 4.5:1 on BOTH gradient stops: a person avatar runs from
+   its white-safe deep fill to a darker shade of it, with white initials; an
+   avatar with no person uses the accent fill pair and --on-accent. (The old
+   light stop — the bright hue tinted toward white — was ~2:1 under white.) */
 .av {
-  --p: var(--accent); --f: var(--accent-deep);
+  --p: var(--accent); --f: var(--accent-fill); --f2: var(--accent-grad-end);
   width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%;
-  display: grid; place-items: center; font-weight: 700; font-size: 13.5px; color: #fff;
+  display: grid; place-items: center; font-weight: 700; font-size: 13.5px; color: var(--on-accent);
   background: var(--f);
-  background-image: linear-gradient(145deg, color-mix(in srgb, var(--p) 80%, #fff), var(--f));
+  background-image: linear-gradient(145deg, var(--f), var(--f2));
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 3px 10px -3px color-mix(in srgb, var(--p) 55%, transparent);
 }
 .msg-body { min-width: 0; flex: 1; }
@@ -564,7 +569,9 @@ button, input, select, textarea { font-family: inherit; }
 .hero .h-num {
   font-size: 64px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin: 12px 0 4px;
   font-variant-numeric: tabular-nums;
-  background: linear-gradient(180deg, var(--accent-soft), var(--accent-deep));
+  /* gradient text: theme-aware accent-text stops (>= 4.5:1 on the theme), not
+     the raw --accent-soft, which is 2.3:1 on Light's white */
+  background: linear-gradient(180deg, var(--accent-text-soft), var(--accent-text));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .hero .h-sub { font-size: 14px; color: var(--text-dim); }
@@ -950,6 +957,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 }
 
 /* ---- User Profile Modal (Clickable AV) ----------------------------------- */
+.av[data-id] { --f2: color-mix(in srgb, var(--f) 78%, #000); color: #fff; }
 .av-clickable { cursor: pointer; transition: transform 0.1s ease; }
 .av-clickable:hover { transform: scale(1.1); box-shadow: 0 0 8px var(--accent-glow); z-index: 10; }
 
@@ -1287,12 +1295,14 @@ html[data-theme="light"] .wr-slide::after {
 .wr-big {
   font-size: clamp(64px, 10vw, 116px); font-weight: 800; letter-spacing: -0.03em; line-height: 1;
   font-variant-numeric: tabular-nums; margin: 10px 0 2px; word-break: break-word;
-  background: linear-gradient(180deg, var(--text), var(--accent-soft) 62%, var(--accent-deep));
+  background: linear-gradient(180deg, var(--text), var(--accent-text-soft) 62%, var(--accent-text));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .wr-big.wr-big-year {
   font-size: clamp(80px, 14vw, 170px); letter-spacing: -0.05em; line-height: 0.85; margin: 8px 0 4px;
-  background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--p-violet) 70%, #fff) 60%, var(--p-violet));
+  /* the mid stop leans toward --text (lighter on dark themes, darker on
+     Light) instead of white, so every stop clears 3:1 on Light too */
+  background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--p-violet) 70%, var(--text)) 60%, var(--p-violet));
   -webkit-background-clip: text; background-clip: text; color: transparent;
   text-shadow: 0 8px 60px color-mix(in srgb, var(--p-violet) 35%, transparent);
 }

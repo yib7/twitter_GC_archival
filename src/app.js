@@ -648,7 +648,8 @@ function autoColor(id) {
 }
 function personColor(id) {
   const c = sanitizeColor(settings.colors[id]);
-  if (c) return { p: overrideVar(c), f: shade(c, -20) };
+  // the deep fill carries white avatar initials: darken it until it clears 4.5:1
+  if (c) return { p: overrideVar(c), f: readableOn(shade(c, -20), ["#ffffff"], 4.5) };
   return autoColor(id);
 }
 // UX-11: a user-picked colour is used for name TEXT, so it must stay readable

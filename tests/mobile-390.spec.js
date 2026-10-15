@@ -348,3 +348,34 @@ test.describe("UX-35: the capsule is sized by layout, not a hardcoded height", (
     expect(await page.evaluate(() => /auto|scroll/.test(getComputedStyle(document.getElementById("capsule-body")).overflowY))).toBe(false);
   });
 });
+
+// M-1: the rendered-text contrast audit (tests/_contrast.js) at 390px — the
+// mobile-only chrome (top bar, tab bar, More sheet, filter sheet) and your own
+// messages, in every theme.
+const { contrastFailures } = require("./_contrast.js");
+test.describe("Contrast of rendered text at 390px", () => {
+  for (const th of ["lightsout", "dim", "light"]) {
+    test(th, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await bootViewer(page, RICH_DATA, { ls: { "gca.theme": th, "gca.settings": JSON.stringify({ me: "u1" }) } });
+      const bad = [];
+      const check = async (where, sel) => { for (const f of await contrastFailures(page, sel)) bad.push(where + ": " + f); };
+      await check("search", "#view-search");
+      await check("topbar", ".mobile-topbar");
+      await check("tabbar", ".tabbar");
+      await page.getByRole("button", { name: /^Filters/ }).tap();
+      await expect(page.locator("#s-filters")).toBeVisible();
+      await check("filter sheet", "#s-filters");
+      await page.getByRole("button", { name: "Done" }).tap();
+      for (const v of ["timeline", "gallery", "stats"]) {
+        await page.locator('.tabbar .tab[data-tab="' + v + '"]').tap();
+        await page.waitForTimeout(v === "stats" ? 700 : 150);
+        await check(v, "#view-" + v);
+      }
+      await page.locator("#tab-more").tap();
+      await expect(page.locator("#more-sheet")).toBeVisible();
+      await check("more sheet", "#more-sheet");
+      expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
+    });
+  }
+});
