@@ -12,6 +12,32 @@ const colorOf = paletteColor;
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 function fileToDataURL(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); }); }
+// SP-12: a phone photo is 3-12 MB, an avatar needs a few hundred pixels. Shrink
+// every picked photo to at most 512 px on its long side (PNG stays PNG so
+// transparency survives, anything else becomes JPEG) before it is previewed,
+// kept or uploaded. Small images are kept exactly as picked; a file that isn't
+// an image is passed through so the preview can say so.
+const AVATAR_MAX = 512;
+function shrinkImage(dataURL, type) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth, h = img.naturalHeight;
+      if (!w || !h || Math.max(w, h) <= AVATAR_MAX) { resolve(dataURL); return; }
+      const k = AVATAR_MAX / Math.max(w, h);
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+      const g = c.getContext("2d");
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
+      g.drawImage(img, 0, 0, c.width, c.height);
+      const out = /^image\/(png|gif)$/i.test(type || "") ? "image/png" : "image/jpeg";
+      try { resolve(c.toDataURL(out, 0.9)); } catch (e) { resolve(dataURL); }
+    };
+    img.onerror = () => resolve(dataURL);
+    img.src = dataURL;
+  });
+}
+async function pickedPhoto(f) { return shrinkImage(await fileToDataURL(f), f.type); }
 
 /* ---- shared image preview/confirm ---------------------------------------- */
 // Before any photo is committed (group or a person), show it big and ask
@@ -357,7 +383,7 @@ $("#gc-pick").onclick = () => $("#gc-photo").click();
 $("#gc-photo").onchange = async (e) => {
   const f = e.target.files && e.target.files[0]; if (!f) return;
   e.target.value = "";   // let the same file be re-picked after a cancel
-  const url = await fileToDataURL(f);
+  const url = await pickedPhoto(f);
   if (!(await confirmImage(url))) return;
   gcEntry().photo = url;
   const pv = $("#gc-preview"); pv.textContent = ""; pv.style.backgroundImage = `url('${url}')`;
@@ -408,7 +434,7 @@ function personCard(p) {
   file.onchange = async () => {
     const f = file.files && file.files[0]; if (!f) return;
     file.value = "";   // let the same file be re-picked after a cancel
-    const url = await fileToDataURL(f);
+    const url = await pickedPhoto(f);
     if (!(await confirmImage(url))) return;
     state.pfps[p.id] = url;
     av.textContent = ""; av.style.backgroundImage = `url('${url}')`; av.style.backgroundSize = "cover"; av.style.backgroundPosition = "center";

@@ -184,3 +184,60 @@ describe("SP-11: the native pickers need the setup page's token", () => {
     } finally { S2.stop(); }
   });
 });
+
+const PNG1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+const pngOf = (bytes) => "data:image/png;base64," + Buffer.alloc(bytes, 7).toString("base64");
+
+describe("SP-12: photo limits are checked before anything is written", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("one over-size photo is refused by name and nothing from that save is written", async () => {
+    await S.post("/api/reset", {});
+    const r = await S.post("/api/identity", { names: { "111": "Ann", "222": "Bob" }, pfps: { "111": PNG1, "222": pngOf(11 * 1024 * 1024) }, gc: {} });
+    const j = await r.json();
+    assert.equal(r.status, 413);
+    assert.match(j.error, /Bob/, "says whose photo it was");
+    assert.match(j.error, /10 MB/);
+    const pfps = path.join(S.personal, "pfps");
+    assert.deepEqual(fs.existsSync(pfps) ? fs.readdirSync(pfps) : [], [], "Ann's photo is not orphaned on disk");
+    assert.ok(!fs.existsSync(path.join(S.personal, "config.json")), "no half-applied save");
+  });
+
+  test("an over-size group photo is named as the group's photo", async () => {
+    await S.post("/api/reset", {});
+    const r = await S.post("/api/identity", { gc: { "1000000001": { name: "Crew", photo: pngOf(11 * 1024 * 1024) } } });
+    assert.equal(r.status, 413);
+    assert.match((await r.json()).error, /group photo.*Crew|Crew.*group photo/i);
+  });
+});
+
+describe("SP-19: group and person photos never share a file", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("a group and a person with the same name keep separate photo files", async () => {
+    await S.post("/api/reset", {});
+    const groupPng = pngOf(64), personPng = pngOf(96);
+    assert.equal((await S.post("/api/identity", { gc: { "1000000001": { name: "Crew", photo: groupPng } } })).status, 200);
+    assert.equal((await S.post("/api/identity", { names: { "111": "Crew" }, pfps: { "111": personPng } })).status, 200);
+    const cfg = JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+    const g = cfg.gc["1000000001"].photo, p = cfg.pfps["111"];
+    assert.notEqual(g, p);
+    const read = (rel) => fs.readFileSync(path.join(S.personal, rel.replace(/^personal_data\//, "")));
+    assert.equal(read(g).length, 64, "the group photo still holds the group's bytes");
+    assert.equal(read(p).length, 96);
+  });
+
+  test("a later group photo doesn't overwrite an earlier person photo of the same name either", async () => {
+    await S.post("/api/reset", {});
+    assert.equal((await S.post("/api/identity", { names: { "111": "Crew" }, pfps: { "111": pngOf(96) } })).status, 200);
+    assert.equal((await S.post("/api/identity", { gc: { "1000000001": { name: "Crew", photo: pngOf(64) } } })).status, 200);
+    const cfg = JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+    const read = (rel) => fs.readFileSync(path.join(S.personal, rel.replace(/^personal_data\//, "")));
+    assert.equal(read(cfg.pfps["111"]).length, 96);
+    assert.equal(read(cfg.gc["1000000001"].photo).length, 64);
+  });
+});

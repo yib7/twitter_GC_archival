@@ -135,7 +135,7 @@ function readBody(req, res) {
             if (t.unref) t.unref();
           });
         }
-        reject(httpError(413, "Request body is too large."));
+        reject(httpError(413, "This save is too large to send in one go. Use smaller photos, or save a few at a time."));
         return;
       }
       chunks.push(c);
@@ -159,13 +159,18 @@ function saveConfig(cfg) {
   writeFileAtomic(CONFIG, JSON.stringify(cfg, null, 2) + "\n");
 }
 // data URL ("data:image/png;base64,....") → { buf, ext }
-function decodeDataUrl(url) {
+// `whose` ("Ann's photo", "the group photo for Crew") names the photo in the
+// 413 so the user knows which one to replace (SP-12).
+function decodeDataUrl(url, whose) {
   const m = /^data:([^;]+);base64,(.*)$/s.exec(String(url || ""));
   if (!m) return null;
   const mime = m[1].toLowerCase();
   const ext = mime === "image/jpeg" ? "jpg" : mime === "image/png" ? "png" : mime === "image/gif" ? "gif" : mime === "image/webp" ? "webp" : "img";
   const buf = Buffer.from(m[2], "base64");
-  if (buf.length > MAX_IMAGE_BYTES) throw httpError(413, "Uploaded images must be 10 MB or smaller.");
+  if (buf.length > MAX_IMAGE_BYTES) {
+    throw httpError(413, (whose ? whose.charAt(0).toUpperCase() + whose.slice(1) + " is" : "An uploaded image is") +
+      " larger than 10 MB. Choose a smaller photo (photos picked in the wizard are shrunk automatically).");
+  }
   return { buf, ext };
 }
 // SP-7: copies only the top-level files of srcDir that are named like X's
@@ -374,18 +379,36 @@ function apiIdentity(body, res) {
   // wipes out every name assigned in an earlier run.
   const names = mergeNames(cfg.names, body.names);
   const pfpPaths = {};
+  const pfps = body.pfps && typeof body.pfps === "object" ? body.pfps : {};
+  const gcIn = body.gc && typeof body.gc === "object" ? body.gc : {};
+  const gcPrev = cfg.gc || {};
+
+  // SP-12: decode and size-check EVERY photo before writing anything, so one
+  // over-size photo can't leave earlier ones orphaned on disk or half a save
+  // applied. The 413 names whose photo it was.
+  const pfpData = {}, gcData = {};
+  for (const id of Object.keys(pfps)) {
+    pfpData[id] = decodeDataUrl(pfps[id], (names[id] ? names[id] + "’s" : "the") + " photo" + (names[id] ? "" : " for User " + String(id).slice(-4)));
+  }
+  for (const cid of Object.keys(gcIn)) {
+    if (cid === "__proto__") continue;
+    const entry = gcIn[cid] || {};
+    const gname = entry.name != null ? String(entry.name) : ((gcPrev[cid] && gcPrev[cid].name) || "");
+    gcData[cid] = decodeDataUrl(entry.photo, "the group photo" + (gname ? " for " + gname : ""));
+  }
 
   // Reserve filenames already on disk (from a previous save) so a fresh upload
-  // with the same name doesn't clobber them.
+  // with the same name doesn't clobber them — person AND group photos (SP-19).
   const taken = new Set();
-  if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) { const bn = String(cfg.pfps[id]).split("/").pop(); if (bn) taken.add(bn); }
+  const reserve = (p) => { const bn = String(p || "").split("/").pop(); if (bn) taken.add(bn); };
+  if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) reserve(cfg.pfps[id]);
+  for (const cid of Object.keys(gcPrev)) reserve(gcPrev[cid] && gcPrev[cid].photo);
 
   // participant pfps (data URLs → files). Named people get <name>_pfp.<ext>;
   // unnamed people keep their opaque id, so the file is easy to relocate later.
   const pfpsDir = path.join(PERSONAL, "pfps");
-  const pfps = body.pfps && typeof body.pfps === "object" ? body.pfps : {};
   for (const id of Object.keys(pfps)) {
-    const d = decodeDataUrl(pfps[id]);
+    const d = pfpData[id];
     if (!d) continue;
     const base = pfpFileName(names[id], id, d.ext, taken);
     taken.add(base);
@@ -403,8 +426,7 @@ function apiIdentity(body, res) {
   // per-group name + photo: { convId: { name, photo } }. Each group keeps its own.
   // photo may be a fresh data URL (→ saved to a per-group file) or an existing
   // personal_data/ path to carry forward. Previous groups not re-submitted are kept.
-  const gcIn = body.gc && typeof body.gc === "object" ? body.gc : {};
-  const gcOut = Object.assign({}, cfg.gc || {});
+  const gcOut = Object.assign({}, gcPrev);
   for (const cid of Object.keys(gcIn)) {
     // SECURITY: cid is an attacker-controllable JSON key on the unauthenticated,
     // local POST /api/identity (body.gc). "__proto__" is special-cased on plain
@@ -415,10 +437,11 @@ function apiIdentity(body, res) {
     const entry = gcIn[cid] || {};
     const name = entry.name != null ? String(entry.name) : ((gcOut[cid] && gcOut[cid].name) || "");
     let photo = (gcOut[cid] && gcOut[cid].photo) || "";
-    const d = decodeDataUrl(entry.photo);
+    const d = gcData[cid];
     if (d) {
-      // Named group → <groupname>_pfp.<ext>; unnamed → gc-<cid>.<ext> fallback.
-      const base = pfpFileName(name, "gc-" + cid, d.ext, taken);
+      // Named group → group_<groupname>_pfp.<ext>; unnamed → gc-<cid>.<ext>.
+      // The group_ prefix keeps a group and a person of the same name apart (SP-19).
+      const base = pfpFileName(name ? "group " + name : "", "gc-" + cid, d.ext, taken);
       taken.add(base);
       const fname = "pfps/" + base;
       // Defense in depth: cid is untrusted; only write inside personal_data/pfps/.
