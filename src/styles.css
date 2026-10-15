@@ -622,8 +622,12 @@ button, input, select, textarea { font-family: inherit; }
 }
 /* The hero's accent-tinted surface is lighter (dark themes) / more coloured
    (Light) than a card, so its secondary text and eyebrow lean toward --text
-   to keep 4.5:1 on it (N-2: the dim/faint tokens are tuned for plain cards). */
-.hero { --text-dim: color-mix(in srgb, var(--text) 30%, var(--text-dim)); --text-faint: color-mix(in srgb, var(--text) 30%, var(--text-faint)); }
+   to keep 4.5:1 on it (the dim/faint tokens are tuned for plain cards). The
+   theme's own values are captured on the page body first: a custom property
+   that reads itself (--text-dim: …var(--text-dim)) is a cycle, which makes it
+   invalid, and the "dimmed" text then silently renders at full --text. */
+.page-body { --hero-dim-base: var(--text-dim); --hero-faint-base: var(--text-faint); }
+.hero { --text-dim: color-mix(in srgb, var(--text) 30%, var(--hero-dim-base)); --text-faint: color-mix(in srgb, var(--text) 30%, var(--hero-faint-base)); }
 .hero .h-main { flex: 1; min-width: 260px; }
 .hero .h-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: color-mix(in srgb, var(--accent-text-soft) 65%, var(--text)); }
 .hero .h-num {
