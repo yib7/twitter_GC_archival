@@ -1507,6 +1507,7 @@ function syncDateBounds() {
 }
 let searchBuilt = false;
 let sEls = {};
+let sDeb = 0;   // the box's 150 ms search debounce
 let resState = { idx: [], page: 0 };
 let resObserver = null;
 
@@ -1519,11 +1520,13 @@ function ensureSearch() {
       <div class="search-row">
         <div class="search-box">
           <span class="ico">${cmdIco("search")}</span>
-          <input id="s-input" type="text" aria-label="Search messages" placeholder="Search ${fmtNum(N)} messages…  (use &quot;quotes&quot; for exact phrases)" autocomplete="off" spellcheck="false" />
+          <input id="s-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="s-ac" aria-label="Search messages" placeholder="Search ${fmtNum(N)} messages…  (use &quot;quotes&quot; for exact phrases)" autocomplete="off" spellcheck="false" />
           <button class="search-clear" id="s-clear" type="button" title="Clear" aria-label="Clear search" hidden>✕</button>
+          <div class="s-ac" id="s-ac" role="listbox" aria-label="People" hidden></div>
         </div>
         <button class="pill f-toggle" id="f-toggle" type="button" aria-expanded="false" aria-controls="s-filters">${cmdIco("settings")} Filters <span class="badge" id="f-toggle-n" hidden>0</span></button>
       </div>
+      <div class="s-chips" id="s-chips" role="group" aria-label="Search operators" hidden></div>
       <div class="scrim" id="filter-scrim" aria-hidden="true"></div>
       <div class="filters" id="s-filters">
         <div class="f-sheet-head"><span class="f-sheet-title">Filters</span><button class="btn sm" id="f-done" type="button">Done</button></div>
@@ -1576,6 +1579,7 @@ function ensureSearch() {
     sort: v.querySelector("#f-sort"),
     matchtoggle: v.querySelector("#f-matchtoggle"), matchhint: v.querySelector("#s-matchhint"),
     filters: v.querySelector("#s-filters"), ftoggle: v.querySelector("#f-toggle"), ftoggleN: v.querySelector("#f-toggle-n"),
+    chips: v.querySelector("#s-chips"), ac: v.querySelector("#s-ac"),
   };
   // UX-19: on a phone the filter bar is a bottom sheet behind "Filters (n)".
   sEls.ftoggle.onclick = (e) => { e.stopPropagation(); if (sEls.filters.classList.contains("open")) closeFilterSheet(); else openFilterSheet(); };
@@ -1611,12 +1615,24 @@ function ensureSearch() {
   warmFuzzyIndex();
 
   // input
-  let deb = null;
   sEls.input.addEventListener("input", () => {
     sEls.clear.hidden = !sEls.input.value;
-    clearTimeout(deb); deb = setTimeout(runSearch, 150);
+    clearTimeout(sDeb); sDeb = setTimeout(runSearch, 150);
+    updateAutocomplete();
   });
-  sEls.clear.addEventListener("click", () => { sEls.input.value = ""; sEls.clear.hidden = true; runSearch(); sEls.input.focus(); });
+  sEls.clear.addEventListener("click", () => { sEls.input.value = ""; sEls.clear.hidden = true; closeAutocomplete(); runSearch(); sEls.input.focus(); });
+  // SP9: from: autocomplete (keys while its list is open) and the chips.
+  sEls.input.addEventListener("keydown", acKeydown);
+  sEls.input.addEventListener("click", updateAutocomplete);
+  sEls.input.addEventListener("keyup", (e) => { if (/^(ArrowLeft|ArrowRight|Home|End)$/.test(e.key)) updateAutocomplete(); });
+  sEls.input.addEventListener("blur", () => setTimeout(() => { if (sEls.input && document.activeElement !== sEls.input) closeAutocomplete(); }, 0));
+  sEls.ac.addEventListener("mousedown", (e) => e.preventDefault());   // keep focus in the box
+  sEls.ac.addEventListener("click", (e) => { const o = e.target.closest("[role=option]"); if (o) acPick(+o.dataset.k); });
+  sEls.chips.addEventListener("click", (e) => { const c = e.target.closest(".s-chip"); if (c) removeChip(c); });
+  sEls.chips.addEventListener("keydown", (e) => {
+    const c = e.target.closest(".s-chip");
+    if (c && (e.key === "Backspace" || e.key === "Delete")) { e.preventDefault(); removeChip(c); }
+  });
 
   // toggles
   sEls.media.onclick = () => { F.media = !F.media; sEls.media.classList.toggle("active", F.media); runSearch(); };
@@ -1693,7 +1709,7 @@ function personNames(id) {
 function searchPeople() { return PARTS.map((p) => ({ id: p.id, names: personNames(p.id) })); }
 function buildSearchCtx(raw, people) {
   const pq = GCAShared.parseSearchQuery(raw, { clock: CLOCK });
-  const ctx = { pq, needles: pq.needles, phrases: pq.phrases, excludes: pq.excludes,
+  const ctx = { raw: String(raw || ""), pq, needles: pq.needles, phrases: pq.phrases, excludes: pq.excludes,
     people: null, from: null, to: null, has: {}, pins: null, notes: [], chips: [] };
   for (const op of pq.ops) {
     if (op.pending) continue;
@@ -1909,6 +1925,7 @@ function runSearch() {
   // VC-28 / SP9: say which operator was dropped or matched no one (text
   // nodes — never markup).
   SQ.notes.forEach((n) => sEls.meta.append(" · " + n));
+  renderChips();
   // QA-15: bumped on every completed run (debounced or not), so tests can wait
   // for "the search actually re-ran" instead of a fixed sleep timed to the
   // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
@@ -2028,6 +2045,144 @@ function updateMatchHint() {
   const exact = '<b>Exact</b>: shows only messages that literally contain every word/phrase you type.';
   // Lead with the active mode's description so the user knows what's in effect.
   sEls.matchhint.innerHTML = F.fuzzy ? fuzzy + " &nbsp;·&nbsp; " + exact : exact + " &nbsp;·&nbsp; " + fuzzy;
+}
+/* ---- Operator chips + from: autocomplete (SP9: UX-21) -----------------------
+   Every applied operator of the last run is a chip under the box: a real
+   <button> named "Remove filter: …" that click / Enter / Space / Backspace /
+   Delete remove. Removing edits the query TEXT (GCAShared.removeSearchToken),
+   so the box, the chips and the results never disagree. */
+const HAS_LABEL = { media: "media", link: "link", reacts: "reactions", photo: "photo", video: "video", file: "file" };
+function chipLabel(op) {
+  if (op.key === "from") return op.ids.length ? "From " + op.ids.map(nameOf).join(", ") : "From no one named “" + op.value + "”";
+  if (op.key === "after") return "Since " + op.date.label;
+  if (op.key === "before") return "Until " + op.date.label;
+  if (op.key === "has") return "Has " + (HAS_LABEL[op.value] || op.value);
+  if (op.key === "is") return "Pinned";
+  return "Not “" + op.value + "”";
+}
+const CHIP_ICO = { from: "people", after: "calendar", before: "calendar", has: "camera", is: "pins", not: "trash" };
+function renderChips() {
+  const host = sEls.chips;
+  if (!host) return;
+  host.replaceChildren();
+  SQ.chips.forEach((op, k) => {
+    const lbl = chipLabel(op);
+    const b = btnEl("s-chip" + (op.key === "from" && !op.ids.length ? " none" : ""),
+      '<span class="s-chip-ic">' + cmdIco(op.key === "has" && op.value === "link" ? "link" : CHIP_ICO[op.key]) + "</span>" +
+      '<span class="s-chip-tx">' + esc(lbl) + '</span><span class="s-chip-x" aria-hidden="true">✕</span>', "Remove filter: " + lbl);
+    b.dataset.k = k;
+    b.title = "Remove " + op.raw;
+    host.appendChild(b);
+  });
+  host.hidden = !SQ.chips.length;
+}
+function removeChip(c) {
+  const k = +c.dataset.k;
+  const op = SQ.chips[k];
+  if (!op) return;
+  // the box may have changed since this run (debounce): edit what was parsed
+  // only while it is still the box's text
+  if (sEls.input.value !== SQ.raw) { runSearch(); return; }
+  clearTimeout(sDeb);
+  sEls.input.value = GCAShared.removeSearchToken(sEls.input.value, op);
+  sEls.clear.hidden = !sEls.input.value;
+  closeAutocomplete();
+  runSearch();
+  announce("Removed " + chipLabel(op));
+  // focus: the chip now in its place, else the one before, else the box
+  const left = sEls.chips.querySelectorAll(".s-chip");
+  const next = left[k] || left[k - 1];
+  if (next) next.focus(); else sEls.input.focus();
+}
+// The from: autocomplete — an ARIA combobox (the box) driving a listbox (#s-ac),
+// the same pattern as the command palette (UX-16).
+let acState = { open: false, items: [], sel: 0, tok: null };
+function acToken() {
+  const inp = sEls.input;
+  if (!inp || document.activeElement !== inp || inp.selectionStart !== inp.selectionEnd) return null;
+  const caret = inp.selectionStart;
+  const pq = GCAShared.parseSearchQuery(inp.value, { clock: CLOCK });
+  return pq.ops.find((op) => {
+    if (op.key !== "from") return false;
+    const vs = op.start + op.raw.indexOf(":") + 1;
+    if (caret < vs || caret > op.end) return false;
+    return op.open || caret < op.end;
+  }) || null;
+}
+function acCandidates(value) {
+  const v = GCAShared.foldName(value);
+  const rank = (names) => {
+    let best = 9;
+    for (const nm of names.map(GCAShared.foldName)) {
+      if (!v) best = Math.min(best, 3);
+      else if (nm === v) best = 0;
+      else if (nm.indexOf(v) === 0) best = Math.min(best, 1);
+      else if (nm.split(" ").some((w) => w.indexOf(v) === 0)) best = Math.min(best, 2);
+      else if (nm.indexOf(v) >= 0) best = Math.min(best, 4);
+    }
+    return best;
+  };
+  const scored = PARTS.map((p) => ({ p, names: personNames(p.id) })).map((x) => Object.assign(x, { r: rank(x.names) })).filter((x) => x.r < 9);
+  // the substring tier only when nothing matches a name / word start
+  const tier = scored.some((x) => x.r <= 3) ? scored.filter((x) => x.r <= 3) : scored;
+  return tier.sort((a, b) => a.r - b.r || b.p.count - a.p.count).slice(0, 8);
+}
+function updateAutocomplete() {
+  const tok = acToken();
+  if (!tok) { closeAutocomplete(); return; }
+  const items = acCandidates(tok.value);
+  if (!items.length) { closeAutocomplete(); return; }
+  acState = { open: true, items, sel: 0, tok };
+  const box = sEls.ac;
+  box.replaceChildren();
+  items.forEach((x, k) => {
+    const row = el("div", "s-ac-row");
+    row.id = "s-ac-opt-" + k; row.dataset.k = k;
+    row.setAttribute("role", "option");
+    const aka = x.names.slice(1).join(" · ");
+    row.innerHTML = pfpHtml(x.p.id, "") + '<span class="s-ac-tx"><span class="s-ac-name">' + esc(x.names[0]) + "</span>" +
+      (aka ? '<span class="s-ac-aka">' + esc(aka) + "</span>" : "") + '</span><span class="s-ac-n">' + fmtNum(x.p.count) + " msg" + (x.p.count === 1 ? "" : "s") + "</span>";
+    const av = row.querySelector(".av-clickable"); if (av) av.classList.remove("av-clickable");
+    box.appendChild(row);
+  });
+  box.hidden = false;
+  sEls.input.setAttribute("aria-expanded", "true");
+  acHighlight();
+}
+function acHighlight() {
+  sEls.ac.querySelectorAll("[role=option]").forEach((r, k) => { r.classList.toggle("sel", k === acState.sel); r.setAttribute("aria-selected", k === acState.sel ? "true" : "false"); });
+  sEls.input.setAttribute("aria-activedescendant", "s-ac-opt-" + acState.sel);
+  const r = sEls.ac.querySelector("#s-ac-opt-" + acState.sel); if (r) r.scrollIntoView({ block: "nearest" });
+}
+function closeAutocomplete() {
+  if (!sEls.ac) return;
+  acState = { open: false, items: [], sel: 0, tok: null };
+  sEls.ac.hidden = true; sEls.ac.replaceChildren();
+  sEls.input.setAttribute("aria-expanded", "false");
+  sEls.input.removeAttribute("aria-activedescendant");
+}
+function acPick(k) {
+  const x = acState.items[k], tok = acState.tok;
+  if (!x || !tok) return;
+  const head = tok.raw.slice(0, tok.raw.indexOf(":") + 1);   // keeps "from:" or "sender:"
+  const text = head + GCAShared.quoteOpValue(x.names[0]);
+  const before = sEls.input.value.slice(0, tok.start);
+  sEls.input.value = GCAShared.replaceSearchToken(sEls.input.value, tok, text);
+  const caret = before.length + text.length + 1;
+  sEls.input.setSelectionRange(caret, caret);
+  sEls.clear.hidden = false;
+  closeAutocomplete();
+  clearTimeout(sDeb);
+  runSearch();
+  sEls.input.focus();
+}
+function acKeydown(e) {
+  if (!acState.open) return;
+  const n = acState.items.length;
+  if (e.key === "ArrowDown") { e.preventDefault(); acState.sel = (acState.sel + 1) % n; acHighlight(); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); acState.sel = (acState.sel - 1 + n) % n; acHighlight(); }
+  else if ((e.key === "Enter" || e.key === "Tab") && !e.shiftKey) { e.preventDefault(); acPick(acState.sel); }
+  else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); closeAutocomplete(); }
 }
 function updateClearAllBtn() {
   const hasFilter = (F.needles && F.needles.length) || F.people.size || F.from || F.to || F.media || F.links || F.reacts || (sEls.input && sEls.input.value.trim());

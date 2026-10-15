@@ -818,3 +818,27 @@ test.describe("Contrast of rendered text, every view × theme", () => {
     });
   }
 });
+
+// SP9: the new Search UI is held to the same audits — rendered-text contrast
+// in every theme and a visible, unclipped focus ring on every keyboard stop.
+test.describe("SP9: search chips and the from: autocomplete", () => {
+  for (const th of THEMES) {
+    test("contrast and focus rings · " + th, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await bootViewer(page, CONTRAST_DATA, { ls: { "gca.theme": th } });
+      await installHelpers(page);
+      const bad = [];
+      await page.locator("#s-input").fill('volley from:"User 1" -tonight');
+      await expect(page.locator("#s-chips .s-chip")).toHaveCount(2);
+      for (const f of await contrastFailures(page, "#s-chips")) bad.push("chips: " + f);
+      await page.locator("#s-input").focus();
+      const { missing, seen } = await tabWalk(page, 4);
+      expect(seen.filter((d) => d.indexOf("s-chip") >= 0).length, "the walk reaches both chips").toBe(2);
+      for (const m of missing) bad.push("ring: " + m);
+      await page.locator("#s-input").fill("volley from:User");
+      await expect(page.locator("#s-ac [role=option]")).toHaveCount(3);
+      for (const f of await contrastFailures(page, "#s-ac")) bad.push("autocomplete: " + f);
+      expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
+    });
+  }
+});
