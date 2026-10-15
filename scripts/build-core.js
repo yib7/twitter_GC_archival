@@ -529,9 +529,14 @@ function createExportSurvey(opts) {
       if (which === "headers") return;
       const t = toMs(mc.createdAt);
       if (!Number.isFinite(t)) { st.badTime++; return; }
-      if (mc.id != null) allIds.add(String(mc.id));
+      // SP7 fix round 1 (#4): counted the way the build keeps them — once per
+      // id (the same message in two part files is one), none without an id
+      if (mc.id == null || mc.id === "") return;
+      const id = String(mc.id);
+      if (allIds.has(id)) return;
+      allIds.add(id);
       if (G.has(cid) || U.has(String(mc.senderId))) { st.removedMsgs++; return; }
-      if (mc.id != null) keepIds.add(String(mc.id));
+      keepIds.add(id);
       g.count++;
       if (t < g.first) g.first = t;
       if (t > g.last) g.last = t;
@@ -566,7 +571,7 @@ function createExportSurvey(opts) {
     }));
     const everyone = new Set();
     for (const g of groups.values()) if (!G.has(g.id)) g.people.forEach((p) => { if (!U.has(p)) everyone.add(p); });
-    const kept = list.filter((g) => !g.removed);
+    const kept = list.filter((g) => !g.removed && g.count > 0);   // fix round 1 (#4): a group the build would leave empty isn't one
     const firsts = kept.map((g) => g.first).filter((t) => t != null), lasts = kept.map((g) => g.last).filter((t) => t != null);
     return {
       groups: list,

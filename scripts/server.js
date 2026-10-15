@@ -619,7 +619,9 @@ async function sourceAndBuild(body, res, progress) {
   const archiveNewest = duringBlocking(() => newestInArchive());
   const older = exportNewest != null && archiveNewest != null && exportNewest < archiveNewest;
   if (ids && mediaAbs) {
-    const mismatch = mediaMismatch(surveyMedia(mediaAbs, ids, ids), mediaAbs);
+    // fix round 1 (#4): the same check as the preview — media the archive
+    // already has (a newer export's folder can hold it) isn't a mismatch
+    const mismatch = mediaMismatch(surveyMedia(mediaAbs, ids, ids, knownMediaOf()), mediaAbs);
     if (mismatch) return sendJSON(res, 400, { error: mismatch });
   }
 
@@ -721,6 +723,12 @@ function surveyMedia(dir, allIds, keepIds, known) {
   }
   return out;
 }
+// A media file name the built archive already has (in personal_data/media),
+// or null with no archive — shared by the preview and the build's own check.
+function knownMediaOf() {
+  if (!builtArchiveFiles().length) return null;
+  return (name) => fs.existsSync(path.join(PERSONAL, "media", name));
+}
 // Fix round 1 (#7): "<digits>-<name>.jpg" is also how phones and cameras name
 // pictures (20230301-IMG_0001.jpg), so a folder where none of the files
 // belong to this export's messages is refused.
@@ -775,8 +783,7 @@ function apiPreflight(body, res) {
       for (const f of src.groupFiles) scanOne(f, "messages");
       for (const f of src.headerFiles) scanOne(f, "headers");
       merge = surveyMerge(sv);
-      const inArchive = merge ? (name) => fs.existsSync(path.join(PERSONAL, "media", name)) : null;
-      if (src.mediaAbs) media = surveyMedia(src.mediaAbs, sv.allIds, sv.keepIds, inArchive);
+      if (src.mediaAbs) media = surveyMedia(src.mediaAbs, sv.allIds, sv.keepIds, merge ? knownMediaOf() : null);
     });
   } catch (e) {
     return sendJSON(res, e.statusCode || 500, { error: friendlyError(e) });
