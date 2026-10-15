@@ -111,3 +111,21 @@ test("autocomplete quotes names with spaces, matches aliases and accents, and hi
   await afterSearchRun(page, () => ac(page).getByRole("option", { name: /Bob/ }).click());
   await expect(box).toHaveValue("from:Bob ");
 });
+
+// SP9 polish: removing a chip is an edit of the box the browser can undo —
+// Ctrl/Cmd+Z in the box brings the token (and its chip) back. Chromium
+// implements execCommand("insertText") on inputs (the suite runs Chromium
+// only); where it isn't, the box is set directly, without an undo entry.
+test("removing a chip can be undone with Ctrl+Z in the box", async ({ page }) => {
+  await boot(page);
+  await afterSearchRun(page, () => input(page).fill("pizza from:bob has:photo"));
+  await expect(chips(page)).toHaveCount(2);
+  await afterSearchRun(page, () => chips(page).nth(1).click());
+  await expect(input(page)).toHaveValue("pizza from:bob ");
+  await expect(chips(page)).toHaveCount(1);
+  await input(page).focus();
+  await afterSearchRun(page, () => page.keyboard.press("ControlOrMeta+z"));
+  await expect(input(page)).toHaveValue("pizza from:bob has:photo");
+  await expect(chips(page)).toHaveCount(2);
+  await expect(page.locator("#s-meta")).toContainText("1 message found");
+});

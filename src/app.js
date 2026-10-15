@@ -2334,6 +2334,25 @@ function renderChips() {
   });
   host.hidden = !SQ.chips.length;
 }
+// Replace the box's whole text as ONE undoable edit, so Ctrl/Cmd+Z in the box
+// brings back what a chip removal took out: select all + execCommand
+// ("insertText" / "delete"), which joins the input's native undo stack.
+// Deprecated but still the only way to do that; when it is missing or
+// refuses — and on a touch screen, where focusing the box would pop the
+// keyboard — the value is set directly (no undo entry).
+function setBoxUndoable(text) {
+  const inp = sEls.input;
+  let done = false;
+  if (typeof document.execCommand === "function" && matchMedia("(pointer: fine)").matches) {
+    try {
+      inp.focus({ preventScroll: true });
+      inp.select();
+      done = text ? document.execCommand("insertText", false, text) : document.execCommand("delete");
+    } catch (e) { done = false; }
+    if (inp.value !== text) done = false;
+  }
+  if (!done) inp.value = text;
+}
 function removeChip(c) {
   const k = +c.dataset.k;
   const op = SQ.chips[k];
@@ -2341,8 +2360,8 @@ function removeChip(c) {
   // the box may have changed since this run (debounce): edit what was parsed
   // only while it is still the box's text
   if (sEls.input.value !== SQ.raw) { runSearch(); return; }
-  clearTimeout(sDeb);
-  sEls.input.value = GCAShared.removeSearchToken(sEls.input.value, op);
+  setBoxUndoable(GCAShared.removeSearchToken(sEls.input.value, op));
+  clearTimeout(sDeb);   // after the edit's own input event: run now, not debounced
   sEls.clear.hidden = !sEls.input.value;
   closeAutocomplete();
   runSearch();
