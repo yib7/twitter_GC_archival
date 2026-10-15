@@ -1187,6 +1187,9 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 /* UX-8 (SP9): message hits — the snippet reads as text, not a command name */
 .cmdk-msg .cmdk-label { font-weight: 450; }
 .cmdk-msg .cmdk-label mark { font-weight: 700; }
+/* SP9: the previous query's hits while the new pass runs */
+.cmdk-msg.stale { opacity: .55; }
+@media (prefers-reduced-motion: no-preference) { .cmdk-msg { transition: opacity .12s; } }
 .cmdk-hint {
   font-size: 10px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-faint); text-transform: uppercase;
   border: 1px solid var(--border); border-radius: 5px; padding: 3px 8px; flex: 0 0 auto;

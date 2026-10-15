@@ -86,3 +86,25 @@ test("the Timeline's Search button opens the Search view with the box focused", 
   await expect(page.locator('.nav-item[data-view="search"]')).toHaveAttribute("aria-current", "page");
   await expect(page.locator("#s-input")).toBeFocused();
 });
+
+test("while the next keystroke's hits are on their way the previous ones stay, dimmed", async ({ page }) => {
+  await bootViewer(page, DATA, { local: NAMES });
+  await open(page, "pizza");
+  await expect(hits(page)).toHaveCount(5);
+  await expect(hits(page).first()).not.toHaveClass(/stale/);
+  // type and read the list in the same task — before the 150 ms debounce can fire
+  const during = await page.evaluate(() => {
+    const inp = document.querySelector(".cmdk-input");
+    inp.value = "pizza n"; inp.dispatchEvent(new Event("input", { bubbles: true }));
+    const rows = [...document.querySelectorAll(".cmdk-list .cmdk-msg")];
+    return { n: rows.length, stale: rows.length > 0 && rows.every((r) => r.classList.contains("stale")),
+      dim: rows.length ? Number(getComputedStyle(rows[0]).opacity) < 1 : false,
+      busy: document.querySelector(".cmdk-list").getAttribute("aria-busy") };
+  });
+  expect(during).toEqual({ n: 5, stale: true, dim: true, busy: "true" });
+  // the new pass lands: fresh rows, not busy
+  await expect(hits(page).first()).not.toHaveClass(/stale/);
+  await expect(hits(page)).toHaveCount(5);
+  await expect(page.locator(".cmdk-list")).not.toHaveAttribute("aria-busy", "true");
+  await expect(seeAll(page)).toContainText("8 messages match");
+});

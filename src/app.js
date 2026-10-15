@@ -6163,9 +6163,12 @@ function openCommandPalette() {
     if (q.length < 2) return [];
     const rows = [];
     const ready = hits && hits.q === raw;
-    if (ready) hits.idx.forEach((i) => {
+    // Until this text's pass lands, the previous query's hits stay (dimmed,
+    // list aria-busy) instead of the list blanking on every keystroke.
+    const stale = !ready && hits && hits.q.trim().length >= 2;
+    if (ready || stale) hits.idx.forEach((i) => {
       const m = MSGS[i], text = displayText(m);
-      rows.push({ kind: "msg", pid: m.s, html: snippetHtml(text, hits.needles), label: text,
+      rows.push({ kind: "msg", stale, pid: m.s, html: snippetHtml(text, hits.needles), label: text,
         sub: nameOf(m.s) + " · " + DT.format(m.t), hint: "Message", run: () => jumpTo(i) });
     });
     rows.push({ kind: "seeall", ico: "search", hint: "Search", run: () => openSearchWith(raw),
@@ -6177,6 +6180,7 @@ function openCommandPalette() {
   function refresh() {
     filtered = commandRows(input.value).concat(msgRows(input.value));
     sel = 0; draw();
+    if (filtered.some((c) => c.stale)) listEl.setAttribute("aria-busy", "true"); else listEl.removeAttribute("aria-busy");
     // UX-8: the message search is debounced — typing never waits on it
     clearTimeout(hitT);
     if (input.value.trim().length >= 2 && !(hits && hits.q === input.value)) hitT = setTimeout(runHits, PALETTE_DEB);
@@ -6195,6 +6199,7 @@ function openCommandPalette() {
     if (cur && cur.kind === "seeall") sel = filtered.length - 1;
     else if (sel >= filtered.length) sel = 0;
     draw();
+    listEl.removeAttribute("aria-busy");
     if (filtered.length === 1 && filtered[0].kind === "seeall") announce("No matches for “" + raw.trim() + "” — press Enter to search messages");
     listEl.dataset.hits = String((Number(listEl.dataset.hits) || 0) + 1);   // a hits pass completed (tests / perf)
   }
@@ -6221,7 +6226,7 @@ function openCommandPalette() {
         const gh = el("div", "cmdk-group", esc(g)); gh.setAttribute("aria-hidden", "true");
         listEl.appendChild(gh); lastGroup = g;
       }
-      const row = el("div", "cmdk-row" + (c.kind === "msg" ? " cmdk-msg" : c.kind === "seeall" ? " cmdk-seeall" : "") + (k === sel ? " sel" : ""));
+      const row = el("div", "cmdk-row" + (c.kind === "msg" ? " cmdk-msg" + (c.stale ? " stale" : "") : c.kind === "seeall" ? " cmdk-seeall" : "") + (k === sel ? " sel" : ""));
       row.id = "cmdk-opt-" + k; row.setAttribute("role", "option");
       row.setAttribute("aria-selected", k === sel ? "true" : "false");
       const lead = c.pid != null
