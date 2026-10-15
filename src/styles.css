@@ -657,6 +657,18 @@ button.word { font-family: inherit; color: var(--text); line-height: inherit; }
 .set-label { font-size: 14px; }
 .set-desc { color: var(--text-dim); font-size: 12.5px; margin-top: 3px; }
 .set-control { flex-shrink: 0; display: flex; align-items: center; gap: 10px; }
+.preset-swatches { flex-wrap: wrap; }
+/* UX-5 / UX-34: below 600px a Settings row stacks its label above the control,
+   and the control (accent swatches + picker + Shuffle) wraps instead of
+   running off-screen. */
+@media (max-width: 600px) {
+  .set-row { flex-direction: column; align-items: stretch; gap: 10px; }
+  .set-control { flex-shrink: 1; flex-wrap: wrap; min-width: 0; }
+  .set-control.tz-pick { width: 100%; }
+}
+/* UX-36: Stats two-up sections — side by side when there's room, one column
+   on a narrow screen (replaces inline 1fr 1fr grids + a mobile !important hack). */
+.stat-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 20px; }
 /* UX-20: timezone filter + full zone list, stacked. */
 .set-control.tz-pick { flex-direction: column; align-items: stretch; gap: 6px; width: min(280px, 100%); flex-shrink: 1; }
 .tz-pick input, .tz-pick select { width: 100%; box-sizing: border-box; }
@@ -880,7 +892,6 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   .page { padding: 16px 14px 80px; }
   .person { grid-template-columns: auto 1fr; gap: 12px; }
   .person-side { flex-direction: row; align-items: center; grid-column: 1 / -1; }
-  .section[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
   .kb-content { min-width: 280px; padding: 20px; }
   .lightbox { padding: 10px; }
   .lightbox .lb-nav { padding: 10px; font-size: 30px; }

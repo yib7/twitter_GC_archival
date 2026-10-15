@@ -86,3 +86,89 @@ test.describe("UX-17: the More sheet is a real dialog", () => {
     expect(await view(page)).toBe("people");
   });
 });
+
+// A richer synthetic chat so Stats / Threads / Chains / HOF / Wrapped render real content.
+const RICH = (() => {
+  const out = [];
+  const t = Date.parse("2024-05-01T15:00:00Z");
+  for (let k = 0; k < 40; k++) {
+    const m = { i: "r" + k, s: ["u1", "u2", "u3"][k % 3], t: t + k * 60000 + (k > 20 ? 40 * 86400000 : 0), x: "volley number " + k + " about pizza and movies tonight https://example.test/" + k };
+    if (k % 7 === 0) m.r = [{ s: "u3", k: "funny" }, { s: "u1", k: "like" }];
+    out.push(m);
+  }
+  out.push({ i: "p1", s: "u3", t: t + 50 * 60000, x: "", m: "sample_media/photo-1.svg", k: "img", r: [{ s: "u1", k: "funny" }] });
+  out.push({ i: "p2", s: "u1", t: t + 51 * 60000, x: "a pic", m: "sample_media/photo-2.svg", k: "img" });
+  return out;
+})();
+const RICH_DATA = { conversations: [conv("A", "Alpha", RICH)] };
+const VIEWS = ["search", "timeline", "gallery", "pins", "hof", "wrapped", "capsule", "stats", "threads", "chains", "battles", "people", "settings"];
+
+// Elements whose box sticks out past the 390px viewport or past the scroll
+// container that holds them (content cut off = unreachable). Text inside an
+// element that truncates with an ellipsis is fine; so are the few strips that
+// scroll sideways on purpose (STRIPS).
+const STRIPS = ".chart-container, .wr-stage, .tl-scroll-x, .hscroll";
+async function overflowers(page) {
+  return page.evaluate((strips) => {
+    const W = document.documentElement.clientWidth, out = [];
+    const clipper = (e) => {
+      for (let p = e.parentElement; p && p !== document.body; p = p.parentElement) {
+        if (getComputedStyle(p).overflowX !== "visible") return p;
+      }
+      return null;
+    };
+    for (const e of document.querySelectorAll("#app *")) {
+      const r = e.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      const cs = getComputedStyle(e);
+      if (cs.position === "fixed" || cs.visibility === "hidden") continue;
+      if (e.closest(strips) || e.closest("[aria-hidden=true]")) continue;
+      const c = clipper(e);
+      const right = Math.min(W, c ? c.getBoundingClientRect().right : W);
+      const left = Math.max(0, c ? c.getBoundingClientRect().left : 0);
+      if (c && getComputedStyle(c).textOverflow === "ellipsis") continue;
+      if (r.right > right + 1 || r.left < left - 1) {
+        out.push(e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className).trim().split(/\s+/).join(".") + " → " + Math.round(r.right));
+      }
+    }
+    return { doc: document.documentElement.scrollWidth, W, out: out.slice(0, 8) };
+  }, STRIPS);
+}
+
+test.describe("UX-5 / UX-34 / UX-36: nothing overflows 390px", () => {
+  for (const theme of ["lightsout", "dim", "light"]) {
+    test("every view, " + theme, async ({ page }) => {
+      await bootViewer(page, RICH_DATA, { ls: { "gca.theme": theme } });
+      const bad = [];
+      for (const v of VIEWS) {
+        await page.evaluate((name) => { const b = document.querySelector('.nav-item[data-view="' + name + '"]'); b.click(); }, v);
+        await page.waitForTimeout(v === "stats" ? 700 : 80);
+        const r = await overflowers(page);
+        if (r.doc > r.W || r.out.length) bad.push(v + " (scrollWidth " + r.doc + "): " + r.out.join(" | "));
+      }
+      expect(bad, bad.join("\n")).toEqual([]);
+    });
+  }
+
+  test("Settings: every accent control is on screen; rows stack", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "settings" } });
+    for (const sel of ["#set-accents .preset", "#set-accent-custom", "#set-shuffle"]) {
+      const boxes = await page.locator(sel).evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.left, r.right]; }));
+      expect(boxes.length).toBeGreaterThan(0);
+      for (const [l, r] of boxes) { expect(l, sel).toBeGreaterThanOrEqual(0); expect(r, sel).toBeLessThanOrEqual(390); }
+    }
+    const row = page.locator("#set-accents").locator("xpath=ancestor::div[contains(@class,'set-row')]");
+    expect(await row.evaluate((e) => getComputedStyle(e).flexDirection)).toBe("column");
+  });
+
+  test("Stats: two-up sections collapse to one column (no inline grid templates)", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "stats" } });
+    await page.waitForTimeout(700);
+    const inline = await page.locator("#view-stats [style*='1fr 1fr']").count();
+    expect(inline).toBe(0);
+    const grids = page.locator("#view-stats .stat-grid2");
+    expect(await grids.count()).toBeGreaterThan(0);
+    const cols = await grids.evaluateAll((gs) => gs.map((g) => getComputedStyle(g).gridTemplateColumns.split(" ").length));
+    for (const c of cols) expect(c).toBe(1);
+  });
+});

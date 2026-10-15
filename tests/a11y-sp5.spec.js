@@ -412,3 +412,16 @@ test.describe("UX-17: onboarding is a real dialog", () => {
     await expect(page.locator('.nav-item[data-view="search"]')).toBeFocused();
   });
 });
+
+test.describe("UX-5 / UX-36: desktop keeps its two-up layouts", () => {
+  test("Settings rows stay side by side; Stats two-up sections keep two columns", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "stats" } });
+    await page.waitForTimeout(700);
+    const cols = await page.locator("#view-stats .stat-grid2").evaluateAll((gs) => gs.map((g) => getComputedStyle(g).gridTemplateColumns.split(" ").length));
+    expect(cols.length).toBeGreaterThan(0);
+    expect(cols).toContain(2);
+    await go(page, "settings");
+    expect(await page.locator(".set-row").first().evaluate((e) => getComputedStyle(e).flexDirection)).toBe("row");
+  });
+});

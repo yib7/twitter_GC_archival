@@ -2950,7 +2950,7 @@ function renderStats() {
         <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-trends" role="img" aria-label="Line chart: monthly uses of a word"></canvas></div>
       </div>
 
-      <div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+      <div class="section stat-grid2">
         <div>
           <div class="section-h">Activity by time of day</div>
           <div class="chart-container" style="position: relative; height:150px; width:100%"><canvas id="chart-hours" role="img" aria-label="${esc(hoursLabel)}"></canvas></div>
@@ -3057,7 +3057,7 @@ function fillStatsDeferred(v, s, cloudWords) {
   const panels = (list) => {
     const shown = list.filter((p) => p.rows);
     if (!shown.length) return "";
-    return `<div class="section" style="display: grid; grid-template-columns: ${shown.length > 1 ? "1fr 1fr" : "1fr"}; gap: 20px;">` +
+    return `<div class="section stat-grid2">` +
       shown.map((p) => `<div data-panel="${p.key}"><div class="section-h">${p.title}</div>${p.extra || ""}<div class="bars" style="${p.style || panel}">${p.rows}</div></div>`).join("") +
       "</div>";
   };
@@ -3110,7 +3110,7 @@ function fillStatsDeferred(v, s, cloudWords) {
       <div class="bar-val" style="font-weight:600;color:var(--accent-text);">${plural(pair.count, "time")}</div>
     </div>`;
   });
-  slot("latency", `<div class="section" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+  slot("latency", `<div class="section stat-grid2">
         <div>
           <div class="section-h">Typical Reply Time (median, answers within 12 h)</div>
           <div class="bars" style="${panel}">
