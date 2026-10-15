@@ -1257,7 +1257,10 @@ function renderMedia(m, i) {
     img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
     // A search result walks the result media; anywhere else (timeline, a
     // Context peek — even over Search) walks the conversation's media.
-    img.addEventListener("click", (e) => { e.stopPropagation(); openLightbox(i, img.closest("#s-list") ? resState.idx : null); });
+    // M-3: the image is its own Tab stop (Enter/Space open it too) — the
+    // message around it is focusable but can't open the lightbox itself.
+    asButton(img, () => openLightbox(i, img.closest("#s-list") ? resState.idx : null), "Open photo from " + nameOf(m.s) + " · " + DT.format(m.t));
+    img.addEventListener("click", (e) => e.stopPropagation());   // not the card's own click
     d.appendChild(img);
   } else if (m.k === "vid") {
     const v = document.createElement("video"); v.src = m.m; v.controls = true; v.preload = "none";

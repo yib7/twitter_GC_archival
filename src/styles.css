@@ -362,6 +362,7 @@ button, input, select, textarea { font-family: inherit; }
 /* media */
 .media { margin-top: 8px; border-radius: 12px; overflow: hidden; max-width: 380px; border: 1px solid var(--border); }
 .media img, .media video { display: block; width: 100%; height: auto; max-height: 440px; object-fit: cover; background: #000; }
+.media img { cursor: pointer; }   /* opens the lightbox (click, or Enter/Space on its Tab stop) */
 .media.gallery-cell { margin: 0; max-width: none; }
 
 /* url chips (mock .linkchip: icon box + bold domain + dim ellipsized label) */

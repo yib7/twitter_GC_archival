@@ -60,8 +60,9 @@ All notable changes to this project are recorded here.
 ### Accessibility
 
 - Every keyboard stop shows a visible focus ring, and every clickable card,
-  chip, swatch, cloud word and chart bar is a real button or link (Enter and
-  Space work; nothing is click-only).
+  chip, swatch, cloud word, chart bar and message photo is a real button or
+  link (Enter and Space work). Avatars stay a mouse/touch shortcut to the
+  profile, which the keyboard reaches from People.
 - Timeline messages are keyboard stops. Their Reply / Bookmark / Copy toolbar
   appears on focus as well as on hover, and on touch a ⋯ button opens it.
 - Icon-only buttons and every input have accessible names; decorative icons

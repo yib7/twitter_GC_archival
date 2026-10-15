@@ -169,19 +169,44 @@ async function clickOnly(page, root) {
       if (getComputedStyle(e).cursor !== "pointer") return false;
       const b = e.getBoundingClientRect();
       if (!b.width || !b.height) return false;
-      return !e.closest(ok);
+      const host = e.closest(ok);
+      if (!host) return true;
+      // M-3: a focusable message (or result card) doesn't cover the media
+      // inside it — an image opens the lightbox, which the message itself
+      // can't do from the keyboard, so the media needs its own Tab stop.
+      if (host.classList.contains("msg") && e.matches(".media img")) return true;
+      return false;
     }).map((e) => e.tagName.toLowerCase() + "." + String(e.className).trim().split(/\s+/).join("."));
   }, root);
 }
 
 test.describe("UX-13: no click-only elements", () => {
-  for (const v of ["gallery", "hof", "stats", "threads", "chains", "wrapped", "people", "settings"]) {
+  for (const v of ["search", "timeline", "gallery", "hof", "stats", "threads", "chains", "wrapped", "people", "settings"]) {
     test(v + ": every pointer target is keyboard-operable", async ({ page }) => {
-      await bootViewer(page, RICH_DATA);
+      await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": v === "timeline" ? "timeline" : "search" } });
       await go(page, v);
       await page.waitForTimeout(v === "stats" ? 600 : 100);
       const bad = await clickOnly(page, "#view-" + v);
       expect(bad, "click-only: " + [...new Set(bad)].join(", ")).toEqual([]);
+    });
+  }
+
+  for (const v of ["search", "timeline"]) {
+    test(v + ": a message photo opens the lightbox from the keyboard", async ({ page }) => {
+      await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": v } });
+      // the photos are the newest messages: at the end of the Timeline
+      if (v === "timeline") await page.locator("#tl-scroll").evaluate((s) => { s.scrollTop = s.scrollHeight; });
+      const img = page.locator((v === "search" ? "#s-list" : "#tl-list") + " .media img").first();
+      await img.scrollIntoViewIfNeeded();
+      await expect(img).toHaveAttribute("role", "button");
+      await expect(img).toHaveAccessibleName(/^Open photo from /);
+      await img.focus();
+      await page.keyboard.press("Enter");
+      await expect(page.locator(".lightbox")).toBeVisible();
+      expect(await page.evaluate(() => document.querySelector(".nav-item[aria-current=page]").dataset.view), v).toBe(v);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".lightbox")).toBeHidden();
+      await expect(img).toBeFocused();
     });
   }
 
