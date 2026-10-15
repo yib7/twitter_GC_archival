@@ -271,3 +271,25 @@ test.describe("UX-18: 44px touch targets on a coarse pointer", () => {
     expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
   });
 });
+
+test.describe("UX-35: the capsule is sized by layout, not a hardcoded height", () => {
+  test("no inline height; the last memory scrolls fully clear of the tab bar", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2025-05-01T18:00:00Z"));
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "capsule" } });
+    const body = page.locator("#capsule-body");
+    await expect(body.locator(".msg").first()).toBeVisible();
+    expect(await body.getAttribute("style")).toBeNull();
+    // scroll whatever scrolls the capsule to its end
+    await page.evaluate(() => {
+      for (let n = document.getElementById("capsule-body"); n; n = n.parentElement) {
+        if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) n.scrollTop = n.scrollHeight;
+      }
+    });
+    await page.waitForTimeout(100);
+    const last = await body.locator(".msg").last().boundingBox();
+    const bar = await page.locator(".tabbar").boundingBox();
+    expect(last.y + last.height).toBeLessThanOrEqual(bar.y);
+    // exactly one scroll container (no nested scroller inside the page)
+    expect(await page.evaluate(() => /auto|scroll/.test(getComputedStyle(document.getElementById("capsule-body")).overflowY))).toBe(false);
+  });
+});

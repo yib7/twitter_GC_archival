@@ -4024,7 +4024,9 @@ function renderCapsule() {
   const v = document.getElementById("view-capsule");
   v.innerHTML = `<div class="page"><div class="page-head"><div class="page-title">Time Capsule</div>
     <div class="page-sub">On this day in history...</div></div>
-    <div class="page-body scroll" id="capsule-body" style="height: calc(100vh - 120px); overflow-y: auto;"></div></div>`;
+    <div class="page-body" id="capsule-body"></div></div>`;
+  // UX-35: no hardcoded calc(100vh - 120px) nested scroller — the .page (flex: 1,
+  // overflow auto, padded clear of the mobile tab bar) scrolls like every view.
   const body = v.querySelector("#capsule-body");
   
   // "Today" and each message are compared in the configured zone, so "on this
