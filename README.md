@@ -146,9 +146,14 @@ npm run test:smoke
 - Browsing an archive needs only a modern browser. No install, no Node, no
   internet. Double-click `index.html`.
 - The setup wizard and the local server need [Node.js](https://nodejs.org) 18 or
-  newer (developed and CI-tested on Node 24, pinned in `.nvmrc`). They use only
-  Node's built-in modules, so there is nothing to `npm install` to run them.
-- `npm install` is needed only to run the test suite (Playwright + ESLint).
+  newer. They use only Node's built-in modules (and nothing newer than Node
+  18 offers), so there is nothing to `npm install` to run them, and the
+  double-click launchers check for 18. CI runs them on Node 24 (`.nvmrc`), and
+  that is the only version they are tested on.
+- Developing (`npm install`, the tests and lint) needs Node 22.13 or newer
+  (`package.json` `engines`: `^22.13.0 || >=24`): ESLint 10 and Playwright
+  require it, and `npm run test:unit` uses `node --test` with a glob, which
+  Node 21 added.
 - The wizard's Browse buttons open native file dialogs on Windows. On macOS and
   Linux the wizard still works, but you paste the file and folder paths by hand.
 

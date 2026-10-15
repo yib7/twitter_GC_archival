@@ -74,7 +74,17 @@ test("with a usable Node.js it starts the server with --open (a stand-in node re
   assert.match(r.out, /FAKE-NODE .*server\.js.* --open/);
 });
 
-test("package.json declares the Node versions it supports", () => {
+// Two floors: the launchers and the server only need Node 18 (they use core
+// modules only), but package.json covers npm install / test / lint, whose
+// tools need more: ESLint 10 wants ^20.19 || ^22.13 || >=24, Playwright >=20,
+// and `node --test "tests/**/*.test.js"` needs Node 21+ for the glob.
+test("package.json declares the Node versions its dev tooling supports", () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.engines && pkg.engines.node, ">=18");
+  assert.equal(pkg.engines && pkg.engines.node, "^22.13.0 || >=24");
+});
+
+test("the launchers still accept Node 18, the server's own floor", () => {
+  for (const f of ["start-setup.cmd", "start-setup.command"]) {
+    assert.match(fs.readFileSync(path.join(ROOT, f), "utf8"), />= 18 \? 0 : 1/, f);
+  }
 });
