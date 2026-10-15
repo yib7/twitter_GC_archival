@@ -310,7 +310,11 @@ button, input, select, textarea { font-family: inherit; }
   .msg:not(.acts-open) .msg-acts { display: none; }
   .msg-acts { top: 44px; right: 0; max-width: calc(100% - 8px); flex-wrap: wrap; }
   .msg-acts button { min-width: 44px; min-height: 44px; font-size: 13px; }
-  .msg-body { padding-right: 36px; }
+  .msg-body { padding-right: 44px; }   /* the ⋯ is 44px wide: a full-width bubble stops short of it */
+  /* I-3: your own messages are row-reverse (avatar on the right), so the ⋯,
+     its toolbar and the reserved gutter swap to the left edge */
+  .msg.me .msg-more, .msg.me .msg-acts { right: auto; left: 0; }
+  .msg.me .msg-body { padding-right: 0; padding-left: 44px; }
 }
 .msg-acts button { background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 11px; padding: 4px 8px; border-radius: 4px; }
 .msg-acts button:hover { background: var(--bg-card); color: var(--text); }

@@ -73,6 +73,24 @@ test.describe("I-2: running a toolbar action keeps keyboard focus on a touch scr
   });
 });
 
+test.describe("I-3: on your own messages the ⋯ doesn't cover the avatar", () => {
+  test("the avatar on a right-aligned (me) message is still what a tap at its centre hits", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ me: "u1" }) } });
+    const mine = page.locator("#tl-list .msg.me").first();
+    await expect(mine).toBeVisible();
+    const av = mine.locator(".av").first();
+    await expect(av).toBeVisible();
+    const b = await av.boundingBox();
+    const hit = await page.evaluate(([x, y]) => { const h = document.elementFromPoint(x, y); return h && (h.closest(".av") ? "avatar" : h.className || h.tagName); }, [b.x + b.width / 2, b.y + b.height / 2]);
+    expect(hit).toBe("avatar");
+    // …and the ⋯ itself is still on screen and not over the bubble text
+    const more = await mine.locator(".msg-more").boundingBox();
+    expect(more.x).toBeGreaterThanOrEqual(0);
+    const bub = await mine.locator(".bubble").first().boundingBox();
+    expect(more.x + more.width <= bub.x || more.x >= bub.x + bub.width || more.y + more.height <= bub.y).toBe(true);
+  });
+});
+
 test.describe("UX-17: the More sheet is a real dialog", () => {
   test("inert while closed; on open aria-modal with focus inside and trapped; Esc closes back to the More tab", async ({ page }) => {
     await bootViewer(page, DATA);
