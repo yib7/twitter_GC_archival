@@ -316,6 +316,58 @@ test.describe("Share: review fixes", () => {
     expect(buf.equals(fresh.buf), "the downloaded PNG matches a clean redacted render").toBe(true);
   });
 
+  test("Download clicked while a slow render is pending saves the latest, redacted card", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__imgDelay = 0;
+      const Real = window.Image;
+      window.Image = function () {
+        const img = new Real();
+        let h = null;
+        Object.defineProperty(img, "onload", { get: () => h, set: (f) => { h = f; } });
+        img.addEventListener("load", () => setTimeout(() => { if (h) h.call(img); }, window.__imgDelay));
+        return img;
+      };
+    });
+    await recordCanvas(page);
+    const PFP = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS(), "gca.pfps": JSON.stringify({ u1: PFP }) } });
+    // a clean redacted render to compare against (no delay)
+    let dlg = await openShareOnMessage(page, "booked it");
+    const cb = () => dlg.getByRole("checkbox", { name: /Hide names/ });
+    await cb().check();
+    const clean = await download(page, dlg);
+    await page.keyboard.press("Escape");
+    await page.evaluate(() => { window.__imgDelay = 1200; });
+
+    // A: names on (slow photo pending), Download, then Hide names on — the
+    // Download was waiting on a render that went stale: it must re-chain
+    dlg = await openShareOnMessage(page, "booked it");                 // redacted (remembered), instant
+    await cb().uncheck();                                               // names + slow photo, pending
+    await resetDrawn(page);
+    let dl = page.waitForEvent("download");
+    await dlg.getByRole("button", { name: "Download PNG" }).click();
+    await cb().check();                                                 // redacted, instant
+    let got = fs.readFileSync(await (await dl).path());
+    checkPng(got);
+    expect(got.equals(clean.buf), "A: the PNG is the clean redacted render").toBe(true);
+    await page.waitForTimeout(1500);                                    // the stale photo lands
+    expect(leaks(await drawn(page))).toEqual([]);
+    expect(await page.evaluate(() => window.__images)).toBe(0);
+
+    // B: names on (slow photo pending), Hide names on, Download right away
+    await cb().uncheck();
+    await resetDrawn(page);
+    await cb().check();
+    dl = page.waitForEvent("download");
+    await dlg.getByRole("button", { name: "Download PNG" }).click();
+    got = fs.readFileSync(await (await dl).path());
+    checkPng(got);
+    expect(got.equals(clean.buf), "B: the PNG is the clean redacted render").toBe(true);
+    await page.waitForTimeout(1500);
+    expect(leaks(await drawn(page))).toEqual([]);
+    expect(await page.evaluate(() => window.__images)).toBe(0);
+  });
+
   test("Copy image is hidden when the browser has no ClipboardItem", async ({ page }) => {
     await page.addInitScript(() => { delete window.ClipboardItem; });
     await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS() } });
