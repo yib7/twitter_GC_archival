@@ -858,6 +858,105 @@
     return Number(n).toLocaleString("en-US") + " " + (n === 1 ? one : (many || one + "s"));
   }
 
+  /* ---- Share cards (SP10) ---------------------------------------------------
+     The pure half of the one canvas share-card renderer (app.js
+     drawShareCard): grapheme splitting, text wrapping against a measure()
+     the canvas supplies, and name redaction. DOM-free; tests/share-card.test.js. */
+
+  // User-perceived characters: an emoji sequence (the SP4 RE_EMOJI_SEQ
+  // grammar: ZWJ families, flags, skin tones, keycaps) or a base character
+  // with its combining marks is one grapheme. Intl.Segmenter when available.
+  const GRAPHEME_SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
+  const RE_GRAPHEME = new RegExp(RE_EMOJI_SEQ.source + "|\\r\\n|(?:(?!\\p{M})[\\s\\S])\\p{M}*|\\p{M}+", "gu");
+  function graphemes(s) {
+    s = String(s == null ? "" : s);
+    if (!s) return [];
+    if (GRAPHEME_SEG) { const out = []; for (const g of GRAPHEME_SEG.segment(s)) out.push(g.segment); return out; }
+    return graphemesNoSegmenter(s);
+  }
+  function graphemesNoSegmenter(s) { return String(s == null ? "" : s).match(RE_GRAPHEME) || []; }
+  // Word-wrap `text` into lines no wider than maxWidth by measure(str). The
+  // text's own line breaks are kept; a word wider than a line is split between
+  // graphemes (never inside an emoji). Past opts.maxLines the last line ends
+  // with "…". Returns { lines, truncated }.
+  function wrapText(text, maxWidth, measure, opts) {
+    const maxLines = (opts && opts.maxLines) || Infinity;
+    const lines = [];
+    const fits = (s) => measure(s) <= maxWidth;
+    for (const para of String(text == null ? "" : text).split(/\r\n|\r|\n/)) {
+      const words = para.split(/[ \t\f\v\xa0]+/).filter(Boolean);
+      if (!words.length) { lines.push(""); continue; }
+      let cur = "";
+      for (const w of words) {
+        const cand = cur ? cur + " " + w : w;
+        if (fits(cand)) { cur = cand; continue; }
+        if (cur) { lines.push(cur); cur = ""; }
+        if (fits(w)) { cur = w; continue; }
+        // an over-long word: fill lines grapheme by grapheme
+        for (const g of graphemes(w)) {
+          if (cur && !fits(cur + g)) { lines.push(cur); cur = ""; }
+          cur += g;
+        }
+      }
+      lines.push(cur);
+    }
+    if (lines.length <= maxLines) return { lines, truncated: false };
+    const out = lines.slice(0, maxLines);
+    const gs = graphemes(out[maxLines - 1].replace(/\s+$/, ""));
+    while (gs.length && !fits(gs.join("") + "…")) gs.pop();
+    out[maxLines - 1] = gs.join("").replace(/\s+$/, "") + "…";
+    return { lines: out, truncated: true };
+  }
+  // Name redaction for a shared image. people: [{ id, names: [display name,
+  // aliases…] }] — everyone in the chat, not only who is on the card, since a
+  // message can name anyone. label(id) gives "Person A", "Person B", … in the
+  // order people are first met; text(s) replaces every @handle with
+  // "@someone" and every name, alias, accent-free spelling of one and word
+  // (3+ letters, not a stopword) of a multi-word name with that person's
+  // label, case-insensitively and only as a whole word. A generic "User N"
+  // alias is redacted only whole, so the word "user" survives.
+  const RE_GENERIC_NAME = /^user\s+\d+$/i;
+  function createRedactor(people) {
+    const ids = new Map(), byTerm = new Map();
+    let next = 0;
+    const letter = (k) => (k < 26 ? String.fromCharCode(65 + k) : String(k + 1));
+    const label = (id) => {
+      id = String(id);
+      if (!ids.has(id)) ids.set(id, "Person " + letter(next++));
+      return ids.get(id);
+    };
+    const add = (t, id) => { t = t.trim(); const k = t.toLowerCase(); if (t && !byTerm.has(k)) byTerm.set(k, id); };
+    for (const p of people || []) {
+      for (const raw of p.names || []) {
+        const n = String(raw == null ? "" : raw).replace(/^@+/, "").trim();
+        if (!n) continue;
+        const folded = n.normalize ? n.normalize("NFD").replace(/\p{M}+/gu, "") : n;
+        for (const v of [n, folded]) {
+          add(v, String(p.id));
+          if (RE_GENERIC_NAME.test(v)) continue;
+          const words = v.split(/[^\p{L}\p{N}'’]+/u).filter(Boolean);
+          if (words.length > 1) for (const w of words) if ([...w].length >= 3 && !/^\d+$/.test(w) && !isStopword(w)) add(w, String(p.id));
+        }
+      }
+    }
+    const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const terms = [...byTerm.keys()].sort((a, b) => b.length - a.length);
+    const re = terms.length ? new RegExp("(?<![\\p{L}\\p{N}_])(?:" + terms.map((t) => esc(t).replace(/\s+/g, "\\s+")).join("|") + ")(?![\\p{L}\\p{N}_])", "giu") : null;
+    const text = (s) => {
+      let out = String(s == null ? "" : s);
+      if (out.indexOf("@") !== -1) out = out.replace(RE_MENTION, "$1@someone");
+      if (!re) return out;
+      return out.replace(re, (m) => {
+        let id = byTerm.get(m.toLowerCase().replace(/\s+/g, " "));
+        // the regex's case folding can differ from toLowerCase() (İ, K…):
+        // find the term the hard way — a matched name is never left in place
+        if (id == null) for (const [k, v] of byTerm) if (new RegExp("^" + esc(k).replace(/\s+/g, "\\s+") + "$", "iu").test(m)) { id = v; break; }
+        return id != null ? label(id) : "someone";
+      });
+    };
+    return { label, text };
+  }
+
   function isPlainObj(v) { return !!v && typeof v === "object" && !Array.isArray(v); }
   // Copy an object map keeping only entries `fn` maps to a truthy value; never
   // copies prototype-polluting keys.
@@ -961,6 +1060,7 @@
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
+    graphemes, graphemesNoSegmenter, wrapText, createRedactor,
     isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
   };
 });
