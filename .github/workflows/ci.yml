@@ -118,3 +118,56 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+
+  # package.json declares engines.node "^22.13.0 || >=24", and the matrix
+  # above only ever runs the .nvmrc Node. This leg runs the declared floor
+  # (the lowest Node the range admits), so the claim is tested, not assumed.
+  # One OS is enough: the OS dimension is covered by the matrix above.
+  node-floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22.13.0"
+          cache: npm
+
+      # Fails if this pin and package.json's engines floor ever drift apart,
+      # or if setup-node resolved some other version.
+      - name: Running the declared engines floor
+        run: |
+          node -e "
+            const floor = require('./package.json').engines.node.match(/\^(\d+\.\d+\.\d+)/)[1];
+            console.log('node', process.versions.node, 'declared floor', floor);
+            if (process.versions.node !== floor) process.exit(1);
+          "
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests (build core)
+        run: npm run test:unit
+
+      # same cache key and path as the ubuntu matrix leg above
+      - name: Cache Playwright browsers
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report + traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-node-floor
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
