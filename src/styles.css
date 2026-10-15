@@ -565,8 +565,12 @@ button, input, select, textarea { font-family: inherit; }
   box-shadow: var(--el2), var(--glow-accent);
   display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
 }
+/* The hero's accent-tinted surface is lighter (dark themes) / more coloured
+   (Light) than a card, so its secondary text and eyebrow lean toward --text
+   to keep 4.5:1 on it (N-2: the dim/faint tokens are tuned for plain cards). */
+.hero { --text-dim: color-mix(in srgb, var(--text) 30%, var(--text-dim)); --text-faint: color-mix(in srgb, var(--text) 30%, var(--text-faint)); }
 .hero .h-main { flex: 1; min-width: 260px; }
-.hero .h-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-text-soft); }
+.hero .h-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: color-mix(in srgb, var(--accent-text-soft) 65%, var(--text)); }
 .hero .h-num {
   font-size: 64px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin: 12px 0 4px;
   font-variant-numeric: tabular-nums;
@@ -1241,6 +1245,10 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 }
 /* slide + themed backdrops (mock washes; hexes → color-mix over --bg-page) */
 .wr-slide { position: absolute; inset: 0; display: flex; overflow-y: auto; text-align: center; padding: 56px 32px 32px; }
+/* The slide washes are strongly tinted (40-46% of a hue at their peak), so
+   text on them leans toward --text: dim copy, ranks and person names keep
+   4.5:1, the big gradient numbers 3:1, in every theme (N-2). */
+.wr-slide { --text-dim: color-mix(in srgb, var(--text) 45%, var(--text-dim)); }
 .wr-slide::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   background: radial-gradient(130% 130% at 50% 42%, transparent 52%, rgba(0, 0, 0, 0.6));
@@ -1296,14 +1304,14 @@ html[data-theme="light"] .wr-slide::after {
 .wr-big {
   font-size: clamp(64px, 10vw, 116px); font-weight: 800; letter-spacing: -0.03em; line-height: 1;
   font-variant-numeric: tabular-nums; margin: 10px 0 2px; word-break: break-word;
-  background: linear-gradient(180deg, var(--text), var(--accent-text-soft) 62%, var(--accent-text));
+  background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--accent-text-soft) 75%, var(--text)) 62%, color-mix(in srgb, var(--accent-text) 70%, var(--text)));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .wr-big.wr-big-year {
   font-size: clamp(80px, 14vw, 170px); letter-spacing: -0.05em; line-height: 0.85; margin: 8px 0 4px;
   /* the mid stop leans toward --text (lighter on dark themes, darker on
      Light) instead of white, so every stop clears 3:1 on Light too */
-  background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--p-violet) 70%, var(--text)) 60%, var(--p-violet));
+  background: linear-gradient(180deg, var(--text), color-mix(in srgb, var(--p-violet) 70%, var(--text)) 60%, color-mix(in srgb, var(--p-violet) 78%, var(--text)));
   -webkit-background-clip: text; background-clip: text; color: transparent;
   text-shadow: 0 8px 60px color-mix(in srgb, var(--p-violet) 35%, transparent);
 }
@@ -1318,9 +1326,9 @@ html[data-theme="light"] .wr-slide::after {
 /* people slide (mock .people-list / .pl-row) */
 .wr-people { display: flex; flex-direction: column; gap: 14px; margin: 24px auto 0; max-width: 480px; text-align: left; }
 .pl-row { display: flex; align-items: center; gap: 14px; }
-.pl-rank { font-family: var(--font-mono); font-size: 14px; font-weight: 700; width: 22px; flex: 0 0 auto; color: color-mix(in srgb, var(--text) 55%, transparent); }
+.pl-rank { font-family: var(--font-mono); font-size: 14px; font-weight: 700; width: 22px; flex: 0 0 auto; color: color-mix(in srgb, var(--text) 75%, transparent); }
 .pl-main { flex: 1; min-width: 0; }
-.pl-name { font-size: 15px; font-weight: 700; color: var(--p, var(--text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-name { font-size: 15px; font-weight: 700; color: color-mix(in srgb, var(--p, var(--text)) 75%, var(--text)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pl-track { height: 12px; border-radius: 6px; margin-top: 7px; overflow: hidden; background: color-mix(in srgb, var(--text) 9%, transparent); }
 .pl-fill {
   height: 100%; width: 0; border-radius: 6px;

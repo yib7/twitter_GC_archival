@@ -789,6 +789,14 @@ test.describe("Contrast of rendered text, every view × theme", () => {
         for (const f of await contrastFailures(page, "#view-" + v)) bad.push(v + ": " + f);
       }
       for (const f of await contrastFailures(page, ".sidebar")) bad.push("sidebar: " + f);
+      // every Wrapped slide, not just the first: each has its own backdrop wash
+      await go(page, "wrapped");
+      const slides = await page.locator("#wr-dots button").count();
+      for (let k = 0; k < slides; k++) {
+        await page.locator("#wr-dots button").nth(k).click();
+        await page.waitForTimeout(120);
+        for (const f of await contrastFailures(page, "#view-wrapped")) bad.push("wrapped slide " + (k + 1) + ": " + f);
+      }
       expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
     });
   }

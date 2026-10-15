@@ -17,26 +17,66 @@ async function contrastFailures(page, root, skip) {
     const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
     const lum = (c) => [c.r, c.g, c.b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, k) => s + v * [0.2126, 0.7152, 0.0722][k], 0);
     const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-    // Candidate backgrounds behind e: one colour, or one per gradient stop.
-    const bgsOf = (e) => {
-      const layers = [];
-      let base = [parse(getComputedStyle(document.body).backgroundColor)];
-      for (let n = e; n; n = n.parentElement) {
+    // Candidate backgrounds behind e. The paint stack is collected top-down:
+    // per element its background-image gradients (first listed = on top),
+    // then its background-color; the walk stops at the first fully opaque
+    // layer (or falls through to <body>). It is then composited bottom-up,
+    // every stop of a gradient being one alternative, so a translucent
+    // gradient (e.g. a radial glow fading to transparent) is laid OVER the
+    // ancestors under it instead of being replaced by them (N-2).
+    const GRAD = /(?:repeating-)?(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/g;
+    const COLOR = /(rgba?\([^)]*\)|color\([^)]*\))/g;
+    // A radial gradient with an explicit "Wpx Hpx at X Y" ellipse is position-
+    // aware: only the colours it actually paints over the text's rect count
+    // (nearest and farthest point, plus any stop in between). Other gradients
+    // count every stop.
+    const splitTop = (str) => { const out = []; let depth = 0, cur = ""; for (const ch of str) { if (ch === "(") depth++; if (ch === ")") depth--; if (ch === "," && !depth) { out.push(cur.trim()); cur = ""; } else cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
+    const mixC = (a, b, t) => ({ r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t, a: a.a + (b.a - a.a) * t });
+    const radialStops = (g, box, text) => {
+      const m = /^radial-gradient\(\s*([\d.]+)px\s+([\d.]+)px\s+at\s+(-?[\d.]+)(%|px)\s+(-?[\d.]+)(%|px)\s*,(.*)\)$/.exec(g);
+      if (!m || !text) return null;
+      const rx = +m[1], ry = +m[2];
+      const cx = box.left + (m[4] === "%" ? box.width * m[3] / 100 : +m[3]);
+      const cy = box.top + (m[6] === "%" ? box.height * m[5] / 100 : +m[5]);
+      const parts = splitTop(m[7]).map((p) => { const c = p.match(COLOR); const pos = p.replace(c ? c[0] : "", "").trim(); return { c: c && parse(c[0]), at: /%$/.test(pos) ? parseFloat(pos) / 100 : null }; }).filter((x) => x.c);
+      if (parts.length < 2) return null;
+      parts.forEach((x, k) => { if (x.at == null) x.at = k === 0 ? 0 : k === parts.length - 1 ? 1 : (parts[k - 1].at + 1) / 2; });
+      const at = (d) => {
+        if (d <= parts[0].at) return parts[0].c;
+        for (let k = 1; k < parts.length; k++) if (d <= parts[k].at) return mixC(parts[k - 1].c, parts[k].c, (d - parts[k - 1].at) / Math.max(1e-6, parts[k].at - parts[k - 1].at));
+        return parts[parts.length - 1].c;
+      };
+      const nd = (x, y) => Math.hypot((x - cx) / rx, (y - cy) / ry);
+      const near = nd(Math.min(Math.max(cx, text.left), text.right), Math.min(Math.max(cy, text.top), text.bottom));
+      const far = Math.max(...[[text.left, text.top], [text.right, text.top], [text.left, text.bottom], [text.right, text.bottom]].map(([x, y]) => nd(x, y)));
+      return [at(near), at(far)].concat(parts.filter((x) => x.at > near && x.at < far).map((x) => x.c));
+    };
+    const bgsOf = (e, text) => {
+      const stack = [];
+      let floor = [parse(getComputedStyle(document.body).backgroundColor)];
+      walk: for (let n = e; n; n = n.parentElement) {
         const cs = getComputedStyle(n);
-        const c = parse(cs.backgroundColor);
         if (cs.backgroundImage !== "none") {
           if (/url\(/.test(cs.backgroundImage)) return null;
-          const stops = (cs.backgroundImage.match(/(rgba?\([^)]*\)|color\([^)]*\))/g) || []).map(parse);
-          if (stops.length) {
-            const under = c && c.a > 0 ? over(c, base[0]) : base[0];
-            base = stops.map((s) => over(s, under));
-            if (stops.every((s) => s.a >= 1)) break;
-            continue;
+          for (const g of cs.backgroundImage.match(GRAD) || []) {
+            const stops = radialStops(g, n.getBoundingClientRect(), text) || (g.match(COLOR) || []).map(parse);
+            if (!stops.length) continue;
+            if (stops.every((st) => st.a >= 1)) { floor = stops; break walk; }
+            stack.push(stops);
           }
         }
-        if (c && c.a > 0) { layers.push(c); if (c.a >= 1) { base = [{ ...c, a: 1 }]; layers.pop(); break; } }
+        const c = parse(cs.backgroundColor);
+        if (c && c.a >= 1) { floor = [c]; break; }
+        if (c && c.a > 0) stack.push([c]);
       }
-      return base.map((b) => { let acc = b; for (let k = layers.length - 1; k >= 0; k--) acc = over(layers[k], acc); return acc; });
+      let cands = floor;
+      for (let k = stack.length - 1; k >= 0; k--) {
+        const next = [];
+        for (const under of cands) for (const st of stack[k]) next.push(over(st, under));
+        const seen = new Set();
+        cands = next.filter((x) => { const key = [x.r, x.g, x.b].map(Math.round).join(","); if (seen.has(key)) return false; seen.add(key); return true; }).slice(0, 64);
+      }
+      return cands;
     };
     const out = [];
     const r0 = document.querySelector(sel);
@@ -55,7 +95,7 @@ async function contrastFailures(page, root, skip) {
       // gradient stops are the ink, the parent's background is behind it
       const clipText = /text/.test(cs.webkitBackgroundClip || "") || /text/.test(cs.backgroundClip || "");
       const inks = clipText ? (cs.backgroundImage.match(/(rgba?\([^)]*\)|color\([^)]*\))/g) || []).map(parse) : [parse(cs.color)];
-      const bgs = bgsOf(clipText ? e.parentElement : e); if (!bgs || !inks.length) continue;
+      const bgs = bgsOf(clipText ? e.parentElement : e, r); if (!bgs || !inks.length) continue;
       let cr = Infinity;
       for (const f0 of inks) for (const bg of bgs) cr = Math.min(cr, ratio(over({ r: f0.r, g: f0.g, b: f0.b, a: f0.a * op }, bg), bg));
       if (cr < need) out.push((e.parentElement.className ? String(e.parentElement.className).split(" ")[0] + ">" : "") + e.tagName.toLowerCase() + "." + String(e.className).trim().split(/\s+/).slice(0, 2).join(".") + " “" + e.textContent.trim().slice(0, 18) + "” " + cr.toFixed(2));
