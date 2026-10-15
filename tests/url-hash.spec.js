@@ -301,7 +301,7 @@ test("file:// — Copy link copies only the #… part and says where to paste it
   await expect(page.locator(".toast")).toHaveText("Copied the message's #link — paste it at the end of this archive's address to open it");
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toMatch(/^#v=timeline&c=[^&]+&m=[^&]+$/);
-  expect(link).not.toMatch(/file:|[\/]Users[\/]|index\.html/i);
+  expect(link).not.toMatch(/file:|[\\/]Users[\\/]|index\.html/i);
   const idx = await msg.getAttribute("data-idx");
   await page.locator('.nav-item[data-view="stats"]').click();
   await page.goto(url + link);

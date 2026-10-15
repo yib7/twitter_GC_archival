@@ -188,7 +188,7 @@ test.describe("calendar at 390px on a touch screen", () => {
     await item.click();
     await expect(dlg(page)).toBeVisible();
     await expect(page.locator("#view-timeline")).toBeVisible();
-    await expect(page.locator("#more-sheet")).not.toHaveClass(/on/);
+    await expect(page.locator("#more-sheet")).not.toHaveClass(/(^|\s)on(\s|$)/);
     await expect(dlg(page).locator(".cal-d[tabindex='0']")).toBeFocused();
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
     await day(page, "Thursday, June 1, 2023").click();
