@@ -102,3 +102,23 @@ test("a note in the save reply (a last build step failed) is shown with the resu
   await expect(page.locator("#finish-result")).toContainText(/Saved/);
   await expect(page.locator("#finish-result .build-notes")).toContainText(text);
 });
+
+test("a double-click on Save asks once; a later Escape can't undo the saved result", async ({ page }) => {
+  let previews = 0;
+  await page.route("**/api/removal-preview", async (route) => {
+    previews++;
+    await new Promise((r) => setTimeout(r, 1000));   // a big archive takes a moment to count
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ messages: 3, media: 0, groups: 0, people: 1 }) });
+  });
+  await page.locator(".su-person").nth(1).locator(".su-remove").click();
+  await toFinish(page);
+  await page.locator("#btn-save").dblclick();
+  await expect(page.locator("#btn-save")).toBeDisabled();
+  await page.locator("#remove-go").click();
+  await expect(page.locator("#finish-result")).toContainText("✓ Saved");
+  await expect(page.locator("#btn-save")).toBeEnabled();
+  await expect(page.locator("#btn-save")).toBeFocused();   // back where the user was
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#finish-result")).toContainText("✓ Saved");
+  expect(previews).toBe(1);
+});

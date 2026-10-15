@@ -741,8 +741,7 @@ async function confirmRemoval(ignoredGroups, ignoredUsers, newGroups, newPeople)
       removeModal.hidden = true;
       document.removeEventListener("keydown", onKey, true);
       $("#remove-go").onclick = $("#remove-cancel").onclick = removeModal.onclick = null;
-      $("#btn-save").focus();
-      resolve(ok);
+      resolve(ok);   // the Save click handler puts focus back on Save
     };
     const onKey = (e) => {
       if (e.key === "Escape") { e.preventDefault(); done(false); }
@@ -758,12 +757,29 @@ async function confirmRemoval(ignoredGroups, ignoredUsers, newGroups, newPeople)
     removeModal.onclick = (e) => { if (e.target === removeModal) done(false); };
   });
 }
+// One save at a time: Save stays disabled until the whole flow ends (the
+// removal count, the dialog, the save), so a double-click can't open a second
+// dialog whose leftover Escape handler later reports "Nothing was saved".
+let saving = false;
 $("#btn-save").onclick = async () => {
+  if (saving) return;
+  saving = true;
+  const btn = $("#btn-save");
+  btn.disabled = true;
+  try { await saveAll(); }
+  finally {
+    saving = false;
+    btn.disabled = false;
+    if (!document.activeElement || document.activeElement === document.body) btn.focus();
+  }
+};
+async function saveAll() {
   // Removed participants don't need a name or photo — drop them from the payload.
   const ignoredUsers = Object.keys(state.ignored);
   const ignoredGroups = Object.keys(state.ignoredGroups);
   const newPeople = ignoredUsers.filter((id) => !savedIgnored.users[id]).length;
   const newGroups = ignoredGroups.filter((id) => !savedIgnored.groups[id]).length;
+  if (newPeople || newGroups) flash($("#finish-result"), "Checking what this removes…", "");
   if ((newPeople || newGroups) && !(await confirmRemoval(ignoredGroups, ignoredUsers, newGroups, newPeople))) {
     flash($("#finish-result"), "Nothing was saved. Undo the removals you don't want, then save again.", "");
     return;
@@ -791,7 +807,7 @@ $("#btn-save").onclick = async () => {
   } catch (e) {
     flash($("#finish-result"), "✗ " + escapeHtml(e.message), "err");
   }
-};
+}
 
 function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
 
