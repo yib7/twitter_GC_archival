@@ -82,7 +82,9 @@ async function buildAndGotoPeopleStep(page) {
   await page.locator("#src-group").fill(path.join(exportDir, "direct-messages-group.js"));
   await page.locator("#src-headers").fill(path.join(exportDir, "direct-message-group-headers.js"));
   await page.locator("#src-media").fill(path.join(exportDir, "media"));
-  await checkAndBuild(page);   // SP7: Check export → preview → Build
+  // SP7: Check export → preview → Build. The same export again adds nothing
+  // new, so (SP7 fix round 1, #2) it needs the extra "merge anyway" confirm.
+  await checkAndBuild(page, { olderOk: locked });
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
   await page.locator('[data-pane="2"] [data-next]').click();
   await expect(page.locator(".su-person").first()).toBeVisible();

@@ -534,6 +534,16 @@ function preflightWarnings(p) {
   }
   if (sv.dm.conversations) add("dm-ignored", plural(sv.dm.conversations, "1:1 conversation", "1:1 conversations") + " (" + plural(sv.dm.messages, "message", "messages") + ") will be left out — only group chats are imported.");
   if (p.media && p.media.unmatched) add("unmatched-media", plural(p.media.unmatched, "file", "files") + " in the media folder don't belong to any message in this export and won't be copied.");
+  // SP7 fix round 1 (#2): an older download than the archive (or nothing new
+  // in it at all): merging keeps the archive's newer copies, but say so first.
+  const mg = p.merge;
+  if (mg && ((Number.isFinite(mg.exportNewest) && Number.isFinite(mg.archiveNewest) && mg.exportNewest < mg.archiveNewest) || (mg.added === 0 && mg.overlap > 0))) {
+    const day = (ms) => new Date(ms).toISOString().slice(0, 10);
+    add("older-export", (Number.isFinite(mg.exportNewest) && Number.isFinite(mg.archiveNewest) && mg.exportNewest < mg.archiveNewest
+      ? "This export is older than your archive: its newest message is from " + day(mg.exportNewest) + ", your archive's from " + day(mg.archiveNewest) + "."
+      : "Everything in this export is already in your archive.") +
+      " Merging only adds what's missing; messages your archive already has keep their newer text.");
+  }
   if (p.merge && p.merge.overlap) add("overlap", plural(p.merge.overlap, "message is", "messages are") + " already in your archive; they'll be merged, not duplicated.");
   if (sv.removedMsgs) add("removed", plural(sv.removedMsgs, "message", "messages") + " from people or group chats you removed will stay out.");
   if (sv.badTime) add("bad-time", plural(sv.badTime, "message has", "messages have") + " a missing or unreadable date and will be skipped.");

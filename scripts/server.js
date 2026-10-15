@@ -434,6 +434,16 @@ function foldBuilt(make) {
   }
   return null;
 }
+// SP7 fix round 1 (#2): the newest message time in the built archive (streamed), or null.
+function newestInArchive() {
+  let newest = null;
+  const cols = foldBuilt(() => [{
+    message: (c, m) => { if (m && Number.isFinite(m.t) && (newest == null || m.t > newest)) newest = m.t; },
+    conversation: () => {},
+    result: () => newest,
+  }]);
+  return cols ? newest : null;
+}
 const groupsOf = (sum) => (sum && sum.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
 
 /* ---- endpoint: point at source + build ----------------------------------- */
@@ -563,11 +573,16 @@ async function sourceAndBuild(body, res, progress) {
   // SP7: only the media of messages the archive keeps is copied — a removed
   // group's or person's media would otherwise sit, unreferenced but servable,
   // in media/ (the camera-roll check below still looks at every message).
-  let ids = null, keepIds = null;
+  let ids = null, keepIds = null, exportNewest = null;
   try {
     const got = duringBlocking(() => exportMessageIds(groupFiles, cfgNow.ignoredGroups, cfgNow.ignoredUsers));
-    ids = got.all; keepIds = got.keep;
+    ids = got.all; keepIds = got.keep; exportNewest = got.newest;
   } catch (e) { /* unreadable: the build below says so plainly */ }
+  // SP7 fix round 1 (#2): an export older than the archive is merged (its
+  // missing messages added; the archive's newer copies kept), but the media
+  // source folder stays the newer export's.
+  const archiveNewest = duringBlocking(() => newestInArchive());
+  const older = exportNewest != null && archiveNewest != null && exportNewest < archiveNewest;
   if (ids && mediaAbs) {
     const mismatch = mediaMismatch(surveyMedia(mediaAbs, ids, ids), mediaAbs);
     if (mismatch) return sendJSON(res, 400, { error: mismatch });
@@ -622,7 +637,7 @@ async function sourceAndBuild(body, res, progress) {
     cfg.mediaDir = mediaDestDir;
     // SP-14: remembered so media pruned for a removed group / person can be
     // restored from the export if they're un-removed later.
-    if (mediaAbs) cfg.mediaSourceDir = mediaAbs;
+    if (mediaAbs && !(older && cfg.mediaSourceDir)) cfg.mediaSourceDir = mediaAbs;
     saveConfig(cfg);
   } catch (e) { undo(); throw e; }   // a copy failed part-way (disk full, unreadable file …)
 
@@ -646,7 +661,7 @@ async function sourceAndBuild(body, res, progress) {
 
   const groups = groupsOf(readSummary());
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, merged: !!before, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
+  sendJSON(res, 200, { ok: true, merged: !!before, older, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
 // The media folder against this export's message ids: files that will be
 // copied (`files`, `bytes`), files of removed people / groups (`removed`)
@@ -762,12 +777,13 @@ function apiPreflight(body, res) {
 function surveyMerge(sv) {
   const archive = builtArchiveFiles()[0];
   if (!archive) return null;
-  let existing = 0, overlap = 0, keptOverlap = 0;
+  let existing = 0, overlap = 0, keptOverlap = 0, archiveNewest = null;
   const groupIds = new Set();
   try {
     foldArchive(archive, [{
       message: (c, m) => {
         existing++;
+        if (m && Number.isFinite(m.t) && (archiveNewest == null || m.t > archiveNewest)) archiveNewest = m.t;
         const id = m && m.i != null ? String(m.i) : null;
         if (id != null && sv.allIds.has(id)) { overlap++; if (sv.keepIds.has(id)) keptOverlap++; }
       },
@@ -775,7 +791,8 @@ function surveyMerge(sv) {
       result: () => null,
     }]);
   } catch (e) { return { unreadable: true }; }
-  return { existingMsgs: existing, existingGroups: groupIds.size, overlap, added: sv.keepIds.size - keptOverlap, groupIds };
+  // SP7 fix round 1 (#2): both newest dates, to spot an older export
+  return { existingMsgs: existing, existingGroups: groupIds.size, overlap, added: sv.keepIds.size - keptOverlap, groupIds, archiveNewest, exportNewest: sv.result().totals.last };
 }
 
 // Runs scripts/build.js (it reads personal_data/config.json and writes
@@ -856,6 +873,7 @@ function exportMessageIds(files, ignoredGroups, ignoredUsers) {
   const G = new Set((Array.isArray(ignoredGroups) ? ignoredGroups : []).map(String));
   const U = new Set((Array.isArray(ignoredUsers) ? ignoredUsers : []).map(String));
   const all = new Set(), keep = new Set();
+  let newest = null;
   for (const f of files) {
     const convOf = [];
     scanExportFile(f, {
@@ -867,10 +885,12 @@ function exportMessageIds(files, ignoredGroups, ignoredUsers) {
         all.add(id);
         if ((convOf[ci] != null && G.has(convOf[ci])) || U.has(String(mc.senderId))) return;
         keep.add(id);
+        const t = mc.createdAt ? Date.parse(mc.createdAt) : NaN;
+        if (Number.isFinite(t) && (newest == null || t > newest)) newest = t;
       },
     });
   }
-  return { all, keep };
+  return { all, keep, newest };
 }
 const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean);
 // The chosen export file plus its -partN siblings in the same folder (SP-2).

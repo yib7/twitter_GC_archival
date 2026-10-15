@@ -59,6 +59,16 @@ function toEvent(m) {
 }
 function eventKey(e) { return [e.type, e.t, e.name || "", (e.ids || []).join(","), e.s || ""].join("|"); }
 
+// SP7 fix round 1 (#2): two copies' reactions, once each (same key, sender, glyph).
+function unionReactions(a, b) {
+  const out = [], seen = new Set();
+  for (const r of (a || []).concat(b || [])) {
+    const k = [r && r.k, r && r.s, r && r.e || ""].join("|");
+    if (!seen.has(k)) { seen.add(k); out.push(r); }
+  }
+  return out.length ? out : null;
+}
+
 /* ---- per-conversation accumulator ---------------------------------------- */
 function makeConvo(id) {
   return { id, type: isGroupId(id) ? "group" : "dm", msgMap: new Map(), eventMap: new Map(), headerParts: new Set(), headerIds: new Set() };
@@ -94,6 +104,15 @@ function createAccumulator(opts) {
   // of them come back into the archive (their group / person is no longer
   // removed) — ids only — and which conversations had their events there.
   const quarIds = new Set(), quarEventConvs = new Set();
+  // SP7 fix round 1 (#2): when the archive and the export both have a message,
+  // the reactions are united and the text (an edit) comes from whichever is
+  // newer — the export unless its newest message is older than the archive's
+  // (merging an older download). Only the archive copies whose text differs
+  // are held aside (displaced) until finish() knows which side is newer.
+  const FROM_PREV = Symbol("fromPrev");
+  let prevNewest = -Infinity, exportNewest = -Infinity;
+  const displaced = new Map();   // message id -> [convo, the archive's copy]
+  const kept = (cid, s) => !IGNORED_GROUPS.has(String(cid)) && !IGNORED.has(String(s));
 
   // 1) baseline = previously built data (so history is never lost).
   //    opts.quarantine: these are the quarantined removed messages — they
@@ -108,7 +127,10 @@ function createAccumulator(opts) {
       const c = getConvo(pc.id);
       if (pc.type) c.type = pc.type;
       (pc.msgs || []).forEach((m) => {
+        if (!m || typeof m !== "object") return;
+        m[FROM_PREV] = true;   // a Symbol key: never written to data.js
         if (fromQuar) { quarIds.add(String(m.i)); if (c.msgMap.has(m.i)) return; }
+        else if (Number.isFinite(m.t) && m.t > prevNewest && kept(pc.id, m.s)) prevNewest = m.t;
         c.msgMap.set(m.i, m);
       });
       (pc.events || []).forEach((e) => c.eventMap.set(eventKey(e), e));
@@ -128,6 +150,14 @@ function createAccumulator(opts) {
       const r = rawToRec(m.messageCreate);
       if (!r.i) return;
       if (!Number.isFinite(r.t)) { warnings.badTime++; return; }   // SP-21: skip + warn
+      if (r.t > exportNewest && kept(convId, r.s)) exportNewest = r.t;
+      const old = c.msgMap.get(r.i);
+      if (old) {
+        const rs = unionReactions(old.r, r.r);
+        if (rs) r.r = rs;
+        for (const k of ["m", "k", "mx"]) if (old[k] !== undefined && r[k] === undefined) r[k] = old[k];
+        if (old[FROM_PREV] && !displaced.has(r.i) && (old.x !== r.x || JSON.stringify(old.u || null) !== JSON.stringify(r.u || null))) displaced.set(r.i, [c, old]);
+      }
       c.msgMap.set(r.i, r);
     } else {
       const e = toEvent(m);
@@ -161,6 +191,17 @@ function createAccumulator(opts) {
   // 3) resolve local media + assemble final conversation index
   function finish(mediaIndex) {
     mediaIndex = mediaIndex || {};
+    // An older export: the archive's text (and edits) stay; reactions stay united.
+    if (exportNewest < prevNewest) {
+      for (const [id, [c, old]] of displaced) {
+        const cur = c.msgMap.get(id);
+        if (!cur) continue;
+        if (cur.r) old.r = cur.r;
+        for (const k of ["m", "k", "mx"]) if (cur[k] !== undefined && old[k] === undefined) old[k] = cur[k];
+        c.msgMap.set(id, old);
+      }
+    }
+    displaced.clear();
     const conversations = [];
     // SP7 fix round 1 (#1): what the archive leaves out because its group or
     // person is removed (`removed`, for the quarantine), and the quarantined

@@ -392,8 +392,16 @@ let building = false;
 // SP7: what the pre-flight preview was made for. Build sends exactly this, and
 // any change to the fields drops it (the preview no longer describes them).
 let pendingSource = null;
+// What the preview allows: a build needs messages; an export older than the
+// archive (SP7 fix round 1, #2) needs the extra confirm ticked first.
+const pf = { canBuild: false, older: false };
+function updateConfirm() {
+  const ok = $("#pf-older-ok");
+  $("#btn-confirm").disabled = !pf.canBuild || (pf.older && !(ok && ok.checked));
+}
 function hidePreflight() { pendingSource = null; const pf = $("#preflight"); if (pf) pf.hidden = true; }
 ["#src-root", "#src-group", "#src-headers", "#src-media"].forEach((s) => $(s).addEventListener("input", hidePreflight));
+$("#pf-older-ok").onchange = updateConfirm;
 $("#btn-pf-cancel").onclick = () => { hidePreflight(); $("#btn-build").focus(); };
 const fmtDay = (ms) => (ms == null ? "?" : new Date(ms).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }));
 const fmtSpan = (a, b) => (a == null ? "no dates" : fmtDay(a) === fmtDay(b) ? fmtDay(a) : fmtDay(a) + " – " + fmtDay(b));
@@ -456,7 +464,11 @@ function renderPreflight(j) {
     : `<li class="pf-ok">✓ No problems found.</li>`;
   const confirm = $("#btn-confirm");
   confirm.textContent = merging ? "Merge into archive" : "Build archive";
-  confirm.disabled = !(t.messages > 0) && !merging;
+  pf.canBuild = t.messages > 0 || merging;
+  pf.older = merging && w.some((x) => x.code === "older-export");
+  $("#pf-older").hidden = !pf.older;
+  $("#pf-older-ok").checked = false;
+  updateConfirm();
   $("#preflight").hidden = false;
 }
 // Step 1, part 1: read the export and show what a build would bring in. Read-only.
@@ -530,7 +542,7 @@ $("#btn-confirm").onclick = async () => {
     flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
   } finally {
     building = false;
-    if (!built || merging) { $("#btn-build").disabled = false; $("#btn-confirm").disabled = false; }   // after a success the source stays locked
+    if (!built || merging) { $("#btn-build").disabled = false; updateConfirm(); }   // after a success the source stays locked
   }
 };
 
