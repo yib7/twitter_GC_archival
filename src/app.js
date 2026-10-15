@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, hashId, initials } = GCAShared;
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators (VC-5/VC-6) — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, cleanBattleWords } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -5452,10 +5452,15 @@ function drawBattleResults() {
 // Add a word to the battle (newest first; a word already there stays put).
 function addBattleWord(word) {
   const inp = document.getElementById("battle-word");
-  const k = word.trim().toLowerCase();
-  if (settings.battleWords.some((w) => w.toLowerCase() === k)) { if (inp) inp.value = ""; toast("“" + word.trim() + "” is already in the battle"); return; }
-  settings.battleWords = cleanBattleWords([word].concat(settings.battleWords));
+  const t = word.trim(), k = t.toLowerCase();
+  // M-4: say why nothing happened — and keep the text so it can be shortened
+  if (t.length > BATTLE_WORD_MAX) { toast("Battle words can be up to " + BATTLE_WORD_MAX + " characters"); return; }
+  if (settings.battleWords.some((w) => w.toLowerCase() === k)) { if (inp) inp.value = ""; toast("“" + t + "” is already in the battle"); return; }
+  const next = cleanBattleWords([t].concat(settings.battleWords));
+  const dropped = settings.battleWords.filter((w) => next.indexOf(w) === -1);
+  settings.battleWords = next;
   saveSettings();
+  if (dropped.length) toast("Added “" + t + "”, dropped the oldest word “" + dropped.join("”, “") + "” (" + BATTLE_WORDS_MAX + " max)");
   drawBattleResults();
   if (inp) inp.value = "";
 }

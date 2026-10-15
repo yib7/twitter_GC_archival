@@ -632,14 +632,15 @@
   //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
   // UX-29: custom Word Battles words — strings only, trimmed, ≤40 chars,
   // de-duplicated case-insensitively (first spelling wins), at most 30.
+  const BATTLE_WORD_MAX = 40, BATTLE_WORDS_MAX = 30;   // per word / per list
   function cleanBattleWords(a) {
     const seen = new Set(), out = [];
     for (const w of Array.isArray(a) ? a : []) {
       if (typeof w !== "string") continue;
       const t = w.trim();
-      if (!t || t.length > 40 || seen.has(t.toLowerCase())) continue;
+      if (!t || t.length > BATTLE_WORD_MAX || seen.has(t.toLowerCase())) continue;
       seen.add(t.toLowerCase()); out.push(t);
-      if (out.length >= 30) break;
+      if (out.length >= BATTLE_WORDS_MAX) break;
     }
     return out;
   }
@@ -688,6 +689,6 @@
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
-    isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, validateSettings,
+    isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
   };
 });

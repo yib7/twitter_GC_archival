@@ -589,6 +589,31 @@ test.describe("UX-29: Word Battles keeps the words you add", () => {
   });
 });
 
+test.describe("M-4: Word Battles says when a word is refused or dropped", () => {
+  test("a word over 40 characters is refused with a toast and kept in the box", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "battles" } });
+    const word = page.locator("#battle-word");
+    const long = "x".repeat(41);
+    await word.fill(long); await word.press("Enter");
+    await expect(page.locator(".toast")).toContainText("40 characters");
+    await expect(page.locator("#battle-results .battle-added")).toHaveCount(0);
+    await expect(word).toHaveValue(long);      // so it can be shortened, not retyped
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem("gca.settings")) || "{}").battleWords || []).toEqual([]);
+  });
+
+  test("the 31st word drops the oldest, and says which", async ({ page }) => {
+    const thirty = Array.from({ length: 30 }, (_, k) => "w" + (30 - k));   // newest first: w30 … w1
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "battles", "gca.settings": JSON.stringify({ battleWords: thirty }) } });
+    const word = page.locator("#battle-word");
+    await word.fill("pizza"); await word.press("Enter");
+    await expect(page.locator(".toast")).toContainText("“w1”");
+    const saved = JSON.parse(await page.evaluate(() => localStorage.getItem("gca.settings"))).battleWords;
+    expect(saved.length).toBe(30);
+    expect(saved[0]).toBe("pizza");
+    expect(saved).not.toContain("w1");
+  });
+});
+
 test.describe("UX-32: no flash of message 0", () => {
   const watchFlash = (page) => page.evaluate(() => {
     window.__flashed = [];
