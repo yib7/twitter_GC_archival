@@ -22,7 +22,7 @@ const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
-const { writeFileAtomic, readExportHead, scanArchiveFile, TMP_RE } = require("./fs-io.js");
+const { writeFileAtomic, readExportHead, scanArchiveFile, readArchiveMeta, TMP_RE } = require("./fs-io.js");
 const { removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
@@ -477,7 +477,15 @@ function apiParts(res, group) {
 function apiIdentity(body, res) {
   fs.mkdirSync(path.join(PERSONAL, "pfps"), { recursive: true });
   const cfg = loadConfig();
-  const ignoredBefore = { users: cfg.ignoredUsers, groups: cfg.ignoredGroups };
+  // Fix round 1 (#5): what the archive was actually BUILT without comes from
+  // data.js's own metadata (build.js records ignoredUsers/ignoredGroups), not
+  // config.json — config is saved before the rebuild runs, so after a failed
+  // rebuild it would claim the removal had already been applied and the next
+  // save would never retry. (An older data.js without them: fall back to config.)
+  const builtMeta = readArchiveMeta(path.join(PERSONAL, "data.js"));
+  const ignoredBefore = builtMeta && Array.isArray(builtMeta.ignoredUsers) && Array.isArray(builtMeta.ignoredGroups)
+    ? { users: builtMeta.ignoredUsers, groups: builtMeta.ignoredGroups }
+    : { users: cfg.ignoredUsers, groups: cfg.ignoredGroups };
   // Carry forward names from a previous save (like pfps/me/gc already do) —
   // otherwise reopening the wizard and saving with names untyped/unloaded
   // wipes out every name assigned in an earlier run.

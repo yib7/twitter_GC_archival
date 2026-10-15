@@ -460,6 +460,38 @@ describe("fix round 1: removal is previewed, quarantined and backed up", () => {
   });
 });
 
+// Fix round 1 (review #5): "did the removed set change?" was answered from
+// config.json, which is saved BEFORE the rebuild runs — so after a failed
+// rebuild the next save saw "no change" and never retried. It is now answered
+// from what data.js itself was built without (its ignoredUsers/ignoredGroups).
+describe("fix round 1: a failed removal rebuild is retried by the next save", () => {
+  let S, f;
+  before(async () => {
+    S = await startServer();
+    f = X.writeExport(scratch());
+    assert.equal((await source(S, f.group, f.headers, f.media)).status, 200);
+  });
+  after(() => S.stop());
+  const identity = (extra) => S.post("/api/identity", Object.assign({ names: {}, pfps: {}, gc: {} }, extra));
+
+  test("the rebuild fails once, then the same save rebuilds", async () => {
+    const cfg = JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+    const src = cfg.sourceJs[0], aside = src + ".away";
+    fs.renameSync(src, aside);                       // make the build fail
+    const r1 = await identity({ ignoredGroups: ["1000000002"], ignoredUsers: [] });
+    assert.equal(r1.status, 422);
+    assert.ok(readData(S.personal).conversations.some((c) => c.id === "1000000002"), "still in data.js after the failed rebuild");
+    fs.renameSync(aside, src);                       // fixed
+    const r2 = await identity({ ignoredGroups: ["1000000002"], ignoredUsers: [] });
+    const j2 = await r2.json();
+    assert.equal(r2.status, 200, JSON.stringify(j2));
+    assert.equal(j2.rebuilt, true, "the save retries the rebuild");
+    assert.deepEqual(readData(S.personal).conversations.map((c) => c.id), ["1000000001"]);
+    const j3 = await (await identity({ ignoredGroups: ["1000000002"], ignoredUsers: [] })).json();
+    assert.equal(j3.rebuilt, false, "once data.js matches, saving again doesn't rebuild");
+  });
+});
+
 describe("SP-23: not enough disk space is caught before copying", () => {
   let S;
   before(async () => { S = await startServer({ GCA_TEST_FREE_BYTES: "1024" }); });   // pretend the disk is full
