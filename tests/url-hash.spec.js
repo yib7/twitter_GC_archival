@@ -287,7 +287,7 @@ test("a shared #m= link: read on, reload, and you stay where you read to", async
 
 // Fix round 1: from file:// the full link would carry the local path (and with
 // it the OS user name). Copy only the "#…" part there, and say how to use it.
-test("file:// — Copy link copies only the #… part and says where to paste it", async ({ page, context, browserName }) => {
+test("file:// — Copy link copies only the #… part, and pasting it at the end of the address opens it", async ({ page, context, browserName }) => {
   test.skip(browserName !== "chromium", "clipboard permissions");
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   const url = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
@@ -295,15 +295,31 @@ test("file:// — Copy link copies only the #… part and says where to paste it
   await page.goto(url + "#v=timeline");
   await expect(page.locator("#app")).toBeVisible();
   expect(await page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample === true)).toBe(true);
+  const [c1, c2] = await page.evaluate(() => window.CHAT_DATA.conversations.slice(0, 2).map((c) => String(c.id)));
+  // copy a message's link in the SECOND conversation
+  await page.locator("#conv-select").selectOption(c2);
   const msg = page.locator("#tl-list .msg").filter({ has: page.locator(".bubble") }).last();
+  const idx = await msg.getAttribute("data-idx");
   await msg.hover();
   await msg.getByRole("button", { name: "Copy link to message" }).click();
-  await expect(page.locator(".toast")).toHaveText("Copied the message's #link — paste it at the end of this archive's address to open it");
+  const T = "Copied the message's #link — paste it at the end of this archive's address to open it";
+  await expect(page.locator(".toast")).toHaveText(T);
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toMatch(/^#v=timeline&c=[^&]+&m=[^&]+$/);
   expect(link).not.toMatch(/file:|[\\/]Users[\\/]|index\.html/i);
-  const idx = await msg.getAttribute("data-idx");
+  // a ~90-character instruction stays up long enough to read
+  await page.waitForTimeout(3500);
+  await expect(page.locator(".toast")).toHaveText(T);
+  // somewhere else entirely: the first conversation's Stats
+  await page.locator("#conv-select").selectOption(c1);
   await page.locator('.nav-item[data-view="stats"]').click();
-  await page.goto(url + link);
+  const here = page.url();
+  expect(here).toContain("#v=stats&c=" + c1);
+  // what a real address bar holds after pasting the link at its end
+  await page.goto(here + link);
+  await viewShown(page, "timeline");
+  await expect(page.locator("#conv-select")).toHaveValue(c2);
   await expect(page.locator('#tl-list .msg[data-idx="' + idx + '"]')).toHaveClass(/flash/);
+  // and the address is rewritten to the single canonical hash
+  expect((await hashOf(page)).split("#").length).toBe(2);
 });

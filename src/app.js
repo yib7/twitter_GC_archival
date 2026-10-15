@@ -1478,11 +1478,12 @@ function announce(msg) {
   clearTimeout(srT);
   srT = setTimeout(() => { live.textContent = msg; }, 50);
 }
-function toast(msg) {
+// ms: how long it stays up (default 2.2 s; longer for an instruction to read).
+function toast(msg, ms) {
   document.querySelectorAll(".toast").forEach((t) => t.remove());
   const t = el("div", "toast", esc(msg)); t.setAttribute("aria-hidden", "true"); document.body.appendChild(t);
   announce(msg);
-  clearTimeout(toastT); toastT = setTimeout(() => { t.classList.add("fade-out"); setTimeout(() => t.remove(), 300); }, 2200);
+  clearTimeout(toastT); toastT = setTimeout(() => { t.classList.add("fade-out"); setTimeout(() => t.remove(), 300); }, ms || 2200);
 }
 
 /* ===========================================================================
@@ -4064,7 +4065,11 @@ function writeHash(h, push) {
 // never markup.
 function parseHash(h) {
   const out = {};
-  const s = String(h || "").replace(/^#/, "");
+  // Only what follows the LAST "#": pasting a copied "#v=…&m=…" at the end of
+  // an address that already has a hash (the app always writes one) gives
+  // "…#v=search&c=A#v=timeline&c=B&m=b5", and the pasted part is what's meant.
+  const raw = String(h || "");
+  const s = raw.slice(raw.lastIndexOf("#") + 1);
   if (!s || s.length > 8000) return out;
   for (const part of s.split("&")) {
     const k = part.indexOf("=");
@@ -4147,7 +4152,7 @@ function copyMsgLink(convId, mid) {
   const local = location.protocol === "file:";
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(msgLink(convId, mid))
-      .then(() => toast(local ? "Copied the message's #link — paste it at the end of this archive's address to open it" : "Copied link to message"))
+      .then(() => (local ? toast("Copied the message's #link — paste it at the end of this archive's address to open it", 6000) : toast("Copied link to message")))
       .catch(() => toast("Copy failed"));
   } else toast("Copy failed");
 }
