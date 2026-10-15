@@ -113,6 +113,17 @@ function heldError(dest, cause) {
   e.userMessage = e.message;
   return e;
 }
+// A first save (no file at `dest` yet) whose freshly written temp file another
+// program won't let go of — usually antivirus scanning it.
+function newFileHeldError(dest, cause) {
+  const name = "“" + path.basename(dest) + "”";
+  const e = new Error("Couldn't save " + name + ": another program (antivirus or a sync app?) is still holding the new file. " +
+    "Wait a moment and try again.");
+  e.code = (cause && cause.code) || "EBUSY";
+  e.path = dest;
+  e.userMessage = e.message;
+  return e;
+}
 // Move a finished temp file into place. Returns "renamed" or "swapped".
 function replaceFile(tmp, dest, opts) {
   opts = opts || {};
@@ -132,7 +143,12 @@ function replaceFile(tmp, dest, opts) {
   // Fallback: old file aside, new file in, old file deleted.
   const aside = tmpNameFor(dest);
   try { rename(dest, aside); }
-  catch (e) { throw heldError(dest, last); }          // nothing moved: the caller removes tmp
+  catch (e) {
+    // SP7: no old file at all (a first save) — what's held is the NEW file
+    // (antivirus scanning it), and there is no previous version to speak of.
+    if (e && e.code === "ENOENT" && !fs.existsSync(dest)) throw newFileHeldError(dest, last);
+    throw heldError(dest, last);                       // nothing moved: the caller removes tmp
+  }
   try { rename(tmp, dest); }
   catch (e) {
     try { rename(aside, dest); }                       // put the old one back

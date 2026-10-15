@@ -154,3 +154,26 @@ test("replacing a file another handle has open still succeeds", () => {
   assert.equal(fs.readFileSync(f, "utf8"), "new while open");
   assert.deepEqual(leftovers(dir), []);
 });
+
+// SP7 carry-over (SP6 review #4): on a FIRST save there is no old file. When
+// the new file can't be renamed into place (antivirus scanning the fresh temp
+// file), the fallback's "move the old one aside" step hits ENOENT. That used
+// to be reported as "another program is holding data.js … the previous
+// version is unchanged" — there is no previous version, and data.js isn't
+// what's held.
+test("a first save whose new file is held says so, without claiming a previous version", () => {
+  const dir = scratch();
+  const f = path.join(dir, "data.js");
+  const rename = (a, b) => { if (a.endsWith(".tmp") && b === f) throw errno("EPERM"); return fs.renameSync(a, b); };
+  let err;
+  try { writeFileAtomic(f, "first", { rename, delayMs: 1, retries: 1 }); } catch (e) { err = e; }
+  assert.ok(err, "the write reports the failure");
+  assert.equal(err.path, f);
+  assert.ok(err.userMessage, "it carries a plain sentence for the user");
+  assert.match(err.userMessage, /data\.js/);
+  assert.match(err.userMessage, /new file/i);
+  assert.doesNotMatch(err.userMessage, /previous version/i);
+  assert.doesNotMatch(err.userMessage, /holding it open/i);
+  assert.ok(!fs.existsSync(f));
+  assert.deepEqual(leftovers(dir), []);
+});
