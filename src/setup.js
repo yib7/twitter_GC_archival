@@ -311,6 +311,7 @@ $("#btn-build").onclick = async () => {
     const groupList = groups.map((g) => `<li>${escapeHtml(g.title || "Group " + String(g.id).slice(-4))} — ${Number(g.count).toLocaleString()} messages</li>`).join("");
     flash($("#src-result"),
       `✓ Built <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)` +
+      (j.partFiles > 1 ? ` from <b>${Number(j.partFiles)}</b> message part files` : "") +
       (j.mediaCopied ? `, copied <b>${j.mediaCopied.toLocaleString()}</b> media files` : "") +
       `.<ul>${groupList}</ul>`, "ok");
     lockSource(true);

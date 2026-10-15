@@ -121,3 +121,23 @@ test("SP-20: the build attaches both media files of a message, not just the firs
   assert.equal(m.mx.length, 1);
   assert.match(m.mx[0].m, /9002-ZzSecond\.jpg$/);
 });
+
+test("SP-2: every part file is ingested, merged in order and deduped", () => {
+  const { personal, files } = setup();
+  // part1 repeats a part0 message (same id) — it must not be double-counted
+  const ex = X.defaultExport();
+  ex.part1[0].dmConversation.messages.push(X.gmsg(9001, 111, X.T0, "hello from the first part 🎉"));
+  fs.writeFileSync(files.part1, X.ytd("direct_messages_group", "part1", ex.part1));
+  const r = runBuild(personal, { sourceJs: [files.group, files.part1], headersJs: files.headers });
+  assert.equal(r.status, 0, r.stderr);
+  const g = readData(personal).conversations.find((c) => c.id === "1000000001");
+  assert.deepEqual(g.msgs.map((m) => m.i), ["9001", "9002", "9003", "9004", "9005"]);
+  assert.doesNotMatch(r.stdout, /no message text/);
+});
+
+test("SP-2: a missing part file is called out (headers list messages with no body)", () => {
+  const { personal, files } = setup();
+  const r = runBuild(personal, { sourceJs: [files.group], headersJs: files.headers });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /Warning: 2 message\(s\) listed in the headers file have no message text.*-part/);
+});

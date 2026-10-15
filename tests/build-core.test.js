@@ -268,3 +268,30 @@ test("SP-20: a message with several media files keeps the first as m/k and the r
   assert.equal("mx" in m2, false, "a single file adds no mx");
   assert.equal(res.totalMedia, 2, "media counts messages with media");
 });
+
+// ---- SP-2: multi-part exports ---------------------------------------------
+test("SP-2: exportPartFiles finds every -partN sibling of the chosen file, in part order", () => {
+  const { exportPartFiles } = require("../scripts/build-core.js");
+  const dir = ["account.js", "direct-messages-group-part2.js", "direct-messages-group.js", "direct-messages-group-part1.js",
+    "direct-message-group-headers.js", "direct-message-group-headers-part1.js", "direct-messages.js", "direct-messages-part1.js"];
+  assert.deepEqual(exportPartFiles(dir, "direct-messages-group.js"),
+    ["direct-messages-group.js", "direct-messages-group-part1.js", "direct-messages-group-part2.js"]);
+  // picking any part finds the whole family
+  assert.deepEqual(exportPartFiles(dir, "direct-messages-group-part2.js"),
+    ["direct-messages-group.js", "direct-messages-group-part1.js", "direct-messages-group-part2.js"]);
+  assert.deepEqual(exportPartFiles(dir, "direct-message-group-headers.js"),
+    ["direct-message-group-headers.js", "direct-message-group-headers-part1.js"]);
+  // other plausible spellings: _partN, .partN, zero-padded, upper case
+  assert.deepEqual(exportPartFiles(["direct-messages-group.js", "direct-messages-group_part01.js", "Direct-Messages-Group.part2.js"], "direct-messages-group.js"),
+    ["direct-messages-group.js", "direct-messages-group_part01.js", "Direct-Messages-Group.part2.js"]);
+  // a renamed file has no family: just itself
+  assert.deepEqual(exportPartFiles(dir, "my-export.js"), ["my-export.js"]);
+});
+
+test("SP-2: headers that list message ids with no body are counted (missing part files?)", () => {
+  const res = assemble({
+    exportDatas: [[conv("G1", [msg("m1", "u1", "2020-05-01T10:00:00Z", "a")])]],
+    headerDatas: [[conv("G1", [msg("m1", "u1", "2020-05-01T10:00:00Z", ""), msg("m2", "u2", "2020-05-01T11:00:00Z", ""), msg("m3", "u2", "2020-05-01T12:00:00Z", "")])]],
+  });
+  assert.equal(res.warnings.missingBodies, 2);
+});

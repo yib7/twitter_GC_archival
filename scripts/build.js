@@ -155,6 +155,8 @@ function main() {
       ". Make sure you picked direct-messages-group.js from the data folder of your Twitter/X archive.");
   }
   if (prev) log("Baseline from data.js:", prevCount, "messages.");
+  if (warnings.missingBodies) log("Warning: " + warnings.missingBodies + " message(s) listed in the headers file have no message text in the messages file(s). " +
+    "If your archive's data folder has direct-messages-group-part1.js (-partN) files, make sure they sit next to direct-messages-group.js.");
   if (warnings.badTime) log("Warning: " + warnings.badTime + " message(s)/event(s) had a missing or unreadable date and were skipped.");
 
   writeArchive({ generatedAt: new Date().toISOString(), ignoredUsers, ignoredGroups }, conversations);

@@ -7,9 +7,17 @@ require("./_real-data-guard.js");   // QA-2: refuse to run outside a clean check
 const { test, describe, before, after } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
+const X = require("./fixtures/x-export.js");
 
-const { startServer } = require("./_sp6-server.js");
+const { startServer, readData } = require("./_sp6-server.js");
+
+const tmpDirs = [];
+function scratch(prefix) { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix || "gca-sp6-export-")); tmpDirs.push(d); return d; }
+after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true }); });
+// POST /api/source with the three wizard fields
+const source = (S, groupJs, headersJs, mediaDir) => S.post("/api/source", { groupJs, headersJs, mediaDir });
 
 const tmpLeftovers = (dir) => fs.readdirSync(dir).filter((f) => f.endsWith(".tmp"));
 
@@ -37,3 +45,22 @@ describe("SP-9: crash-safe server writes", () => {
   });
 });
 
+
+describe("SP-2: multi-part exports through the wizard", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("picking direct-messages-group.js also ingests its -part1 sibling (all 5 messages, ordered)", async () => {
+    const f = X.writeExport(scratch());
+    const r = await source(S, f.group, f.headers, f.media);
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.partFiles, 2, "both message part files are reported");
+    const cfg = JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+    assert.deepEqual(cfg.sourceJs.map((p) => path.basename(p)), ["direct-messages-group.js", "direct-messages-group-part1.js"]);
+    const g = readData(S.personal).conversations.find((c) => c.id === "1000000001");
+    assert.deepEqual(g.msgs.map((m) => m.i), ["9001", "9002", "9003", "9004", "9005"]);
+    assert.ok(g.participants.includes("333"), "the part1-only sender is a real participant");
+  });
+});

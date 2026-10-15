@@ -61,7 +61,7 @@ function eventKey(e) { return [e.type, e.t, e.name || "", (e.ids || []).join(","
 
 /* ---- per-conversation accumulator ---------------------------------------- */
 function makeConvo(id) {
-  return { id, type: isGroupId(id) ? "group" : "dm", msgMap: new Map(), eventMap: new Map(), headerParts: new Set() };
+  return { id, type: isGroupId(id) ? "group" : "dm", msgMap: new Map(), eventMap: new Map(), headerParts: new Set(), headerIds: new Set() };
 }
 
 /**
@@ -88,7 +88,7 @@ function createAccumulator(opts) {
     return c;
   };
   let prevCount = 0;
-  const warnings = { badTime: 0 };
+  const warnings = { badTime: 0, missingBodies: 0 };
 
   // 1) baseline = previously built data (so history is never lost)
   function addPrev(prev) {
@@ -132,6 +132,7 @@ function createAccumulator(opts) {
     const c = getConvo(convId);
     if (m.messageCreate) {
       const mc = m.messageCreate;
+      if (mc.id) c.headerIds.add(String(mc.id));   // SP-2: to spot bodies missing from the messages file(s)
       if (mc.senderId) c.headerParts.add(mc.senderId);
       if (mc.recipientId) c.headerParts.add(mc.recipientId);
     } else {
@@ -170,6 +171,7 @@ function createAccumulator(opts) {
       const msgs = msgVals.sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
       const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
       if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
+      for (const hid of c.headerIds) if (!c.msgMap.has(hid)) warnings.missingBodies++;
 
       const headerParts = [...(c.headerParts || [])].filter((id) => !IGNORED.has(String(id)));
       const participants = [...new Set([...msgs.map((m) => m.s), ...headerParts])];
@@ -221,6 +223,33 @@ function assembleConversations(opts) {
     });
   }
   return acc.finish(opts.mediaIndex || {});
+}
+
+/**
+ * SP-2: X splits a large data file into "<name>.js", "<name>-part1.js", ...
+ * (the documented convention for tweets-partN.js; the exact DM spelling is
+ * unconfirmed, so "-partN", "_partN" and ".partN", zero-padded or not, are
+ * all accepted). Given a folder listing and the file the user picked, return
+ * that file's whole family in part order — or just the file itself when its
+ * name isn't one of the known export names (a renamed file has no family).
+ */
+const PART_FAMILIES = [
+  /^(direct-messages-group)(?:[-_.]part(\d+))?\.js$/i,
+  /^(direct-messages?-group-headers)(?:[-_.]part(\d+))?\.js$/i,
+];
+function exportPartFiles(names, chosen) {
+  const fam = (n) => {
+    for (let fi = 0; fi < PART_FAMILIES.length; fi++) {
+      const m = PART_FAMILIES[fi].exec(String(n));
+      if (m) return { fi, part: m[2] != null ? Number(m[2]) : 0 };
+    }
+    return null;
+  };
+  const want = fam(chosen);
+  if (!want) return [chosen];
+  const out = names.map((n) => ({ n: String(n), f: fam(n) })).filter((x) => x.f && x.f.fi === want.fi);
+  if (!out.some((x) => x.n === chosen)) out.push({ n: chosen, f: want });
+  return out.sort((a, b) => a.f.part - b.f.part || (a.n < b.n ? -1 : 1)).map((x) => x.n);
 }
 
 /**
@@ -619,6 +648,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, exportPartFiles, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, ExportScanError, archiveChunks,
 };

@@ -20,7 +20,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
-const { collectParticipants } = require("./build-core.js");
+const { collectParticipants, exportPartFiles } = require("./build-core.js");
 const { writeFileAtomic, TMP_RE } = require("./fs-io.js");
 const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
@@ -255,8 +255,14 @@ function apiSource(body, res) {
     if (path.resolve(abs) !== path.resolve(dest)) fs.copyFileSync(abs, dest);
     return dest;
   };
-  cfg.sourceJs = [copyInto(groupAbs)];   // message bodies (build parses these)
-  cfg.headersJs = copyInto(headersAbs);  // metadata only (roster + events)
+  // SP-2: X splits big files into <name>.js, <name>-part1.js, …; picking any
+  // one of them brings its whole family (in part order), so messages in
+  // part1+ are never silently left behind.
+  const groupFiles = partSiblings(groupAbs);
+  const headerFiles = partSiblings(headersAbs);
+  cfg.sourceJs = groupFiles.map(copyInto);   // message bodies (build parses these)
+  const headerDests = headerFiles.map(copyInto);
+  cfg.headersJs = headerDests.length === 1 ? headerDests[0] : headerDests;  // metadata only (roster + events)
 
   // media is required → always copied. Thousands of files can take a while to
   // copy synchronously, so bracket it in duringBlocking like the build below —
@@ -278,7 +284,16 @@ function apiSource(body, res) {
   const data = readBuiltData();
   const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, mediaCopied: media.copied, mediaSkipped: media.skipped, groups, totalMsgs, log: buildLog.trim() });
+  sendJSON(res, 200, { ok: true, mediaCopied: media.copied, mediaSkipped: media.skipped, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog.trim() });
+}
+// The chosen export file plus its -partN siblings in the same folder (SP-2).
+function partSiblings(abs) {
+  const dir = path.dirname(abs);
+  let names;
+  try { names = fs.readdirSync(dir); } catch (e) { return [abs]; }
+  return exportPartFiles(names, path.basename(abs))
+    .map((n) => path.join(dir, n))
+    .filter((f) => { try { return fs.statSync(f).isFile(); } catch (e) { return false; } });
 }
 
 /* ---- endpoint: participants for the naming step -------------------------- */
