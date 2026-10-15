@@ -4,7 +4,9 @@
 // gradient background is checked against EACH of its colour stops (the worst
 // one counts), so own-message bubbles, avatar initials, the Stats hero and
 // primary buttons are covered too. Only url() images (photos, avatars with a
-// picture) can't be computed from styles and are skipped. Gradient text
+// picture) can't be computed from styles and are skipped. A ::before/::after
+// that covers its element (inset 0: a vignette, a scrim) is one more layer of
+// that element's background (M-b). Gradient text
 // (background-clip: text) uses its stops as the ink.
 // Normal text >= 4.5:1, large text (>= 24px, or >= 18.66px bold) >= 3:1.
 async function contrastFailures(page, root, skip) {
@@ -26,19 +28,20 @@ async function contrastFailures(page, root, skip) {
     // ancestors under it instead of being replaced by them (N-2).
     const GRAD = /(?:repeating-)?(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/g;
     const COLOR = /(rgba?\([^)]*\)|color\([^)]*\))/g;
-    // A radial gradient with an explicit "Wpx Hpx at X Y" ellipse is position-
+    // A radial gradient with an explicit "W H [at X Y]" ellipse (px or %) is position-
     // aware: only the colours it actually paints over the text's rect count
     // (nearest and farthest point, plus any stop in between). Other gradients
     // count every stop.
     const splitTop = (str) => { const out = []; let depth = 0, cur = ""; for (const ch of str) { if (ch === "(") depth++; if (ch === ")") depth--; if (ch === "," && !depth) { out.push(cur.trim()); cur = ""; } else cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
     const mixC = (a, b, t) => ({ r: a.r + (b.r - a.r) * t, g: a.g + (b.g - a.g) * t, b: a.b + (b.b - a.b) * t, a: a.a + (b.a - a.a) * t });
     const radialStops = (g, box, text) => {
-      const m = /^radial-gradient\(\s*([\d.]+)px\s+([\d.]+)px\s+at\s+(-?[\d.]+)(%|px)\s+(-?[\d.]+)(%|px)\s*,(.*)\)$/.exec(g);
+      const m = /^radial-gradient\(\s*([\d.]+)(px|%)\s+([\d.]+)(px|%)(?:\s+at\s+(-?[\d.]+)(%|px)\s+(-?[\d.]+)(%|px))?\s*,(.*)\)$/.exec(g);
       if (!m || !text) return null;
-      const rx = +m[1], ry = +m[2];
-      const cx = box.left + (m[4] === "%" ? box.width * m[3] / 100 : +m[3]);
-      const cy = box.top + (m[6] === "%" ? box.height * m[5] / 100 : +m[5]);
-      const parts = splitTop(m[7]).map((p) => { const c = p.match(COLOR); const pos = p.replace(c ? c[0] : "", "").trim(); return { c: c && parse(c[0]), at: /%$/.test(pos) ? parseFloat(pos) / 100 : null }; }).filter((x) => x.c);
+      const rx = m[2] === "%" ? box.width * m[1] / 100 : +m[1], ry = m[4] === "%" ? box.height * m[3] / 100 : +m[3];
+      if (m[5] == null) { m[5] = m[7] = "50"; m[6] = m[8] = "%"; }   // computed style drops a centred "at 50% 50%"
+      const cx = box.left + (m[6] === "%" ? box.width * m[5] / 100 : +m[5]);
+      const cy = box.top + (m[8] === "%" ? box.height * m[7] / 100 : +m[7]);
+      const parts = splitTop(m[9]).map((p) => { const c = p.match(COLOR); const pos = p.replace(c ? c[0] : "", "").trim(); return { c: c && parse(c[0]), at: /%$/.test(pos) ? parseFloat(pos) / 100 : null }; }).filter((x) => x.c);
       if (parts.length < 2) return null;
       parts.forEach((x, k) => { if (x.at == null) x.at = k === 0 ? 0 : k === parts.length - 1 ? 1 : (parts[k - 1].at + 1) / 2; });
       const at = (d) => {
@@ -51,23 +54,32 @@ async function contrastFailures(page, root, skip) {
       const far = Math.max(...[[text.left, text.top], [text.right, text.top], [text.left, text.bottom], [text.right, text.bottom]].map(([x, y]) => nd(x, y)));
       return [at(near), at(far)].concat(parts.filter((x) => x.at > near && x.at < far).map((x) => x.c));
     };
+    const coverPseudos = (n) => ["::after", "::before"].map((p) => getComputedStyle(n, p)).filter((ps) =>
+      ps.content && ps.content !== "none" && ps.content !== "normal" && /absolute|fixed/.test(ps.position) &&
+      [ps.top, ps.right, ps.bottom, ps.left].every((v) => v === "0px"));
     const bgsOf = (e, text) => {
       const stack = [];
       let floor = [parse(getComputedStyle(document.body).backgroundColor)];
       walk: for (let n = e; n; n = n.parentElement) {
-        const cs = getComputedStyle(n);
-        if (cs.backgroundImage !== "none") {
-          if (/url\(/.test(cs.backgroundImage)) return null;
-          for (const g of cs.backgroundImage.match(GRAD) || []) {
-            const stops = radialStops(g, n.getBoundingClientRect(), text) || (g.match(COLOR) || []).map(parse);
-            if (!stops.length) continue;
-            if (stops.every((st) => st.a >= 1)) { floor = stops; break walk; }
-            stack.push(stops);
+        // M-b (SP10): an absolutely positioned ::after / ::before that covers
+        // the element (inset 0 — a vignette, a scrim) paints over the
+        // element's own background and under its content, so it is the top
+        // layer of this element (::after above ::before).
+        const box = n.getBoundingClientRect();
+        for (const cs of coverPseudos(n).concat([getComputedStyle(n)])) {
+          if (cs.backgroundImage !== "none") {
+            if (/url\(/.test(cs.backgroundImage)) return null;
+            for (const g of cs.backgroundImage.match(GRAD) || []) {
+              const stops = radialStops(g, box, text) || (g.match(COLOR) || []).map(parse);
+              if (!stops.length) continue;
+              if (stops.every((st) => st.a >= 1)) { floor = stops; break walk; }
+              stack.push(stops);
+            }
           }
+          const c = parse(cs.backgroundColor);
+          if (c && c.a >= 1) { floor = [c]; break walk; }
+          if (c && c.a > 0) stack.push([c]);
         }
-        const c = parse(cs.backgroundColor);
-        if (c && c.a >= 1) { floor = [c]; break; }
-        if (c && c.a > 0) stack.push([c]);
       }
       let cands = floor;
       for (let k = stack.length - 1; k >= 0; k--) {
