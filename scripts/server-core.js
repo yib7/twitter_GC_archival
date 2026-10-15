@@ -258,4 +258,38 @@ function makeLiveness(idleMs, clock) {
   };
 }
 
-module.exports = { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP-1 / SP-17: plain-language failures ------------------------------- */
+// A failed build (scripts/build.js) prints ONE "BUILD ERROR: <sentence>" line
+// meant for the user. Show exactly that; never raw stderr, which can hold a
+// native stack trace (an out-of-memory crash) and private paths.
+function buildFailureMessage(stderr) {
+  const s = String(stderr == null ? "" : stderr);
+  const m = /^BUILD ERROR: (.+)$/m.exec(s);
+  if (m) return m[1].trim();
+  if (/heap out of memory|Reached heap limit|Allocation failed|ERR_STRING_TOO_LONG|Invalid string length/i.test(s)) {
+    return "The build ran out of memory — your export is very large. Close other programs and try again.";
+  }
+  return "The build stopped unexpectedly. The server window has the technical details.";
+}
+// Node fs errors (EPERM on a junction, ENOSPC mid-copy, ...) as one plain
+// sentence. Errors we raise ourselves with a statusCode are already written
+// for the user and pass through unchanged.
+function friendlyError(e) {
+  if (!e) return "Something went wrong.";
+  if (e.statusCode && e.message) return String(e.message);
+  const where = e.path ? " (“" + path.basename(String(e.path)) + "”)" : "";
+  switch (e.code) {
+    case "ENOENT": return "A file or folder couldn't be found" + where + ". Check the path and try again.";
+    case "EPERM":
+    case "EACCES": return "Access was denied" + where + ". Close any program using it, or move the archive out of a protected folder, and try again.";
+    case "EBUSY": return "A file is in use by another program" + where + " — antivirus or a sync app? Wait a moment and try again.";
+    case "ENOSPC": return "The disk is full. Free up some space and try again.";
+    case "EISDIR": return "Expected a file but found a folder" + where + ".";
+    case "ENOTDIR": return "Expected a folder but found a file" + where + ".";
+    case "EMFILE":
+    case "ENFILE": return "Too many files are open at once. Close some programs and try again.";
+    default: return "Something went wrong: " + String(e.message || e).split(/\r?\n/)[0];
+  }
+}
+
+module.exports = { buildFailureMessage, friendlyError, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

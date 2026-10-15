@@ -20,9 +20,9 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
-const { collectParticipants, exportPartFiles } = require("./build-core.js");
-const { writeFileAtomic, TMP_RE } = require("./fs-io.js");
-const { dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
+const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
+const { buildFailureMessage, friendlyError, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -236,11 +236,23 @@ function apiSource(body, res) {
 
   const absOf = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, p));
   const groupAbs = absOf(groupJs), headersAbs = absOf(headersJs), mediaAbs = absOf(mediaDirIn);
-  if (!fs.existsSync(groupAbs)) return sendJSON(res, 400, { error: "Messages file not found: " + groupJs });
-  if (!fs.existsSync(headersAbs)) return sendJSON(res, 400, { error: "Headers file not found: " + headersJs });
+  // SP-1 / SP-17: check what was picked BEFORE copying anything, so a wrong,
+  // empty or missing file gets one plain sentence and nothing is half-written.
+  const fileProblem = (abs, typed, role, expected) => {
+    let st;
+    try { st = fs.statSync(abs); } catch (e) { return role + " not found: " + typed; }
+    if (st.isDirectory()) return "The " + role.toLowerCase() + " you chose is a folder, not a file: " + typed + ". Pick the .js file inside it.";
+    if (!st.isFile()) return "The " + role.toLowerCase() + " you chose isn't a regular file: " + typed;
+    return wrongKindMessage(identifyExport(readExportHead(abs)), expected, path.basename(abs));
+  };
+  const groupBad = fileProblem(groupAbs, groupJs, "Messages file", "messages");
+  if (groupBad) return sendJSON(res, 400, { error: groupBad });
+  const headersBad = fileProblem(headersAbs, headersJs, "Headers file", "headers");
+  if (headersBad) return sendJSON(res, 400, { error: headersBad });
   if (!fs.existsSync(mediaAbs) || !fs.statSync(mediaAbs).isDirectory()) return sendJSON(res, 400, { error: "Media folder not found: " + mediaDirIn });
 
   const cfg = loadConfig();
+  const cfgBefore = fs.existsSync(CONFIG) ? fs.readFileSync(CONFIG) : null;
 
   // Copy every source into personal_data/source/ so ALL private data lives under
   // personal_data/ (the export is just as private as the messages).
@@ -278,8 +290,28 @@ function apiSource(body, res) {
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
   let buildLog;
-  try { buildLog = duringBlocking(() => execFileSync(process.execPath, [path.join(__dirname, "build.js")], { cwd: ROOT })).toString(); }
-  catch (e) { return sendJSON(res, 500, { error: "Build failed: " + (e.stderr ? e.stderr.toString() : e.message) }); }
+  // The log is shown in the wizard, so ask for plain text (an inherited
+  // FORCE_COLOR would otherwise wrap every number in ANSI colour codes).
+  const buildEnv = Object.assign({}, process.env, { NO_COLOR: "1" });
+  delete buildEnv.FORCE_COLOR;
+  // eslint-disable-next-line no-control-regex -- matching ESC is the point
+  const plain = (s) => String(s).replace(/\x1b\[[0-9;]*m/g, "");
+  try { buildLog = plain(duringBlocking(() => execFileSync(process.execPath, [path.join(__dirname, "build.js")], { cwd: ROOT, env: buildEnv, stdio: ["ignore", "pipe", "pipe"] }))); }
+  catch (e) {
+    // SP-1 / SP-17: the user gets build.js's one-sentence BUILD ERROR (never a
+    // raw stack trace); the full stderr goes to this server's console only.
+    const stderr = e.stderr ? plain(e.stderr) : String(e.message || e);
+    console.error("Build failed:\n" + stderr.trim());
+    // A failed build wrote no data.js; put config.json back the way it was so
+    // the wizard isn't left pointing at the file that just failed.
+    try {
+      if (cfgBefore) writeFileAtomic(CONFIG, cfgBefore);
+      else fs.rmSync(CONFIG, { force: true });
+    } catch (err) { /* best effort — the next build overwrites it anyway */ }
+    const error = buildFailureMessage(stderr);
+    const log = ((e.stdout ? plain(e.stdout).trim() : "") + "\nBUILD ERROR: " + error).trim();
+    return sendJSON(res, 422, { error, log });
+  }
 
   const data = readBuiltData();
   const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
@@ -602,7 +634,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/status") return apiStatus(res);
     if (req.method === "POST" && url === "/api/reset") return apiReset(res);
   } catch (e) {
-    return sendJSON(res, e.statusCode || 500, { error: String(e && e.message || e) });
+    // SP-17: one plain sentence for the user (no "EPERM: operation not
+    // permitted, copyfile …" or stack); the full error stays in this console.
+    if (!(e && e.statusCode)) console.error(e && e.stack || e);
+    return sendJSON(res, e.statusCode || 500, { error: friendlyError(e) });
   }
   serveStatic(req, res);
 });

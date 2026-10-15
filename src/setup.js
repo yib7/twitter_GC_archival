@@ -290,6 +290,18 @@ function loadStatus() {
   })();
 }
 
+// The build's own output, one click away (collapsed so it never crowds the result).
+function buildLogHtml(log) {
+  const s = String(log || "").trim();
+  return s ? `<details class="build-log"><summary>Build log</summary><pre>${escapeHtml(s)}</pre></details>` : "";
+}
+// "Warning: …" lines from the build, plus skipped media, surfaced on success.
+function buildWarningsHtml(j) {
+  const w = String(j.log || "").split(/\r?\n/).filter((l) => /^Warning:/.test(l)).map((l) => l.replace(/^Warning:\s*/, ""));
+  if (j.mediaSkipped > 0) w.push(`${Number(j.mediaSkipped).toLocaleString()} media file(s) were skipped because another file already had the same name.`);
+  return w.length ? `<ul class="build-warnings">${w.map((l) => `<li>Warning: ${escapeHtml(l)}</li>`).join("")}</ul>` : "";
+}
+
 $("#btn-build").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
   const groupJs = $("#src-group").value.trim();
@@ -302,7 +314,9 @@ $("#btn-build").onclick = async () => {
   try {
     const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupJs, headersJs, mediaDir }) });
     const j = await r.json();
-    if (!r.ok) { flash($("#src-result"), "✗ " + escapeHtml(j.error || "Build failed"), "err"); return; }
+    // SP-1 / SP-17: a failed build shows the server's plain-language sentence
+    // plus the build log (collapsed), and leaves step 1 unlocked to fix it.
+    if (!r.ok) { flash($("#src-result"), "✗ " + escapeHtml(j.error || "Build failed") + buildLogHtml(j.log), "err"); return; }
     built = true;
     groups = j.groups || [];
     state.group = groups[0] ? String(groups[0].id) : "";
@@ -313,7 +327,7 @@ $("#btn-build").onclick = async () => {
       `✓ Built <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)` +
       (j.partFiles > 1 ? ` from <b>${Number(j.partFiles)}</b> message part files` : "") +
       (j.mediaCopied ? `, copied <b>${j.mediaCopied.toLocaleString()}</b> media files` : "") +
-      `.<ul>${groupList}</ul>`, "ok");
+      `.<ul>${groupList}</ul>` + buildWarningsHtml(j) + buildLogHtml(j.log), "ok");
     lockSource(true);
     go(2);
   } catch (e) {
