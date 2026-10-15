@@ -75,7 +75,9 @@ All notable changes to this project are recorded here.
 - Person names, text tokens and on-accent text reach WCAG AA in Light, Dim
   and Lights-out. A new rendered-text audit checks every view in every theme,
   which also fixed faded word-cloud words, superlative definitions, green
-  "received" counts in Light, and the automatic-colour "A" swatch.
+  "received" counts in Light, the automatic-colour "A" swatch, avatar
+  initials (deeper avatar fills), link chips in your own messages, and the
+  Stats / Wrapped big numbers in Light.
 - The theme switch lives in the sidebar and the More sheet instead of
   floating over content.
 
@@ -83,7 +85,10 @@ All notable changes to this project are recorded here.
 
 - On phones, search filters collapse into a "Filters" sheet with an active-
   filter badge, and the search box no longer autofocuses (no surprise
-  keyboard).
+  keyboard). Tapping outside the sheet only closes it, and widening the
+  window turns it back into the inline filter bar.
+- On touch screens the ⋯ on your own messages sits on the left, clear of
+  your avatar.
 - On touch screens, controls have 44px targets.
 - Settings rows and Stats grids reflow to one column on narrow screens
   instead of overflowing.
@@ -93,7 +98,8 @@ All notable changes to this project are recorded here.
   one top toolbar with "n / N", Bookmark, Download and Close.
 - Word Battles keeps the words you add when you change the people and across
   reloads. Duplicates are refused, each custom word can be removed, Reset
-  keeps them, and Import/Export treats them as their own section.
+  keeps them, and Import/Export treats them as their own section. A word
+  over 40 characters, or the 31st word pushing out the oldest, says so.
 - Opening the Timeline no longer flashes message 0 before your place, and the
   sticky day pill is translucent and no longer blocks taps on media under it.
 - Time Capsule sizes itself by layout, so it no longer ends up as a scroller
