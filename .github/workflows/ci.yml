@@ -23,9 +23,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           # read from .nvmrc (the single source of truth for the
           # supported Node version) instead of a second, independently
@@ -57,9 +57,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
           cache: npm
@@ -88,7 +88,7 @@ jobs:
           esac
 
       - name: Cache Playwright browsers
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.pw-cache-dir.outputs.dir }}
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
@@ -111,7 +111,7 @@ jobs:
       # committed sample data to capture, never real messages.
       - name: Upload Playwright report + traces on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.os }}
           path: |
@@ -126,9 +126,9 @@ jobs:
   node-floor:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: "22.13.0"
           cache: npm
@@ -151,7 +151,7 @@ jobs:
 
       # same cache key and path as the ubuntu matrix leg above
       - name: Cache Playwright browsers
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('package-lock.json') }}
@@ -164,7 +164,7 @@ jobs:
 
       - name: Upload Playwright report + traces on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-node-floor
           path: |
