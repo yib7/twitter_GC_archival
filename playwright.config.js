@@ -65,6 +65,19 @@ module.exports = defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
+  // The 100k-message performance budgets are wall-clock measurements, so they
+  // must not share the machine with the rest of the suite: under a full
+  // parallel run they sometimes missed budget although they pass alone. The
+  // perf spec gets its own project that waits for every other test to finish
+  // (dependencies) and then runs on a single worker. `npx playwright test`
+  // still runs everything in one command. Budgets and GCA_PERF_MULT are
+  // unchanged. If an earlier test fails, Playwright skips the perf project
+  // (its dependency failed); fix that failure first, or run
+  // `npx playwright test --project=perf --no-deps` on its own.
+  projects: [
+    { name: "main", testIgnore: "**/perf-100k*.spec.js" },
+    { name: "perf", testMatch: "**/perf-100k*.spec.js", dependencies: ["main"], fullyParallel: false, workers: 1 },
+  ],
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : {
     command: "node scripts/server.js",
     url: baseURL,

@@ -45,7 +45,10 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 // every sample is also attached to the test report (perf-100k.json).
 //
 // Tagged @perf: `npx playwright test --grep @perf` runs just this;
-// `--grep-invert @perf` skips it.
+// `--grep-invert @perf` skips it. In a full run it is the "perf" project in
+// playwright.config.js: it starts only after every other spec has finished and
+// runs on one worker, so the budgets are never measured under parallel load
+// (`npx playwright test --project=perf --no-deps` runs it straight away).
 const MULT = Number(process.env.GCA_PERF_MULT) || (process.env.CI ? 2 : 1);
 const RATIO = { statsCold: 14, convSwitchStats: 14 };
 const THROTTLE = Number(process.env.GCA_PERF_CPU_THROTTLE) || 1;
