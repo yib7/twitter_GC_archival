@@ -242,3 +242,79 @@ test.describe("UX-13: no click-only elements", () => {
     await expect(page.locator('.nav-item[data-view="capsule"]')).toHaveAttribute("aria-current", "page");
   });
 });
+
+// Visible controls whose accessible name carries no word — "✕", "‹", "↑", an
+// icon-only svg. Name = aria-labelledby / aria-label / visible text (minus
+// aria-hidden parts and glyph-only strings) / img alt / title.
+async function unnamed(page, root) {
+  return page.evaluate((sel) => {
+    const text = (n) => {
+      if (n.nodeType === 3) return n.textContent;
+      if (n.nodeType !== 1 || n.getAttribute("aria-hidden") === "true") return "";
+      if (n.tagName === "IMG") return n.alt || "";
+      return [...n.childNodes].map(text).join(" ");
+    };
+    const name = (e) => {
+      const lb = e.getAttribute("aria-labelledby");
+      if (lb) return lb.split(/\s+/).map((id) => (document.getElementById(id) || {}).textContent || "").join(" ");
+      return e.getAttribute("aria-label") || text(e) || e.title || "";
+    };
+    const rootEl = document.querySelector(sel);
+    return [...rootEl.querySelectorAll("button, a[href], [role=button], input:not([type=hidden]), select")]
+      .filter((e) => { const b = e.getBoundingClientRect(); return b.width && b.height && !e.closest("[aria-hidden=true]"); })
+      .filter((e) => {
+        if (/^(INPUT|SELECT)$/.test(e.tagName)) return !(e.getAttribute("aria-label") || e.labels && e.labels.length && /\p{L}/u.test(e.labels[0].textContent) || e.title);
+        return !/[\p{L}\p{N}]/u.test(name(e));
+      })
+      .map((e) => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className).trim().split(/\s+/).join("."));
+  }, root);
+}
+
+test.describe("UX-14: every icon-only control has a name", () => {
+  test("views, search clear, back-to-top and the settings list", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.settings": JSON.stringify({ saved: [{ name: "pizza", q: "pizza", f: {} }] }) } });
+    await page.locator("#s-input").fill("pizza");
+    await expect(page.locator("#s-clear")).toBeVisible();
+    await page.locator("#s-btt").evaluate((b) => { b.hidden = false; });
+    const bad = [];
+    bad.push(...await unnamed(page, "#app"));
+    for (const v of ["timeline", "gallery", "hof", "stats", "threads", "chains", "wrapped", "capsule", "battles", "people", "settings", "pins"]) {
+      await go(page, v);
+      await page.waitForTimeout(v === "stats" ? 600 : 60);
+      bad.push(...(await unnamed(page, "#view-" + v)).map((d) => v + ": " + d));
+    }
+    expect([...new Set(bad)], "unnamed: " + [...new Set(bad)].join(", ")).toEqual([]);
+    // decorative icons (every view has rendered by now) are hidden from assistive tech
+    const loose = await page.evaluate(() => [...document.querySelectorAll("#app svg:not([aria-hidden=true]):not([role=img])")]
+      .filter((s) => !s.closest("[aria-hidden=true]")).map((s) => s.parentElement.className));
+    expect(loose).toEqual([]);
+  });
+
+  test("lightbox, profile, context, keyboard-help and palette overlays", async ({ page }) => {
+    await bootViewer(page, RICH_DATA);
+    const bad = [];
+    await go(page, "gallery");
+    await page.locator("#view-gallery .gcell").first().click();
+    await expect(page.locator(".lightbox")).toBeVisible();
+    bad.push(...(await unnamed(page, ".lightbox")).map((d) => "lightbox: " + d));
+    await page.keyboard.press("Escape");
+    await go(page, "timeline");
+    await page.locator("#tl-list .msg .av-clickable").first().click();
+    await expect(page.locator(".profile-modal")).toBeVisible();
+    bad.push(...(await unnamed(page, ".profile-modal")).map((d) => "profile: " + d));
+    await page.keyboard.press("Escape");
+    await page.locator("#tl-list .msg").first().hover();
+    await page.locator("#tl-list .msg").first().getByRole("button", { name: "Context" }).click();
+    await expect(page.locator(".ctx-modal")).toBeVisible();
+    bad.push(...(await unnamed(page, ".ctx-modal")).map((d) => "context: " + d));
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("?");
+    await expect(page.locator(".kb-modal")).toBeVisible();
+    bad.push(...(await unnamed(page, ".kb-modal")).map((d) => "kb: " + d));
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Control+k");
+    await expect(page.locator(".cmdk")).toBeVisible();
+    bad.push(...(await unnamed(page, ".cmdk")).map((d) => "cmdk: " + d));
+    expect([...new Set(bad)], "unnamed: " + [...new Set(bad)].join(", ")).toEqual([]);
+  });
+});

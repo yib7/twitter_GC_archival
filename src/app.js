@@ -1309,7 +1309,7 @@ function renderLightbox() {
   const close = closeLightbox;
   box.addEventListener("click", (e) => { if (e.target === box) close(); });
   
-  const x = el("button", "lb-close", "✕"); x.onclick = close; box.appendChild(x);
+  const x = btnEl("lb-close", "✕", "Close"); x.onclick = close; box.appendChild(x);
   
   const dl = el("a", "lb-dl", "↓ Download");
   dl.href = m.m;
@@ -1323,12 +1323,12 @@ function renderLightbox() {
   box.appendChild(lbPin);
 
   if (lbState.pos > 0) {
-    const prev = el("button", "lb-nav lb-prev", "‹");
+    const prev = btnEl("lb-nav lb-prev", "‹", "Previous");
     prev.onclick = (e) => { e.stopPropagation(); lbState.pos--; renderLightbox(); };
     box.appendChild(prev);
   }
   if (lbState.pos < lbState.idxList.length - 1) {
-    const next = el("button", "lb-nav lb-next", "›");
+    const next = btnEl("lb-nav lb-next", "›", "Next");
     next.onclick = (e) => { e.stopPropagation(); lbState.pos++; renderLightbox(); };
     box.appendChild(next);
   }
@@ -1417,8 +1417,8 @@ function ensureSearch() {
       <div class="search-row">
         <div class="search-box">
           <span class="ico">${cmdIco("search")}</span>
-          <input id="s-input" type="text" placeholder="Search ${fmtNum(N)} messages…  (use &quot;quotes&quot; for exact phrases)" autocomplete="off" spellcheck="false" />
-          <button class="search-clear" id="s-clear" title="Clear" hidden>✕</button>
+          <input id="s-input" type="text" aria-label="Search messages" placeholder="Search ${fmtNum(N)} messages…  (use &quot;quotes&quot; for exact phrases)" autocomplete="off" spellcheck="false" />
+          <button class="search-clear" id="s-clear" type="button" title="Clear" aria-label="Clear search" hidden>✕</button>
         </div>
       </div>
       <div class="filters">
@@ -1458,7 +1458,7 @@ function ensureSearch() {
       <div class="result-meta" id="s-meta"></div>
     </div>
     <div class="scroll" id="s-scroll"><div class="list" id="s-list"></div></div>
-    <button class="back-to-top" id="s-btt" hidden title="Back to top">↑</button>`;
+    <button class="back-to-top" id="s-btt" type="button" hidden title="Back to top" aria-label="Back to top">↑</button>`;
 
   sEls = {
     input: v.querySelector("#s-input"), clear: v.querySelector("#s-clear"), meta: v.querySelector("#s-meta"),
@@ -2919,7 +2919,7 @@ function renderStats() {
       <div class="section">
         <div class="section-h">Keyword Trends (Google Trends Style)</div>
         <div style="display:flex; gap:10px; margin-bottom:12px;">
-          <input type="text" id="trend-input" placeholder="Type a word (e.g. 'lol', 'good')" class="person-name-input" style="flex:1; max-width:300px;" value="${esc(trendWord)}">
+          <input type="text" id="trend-input" aria-label="Word to graph" placeholder="Type a word (e.g. 'lol', 'good')" class="person-name-input" style="flex:1; max-width:300px;" value="${esc(trendWord)}">
           <button class="btn" id="trend-btn">Graph</button>
         </div>
         <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-trends" role="img" aria-label="Line chart: monthly uses of a word"></canvas></div>
@@ -3277,6 +3277,7 @@ function personCard(p) {
   const row = el("div", "person-row");
   const input = el("input", "person-name-input");
   input.type = "text"; input.value = settings.names[p.id] || ""; input.placeholder = GENERIC[p.id] || nameOf(p.id);
+  input.setAttribute("aria-label", "Display name for " + (GENERIC[p.id] || p.id));   // UX-34
   input.addEventListener("input", () => {
     const val = input.value.trim();
     if (val) settings.names[p.id] = val; else delete settings.names[p.id];
@@ -3491,6 +3492,7 @@ function renderSettings() {
     const name = document.createElement("input");
     name.type = "text"; name.className = "gc-name-input";
     name.placeholder = convLabel(c); name.value = entry.name || "";
+    name.setAttribute("aria-label", "Display name for " + convLabel(c));
     name.oninput = () => {
       if (!settings.gc[c.id]) settings.gc[c.id] = {};
       const val = name.value.trim();
@@ -3531,7 +3533,8 @@ function renderSettings() {
     const item = el("div", "saved-item");
     item.innerHTML = `<span class="s-name">★ ${esc(s.name)}</span><span class="s-q">${esc(s.q || "(filters only)")}</span>`;
     const run = el("button", "btn sm ghost", "Run"); run.onclick = () => { setView("search"); applySaved(s); };
-    const del = el("button", "icon-btn", cmdIco("trash")); del.onclick = () => { settings.saved.splice(idx, 1); saveSettings(); renderSettings(); };
+    const del = btnEl("icon-btn", cmdIco("trash"), "Delete saved search " + s.name); del.title = "Delete";
+    del.onclick = () => { settings.saved.splice(idx, 1); saveSettings(); renderSettings(); };
     item.appendChild(run); item.appendChild(del); sl.appendChild(item);
   });
 
@@ -4236,9 +4239,9 @@ function wrappedSlides(w) {
 }
 // Wrapped nav pill icons (mock-wrapped .nav-btn chevrons + restart loop).
 const WR_ICON = {
-  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg>',
-  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
-  restart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 108-8M4 4v4h4"/></svg>',
+  back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
+  next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+  restart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 108-8M4 4v4h4"/></svg>',
 };
 // slide kind → mock backdrop wash (intro/outro share the violet hero wash;
 // star gets an amber wash of its own — the mock has no star slide).
@@ -4408,7 +4411,7 @@ function toggleKeyboardHelp() {
     <div class="kb-content">
       <div class="kb-header">
         <h2>Keyboard Shortcuts</h2>
-        <button class="kb-close">✕</button>
+        <button class="kb-close" type="button" aria-label="Close">✕</button>
       </div>
       <div class="kb-body">
         <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette (jump anywhere)</span></div>
@@ -4451,7 +4454,7 @@ function openProfileModal(id) {
     <div class="profile-card">
       <div class="profile-cover">
         ${pfpHtml(id, "border:4px solid var(--bg-panel)")}
-        <button class="profile-card-close">✕</button>
+        <button class="profile-card-close" type="button" aria-label="Close profile">✕</button>
       </div>
       <div class="profile-info">
         <h2 class="profile-name">${esc(nameOf(id))}</h2>
@@ -4667,7 +4670,7 @@ function openContextPeek(center) {
   const head = el("div", "ctx-head");
   head.innerHTML = '<div class="ctx-title">Conversation context</div>';
   const closeCtx = () => { modal.remove(); restoreFocus(modal); };
-  const close = el("button", "kb-close", "✕"); close.onclick = closeCtx;
+  const close = btnEl("kb-close", "✕", "Close"); close.onclick = closeCtx;
   head.appendChild(close);
   card.appendChild(head);
 
@@ -5201,7 +5204,7 @@ function renderBattles() {
       </div>
     </div>
     <div class="battle-custom" style="margin:16px 0;">
-      <input type="text" id="battle-word" placeholder="Type a word to compare..." class="person-name-input" style="max-width:260px">
+      <input type="text" id="battle-word" aria-label="Add a word to the battle" placeholder="Type a word to compare..." class="person-name-input" style="max-width:260px">
       <button class="btn" id="battle-go">Compare</button>
     </div>
     <div id="battle-results"></div>
