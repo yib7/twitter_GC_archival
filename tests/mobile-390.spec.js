@@ -224,6 +224,24 @@ test.describe("UX-19: mobile search header is compact and doesn't grab the keybo
   });
 });
 
+test.describe("I-1: the filter sheet's backdrop catches the tap", () => {
+  test("a tap outside the sheet closes it and does not reach the result underneath", async ({ page }) => {
+    await bootViewer(page, RICH_DATA);
+    await expect(page.locator("#s-list .msg").first()).toBeVisible();
+    const filters = page.locator("#s-filters");
+    await page.getByRole("button", { name: /^Filters/ }).tap();
+    await expect(filters).toBeVisible();
+    const fb = await filters.boundingBox();
+    const y = Math.round(fb.y - 60);
+    // what's under the finger is the scrim, not a result bubble
+    expect(await page.evaluate((y) => { const h = document.elementFromPoint(195, y); return h && h.id; }, y)).toBe("filter-scrim");
+    await page.touchscreen.tap(195, y);
+    await expect(filters).toBeHidden();
+    expect(await view(page)).toBe("search");
+    await expect(page.locator("#filter-scrim")).not.toHaveClass(/on/);
+  });
+});
+
 // Interactive targets smaller than 44×44 CSS px on a coarse pointer. Inline
 // links inside message text are exempt (WCAG 2.5.8 inline exception), as are
 // controls inside a larger <label>/role=button target and aria-hidden parts.

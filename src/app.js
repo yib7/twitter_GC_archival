@@ -1471,6 +1471,7 @@ function ensureSearch() {
         </div>
         <button class="pill f-toggle" id="f-toggle" type="button" aria-expanded="false" aria-controls="s-filters">${cmdIco("settings")} Filters <span class="badge" id="f-toggle-n" hidden>0</span></button>
       </div>
+      <div class="scrim" id="filter-scrim" aria-hidden="true"></div>
       <div class="filters" id="s-filters">
         <div class="f-sheet-head"><span class="f-sheet-title">Filters</span><button class="btn sm" id="f-done" type="button">Done</button></div>
         <div class="popwrap">
@@ -1526,6 +1527,9 @@ function ensureSearch() {
   // UX-19: on a phone the filter bar is a bottom sheet behind "Filters (n)".
   sEls.ftoggle.onclick = (e) => { e.stopPropagation(); if (sEls.filters.classList.contains("open")) closeFilterSheet(); else openFilterSheet(); };
   v.querySelector("#f-done").onclick = () => closeFilterSheet();
+  // I-1: a real backdrop element takes the tap outside the sheet, so it closes
+  // the sheet instead of falling through to the result underneath.
+  v.querySelector("#filter-scrim").onclick = (e) => { e.stopPropagation(); closeFilterSheet(); };
 
   // Every control is rendered FROM F (VC-4) so the UI can never disagree with
   // the filters actually applied.
@@ -1986,6 +1990,7 @@ function openFilterSheet() {
   const f = sEls.filters;
   if (!f) return;
   f.classList.add("open");
+  document.getElementById("filter-scrim").classList.add("on");
   sEls.ftoggle.setAttribute("aria-expanded", "true");
   f._close = closeFilterSheet;
   applyDialog(f, "Search filters", { initial: "#f-people" });
@@ -1995,6 +2000,7 @@ function closeFilterSheet() {
   if (!f || !f.classList.contains("open")) return false;
   closePopovers();
   f.classList.remove("open");
+  document.getElementById("filter-scrim").classList.remove("on");
   ["role", "aria-modal", "aria-label"].forEach((a) => f.removeAttribute(a));
   sEls.ftoggle.setAttribute("aria-expanded", "false");
   restoreFocus(f);

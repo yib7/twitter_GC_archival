@@ -915,8 +915,12 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
     max-height: 80dvh; overflow: auto; align-content: flex-start;
     background: var(--bg-panel); border-top: 1px solid var(--border); border-radius: 18px 18px 0 0;
     padding: 14px 14px calc(16px + env(safe-area-inset-bottom));
-    box-shadow: 0 0 0 100vmax rgba(2, 4, 9, 0.6), var(--el2);
+    box-shadow: var(--el2);
   }
+  /* I-1: the dimmed backdrop is a real element (#filter-scrim, a sibling inside
+     the lifted toolbar), so a tap outside the sheet lands on it — not on the
+     result underneath — and closes the sheet. It paints over the search row and
+     everything outside the toolbar; the sheet (z-modal) sits above it. */
   /* the toolbar's backdrop-filter would make it the sheet's containing block,
      and its z-index would trap the sheet under the tab bar — lift both while open */
   .toolbar:has(.filters.open) { backdrop-filter: none; -webkit-backdrop-filter: none; z-index: var(--z-modal); }
