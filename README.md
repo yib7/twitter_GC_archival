@@ -49,8 +49,16 @@ internet. Have several group chats? A picker switches between them.
 - Search that shows exact matches first and falls back to typo-tolerant
   fuzzy matches (Fuse.js) when there are none; "+ Show close matches" adds
   them on demand, and the matched text is highlighted either way. Filters: `has:media`, `has:links`,
-  `from:name`, `before:/after:YYYY-MM-DD`, exact `"quoted phrases"`, sorting,
+  `from:name`, `before:`/`after:` a date, exact `"quoted phrases"`, sorting,
   list/grid views, saved searches, and plain-text export of the results.
+  - Dates in `before:`/`after:` can be a day (`2021-06-14`), a month
+    (`2021-06`) or a year (`2021`), or a quoted natural date
+    (`after:"June 2021"`, `before:"Jan 7 2024"`). Both are **inclusive** of the
+    whole period they name, in your configured timezone, like the From/To
+    filter: `after:2021-06` starts on June 1, 2021 and `before:2021-06` keeps
+    all of June. `after:2024-01-07 before:2024-01-07` is exactly that day. A
+    date that doesn't exist (`2023-02-30`) is ignored with a note in the result
+    line instead of being rolled over to another day.
 - Dates and every stats bucket follow your browser's timezone by default; any
   IANA zone (or UTC) can be picked in Settings.
 - Multiple group chats: a conversation picker switches between every group in

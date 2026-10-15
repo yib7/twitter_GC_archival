@@ -59,7 +59,7 @@ test("timeline renders and jumps by date", async ({ page }) => {
   // where the timeline already was, whether or not the jump actually worked).
   await page.keyboard.press("Control+K");
   await page.locator(".cmdk-input").fill("2024-01-07");
-  await page.getByText(/Jump to 2024-01-07/).click();
+  await page.getByText("Jump to Jan 7, 2024").click();   // SP8 UX-9: the row names the parsed day
 
   // The timeline anchors (scrolls to + flashes) the jumped-to message — assert
   // it landed on the sample's actual first 2024-01-07 message, not merely

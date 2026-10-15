@@ -84,7 +84,7 @@ test.describe("served-mode CSP (index.html + setup.html)", () => {
     // broken jump (always landing on index 0) would be caught here too.
     await page.keyboard.press("Control+K");
     await page.locator(".cmdk-input").fill("2024-01-07");
-    await page.getByText(/Jump to 2024-01-07/).click();
+    await page.getByText("Jump to Jan 7, 2024").click();   // SP8 UX-9: the row names the parsed day
     // See smoke.spec.js's identical jump assertion for why this checks
     // viewport position rather than the transient .flash class (which races
     // its own 1700ms removal timer in src/app.js).

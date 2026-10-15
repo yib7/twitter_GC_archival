@@ -314,33 +314,16 @@ function timeAgg() {
   return TI.agg;
 }
 
-// Interpret a "YYYY-MM-DD" string as the start-of-day (or end-of-day when `end`)
-// instant in the CONFIGURED zone, returning epoch ms. Used by the date-range
-// search filters so `before:`/`after:` mean the same wall-clock day the labels do.
+// Interpret a "YYYY-MM-DD" string as the start-of-day (or, when `end`, the last
+// millisecond of the day) instant in the CONFIGURED zone, returning epoch ms
+// (NaN if it isn't a real day). Used by the From/To search filters. VC-28: the
+// same GCAShared.parseJumpDate as jump-to-date and before:/after:, so every
+// date in the app means the same wall-clock day the labels do, and an
+// impossible date (2023-02-30) is rejected instead of rolling over.
 function zonedDateBound(dateStr, end) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr);
-  if (!m) return NaN;
-  const y = +m[1], mo = +m[2] - 1, d = +m[3];
-  if (ZP_LOCAL) {
-    // 'local' keeps the historical new Date("YYYY-MM-DDThh:mm") behavior.
-    return new Date(dateStr + (end ? "T23:59:59.999" : "T00:00:00")).getTime();
-  }
-  // The wall-clock instant we want, expressed as if it were UTC.
-  const targetWall = end ? Date.UTC(y, mo, d, 23, 59, 59, 999) : Date.UTC(y, mo, d, 0, 0, 0, 0);
-  // Two-pass offset solve: from a UTC-equals-wall guess, measure the wall-clock the
-  // zone actually shows at that guess, then shift by the difference. The 2nd pass
-  // re-measures so a DST change straddling the guess is corrected. At a nonexistent
-  // (spring-forward) or ambiguous (fall-back) local time the passes converge on the
-  // post-transition instant — the standard resolution.
-  let guess = targetWall;
-  for (let pass = 0; pass < 2; pass++) {
-    const zp = zonedParts(guess);
-    const guessWall = Date.UTC(zp.y, zp.mo, zp.d, zp.h, zp.mi, zp.se, end ? 999 : 0);
-    const delta = targetWall - guessWall;
-    if (delta === 0) break;
-    guess += delta;
-  }
-  return guess;
+  const p = GCAShared.parseJumpDate(String(dateStr), CLOCK);
+  if (!p || p.error || p.unit !== "day") return NaN;
+  return end ? p.end - 1 : p.start;
 }
 
 // An epoch that falls on the given "YYYY-MM-DD" day IN the configured zone, so
@@ -763,18 +746,14 @@ function closeTopModal() {
 }
 
 /* ---- Time → index (binary search; MSGS is sorted ascending by t) --------- */
-// First message index on/after the given date string (YYYY-MM-DD), interpreted
-// as start-of-day in the configured zone so it matches the on-screen day labels.
-function indexForDate(dateStr) {
-  const t = zonedDateBound(dateStr, false);
-  if (isNaN(t)) return -1;
-  let lo = 0, hi = N - 1, ans = N - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (MSGS[mid].t >= t) { ans = mid; hi = mid - 1; }
-    else lo = mid + 1;
+// First message index at/after epoch t (N if every message is earlier).
+function indexAtOrAfter(t) {
+  let lo = 0, hi = N;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (MSGS[mid].t < t) lo = mid + 1; else hi = mid;
   }
-  return ans;
+  return lo;
 }
 // initials moved to src/shared-core.js (destructured at the top of this IIFE).
 
@@ -1698,6 +1677,8 @@ let excludeNeedles = [];
 // that produced them — clearing the query drops them.
 let opPeople = null, opFrom = null, opTo = null;
 let opMedia = false, opLinks = false, opReacts = false;
+// before:/after: tokens whose date doesn't exist (VC-28) — shown in the meta line.
+let opDateNotes = [];
 function testMsgNoNeedle(i) {
   const m = MSGS[i];
   if (F.people.size && !F.people.has(m.s)) return false;
@@ -1776,6 +1757,7 @@ function runSearch() {
   excludeNeedles = [];
   opPeople = null; opFrom = null; opTo = null;
   opMedia = false; opLinks = false; opReacts = false;
+  opDateNotes = [];
 
   // 1. Parse has:media, has:links, has:reacts into the transient overlay
   // (P2-3). Never writes the persistent F.media/F.links/F.reacts pill state —
@@ -1805,18 +1787,23 @@ function runSearch() {
     return "";
   });
 
-  // 3. Parse before:YYYY-MM-DD and after:YYYY-MM-DD into the transient overlay.
-  // Reuses zonedDateBound (SP4) so the operator respects the configured
-  // timezone the same way the manual From/To pills do. The manual pills'
-  // value/active-state are left untouched — operators must not alter the
-  // persistent filter-panel display.
-  q = q.replace(/\bbefore:(\d{4}-\d{2}-\d{2})(?=\s|$)/ig, (match, dateStr) => {
-    opTo = zonedDateBound(dateStr, true);
-    return "";
-  });
-  q = q.replace(/\bafter:(\d{4}-\d{2}-\d{2})(?=\s|$)/ig, (match, dateStr) => {
-    opFrom = zonedDateBound(dateStr, false);
-    return "";
+  // 3. Parse before:<date> and after:<date> into the transient overlay. VC-28:
+  // the date goes through GCAShared.parseJumpDate — the jump-to-date parser —
+  // so it is read in the configured zone like the From/To pills, takes any
+  // form that parser does (2021-06-14, 2021-06, 2021, or a quoted
+  // "June 2021" / "Jan 7 2024"), and BOTH operators are inclusive of the named
+  // period: after:P = on or after P's first day, before:P = on or before P's
+  // last day (before:2021-06 keeps all of June). A date that doesn't exist is
+  // dropped with a note instead of rolling over (2023-02-30 used to mean
+  // Mar 2); a value that isn't date-shaped at all stays plain search text.
+  // The manual pills' value/active-state are left untouched — operators must
+  // not alter the persistent filter-panel display.
+  q = q.replace(/\b(before|after):("[^"]*"|\S+)/ig, (match, op, val) => {
+    const p = GCAShared.parseJumpDate(val.replace(/"/g, ""), CLOCK);
+    if (!p) return match;
+    if (p.error) { opDateNotes.push(op.toLowerCase() + ":" + val); return " "; }
+    if (op.toLowerCase() === "before") opTo = p.end - 1; else opFrom = p.start;
+    return " ";
   });
 
   // 4. Parse exclusions: -word or -"exact phrase"
@@ -1901,7 +1888,7 @@ function runSearch() {
   const sortLbl = { relevance: fuzzyRun ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
   const noun = (F.grid ? " media message" : " message") + (out.length === 1 ? "" : "s");
   sEls.meta.textContent = !hasFilter
-    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'before:YYYY-MM-DD'"
+    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Supports 'has:media', 'has:links', 'from:name', 'after:2021-06', 'before:2024'"
     : searchKind === "fallback" && out.length
       ? "No exact " + (F.grid ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (F.grid ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
       : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
@@ -1915,6 +1902,8 @@ function runSearch() {
     b.onclick = () => { fuzzyForceQ = forced ? null : key; runSearch(); };
     sEls.meta.append(" · ", b);
   }
+  // VC-28: say which date operator was dropped (text node — never markup).
+  opDateNotes.forEach((n) => sEls.meta.append(" · Ignored " + n + " — no such date"));
   // QA-15: bumped on every completed run (debounced or not), so tests can wait
   // for "the search actually re-ran" instead of a fixed sleep timed to the
   // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
@@ -5006,11 +4995,35 @@ function exportQuoteCard(i) {
 /* ===========================================================================
    JUMP TO DATE
    ======================================================================== */
-function jumpToDate(dateStr) {
-  const idx = indexForDate(dateStr);
-  if (idx < 0) { toast("Invalid date"); return; }
+// UX-9 / VC-28: every typed date goes through GCAShared.parseJumpDate (the
+// same parser as before:/after:), so "2021-06", "June 2021" and "Jan 7 2024"
+// all work, and an impossible date is rejected instead of rolled over.
+// Returns true if it navigated.
+const DATE_HINT = "Try 2021-06-14, June 2021 or Jan 7 2024";
+function jumpToDate(input) {
+  const p = GCAShared.parseJumpDate(String(input), CLOCK);
+  if (!p) { toast("Not a date. " + DATE_HINT); return false; }
+  if (p.error) { toast("No such date: " + String(input).trim()); return false; }
+  return jumpToPeriod(p);
+}
+// Jump to the first message of a parsed period ([p.start, p.end) in the
+// configured zone) and say honestly where that landed: outside the archive it
+// clamps to the first / latest message, and an empty period lands on the next
+// message after it — never a bare "Jumped to <date>" that isn't true.
+function jumpToPeriod(p) {
+  if (!N) return false;
+  const first = MSGS[0].t, last = MSGS[N - 1].t;
+  let idx, msg;
+  if (p.end <= first) { idx = 0; msg = "No messages before " + dShort.format(first) + " — jumped to the first one"; }
+  else if (p.start > last) { idx = N - 1; msg = "No messages after " + dShort.format(last) + " — jumped to the latest one"; }
+  else {
+    idx = Math.min(indexAtOrAfter(p.start), N - 1);
+    msg = MSGS[idx].t < p.end ? "Jumped to " + p.label
+      : "No messages " + (p.unit === "day" ? "on " : "in ") + p.label + " — jumped to the next one, " + dShort.format(MSGS[idx].t);
+  }
   jumpTo(idx);
-  toast("Jumped to " + dateStr);
+  toast(msg);
+  return true;
 }
 
 /* ===========================================================================
@@ -5095,7 +5108,7 @@ function openCommandPalette() {
   modal.innerHTML = `<div class="cmdk-card">
       <div class="cmdk-inputrow">
         ${searchSvg}
-        <input class="cmdk-input" type="text" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-label="Command, person, or date" placeholder="Type a command, person, or date (YYYY-MM-DD)…" spellcheck="false" autocomplete="off">
+        <input class="cmdk-input" type="text" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-label="Command, person, or date" placeholder="Type a command, person, or date (June 2021, Jan 7 2024)…" spellcheck="false" autocomplete="off">
         <span class="cmdk-esc" aria-hidden="true">ESC</span>
       </div>
       <div class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Commands"></div>
@@ -5114,14 +5127,16 @@ function openCommandPalette() {
   const listEl = modal.querySelector(".cmdk-list");
   let filtered = all, sel = 0;
 
+  // UX-9: any form parseJumpDate reads ("2021-06", "June 2021", "Jan 7 2024",
+  // 1/7/2024 …); a date-shaped input that doesn't exist gets a row that says
+  // so instead of silently landing somewhere else.
   function dateCmd(q) {
-    const iso = q.match(/^\s*(\d{4}-\d{2}-\d{2})\s*$/);
-    const us = q.match(/^\s*(\d{1,2})\/(\d{1,2})\/(\d{4})\s*$/);
-    let ds = null;
-    if (iso) ds = iso[1];
-    else if (us) ds = us[3] + "-" + String(us[1]).padStart(2, "0") + "-" + String(us[2]).padStart(2, "0");
-    if (!ds) return null;
-    return { ico: "calendar", label: "Jump to " + ds, sub: "Jump to this day in the timeline", hint: "Date", run: () => jumpToDate(ds) };
+    const p = GCAShared.parseJumpDate(q, CLOCK);
+    if (!p) return null;
+    const raw = q.trim();
+    if (p.error) return { ico: "calendar", label: "No such date: " + raw, sub: "Check the day and month. " + DATE_HINT, hint: "Date", run: () => jumpToDate(raw) };
+    const what = p.unit === "day" ? "this day" : p.unit === "month" ? "this month" : "this year";
+    return { ico: "calendar", label: "Jump to " + p.label, sub: "First message of " + what + " in the timeline", hint: "Date", run: () => jumpToPeriod(p) };
   }
   // Hint → group header shown above each run of rows (cosmetic only — `filtered`
   // stays flat and index-aligned with the `.cmdk-row` NodeList).
@@ -5156,7 +5171,7 @@ function openCommandPalette() {
       listEl.appendChild(el("div", "cmdk-empty",
         '<div class="cmdk-empty-ic">' + searchSvg + "</div>" +
         "<h3>No matches for “" + esc(rawQ) + "”</h3>" +
-        "<p>Try a person's name, a view, or a date like 2023-09-12.</p>"));
+        "<p>Try a person's name, a view, or a date like 2023-09-12 or June 2021.</p>"));
       return;
     }
     let lastGroup = null;
