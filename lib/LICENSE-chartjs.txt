@@ -1,8 +1,8 @@
-Chart.js v4.4.1 (lib/chart.min.js)
+Chart.js v4.5.1 (lib/chart.min.js)
 
 The MIT License (MIT)
 
-Copyright (c) 2014-2023 Chart.js Contributors
+Copyright (c) 2014-2024 Chart.js Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in

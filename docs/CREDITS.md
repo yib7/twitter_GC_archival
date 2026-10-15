@@ -18,16 +18,16 @@ its full license text ships next to it in `lib/`.
 
 Powers the fuzzy search and the search filters.
 
-## Chart.js v4.4.1
+## Chart.js v4.5.1
 
 - License: MIT, full text in [`lib/LICENSE-chartjs.txt`](../lib/LICENSE-chartjs.txt)
 - Copyright (c) Chart.js Contributors
 - Site: https://www.chartjs.org/
 - File: `lib/chart.min.js` (original copyright header retained, not modified)
-- Upstream: npm package `chart.js@4.4.1`, UMD build `dist/chart.umd.js`
-  (https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js)
+- Upstream: npm package `chart.js@4.5.1`, UMD build `dist/chart.umd.js`
+  (https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.js)
 - SHA-256 of the committed file:
-  `74401d738dd3e03ee5dfb3b6841210fe2c4ead8a960c4011ca4ba0b78a9fd8f3`
+  `ecc3cd1eeb8c34d2178e3f59fd63ec5a3d84358c11730af0b9958dc886d7652a`
 
 Renders the charts in the Stats view.
 
