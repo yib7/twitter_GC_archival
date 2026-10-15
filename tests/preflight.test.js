@@ -70,6 +70,13 @@ test("the survey leaves removed people's and groups' messages out of the counts"
   assert.equal(sv.allIds.size, 7);
 });
 
+test("a group's people count leaves removed people out, like the totals", () => {
+  const r = survey(X.writeExport(scratch()), { ignoredUsers: ["333"] }).result();
+  const g1 = r.groups.find((g) => g.id === "1000000001");
+  assert.equal(g1.participants, 3, "111, 222 and the lurker 444; 333 is removed");
+  assert.equal(r.totals.participants, 4);
+});
+
 test("preflightWarnings words each finding once, in reading order", () => {
   const sv = { totals: { messages: 0 }, removedMsgs: 2, badTime: 1, dm: { conversations: 1, messages: 3 } };
   const w = preflightWarnings({ swapped: true, notes: [{ code: "dm-file" }, { code: "no-media" }], missingParts: ["direct-messages-group-part1.js"], survey: sv, media: { unmatched: 4 }, merge: { overlap: 5 } });

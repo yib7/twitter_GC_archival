@@ -586,7 +586,7 @@ function createExportSurvey(opts) {
     const list = [...groups.values()].map((g) => ({
       id: g.id, title: g.title, count: g.count,
       first: Number.isFinite(g.first) ? g.first : null, last: Number.isFinite(g.last) ? g.last : null,
-      participants: g.people.size, removed: G.has(g.id),
+      participants: [...g.people].filter((p) => !U.has(p)).length, removed: G.has(g.id),
     }));
     const everyone = new Set();
     for (const g of groups.values()) if (!G.has(g.id)) g.people.forEach((p) => { if (!U.has(p)) everyone.add(p); });
