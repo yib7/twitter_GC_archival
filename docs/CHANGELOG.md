@@ -106,6 +106,37 @@ All notable changes to this project are recorded here.
 - Time Capsule sizes itself by layout, so it no longer ends up as a scroller
   inside the page scroller.
 
+### Added (navigation)
+
+- The address bar now tracks where you are (`#v=view&c=conversation`, plus the
+  message a Timeline jump landed on and the search query). Back and Forward
+  walk your view switches, conversation switches and jumps; after jumping from
+  a search result, Back returns to the result list at the same scroll
+  position. Links work from `file://` too. A link into a hidden or missing
+  conversation or message says so and falls back; anything malformed in the
+  address is ignored.
+- "Link" on a message copies an ids-only link that opens that message.
+- The Timeline opens at the newest message and remembers where you were
+  reading in each conversation (on this device). A "Latest" button appears
+  when you scroll up, and Home / End jump to the oldest / newest message.
+- "Jump to date" opens a calendar: year and month strips with message-volume
+  bars, and a month heatmap of days you can browse with the arrow keys
+  (Page Up / Down by month, Enter jumps). It is also in the command palette as
+  "Browse by date (calendar)".
+- Jumping to a date accepts natural forms ("June 2021", "Jan 7 2024", "2021"),
+  rejects dates that don't exist ("No such date: 2023-02-30") instead of
+  rolling them over, and says honestly where it landed when the date is
+  before the first message, after the last, or on a day with no messages.
+
+### Changed (navigation)
+
+- The Timeline no longer opens at the oldest message (it opens at your last
+  reading position, else the newest). "Reset customization" keeps the saved
+  reading positions.
+- `before:` / `after:` accept a month (`2021-06`), a year (`2024`) or a quoted
+  natural date, and are documented as inclusive of the whole period they
+  name. An impossible date is ignored with a note in the result line.
+
 ### Added (importing and setup)
 
 - Pick the unzipped archive folder (or any file in it) instead of three

@@ -64,8 +64,16 @@ internet. Have several group chats? A picker switches between them.
 - Multiple group chats: a conversation picker switches between every group in
   your export. Every view is scoped to the selected group.
 - A virtual timeline that scrolls 100K+ messages smoothly, with inline system
-  events (group created, renamed, joins, leaves) and jump-to-date in the
-  Cmd/Ctrl-K command palette.
+  events (group created, renamed, joins, leaves). It opens at the newest
+  message, remembers your reading position per conversation, and has a
+  "Latest" button plus Home / End for the oldest / newest message.
+- Jump to any date from a calendar heatmap (year / month volume strips and a
+  keyboard-browsable month of days) or the Cmd/Ctrl-K palette, which both
+  accept natural dates ("June 2021", "Jan 7 2024") and say plainly when a date
+  doesn't exist or falls outside the archive.
+- Deep links: the address bar tracks the view, conversation, jumped-to
+  message and search query, so Back / Forward work across views and jumps
+  (also from `file://`), and "Link" on a message copies an ids-only link to it.
 - Gallery of every photo and video, with a lightbox.
 - Reactions render inline under each message, including custom emoji
   reactions shown as the actual glyph rather than a generic placeholder.
