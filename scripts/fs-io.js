@@ -11,7 +11,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { StringDecoder } = require("string_decoder");
-const { createExportScanner, createArchiveScanner } = require("./build-core.js");
+const { createExportScanner, createArchiveScanner, parseManifest, exportFamilies } = require("./build-core.js");
 
 const DEFAULT_CHUNK = 1 << 20;   // 1 MiB
 
@@ -100,6 +100,111 @@ function readExportHead(file, max) {
   } finally {
     fs.closeSync(fd);
   }
+}
+
+/* ---- SP7: find the export inside a picked archive folder ------------------ */
+const MANIFEST_MAX = 8 * 1048576;   // a real manifest is a few KB
+const isWithin = (child, parent) => {
+  const rel = path.relative(parent, child);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+};
+const statOr = (p) => { try { return fs.statSync(p); } catch (e) { return null; } };
+/**
+ * The user picked their unzipped Twitter/X archive (its root, its data/ folder,
+ * or any file in either). Find the group messages files (every part, in
+ * order), the group headers file(s) and the group media folder — from
+ * data/manifest.js when it is there and usable, else by file name.
+ * Nothing outside the picked folder is ever used: manifest paths with "..",
+ * absolute paths, and anything that resolves (through a symlink or junction)
+ * outside it are skipped and reported.
+ * @returns {{picked, root, dataDir, via: "manifest"|"scan", messages: string[], headers: string[], mediaDir: string|null,
+ *            notes: Array<{code: string, files?: string[], text?: string}>} | {error: string}}
+ */
+function locateExport(pickedIn) {
+  const st0 = statOr(pickedIn);
+  if (!st0) return { error: "Archive folder not found: " + pickedIn + "." };
+  const picked = path.resolve(st0.isDirectory() ? pickedIn : path.dirname(pickedIn));
+  let fence;
+  try { fence = fs.realpathSync(picked); } catch (e) { return { error: "The archive folder couldn't be opened: " + pickedIn + "." }; }
+  const isDir = (p) => { const s = statOr(p); return !!s && s.isDirectory(); };
+  const isFile = (p) => { const s = statOr(p); return !!s && s.isFile(); };
+  // Inside the picked folder, after following every link?
+  const realInside = (p) => { try { return isWithin(fs.realpathSync(p), fence); } catch (e) { return false; } };
+
+  let root = picked, dataDir = isDir(path.join(picked, "data")) ? path.join(picked, "data") : picked, manifestFile = null;
+  if (isFile(path.join(picked, "data", "manifest.js"))) manifestFile = path.join(picked, "data", "manifest.js");
+  else if (isFile(path.join(picked, "manifest.js"))) {
+    // the data/ folder itself was picked: manifest paths ("data/…") are
+    // relative to its parent, but must still land inside the picked folder
+    manifestFile = path.join(picked, "manifest.js");
+    dataDir = picked; root = path.dirname(picked);
+  }
+
+  const notes = [], unsafe = [], missing = [];
+  // A manifest path → an existing file/folder inside the picked folder, or null.
+  function resolveRel(raw, wantDir) {
+    const s = String(raw);
+    const norm = s.replace(/\\/g, "/");
+    if (!norm || norm.indexOf("\0") !== -1 || path.win32.isAbsolute(s) || path.posix.isAbsolute(norm) || /^[A-Za-z]:/.test(norm) || norm.split("/").includes("..")) {
+      unsafe.push(s); return null;
+    }
+    const parts = norm.split("/").filter((x) => x && x !== ".");
+    const tries = [path.join(root, ...parts)];
+    if (parts[0] === "data" && parts.length > 1) tries.push(path.join(dataDir, ...parts.slice(1)));
+    tries.push(path.join(dataDir, ...parts));
+    let outside = false;
+    for (const p of tries) {
+      if (!isWithin(path.resolve(p), picked)) continue;         // never even look outside
+      let ls;
+      try { ls = fs.lstatSync(p); } catch (e) { continue; }
+      if (!realInside(p)) { outside = true; continue; }          // a link pointing out
+      const ok = wantDir ? isDir(p) : (ls.isFile() || isFile(p));
+      if (ok) return p;
+    }
+    (outside ? unsafe : missing).push(s);
+    return null;
+  }
+
+  let via = "scan", messages = [], headers = [], mediaDir = null, dmFiles = 0;
+  if (manifestFile) {
+    const sz = statOr(manifestFile).size;
+    let m;
+    if (!realInside(manifestFile)) m = { ok: false, error: "manifest.js points outside the archive folder" };
+    else if (sz > MANIFEST_MAX) m = { ok: false, error: "manifest.js is too large to be an archive manifest" };
+    else {
+      try { m = parseManifest(fs.readFileSync(manifestFile, "utf8")); }
+      catch (e) { m = { ok: false, error: "manifest.js couldn't be read" }; }
+    }
+    if (!m.ok) notes.push({ code: "manifest-unreadable", text: m.error });
+    else {
+      dmFiles = m.dmFiles;
+      messages = m.messages.map((r) => resolveRel(r, false)).filter(Boolean);
+      headers = m.headers.map((r) => resolveRel(r, false)).filter(Boolean);
+      for (const d of m.mediaDirs) { const p = resolveRel(d, true); if (p) { mediaDir = p; break; } }
+      if (messages.length) via = "manifest";
+      else notes.push({ code: "manifest-no-groups" });
+    }
+  }
+  let names = [];
+  try { names = fs.readdirSync(dataDir).filter((n) => isFile(path.join(dataDir, n))); } catch (e) { /* unreadable: nothing found */ }
+  if (via === "scan") {
+    const fam = exportFamilies(names);
+    const inside = (n) => realInside(path.join(dataDir, n));
+    messages = fam.messages.filter(inside).map((n) => path.join(dataDir, n));
+    headers = fam.headers.filter(inside).map((n) => path.join(dataDir, n));
+  }
+  if (!mediaDir) {
+    const std = path.join(dataDir, "direct_messages_group_media");
+    if (isDir(std) && realInside(std)) mediaDir = std;
+  }
+  if (missing.length) notes.push({ code: "manifest-missing", files: missing.map((f) => f.replace(/\\/g, "/").split("/").pop()) });
+  if (unsafe.length) notes.push({ code: "manifest-unsafe", files: unsafe });
+  if (dmFiles || names.some((n) => /^direct-messages?(?:[-_.]part\d+)?\.js$/i.test(n))) notes.push({ code: "dm-file" });
+  if (!messages.length) {
+    return { error: "No group chat files were found in “" + path.basename(picked) + "”. Pick the folder you unzipped your Twitter/X archive into " +
+      "(the one with “Your archive.html” and a data folder), or its data folder." };
+  }
+  return { picked, root, dataDir, via, messages, headers, mediaDir, notes };
 }
 
 /* ---- crash-safe writes (SP-9) --------------------------------------------- */
@@ -216,4 +321,4 @@ function writeChunksAtomic(dest, chunks, opts) {
   }
 }
 
-module.exports = { scanExportFile, scanArchiveFile, readArchiveSummary, foldArchive, readArchiveMeta, readExportHead, writeFileAtomic, writeChunksAtomic, replaceFile, TMP_RE };
+module.exports = { locateExport, scanExportFile, scanArchiveFile, readArchiveSummary, foldArchive, readArchiveMeta, readExportHead, writeFileAtomic, writeChunksAtomic, replaceFile, TMP_RE };

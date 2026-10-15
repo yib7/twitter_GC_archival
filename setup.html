@@ -48,10 +48,19 @@
     <section class="setup-pane active" data-pane="1">
       <h2>1 · Point at your export</h2>
       <p class="setup-p">
-        From your unzipped Twitter/X archive, pick all three pieces of your group
-        export. Click <b>Browse…</b> for each (native pickers on Windows), or paste a
-        path. <b>All three are required.</b>
+        Pick the folder you unzipped your Twitter/X archive into (the one with
+        <code>Your archive.html</code>). The wizard reads its <code>data/manifest.js</code>
+        to find your group chats, every part file, the headers and the media.
+        Click <b>Browse…</b> (a native picker on Windows) or paste the path.
       </p>
+      <label class="setup-label" for="src-root">Archive folder <span class="setup-easy">easiest</span></label>
+      <div class="setup-pickrow">
+        <input id="src-root" class="setup-input" type="text"
+          placeholder="Full path to your unzipped archive folder" />
+        <button class="btn ghost setup-browse" id="root-browse">Browse…</button>
+      </div>
+      <div class="setup-or" role="separator"><span>or pick the three files yourself</span></div>
+      <p class="setup-p setup-hint">Picking them one by one? <b>All three are required.</b> They're ignored while an archive folder is filled in.</p>
       <label class="setup-label">Messages file <code>direct-messages-group.js</code> <span class="setup-req">required</span></label>
       <p class="setup-p setup-hint">Big archives split this into <code>-part1</code>, <code>-part2</code>… files. Pick the first one; the other parts in the same folder are added automatically.</p>
       <div class="setup-pickrow">

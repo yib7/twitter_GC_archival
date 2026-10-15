@@ -272,7 +272,7 @@ async function pick(kind, fill, which) {
   if (!SERVED) { needServer($("#src-result")); return; }
   flash($("#src-result"), "Opening the file browser… (check for a dialog window)", "");
   try {
-    const url = kind === "file" ? "/api/pick-file?for=" + (which || "group") : "/api/pick-folder";
+    const url = kind === "file" ? "/api/pick-file?for=" + (which || "group") : "/api/pick-folder" + (which === "root" ? "?for=root" : "");
     // SP-11: the server only opens a dialog for a request carrying its token
     const r = await fetch(url, { headers: { "X-GCA-Token": String(window.GCA_TOKEN || "") } });
     // SP-23: tell "refused" / "failed to open" apart from "not on Windows"
@@ -290,12 +290,13 @@ async function pick(kind, fill, which) {
 $("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value = p; }, "group");
 $("#headers-browse").onclick = () => pick("file", (p) => { $("#src-headers").value = p; }, "headers");
 $("#media-browse").onclick = () => pick("folder", (p) => { $("#src-media").value = p; });
+$("#root-browse").onclick = () => pick("folder", (p) => { $("#src-root").value = p; }, "root");
 
 /* ---- source lock + status ------------------------------------------------ */
 // Once an archive is built, lock the source files so the user can't corrupt the
 // archive by adding mismatched files — only "Start over" clears it.
 function lockSource(locked) {
-  ["#src-group", "#src-headers", "#src-media", "#group-browse", "#headers-browse", "#media-browse", "#btn-build"]
+  ["#src-root", "#root-browse", "#src-group", "#src-headers", "#src-media", "#group-browse", "#headers-browse", "#media-browse", "#btn-build"]
     .forEach((s) => { const el = $(s); if (el) el.disabled = locked; });
   const banner = $("#src-locked"); if (banner) banner.hidden = !locked;
 }
@@ -331,11 +332,29 @@ function buildLogHtml(log) {
   const s = String(log || "").trim();
   return s ? `<details class="build-log"><summary>Build log</summary><pre>${escapeHtml(s)}</pre></details>` : "";
 }
+// SP7: what the server noticed while finding the export in the archive
+// folder, as one plain sentence each (null = nothing worth saying).
+function sourceNoteText(n) {
+  const files = (list) => (list || []).map((f) => `<code>${escapeHtml(typeof f === "string" ? f : f.file)}</code>`).join(", ");
+  switch (n && n.code) {
+    case "manifest-missing": return `The archive's manifest lists files that aren't in the folder: ${files(n.files)}. The archive may not have unzipped completely — those messages will be missing.`;
+    case "manifest-unsafe": return `Ignored ${n.files.length} path(s) in the archive's manifest that point outside the folder you picked.`;
+    case "manifest-unreadable": return "The archive's manifest couldn't be read, so its files were found by their names instead.";
+    case "manifest-no-groups": return "The archive's manifest lists no group chats, so its files were found by their names instead.";
+    case "skipped-files": return `Skipped ${files(n.files)}: empty, or not a group chat file.`;
+    case "no-headers": return "No group headers file was found, so people who never sent a message won't be listed.";
+    case "no-media": return "No group media folder was found, so no photos or videos were copied.";
+    case "dm-file": return "Your 1:1 direct messages were left out — only group chats are imported.";
+    default: return null;
+  }
+}
 // Things the server fixed up on its own (SP-7, SP-8), so nothing is a surprise.
 function buildNotesHtml(j) {
   const n = [];
+  if (j.via === "manifest") n.push("Found your group chat files through the archive's <code>data/manifest.js</code>.");
   if (j.swapped) n.push("Your messages and headers files were picked the other way round — they were swapped back automatically.");
   if (j.mediaDescended) n.push(`Used the <code>${escapeHtml(j.mediaDescended)}</code> folder inside the folder you picked for media.`);
+  (j.notes || []).forEach((x) => { const t = sourceNoteText(x); if (t) n.push(t); });
   return n.length ? `<ul class="build-notes">${n.map((l) => `<li>${l}</li>`).join("")}</ul>` : "";
 }
 // "Warning: …" lines from the build, plus skipped media, surfaced on success.
@@ -349,17 +368,22 @@ let building = false;
 $("#btn-build").onclick = async () => {
   if (!SERVED) { needServer($("#src-result")); return; }
   if (building) return;   // SP-23: one build at a time (a double-click used to run two)
+  const archiveRoot = $("#src-root").value.trim();
   const groupJs = $("#src-group").value.trim();
   const headersJs = $("#src-headers").value.trim();
   const mediaDir = $("#src-media").value.trim();
-  if (!groupJs) { flash($("#src-result"), "Choose your direct-messages-group.js file.", "err"); return; }
-  if (!headersJs) { flash($("#src-result"), "Choose your direct-message-group-headers.js file.", "err"); return; }
-  if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder — it's required.", "err"); return; }
+  if (!archiveRoot && !groupJs && !headersJs && !mediaDir) { flash($("#src-result"), "Choose your archive folder — or the three files below it.", "err"); return; }
+  // an archive folder is enough: the server finds the three pieces inside it
+  if (!archiveRoot) {
+    if (!groupJs) { flash($("#src-result"), "Choose your direct-messages-group.js file.", "err"); return; }
+    if (!headersJs) { flash($("#src-result"), "Choose your direct-message-group-headers.js file.", "err"); return; }
+    if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder — it's required.", "err"); return; }
+  }
   flash($("#src-result"), "Building… (copying media can take a moment)", "");
   building = true;
   $("#btn-build").disabled = true;
   try {
-    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupJs, headersJs, mediaDir }) });
+    const r = await fetch("/api/source", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(archiveRoot ? { archiveRoot } : { groupJs, headersJs, mediaDir }) });
     const j = await r.json();
     // SP-1 / SP-17: a failed build shows the server's plain-language sentence
     // plus the build log (collapsed), and leaves step 1 unlocked to fix it.

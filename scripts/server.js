@@ -10,8 +10,9 @@
  *   → open  http://localhost:8765/setup.html (first-run setup wizard)
  *
  * The wizard talks to three small JSON endpoints, all Node built-ins only:
- *   POST /api/source    point at group .js + headers .js + media (all required)
- *                       → write config, copy sources + media, build
+ *   POST /api/source    point at the archive folder (archiveRoot), or at group
+ *                       .js + headers .js + media → write config, copy
+ *                       sources + media, build
  *   GET  /api/parts     participants + link-free sample messages + shared media
  *   POST /api/identity  names / pfps / GC photo / "this is you" → write local.js
  */
@@ -22,7 +23,7 @@ const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { createParticipantCollector, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
-const { writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, TMP_RE } = require("./fs-io.js");
+const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, TMP_RE } = require("./fs-io.js");
 const { createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
@@ -285,7 +286,10 @@ function nativePick(kind, which) {
     // Use the SAME modern file dialog as the .js pickers (FolderBrowserDialog is
     // the old tree-view style, which looks inconsistent). The user opens any file
     // inside their media folder and we return that file's parent directory.
-    const title = "Open ANY file inside your direct_messages_group_media folder";
+    // SP7: for=root picks the unzipped archive folder the same way.
+    const title = which === "root"
+      ? "Open ANY file in your unzipped Twitter/X archive folder (e.g. Your archive.html)"
+      : "Open ANY file inside your direct_messages_group_media folder";
     ps = "Add-Type -AssemblyName System.Windows.Forms;$o=New-Object System.Windows.Forms.Form;$o.TopMost=$true;$d=New-Object System.Windows.Forms.OpenFileDialog;$d.Title='" + title + "';$d.Filter='All files (*.*)|*.*';$d.Multiselect=$false;if($d.ShowDialog($o) -eq 'OK'){[Console]::Out.Write([System.IO.Path]::GetDirectoryName($d.FileName))};$o.Dispose()";
   } else {
     const headers = which === "headers";
@@ -374,19 +378,30 @@ function foldBuilt(make) {
 const groupsOf = (sum) => (sum && sum.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
 
 /* ---- endpoint: point at source + build ----------------------------------- */
-function apiSource(body, res) {
+const absOfInput = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, p));
+const userPathOf = (v) => normalizeUserPath(v, { platform: process.platform, home: os.homedir() });
+// What the user pointed at → the export files to read, or { status, error }.
+// Nothing is written. Two ways in:
+//   archiveRoot              SP7: the unzipped archive folder (or its data/
+//                            folder, or any file in it). data/manifest.js says
+//                            where everything is; a file-name scan is the
+//                            fallback. Paths never leave the picked folder.
+//   groupJs + headersJs + mediaDir   the three pieces picked one by one.
+// → { groupFiles, headerFiles, mediaAbs (or null), mediaDescended, swapped,
+//     via: "manifest" | "scan" | "files", notes: [{ code, … }] }
+function resolveSource(body) {
+  const rootIn = userPathOf(body.archiveRoot);
+  if (rootIn) return resolveArchiveRoot(rootIn);
   // All three pieces of the group export are required.
   // SP-15: accept paths as pasted ("quoted", ~/..., My\ Archive)
-  const userPath = (v) => normalizeUserPath(v, { platform: process.platform, home: os.homedir() });
-  const groupJs = userPath(body.groupJs);
-  const headersJs = userPath(body.headersJs);
-  const mediaDirIn = userPath(body.mediaDir);
-  if (!groupJs) return sendJSON(res, 400, { error: "Choose your direct-messages-group.js file." });
-  if (!headersJs) return sendJSON(res, 400, { error: "Choose your direct-message-group-headers.js file." });
-  if (!mediaDirIn) return sendJSON(res, 400, { error: "Choose your direct_messages_group_media folder." });
+  const groupJs = userPathOf(body.groupJs);
+  const headersJs = userPathOf(body.headersJs);
+  const mediaDirIn = userPathOf(body.mediaDir);
+  if (!groupJs) return { status: 400, error: "Choose your direct-messages-group.js file." };
+  if (!headersJs) return { status: 400, error: "Choose your direct-message-group-headers.js file." };
+  if (!mediaDirIn) return { status: 400, error: "Choose your direct_messages_group_media folder." };
 
-  const absOf = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, p));
-  let groupAbs = absOf(groupJs), headersAbs = absOf(headersJs);
+  let groupAbs = absOfInput(groupJs), headersAbs = absOfInput(headersJs);
   // SP-1 / SP-17: check what was picked BEFORE copying anything, so a wrong,
   // empty or missing file gets one plain sentence and nothing is half-written.
   const fileProblem = (abs, typed, role, expectName) => {
@@ -397,9 +412,9 @@ function apiSource(body, res) {
     return null;
   };
   const groupBad = fileProblem(groupAbs, groupJs, "Messages file", "direct-messages-group.js");
-  if (groupBad) return sendJSON(res, 400, { error: groupBad });
+  if (groupBad) return { status: 400, error: groupBad };
   const headersBad = fileProblem(headersAbs, headersJs, "Headers file", "direct-message-group-headers.js");
-  if (headersBad) return sendJSON(res, 400, { error: headersBad });
+  if (headersBad) return { status: 400, error: headersBad };
   // SP-8: each file names itself (window.YTD.<name>), so two files picked the
   // wrong way round are simply swapped back; any other mix-up is refused.
   let groupKind = identifyExport(readExportHead(groupAbs)), headersKind = identifyExport(readExportHead(headersAbs));
@@ -410,21 +425,62 @@ function apiSource(body, res) {
     swapped = true;
   }
   const wrong = wrongKindMessage(groupKind, "messages", path.basename(groupAbs)) || wrongKindMessage(headersKind, "headers", path.basename(headersAbs));
-  if (wrong) return sendJSON(res, 400, { error: wrong });
+  if (wrong) return { status: 400, error: wrong };
   // SP-7: only the group media folder — never the whole data/ folder (1:1 DMs,
   // account details …), which would become servable under personal_data/media/.
-  const mediaPick = resolveMediaDir(absOf(mediaDirIn), mediaDirIn);
-  if (mediaPick.error) return sendJSON(res, 400, { error: mediaPick.error });
-  const mediaAbs = mediaPick.dir;
+  const mediaPick = resolveMediaDir(absOfInput(mediaDirIn), mediaDirIn);
+  if (mediaPick.error) return { status: 400, error: mediaPick.error };
+  // SP-2: X splits big files into <name>.js, <name>-part1.js, …; picking any
+  // one of them brings its whole family (in part order), so messages in
+  // part1+ are never silently left behind.
+  return {
+    groupFiles: partSiblings(groupAbs), headerFiles: partSiblings(headersAbs),
+    mediaAbs: mediaPick.dir, mediaDescended: mediaPick.descended || null,
+    swapped, via: "files", notes: [],
+  };
+}
+// SP7: the archive folder → its group files, checked by what they say they
+// are (window.YTD.<name>) rather than what the manifest or their names claim.
+function resolveArchiveRoot(rootIn) {
+  const loc = locateExport(absOfInput(rootIn));
+  if (loc.error) return { status: 400, error: loc.error };
+  const notes = loc.notes.slice();
+  const messages = [], headers = [], skipped = [];
+  let swapped = false;
+  const seen = new Set();
+  const sort = (f, listedAs) => {
+    if (seen.has(f)) return;
+    seen.add(f);
+    const k = identifyExport(readExportHead(f)).kind;
+    const as = k === "messages" || k === "headers" ? k : k === "unknown" ? listedAs : null;
+    if (as === "messages") messages.push(f);
+    else if (as === "headers") headers.push(f);
+    else skipped.push({ file: path.basename(f), kind: k });
+    if (as && as !== listedAs) swapped = true;
+  };
+  for (const f of loc.messages) sort(f, "messages");
+  for (const f of loc.headers) sort(f, "headers");
+  if (skipped.length) notes.push({ code: "skipped-files", files: skipped });
+  if (!messages.length) {
+    return { status: 400, error: "The group chat files in “" + path.basename(loc.picked) + "” are empty or aren't group chats" +
+      (skipped.length ? " (" + skipped.map((s) => s.file).join(", ") + ")" : "") + ". Re-extract your Twitter/X archive and try again." };
+  }
+  if (!headers.length) notes.push({ code: "no-headers" });
+  if (!loc.mediaDir) notes.push({ code: "no-media" });
+  return {
+    groupFiles: messages, headerFiles: headers,
+    mediaAbs: loc.mediaDir, mediaDescended: null,
+    swapped, via: loc.via, notes, picked: loc.picked,
+  };
+}
+function apiSource(body, res) {
+  const src = resolveSource(body);
+  if (src.error) return sendJSON(res, src.status || 400, { error: src.error });
+  const { groupFiles, headerFiles, mediaAbs, swapped } = src;
 
   const cfg = loadConfig();
   const cfgBefore = fs.existsSync(CONFIG) ? fs.readFileSync(CONFIG) : null;
 
-  // SP-2: X splits big files into <name>.js, <name>-part1.js, …; picking any
-  // one of them brings its whole family (in part order), so messages in
-  // part1+ are never silently left behind.
-  const groupFiles = partSiblings(groupAbs);
-  const headerFiles = partSiblings(headersAbs);
   const cfgNow = loadConfig();
   // Fix round 1 (#7): "<digits>-<name>.jpg" is also how phones and cameras name
   // pictures (20230301-IMG_0001.jpg), so the name alone can't tell a Pictures
@@ -438,7 +494,7 @@ function apiSource(body, res) {
     const got = duringBlocking(() => exportMessageIds(groupFiles, cfgNow.ignoredGroups, cfgNow.ignoredUsers));
     ids = got.all; keepIds = got.keep;
   } catch (e) { /* unreadable: the build below says so plainly */ }
-  if (ids) {
+  if (ids && mediaAbs) {
     let candidates = 0, matching = 0;
     try {
       for (const e of fs.readdirSync(mediaAbs, { withFileTypes: true })) {
@@ -493,11 +549,16 @@ function apiSource(body, res) {
     // copy synchronously, so bracket it in duringBlocking like the build below —
     // otherwise the auto-exit watchdog could mistake the frozen event loop for
     // the browser having closed.
-    media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids: keepIds || new Set(), journal: mediaJournal }));
+    // SP7: an archive picked by its folder may have no group media folder
+    // (none was sent); the media already copied in stays.
+    media = mediaAbs
+      ? duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids: keepIds || new Set(), journal: mediaJournal }))
+      : { copied: 0, unmatched: 0 };
+    fs.mkdirSync(mediaDestDir, { recursive: true });
     cfg.mediaDir = mediaDestDir;
     // SP-14: remembered so media pruned for a removed group / person can be
     // restored from the export if they're un-removed later.
-    cfg.mediaSourceDir = mediaAbs;
+    if (mediaAbs) cfg.mediaSourceDir = mediaAbs;
     saveConfig(cfg);
   } catch (e) { undo(); throw e; }   // a copy failed part-way (disk full, unreadable file …)
 
@@ -515,7 +576,7 @@ function apiSource(body, res) {
 
   const groups = groupsOf(readSummary());
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: mediaPick.descended || null, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
+  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
 // Runs scripts/build.js (it reads personal_data/config.json and writes
 // personal_data/data.js). → { ok: true, log } or { ok: false, error, log }.
@@ -1010,7 +1071,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && url === "/api/ping") { notePing(clientIdOf(qs)); return sendJSON(res, 200, { ok: true }); }
     if (req.method === "POST" && url === "/api/bye") { live.bye(clientIdOf(qs)); req.resume(); res.writeHead(204); return res.end(); }
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; return sendJSON(res, 200, pickReply(nativePick("file", which))); }
-    if (req.method === "GET" && url === "/api/pick-folder") return sendJSON(res, 200, pickReply(nativePick("folder")));
+    if (req.method === "GET" && url === "/api/pick-folder") return sendJSON(res, 200, pickReply(nativePick("folder", /(?:^|&)for=root(?:&|$)/.test(qs || "") ? "root" : "media")));
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req, res), res);
     if (req.method === "GET" && url === "/api/parts") { const g = /(?:^|&)group=([^&]*)/.exec(qs || ""); return apiParts(res, g ? decodeURIComponent(g[1]) : ""); }
     if (req.method === "POST" && url === "/api/identity") return apiIdentity(await readBody(req, res), res);

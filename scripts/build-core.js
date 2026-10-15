@@ -253,6 +253,78 @@ function exportPartFiles(names, chosen) {
 }
 
 /**
+ * SP7: the group-chat families in a folder listing (the filename-scan fallback
+ * when an archive has no usable data/manifest.js), each in part order.
+ * @returns {{messages: string[], headers: string[]}}
+ */
+function exportFamilies(names) {
+  const out = [[], []];
+  for (const n of names.map(String)) {
+    for (let fi = 0; fi < PART_FAMILIES.length; fi++) {
+      const m = PART_FAMILIES[fi].exec(n);
+      if (m) { out[fi].push({ n, part: m[2] != null ? Number(m[2]) : 0 }); break; }
+    }
+  }
+  const order = (list) => list.sort((a, b) => a.part - b.part || (a.n < b.n ? -1 : 1)).map((x) => x.n);
+  return { messages: order(out[0]), headers: order(out[1]) };
+}
+
+/**
+ * SP7: read an archive's data/manifest.js. Real X archives write
+ *   window.__THAR_CONFIG = { …, "dataTypes": { "<type>": { "mediaDirectory"?: "data/…",
+ *     "files": [ { "fileName": "data/<file>.js", "globalName": "YTD.<global>.part<N>", … } ] } } }
+ * with paths relative to the archive root. Unknown and missing keys are
+ * tolerated: a file is classified by its globalName when it has one, else by
+ * its type's name (any case / punctuation; singular or plural "message").
+ * Paths are returned exactly as written — the caller decides whether they are
+ * safe to follow (see fs-io locateExport).
+ * @returns {{ok: true, messages: string[], headers: string[], mediaDirs: string[], dmFiles: number} | {ok: false, error: string}}
+ */
+const MANIFEST_TYPE_KIND = {
+  directmessagesgroup: "messages", directmessagegroup: "messages",
+  directmessagegroupheaders: "headers", directmessagesgroupheaders: "headers",
+  directmessages: "dm", directmessageheaders: "dm-headers", directmessagesheaders: "dm-headers",
+};
+function parseManifest(text) {
+  const s = String(text == null ? "" : text).replace(/^\uFEFF/, "");
+  const a = s.indexOf("{"), b = s.lastIndexOf("}");
+  if (a === -1 || b < a) return { ok: false, error: "manifest.js is empty or isn't an archive manifest" };
+  if (!/^\s*(?:(?:window\.)?[A-Za-z_$][\w$]*\s*=\s*)?$/.test(s.slice(0, a))) return { ok: false, error: "manifest.js isn't an archive manifest" };
+  let cfg;
+  try { cfg = JSON.parse(s.slice(a, b + 1)); } catch (e) { return { ok: false, error: "manifest.js couldn't be read (it may be damaged)" }; }
+  const types = cfg && typeof cfg === "object" ? cfg.dataTypes : null;
+  if (!types || typeof types !== "object" || Array.isArray(types)) return { ok: false, error: "manifest.js has no list of data files" };
+  const found = { messages: [], headers: [] };
+  const mediaDirs = [];
+  let dmFiles = 0, seq = 0;
+  const partOf = (global, file) => {
+    const g = /\.part(\d+)$/.exec(String(global || ""));
+    if (g) return Number(g[1]);
+    const f = /[-_.]part(\d+)\.js$/i.exec(String(file || ""));
+    return f ? Number(f[1]) : 0;
+  };
+  for (const key of Object.keys(types)) {
+    const entry = types[key];
+    if (!entry || typeof entry !== "object") continue;
+    const typeKind = MANIFEST_TYPE_KIND[key.toLowerCase().replace(/[^a-z0-9]/g, "")] || null;
+    for (const fe of Array.isArray(entry.files) ? entry.files : []) {
+      const file = typeof fe === "string" ? fe : fe && typeof fe.fileName === "string" ? fe.fileName : null;
+      if (!file) continue;
+      const global = fe && typeof fe.globalName === "string" ? fe.globalName.replace(/^(?:window\.)?YTD\./, "") : "";
+      const kind = (global && KIND_OF_GLOBAL[global.replace(/\.part\d+$/, "")]) || typeKind;
+      if (kind === "dm" || kind === "dm-headers") { dmFiles++; continue; }
+      if (kind === "messages" || kind === "headers") found[kind].push({ file, part: partOf(global, file), seq: seq++ });
+    }
+    if (typeof entry.mediaDirectory === "string" && entry.mediaDirectory && typeKind === "messages") mediaDirs.push(entry.mediaDirectory);
+  }
+  const order = (list) => {
+    const seen = new Set();
+    return list.sort((x, y) => x.part - y.part || x.seq - y.seq).map((x) => x.file).filter((f) => !seen.has(f) && seen.add(f));
+  };
+  return { ok: true, messages: order(found.messages), headers: order(found.headers), mediaDirs, dmFiles };
+}
+
+/**
  * Index a media folder's file names by message id. X names group-DM media
  * "<messageId>-<mediaId>.<ext>"; a message may own several files (SP-20), so
  * each id maps to ALL of its paths, sorted for a stable order.
@@ -838,6 +910,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, exportPartFiles, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, createArchiveScanner, prevArchiveProblem, ExportScanError, archiveChunks,
 };

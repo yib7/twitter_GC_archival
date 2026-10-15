@@ -83,3 +83,61 @@ describe("SP7: media copies and restores only take this export's kept messages' 
     assert.deepEqual(media(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
   });
 });
+
+// SP7: pick the archive folder; data/manifest.js says where the group files,
+// every part, the headers and the media are (a file-name scan is the fallback).
+describe("SP7: building from the archive folder", () => {
+  let S;
+  const cfg = () => JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("a folder with no group chat files is refused and nothing is written", async () => {
+    const empty = scratch();
+    fs.writeFileSync(path.join(empty, "notes.txt"), "x");
+    const r = await S.post("/api/source", { archiveRoot: empty });
+    assert.equal(r.status, 400);
+    assert.match((await r.json()).error, /No group chat files were found/);
+    assert.deepEqual(fs.readdirSync(S.personal), [], "personal_data is untouched");
+  });
+
+  test("the archive root is resolved through data/manifest.js: every part, the headers and the media", async () => {
+    const f = X.writeExport(scratch(), { manifest: true });
+    // a name the file-name scan would never pick up: only the manifest knows it
+    fs.renameSync(f.part1, path.join(f.data, "group-chats-extra.js"));
+    X.writeManifest(f.root, { messages: ["data/direct-messages-group.js", "data/group-chats-extra.js"], headers: ["data/direct-message-group-headers.js"], mediaDirectory: "data/direct_messages_group_media" });
+    const r = await S.post("/api/source", { archiveRoot: f.root });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.via, "manifest");
+    assert.equal(j.partFiles, 2);
+    assert.equal(j.headerPartFiles, 1);
+    assert.equal(j.totalMsgs, 7);
+    assert.equal(j.mediaCopied, 3);
+    assert.ok(j.notes.some((n) => n.code === "dm-file"), "the 1:1 DMs are noticed (and left out)");
+    assert.deepEqual(cfg().sourceJs.map((p) => path.basename(p)), ["direct-messages-group.js", "group-chats-extra.js"]);
+    assert.ok(!fs.readdirSync(path.join(S.personal, "source")).includes("direct-messages.js"), "the 1:1 DM file is never copied");
+  });
+
+  test("a manifest that lists the files the wrong way round is checked against what they say they are", async () => {
+    const f = X.writeExport(scratch(), { manifest: true });
+    X.writeManifest(f.root, { messages: ["data/direct-message-group-headers.js"], headers: ["data/direct-messages-group.js", "data/direct-messages-group-part1.js"], mediaDirectory: "data/direct_messages_group_media" });
+    const r = await S.post("/api/source", { archiveRoot: f.root });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.swapped, true);
+    assert.equal(j.partFiles, 2);
+    assert.equal(j.totalMsgs, 7);
+  });
+
+  test("no manifest and no media folder: the scan finds the files and the build goes ahead without media", async () => {
+    const f = X.writeExport(scratch());
+    fs.rmSync(f.media, { recursive: true });
+    const r = await S.post("/api/source", { archiveRoot: f.data });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.via, "scan");
+    assert.equal(j.partFiles, 2);
+    assert.ok(j.notes.some((n) => n.code === "no-media"));
+  });
+});
