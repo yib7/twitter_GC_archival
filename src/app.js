@@ -2793,7 +2793,9 @@ function openTimeline(anchor, opts) {
     // events (create/name, fired before MSGS[0].t) into chunk 0, and gap
     // events into the chunk of the next message, with no boundary duplicate.
     eventBuckets = Array.from({ length: numChunks }, () => []);
+    const ignored = ignoredUserIds();
     EVENTS.forEach((e) => {
+      if (!eventShown(e, ignored)) return;
       let lo = 0, hi = N;
       while (lo < hi) {
         const mid = (lo + hi) >>> 1;
@@ -2891,12 +2893,20 @@ function renderChunk(idx, container) {
 // icon and bold actor names. Outer class stays `sysline`; each fragment is
 // escaped individually so the <b> wrappers survive.
 const SYS_EVENT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/></svg>';
+// An ignored person reads "Someone" here, and a join or leave that is only
+// about ignored people isn't shown at all (eventShown).
+function eventShown(e, ignored) {
+  const ids = e.ids || [];
+  return !((e.type === "join" || e.type === "leave") && ids.length && ids.every((id) => ignored.has(String(id))));
+}
 function renderEvent(e) {
-  const bn = (id) => "<b>" + esc(nameOf(id)) + "</b>";
+  const ignored = ignoredUserIds();
+  const bn = (id) => (ignored.has(String(id)) ? "Someone" : "<b>" + esc(nameOf(id)) + "</b>");
+  const ids = (e.ids || []).filter((id) => !ignored.has(String(id)));
   let txt = "";
   if (e.type === "name") txt = bn(e.s) + " named the group “" + esc(e.name) + "”";
-  else if (e.type === "join") txt = (e.s ? bn(e.s) + " added " : "Added ") + (e.ids || []).map(bn).join(", ");
-  else if (e.type === "leave") txt = (e.ids || []).map(bn).join(", ") + " left";
+  else if (e.type === "join") txt = (e.s ? bn(e.s) + " added " : "Added ") + ids.map(bn).join(", ");
+  else if (e.type === "leave") txt = ids.map(bn).join(", ") + " left";
   else if (e.type === "create") txt = (e.s ? bn(e.s) : "Someone") + " created the conversation";
   return el("div", "sysline", '<span class="chip">' + SYS_EVENT_ICON + "<span>" + txt + "</span></span>");
 }
