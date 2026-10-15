@@ -392,10 +392,11 @@
     return out;
   }
   // Accent- and case-folded name for matching ("José Álvarez" -> "jose alvarez").
+  // Straight quotes are dropped, as quoteOpValue drops them from a picked name.
   function foldName(s) {
     let t = String(s == null ? "" : s);
     if (t.normalize) t = t.normalize("NFD");
-    return t.replace(/\p{M}+/gu, "").toLowerCase().replace(/\s+/g, " ").trim();
+    return t.replace(/\p{M}+/gu, "").replace(/"/g, "").toLowerCase().replace(/\s+/g, " ").trim();
   }
   // The ONE people matcher (from: and its autocomplete): every person whose
   // display name or an alias matches `value`, accent- and case-folded, with

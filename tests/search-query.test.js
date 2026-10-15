@@ -229,3 +229,12 @@ test("replaceSearchToken / quoteOpValue complete a from: value", () => {
   const m = "from:b pizza";
   assert.strictEqual(replaceSearchToken(m, P(m).ops[0], "from:Bob"), "from:Bob pizza");
 });
+
+test("a from: pick for a name with quote marks finds that person", () => {
+  for (const n of ['Robert "Bobby" Smith', '"Ace"', 'Dee "D"']) {
+    const people = [{ id: "1", names: [n] }, { id: "2", names: ["Robert Smith"] }];
+    const q = "from:" + quoteOpValue(n) + " ";
+    assert.deepStrictEqual(resolvePeople(P(q).ops[0].value, people).ids, ["1"], n);
+    assert.deepStrictEqual(resolvePeople(P(q).ops[0].value, people).how, "exact", n);
+  }
+});
