@@ -67,12 +67,12 @@ test("X_LINK matches Twitter/X links (and not plain text)", () => {
 // hashId additionally String()-coerces so numeric wizard ids hash identically.
 const ID_BATTERY = [
   "", "0", "1", "u1", "u2", "abc", "900000000000000001",
-  "1467812909021231104", "some-long-mixed-ID_42", "🙂🙂",
+  "920000000000000007", "some-long-mixed-ID_42", "🙂🙂",
 ];
-const EXPECT_HASH = [0, 48, 49, 3676, 3677, 96354, 3419089176, 3545674119, 4044068280, 1705592330];
+const EXPECT_HASH = [0, 48, 49, 3676, 3677, 96354, 3419089176, 1830741280, 4044068280, 1705592330];
 const EXPECT_COLOR = [
   "#3b82f6", "#3b82f6", "#22c55e", "#8b5cf6", "#06b6d4", "#ef4444",
-  "#3b82f6", "#ec4899", "#3b82f6", "#f59e0b",
+  "#3b82f6", "#8b5cf6", "#3b82f6", "#f59e0b",
 ];
 
 const NAME_BATTERY = [
