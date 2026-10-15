@@ -76,8 +76,9 @@ All notable changes to this project are recorded here.
   and Lights-out. A new rendered-text audit checks every view in every theme,
   which also fixed faded word-cloud words, superlative definitions, green
   "received" counts in Light, the automatic-colour "A" swatch, avatar
-  initials (deeper avatar fills), link chips in your own messages, and the
-  Stats / Wrapped big numbers in Light.
+  initials (deeper avatar fills), link chips in your own messages, the
+  secondary text on the Stats hero and on every Wrapped slide, and message
+  photos' focus ring (now drawn inside the picture).
 - The theme switch lives in the sidebar and the More sheet instead of
   floating over content.
 
