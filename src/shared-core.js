@@ -352,10 +352,13 @@
         const open = end === n && (!isQ || !closed);
         const op = { key, value: value.trim(), raw: s.slice(start, end), start, end, open, quoted: isQ, pending: false };
         let asText = false;
-        if (!op.value) op.pending = true;
+        // An empty value is still being typed at the end of the box (pending);
+        // bounded — "before: lunch", "Note from: Bob" — it is just a word.
+        const empty = () => { if (open) op.pending = true; else asText = true; };
+        if (!op.value) empty();
         else if (key === "from") {
           if (!isQ) op.value = op.value.replace(/[,;!?]+$/, "");
-          if (!op.value) op.pending = true;
+          if (!op.value) empty();
         } else if (key === "has" || key === "is") {
           const table = key === "has" ? HAS_VALUES : IS_VALUES;
           const v = op.value.toLowerCase();

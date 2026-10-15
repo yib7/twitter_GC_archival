@@ -60,11 +60,21 @@ test("quoted names may hold spaces; an unclosed quote at the end stays open", ()
   assert.deepStrictEqual(ops('from:"Ana Ma'), [["from", "Ana Ma", true, false]]);
 });
 
-test("an empty operator value is pending: neither a filter nor search text", () => {
+test("an empty operator value at the end is pending; a bounded one is plain text", () => {
   assert.deepStrictEqual(ops("from:"), [["from", "", true, true]]);
   assert.deepStrictEqual(P("from:").needles, []);
-  assert.deepStrictEqual(ops("pizza has: x"), [["has", "", false, true]]);
-  assert.deepStrictEqual(P("pizza has: x").needles, ["pizza", "x"]);
+  assert.deepStrictEqual(ops("pizza has:"), [["has", "", true, true]]);
+  // bounded (something follows): the word is literal text, never swallowed
+  assert.deepStrictEqual(ops("pizza has: x"), []);
+  assert.deepStrictEqual(P("pizza has: x").needles, ["pizza", "has:", "x"]);
+  assert.deepStrictEqual(P("before: lunch").words, ["before:", "lunch"]);
+  assert.deepStrictEqual(P("before: lunch").ops, []);
+  assert.deepStrictEqual(P("from: ann").words, ["from:", "ann"]);
+  assert.deepStrictEqual(P("Note from: Bob").words, ["note", "from:", "bob"]);
+  assert.deepStrictEqual(P("Note from: Bob").ops, []);
+  assert.deepStrictEqual(P("is: pinned").words, ["is:", "pinned"]);
+  assert.deepStrictEqual(P("from:, then").words, ["from:,", "then"]);   // only punctuation: empty too
+  assert.deepStrictEqual(P('from:"" x').ops, []);
 });
 
 test("-exclusions are Unicode-aware, quoted ones may hold spaces", () => {
