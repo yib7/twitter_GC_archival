@@ -48,7 +48,7 @@ async function clickCopy(page) {
   await page.locator('.nav-item[data-view="timeline"]').click();
   const msg = page.locator("#view-timeline .msg", { hasText: "copy me please" }).first();
   await msg.hover();
-  await msg.getByRole("button", { name: "Copy" }).click();
+  await msg.getByRole("button", { name: "Copy", exact: true }).click();   // exact: SP8 adds "Copy link to message"
 }
 
 test("Copy toasts 'Copied text' when the clipboard write resolves", async ({ page }) => {

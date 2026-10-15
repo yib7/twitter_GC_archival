@@ -1085,7 +1085,7 @@ function renderMsg(i, opts) {
   // VC-25: Copy and Quote only make sense with text — on a media-only message
   // Copy used to copy "" and still toast "Copied text".
   const hasText = !!(m.x || "").trim();
-  const acts = msgActions(wrap, m, { i }, [hasText && "copy", "context", hasText && "quote", "jump"]);
+  const acts = msgActions(wrap, m, { i }, [hasText && "copy", "context", hasText && "quote", "jump", "link"]);
   body.appendChild(acts);
 
   const txt = (m.x || "").trim();
@@ -1131,7 +1131,10 @@ function renderMsg(i, opts) {
 // Fame, Context peek — instead of 4-6 closures per rendered message. What an
 // action needs is kept on the card (wrap._msgAct: the message, its index in
 // the active chat, or the conversation of a foreign pin).
-const MSG_ACT_LABELS = { copy: "Copy", context: "Context", quote: "Quote", jump: "Jump" };
+const MSG_ACT_LABELS = { copy: "Copy", context: "Context", quote: "Quote", jump: "Jump", link: "Link" };
+// Buttons whose visible text is short get a fuller accessible name (it still
+// contains the visible word — WCAG 2.5.3).
+const MSG_ACT_NAMES = { link: "Copy link to message" };
 function msgActions(wrap, m, ctx, keys) {
   wrap._msgAct = { m, i: ctx.i, conv: ctx.conv };
   const acts = el("div", "msg-acts");
@@ -1143,6 +1146,7 @@ function msgActions(wrap, m, ctx, keys) {
   keys.forEach((k) => {
     if (!k) return;
     const b = el("button", "", MSG_ACT_LABELS[k]); b.type = "button"; b.dataset.act = k;
+    if (MSG_ACT_NAMES[k]) { b.setAttribute("aria-label", MSG_ACT_NAMES[k]); b.title = MSG_ACT_NAMES[k]; }
     acts.appendChild(b);
   });
   const more = el("button", "msg-more", "⋯");
@@ -1170,6 +1174,7 @@ const MSG_ACTS = {
   context: (a) => openContextPeek(a.i),
   quote: (a) => exportQuoteCard(a.i),
   jump: (a) => (a.conv != null ? jumpToConvMsg(a.conv, a.m.i) : jumpTo(a.i)),
+  link: (a) => copyMsgLink(a.conv != null ? a.conv : CONV.id, a.m.i),
 };
 // Capture phase + stopPropagation: like the old per-button handlers, an action
 // click never reaches the card's own click (open / jump) or any list handler.
@@ -1910,6 +1915,7 @@ function runSearch() {
   // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
   // the search never reran at all. See search-operators.spec.js.
   sEls.meta.dataset.gen = String((Number(sEls.meta.dataset.gen) || 0) + 1);
+  if (curView === "search") navCommit("replace");   // SP8: #q= follows the query
 
   if (!out.length) {
     sEls.list.className = "list";
@@ -2456,6 +2462,8 @@ function jumpTo(i) {
   tlJumping = true;
   try { setView("timeline"); } finally { tlJumping = false; }
   openTimeline(i);
+  navMsg = MSGS[i] ? MSGS[i].i : null;   // SP8: the jump is a history entry (#m=)
+  navCommit("push");
 }
 
 /* ===========================================================================
@@ -3968,12 +3976,149 @@ function segWire(seg, cur, cb) {
    NAVIGATION / INIT
    ======================================================================== */
 let curView = null;
+const VIEWS = ["search", "timeline", "stats", "people", "settings", "capsule", "gallery", "pins", "hof", "wrapped", "threads", "battles", "chains"];
+
+/* ---- URL hash state (SP8) ----------------------------------------------------
+   The address bar carries where you are: #v=<view>&c=<conversation id>
+   [&m=<message id> — the message a Timeline jump landed on][&q=<search query>].
+   Hash-only, so it works from file:// as well as the server. A navigation
+   (view switch, conversation switch, jump to a message) is a history entry
+   (pushState); typing in Search only rewrites the current one (replaceState).
+   Back / Forward (popstate) and an edited or pasted hash (hashchange) are read
+   back by applyHash(), which switches conversations through the normal
+   activateConversation() path (so filters never leak across chats, VC-4) and
+   never puts anything from the hash into markup. Unknown / garbage values are
+   ignored; a link into a hidden or missing conversation or message says so
+   and falls back. "Copy link to message" (a message action) builds an
+   ids-only #v=timeline&c=&m= link. Microtask-batched, so one user action
+   (e.g. a cross-chat jump: switch + view + message) is one history entry. */
+let navMsg = null;          // id of the message the Timeline was jumped to (#m=)
+let navReady = false;       // init() done: before that nothing is written
+let hashApplying = false;   // applying a hash: don't write one back mid-way
+let navPending = 0, navQueued = false, lastHash = null;
+function navHash() {
+  const p = [];
+  if (curView) p.push("v=" + encodeURIComponent(curView));
+  if (CONV) p.push("c=" + encodeURIComponent(CONV.id));
+  if (curView === "timeline" && navMsg != null) p.push("m=" + encodeURIComponent(navMsg));
+  const q = curView === "search" && sEls.input ? sEls.input.value : "";
+  if (q.trim()) p.push("q=" + encodeURIComponent(q));
+  return "#" + p.join("&");
+}
+function navCommit(mode) {
+  if (!navReady || hashApplying) return;
+  navPending = Math.max(navPending, mode === "push" ? 2 : 1);
+  if (navQueued) return;
+  navQueued = true;
+  queueMicrotask(() => {
+    navQueued = false;
+    const push = navPending === 2;
+    navPending = 0;
+    if (!hashApplying) writeHash(navHash(), push);
+  });
+}
+function writeHash(h, push) {
+  if (h === location.hash) { lastHash = location.hash; return; }
+  const url = location.href.split("#")[0] + h;
+  try { history[push ? "pushState" : "replaceState"](null, "", url); }
+  catch (e) {
+    // a browser that refuses history entries for this URL: fall back to the
+    // plain hash (still a history entry when pushing)
+    try { if (push) location.hash = h; else location.replace(url); } catch (e2) { /* give up quietly */ }
+  }
+  lastHash = location.hash;
+}
+// "#v=…&c=…" -> { v, c, m, q } (first of each; undecodable / unknown keys
+// dropped; values length-capped). Plain strings — never markup.
+function parseHash(h) {
+  const out = {};
+  const s = String(h || "").replace(/^#/, "");
+  if (!s || s.length > 8000) return out;
+  for (const part of s.split("&")) {
+    const k = part.indexOf("=");
+    if (k <= 0) continue;
+    const key = part.slice(0, k);
+    if ((key !== "v" && key !== "c" && key !== "m" && key !== "q") || Object.prototype.hasOwnProperty.call(out, key)) continue;
+    let val;
+    try { val = decodeURIComponent(part.slice(k + 1).replace(/\+/g, " ")); } catch (e) { continue; }
+    if (val.length > (key === "q" ? 1000 : 200)) continue;
+    out[key] = val;
+  }
+  return out;
+}
+// The active conversation's index for a message id from a URL (ids may be
+// numbers in older builds), or -1.
+function idxForMsgId(id) {
+  let i = ID2IDX.get(id);
+  if (i == null && /^\d{1,17}$/.test(id)) i = ID2IDX.get(Number(id));
+  return i == null ? -1 : i;
+}
+// Apply a hash. Returns true if it set a view (boot falls back to the last
+// view otherwise).
+function applyHash(h) {
+  const st = parseHash(h);
+  if (st.v == null && st.c == null && st.m == null && st.q == null) return false;
+  hashApplying = true;
+  let viewSet = false;
+  try {
+    let convOk = true;
+    if (st.c != null) {
+      const c = CONVOS.find((x) => String(x.id) === st.c);
+      convOk = !!c && !ignoredGroupIds().has(String(c.id));
+      if (!c) toast("That conversation isn't in this archive — showing this one instead");
+      else if (!convOk) toast("That conversation is hidden in Settings — showing this one instead");
+      else if (!CONV || c.id !== CONV.id) activateConversation(c.id, true);
+    }
+    const view = VIEWS.indexOf(st.v) >= 0 ? st.v : null;
+    // a message id only means something in its own conversation
+    if (st.m != null && !convOk) { if (!view) { setView("timeline"); viewSet = true; } }
+    if (st.m != null && convOk && (!view || view === "timeline")) {
+      const idx = idxForMsgId(st.m);
+      if (idx >= 0) { jumpTo(idx); viewSet = true; }
+      else {
+        const raw = CONV && (CONV.msgs || []).some((x) => String(x.i) === st.m);
+        toast(raw ? "That message is from someone hidden in Settings" : "That message isn't in this conversation");
+        if (curView !== "timeline") setView("timeline");
+        viewSet = true;
+      }
+    } else if (view) {
+      if (view !== curView || view === "search") setView(view);
+      viewSet = true;
+      if (view === "search" && sEls.input) {
+        const q = st.q || "";
+        if (sEls.input.value !== q) { sEls.input.value = q; sEls.clear.hidden = !q; runSearch(); }
+      }
+    }
+  } finally { hashApplying = false; }
+  return viewSet;
+}
+// Back / Forward / an edited hash: close whatever overlay is open, then follow.
+function onHashNav() {
+  if (location.hash === lastHash) return;
+  lastHash = location.hash;
+  for (let k = 0; k < 10 && closeTopModal(); k++) { /* pop every layer */ }
+  closeMsgActs(); closePopovers();
+  applyHash(location.hash);
+  writeHash(navHash(), false);   // canonical form of whatever was applied
+}
+// A shareable link to one message: ids only.
+function msgLink(convId, mid) {
+  return location.href.split("#")[0] + "#v=timeline&c=" + encodeURIComponent(convId) + "&m=" + encodeURIComponent(mid);
+}
+function copyMsgLink(convId, mid) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(msgLink(convId, mid)).then(() => toast("Copied link to message")).catch(() => toast("Copy failed"));
+  } else toast("Copy failed");
+}
+
 function setView(name) {
   // Remember where the timeline was being read, so a rebuild (timezone
   // change) can reopen there instead of at the top — and (SP8) for the next
   // visit / reload of this conversation.
   if (curView === "timeline" && name !== "timeline") { tlResume = timelineFirstVisible(); saveTlPos(); }
   curView = name;
+  if (!tlJumping) navMsg = null;   // #m= names a jump target, not a view visit
+  navCommit("push");
   try { localStorage.setItem("gca.lastView", name); } catch(e) {}
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
   document.querySelectorAll(".nav-item").forEach((b) => {
@@ -4135,7 +4280,13 @@ function init() {
   // abort init() before setView() ever ran (blank main area).
   let lastView = null;
   try { lastView = localStorage.getItem("gca.lastView"); } catch (e) { /* storage blocked */ }
-  setView((lastView && ["search","timeline","stats","people","settings","capsule","gallery","pins","hof","wrapped","threads","battles","chains"].includes(lastView)) ? lastView : "search");
+  // SP8: a #v=/c=/m=/q= hash (a shared link, a reload, Back into the app)
+  // wins over the last view.
+  if (!applyHash(location.hash)) setView((lastView && VIEWS.includes(lastView)) ? lastView : "search");
+  navReady = true;
+  writeHash(navHash(), false);
+  window.addEventListener("popstate", onHashNav);
+  window.addEventListener("hashchange", onHashNav);
   maybeShowOnboarding();
 }
 
@@ -4918,7 +5069,7 @@ function renderForeignPin(conv, m) {
 
   const go = () => jumpToConvMsg(conv.id, m.i);
 
-  body.appendChild(msgActions(wrap, m, { conv: conv.id }, ["jump"]));
+  body.appendChild(msgActions(wrap, m, { conv: conv.id }, ["jump", "link"]));
 
   const txt = (m.x || "").trim();
   if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.dir = "auto"; bubbleEl.innerHTML = renderText(m.x, m.u); body.appendChild(bubbleEl); }

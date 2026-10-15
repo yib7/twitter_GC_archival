@@ -167,7 +167,7 @@ test.describe("UX-1 / VC-19: message actions are reachable by keyboard", () => {
     await expect(pin).toHaveAttribute("aria-pressed", "true");
     await expect(pin).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(acts.getByRole("button", { name: "Copy" })).toBeFocused();
+    await expect(acts.getByRole("button", { name: "Copy", exact: true })).toBeFocused();   // exact: SP8 adds "Copy link to message"
     await page.keyboard.press("Tab");
     await expect(acts.getByRole("button", { name: "Context" })).toBeFocused();
     await page.keyboard.press("Enter");
@@ -643,7 +643,7 @@ test.describe("M-6: message actions are delegated", () => {
     const shape = await page.evaluate(() => [...document.querySelectorAll("#tl-list .msg-acts button, #tl-list .msg-more")].map((b) => (b.dataset.act || "-") + (b.onclick ? ":handler" : "")));
     expect(shape.length).toBeGreaterThan(0);
     expect(shape.filter((x) => x === "-" || x.endsWith(":handler")), "buttons without data-act or with their own onclick").toEqual([]);
-    expect(new Set(shape)).toEqual(new Set(["pin", "copy", "context", "quote", "jump", "more"]));
+    expect(new Set(shape)).toEqual(new Set(["pin", "copy", "context", "quote", "jump", "link", "more"]));   // SP8 adds "link" (Copy link to message)
     // the delegated handler runs them: Bookmark toggles, Context opens the peek
     const msg = page.locator("#tl-list .msg").nth(2);
     await msg.hover();
