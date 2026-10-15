@@ -28,7 +28,7 @@ const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { idPartition, createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
-const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, TMP_RE } = require("./fs-io.js");
+const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, replaceFile, TMP_RE } = require("./fs-io.js");
 const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
@@ -333,11 +333,35 @@ function pruneSource(keep) {
     try { if (fs.statSync(p).isFile()) fs.rmSync(p, { force: true }); } catch (e) { console.error("Couldn't remove source/" + n + ": " + (e && e.message)); }
   }
 }
-const PREV_DIR_RE = /^(?:source|media)\.prev-\d+-[0-9a-f]+$/;
+const PREV_DIR_RE = /^(?:source|media|removed)\.prev-\d+-[0-9a-f]+$/;
 const prevDirName = (name) => name + ".prev-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
+// SP7 fix round 2 (#2): keep `file` as it is now (a hard link — the build
+// replaces files by rename, so the link keeps the old content — or a copy),
+// to put back if the build fails. restore() → the paths it couldn't put back.
+function fileSnapshot(file, backupDir) {
+  const kept = path.join(backupDir, path.basename(file));
+  let had = false;
+  if (fs.existsSync(file)) {
+    fs.mkdirSync(backupDir, { recursive: true });
+    try { fs.linkSync(file, kept); } catch (e) { fs.copyFileSync(file, kept); }
+    had = true;
+  }
+  return {
+    restore() {
+      try {
+        if (had) replaceFile(kept, file);
+        else fs.rmSync(file, { force: true });
+        fs.rmSync(backupDir, { recursive: true, force: true });
+        return [];
+      } catch (e) { return [file]; }
+    },
+    commit() { fs.rmSync(backupDir, { recursive: true, force: true }); },
+  };
+}
 // SP7 (SP6 review #3): a server killed mid-build leaves its backup folders
-// behind. Once a later build has committed, source/ and media/ are consistent
-// again and those old copies are just stale private data — remove them.
+// behind. Once a later build has committed, source/, media/ and the
+// quarantine are consistent again and those old copies are just stale
+// private data — remove them.
 function clearStaleBackups() {
   let names;
   try { names = fs.readdirSync(PERSONAL); } catch (e) { return; }
@@ -662,8 +686,11 @@ async function sourceAndBuild(body, res, progress) {
   // previous source/ and media/ files, not just config.json.
   const srcJournal = copyJournal(path.join(PERSONAL, prevDirName("source")));
   const mediaJournal = copyJournal(path.join(PERSONAL, prevDirName("media")));
+  // SP7 fix round 2 (#2): the quarantine too — a build that fails after
+  // writing it (as a superset, before data.js) must not leave it changed.
+  const quarSnap = fileSnapshot(REMOVED_MSGS, path.join(PERSONAL, prevDirName("removed")));
   const undo = () => {
-    const left = srcJournal.rollback().concat(mediaJournal.rollback());
+    const left = srcJournal.rollback().concat(mediaJournal.rollback(), quarSnap.restore());
     try {
       if (cfgBefore) writeFileAtomic(CONFIG, cfgBefore);
       else fs.rmSync(CONFIG, { force: true });
@@ -715,7 +742,7 @@ async function sourceAndBuild(body, res, progress) {
     undo();
     return sendJSON(res, 422, { error: built.error, log: built.log });
   }
-  srcJournal.commit(); mediaJournal.commit();
+  srcJournal.commit(); mediaJournal.commit(); quarSnap.commit();
   clearStaleBackups();
   clearCopyTemps([srcDir, mediaDestDir]);
   pruneSource(cfg.sourceJs.concat(asList(cfg.headersJs)));

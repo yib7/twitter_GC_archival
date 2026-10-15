@@ -174,3 +174,27 @@ describe("SP7 fix round 2: a legacy archive (removals but no quarantine) keeps o
     assert.deepEqual(quarIds(S), []);
   });
 });
+
+// SP7 fix round 2 (#2): a merge whose build fails puts the quarantine back
+// as it was, like config.json, source/ and media/ — not the superset the
+// failed build wrote before it stopped.
+describe("SP7 fix round 2: a failed merge build leaves the quarantine as it was", () => {
+  let personal;
+  before(() => { personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp7-quar-undo-")); tmpDirs.push(personal); });
+
+  test("the build stops after writing the quarantine: the merge fails and the quarantine is unchanged", async () => {
+    const S1 = await startServer({}, { personal });
+    try {
+      assert.equal((await source(S1, X.writeExport(scratch()))).status, 200);
+      assert.equal((await identity(S1, ["333"])).status, 200);
+    } finally { S1.proc.kill(); }
+    const before0 = fs.readFileSync(path.join(personal, ".removed", "messages.js"));
+    const S2 = await startServer({ GCA_TEST_BUILD_CRASH: "after-quarantine" }, { personal });
+    try {
+      const r = await S2.post("/api/source", { archiveRoot: X.writeExportB(scratch()).root });
+      assert.equal(r.status, 422, JSON.stringify(await r.clone().json()));
+      assert.deepEqual(fs.readFileSync(path.join(personal, ".removed", "messages.js")), before0);
+      assert.ok(!fs.readdirSync(personal).some((n) => /\.prev-/.test(n)), "no snapshot left behind: " + fs.readdirSync(personal).join(", "));
+    } finally { S2.proc.kill(); }
+  });
+});

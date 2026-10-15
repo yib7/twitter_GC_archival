@@ -25,7 +25,7 @@ describe("SP7: a build that commits clears stale backup folders from earlier run
   after(() => S.stop());
 
   test("leftover source.prev-* / media.prev-* folders are gone after a successful build", async () => {
-    for (const d of ["source.prev-123-0a1b2c3d", "media.prev-123-0a1b2c3d"]) {
+    for (const d of ["source.prev-123-0a1b2c3d", "media.prev-123-0a1b2c3d", "removed.prev-123-0a1b2c3d"]) {
       fs.mkdirSync(path.join(S.personal, d));
       fs.writeFileSync(path.join(S.personal, d, "old-copy.js"), "a previous copy");
     }
