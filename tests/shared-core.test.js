@@ -79,7 +79,7 @@ const NAME_BATTERY = [
   "", "   ", "a", "Al", "Alice", "alice bob", "Alice Bob Carol",
   "  padded   name  ", "josé garcía", "X Æ A-12", "🙂 face", "van der Berg",
 ];
-const EXPECT_INITIALS = ["?", "?", "A", "AL", "AL", "AB", "AC", "PN", "JG", "XA", "\uD83DF", "VB"];
+const EXPECT_INITIALS = ["?", "?", "A", "AL", "AL", "AB", "AC", "PN", "JG", "XA", "FA", "VB"];
 
 test("hashId returns the expected 32-bit hash for every id in the battery", () => {
   ID_BATTERY.forEach((id, i) => {
@@ -108,6 +108,18 @@ test("initials returns the expected monogram for every name in the battery", () 
   NAME_BATTERY.forEach((name, i) => {
     assert.equal(shared.initials(name), EXPECT_INITIALS[i], `initials(${JSON.stringify(name)})`);
   });
+});
+
+test("initials skips emoji and punctuation words and never splits a character", () => {
+  assert.equal(shared.initials("Ana 😀"), "AN");
+  assert.equal(shared.initials("🔥 Sam"), "SA");
+  assert.equal(shared.initials("Jo ✨ Lee"), "JL");
+  assert.equal(shared.initials("(Sam)"), "SA");
+  assert.equal(shared.initials("𝓐lex 𝓑ell"), "𝓐𝓑");
+  assert.equal(shared.initials("🔥🔥"), "🔥");
+  const lone = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+  const names = ["Ana 😀", "🔥 Sam", "😀", "👨‍👩‍👧 family", "🇯🇵 Kenji", "Zoë 💜", "𠀋 Wu", "Amélie 🎉 B", "✨", "𝓐", "Sam 🔥🔥"];
+  for (const n of names) assert.ok(!lone.test(shared.initials(n)), "no lone surrogate for " + JSON.stringify(n));
 });
 
 /* ---- the person hue rule ----------------------------------------- */

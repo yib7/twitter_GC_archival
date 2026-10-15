@@ -20,10 +20,14 @@
   function hashId(id) { id = String(id); let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
   // Up-to-two-letter monogram for an avatar with no photo (first+last initial, or the
   // first two letters of a single word). Returns "?" for blank/whitespace-only names.
+  // Counts whole characters (never half an emoji) and only letters and digits:
+  // emoji and punctuation are skipped ("🔥 Sam" -> "SA", like "Sam"); a name with no letter
+  // at all shows its first character.
   function initials(name) {
-    const p = name.trim().split(/\s+/).filter(Boolean);
-    if (!p.length) return "?";
-    if (p.length === 1) return p[0].slice(0, 2).toUpperCase();
+    const p = name.trim().split(/\s+/).filter(Boolean)
+      .map((w) => graphemes(w).filter((g) => /^[\p{L}\p{N}]/u.test(g))).filter((g) => g.length);
+    if (!p.length) return graphemes(name.trim())[0] || "?";
+    if (p.length === 1) return p[0].slice(0, 2).join("").toUpperCase();
     return (p[0][0] + p[p.length - 1][0]).toUpperCase();
   }
   // Shared kernel of colorOf: the plain palette lookup with no user-override. The
