@@ -1559,6 +1559,9 @@ html[data-theme="light"] .wr-slide::after {
 }
 /* inside a clipping box (overflow:hidden / paint containment): draw it inset */
 .seg button:focus-visible, .msg:focus-visible, .gcell:focus-visible, .sh-item:focus-visible, .tab:focus-visible { outline-offset: -2px; }
+/* N-1: a message photo fills .media{overflow:hidden}, which would clip an
+   outside ring away completely — draw it inside the picture */
+.media img:focus-visible { outline-offset: -3px; }
 .msg:focus-visible { border-radius: 12px; }
 .search-box input:focus-visible, .cmdk-input:focus-visible, .pill input:focus-visible, .pill select:focus-visible { outline: none; }
 .search-box:has(input:focus-visible), .pill:has(:focus-visible), .pill:has(input, select):focus-within { box-shadow: var(--focus-ring); }

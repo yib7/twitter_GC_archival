@@ -26,13 +26,45 @@ async function installHelpers(page) {
     const lum = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
     window.__cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
     window.__tok = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    // N-1: a ring that exists in the computed style but is painted entirely
+    // outside what a clipping ancestor (overflow != visible, or paint
+    // containment) shows is invisible. The ring band runs from the box
+    // inflated by its offset (inner) to that plus its width (outer); it is
+    // visible if the clip region keeps any part of the band.
+    const clipRect = (h) => {
+      let c = { l: -1e9, t: -1e9, r: 1e9, b: 1e9 };
+      for (let n = h.parentElement; n && n !== document.documentElement; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        const clips = cs.overflowX !== "visible" || cs.overflowY !== "visible" || /paint|strict|content/.test(cs.contain);
+        if (!clips) continue;
+        const r = n.getBoundingClientRect();
+        const bl = parseFloat(cs.borderLeftWidth), bt = parseFloat(cs.borderTopWidth), br = parseFloat(cs.borderRightWidth), bb = parseFloat(cs.borderBottomWidth);
+        c = { l: Math.max(c.l, r.left + bl), t: Math.max(c.t, r.top + bt), r: Math.min(c.r, r.right - br), b: Math.min(c.b, r.bottom - bb) };
+      }
+      return c;
+    };
+    const bandVisible = (h, off, w) => {
+      const r = h.getBoundingClientRect(), c = clipRect(h);
+      const outer = { l: r.left - off - w, t: r.top - off - w, r: r.right + off + w, b: r.bottom + off + w };
+      const inner = { l: r.left - off, t: r.top - off, r: r.right + off, b: r.bottom + off };
+      const vis = { l: Math.max(outer.l, c.l), t: Math.max(outer.t, c.t), r: Math.min(outer.r, c.r), b: Math.min(outer.b, c.b) };
+      if (vis.r - vis.l < 1 || vis.b - vis.t < 1) return false;                      // clipped away entirely
+      return !(vis.l >= inner.l + 0.5 && vis.t >= inner.t + 0.5 && vis.r <= inner.r - 0.5 && vis.b <= inner.b - 0.5);   // only the inside survives
+    };
     window.__ring = (el) => {
       const ui = rgb(window.__tok("--accent-ui")).join(", ");
       const hosts = [el, el.closest(".search-box, .pill"), el.matches(".switch input") ? el.nextElementSibling : null].filter(Boolean);
       for (const h of hosts) {
         const cs = getComputedStyle(h);
-        if (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) >= 2) return { ok: true, color: cs.outlineColor };
-        if (cs.boxShadow && cs.boxShadow.indexOf(ui) >= 0) return { ok: true, color: "rgb(" + ui + ")" };
+        if (cs.outlineStyle !== "none" && parseFloat(cs.outlineWidth) >= 2) {
+          if (!bandVisible(h, parseFloat(cs.outlineOffset) || 0, parseFloat(cs.outlineWidth))) return { ok: false, clipped: true };
+          return { ok: true, color: cs.outlineColor };
+        }
+        if (cs.boxShadow && cs.boxShadow.indexOf(ui) >= 0) {
+          const spread = Math.max(...(cs.boxShadow.match(/-?[\d.]+px/g) || ["0px"]).map(parseFloat));
+          if (!cs.boxShadow.includes("inset") && !bandVisible(h, 0, spread)) return { ok: false, clipped: true };
+          return { ok: true, color: "rgb(" + ui + ")" };
+        }
       }
       return { ok: false };
     };
@@ -56,7 +88,7 @@ async function tabWalk(page, stops) {
     });
     if (!r) continue;
     seen.push(r.d);
-    if (!r.ring.ok) missing.push(r.d);
+    if (!r.ring.ok) missing.push(r.d + (r.ring.clipped ? " (clipped)" : ""));
   }
   return { missing, seen };
 }
@@ -79,6 +111,22 @@ test.describe("UX-12: a visible focus ring on every keyboard stop", () => {
     expect(seen.some((d) => d.indexOf("set-") >= 0 || d.indexOf("input") === 0)).toBe(true);
     expect(missing, "no focus ring on: " + missing.join(", ")).toEqual([]);
   });
+
+  // N-1: walk every other view too — a ring painted outside a clipping box
+  // (e.g. a photo inside .media{overflow:hidden}) counts as missing.
+  for (const v of ["search", "timeline", "gallery", "pins", "hof", "wrapped", "capsule", "stats", "threads", "chains", "battles", "people"]) {
+    test(v + " view: every Tab stop shows an unclipped ring", async ({ page }) => {
+      await bootViewer(page, DATA, { ls: { "gca.lastView": v, "gca.settings": JSON.stringify({ pins: ["m1", "m4"] }) } });
+      await installHelpers(page);
+      await page.waitForTimeout(v === "stats" ? 700 : 150);
+      await page.locator('.nav-item[data-view="' + v + '"]').focus();
+      const { missing, seen } = await tabWalk(page, v === "search" ? 90 : 45);   // Search has the filter bar first
+      expect(seen.length).toBeGreaterThan(3);
+      // the views with message photos really reach one
+      if (["search", "timeline", "pins"].includes(v)) expect(seen.some((d) => d.indexOf("img") === 0), v + " walk reaches a photo").toBe(true);
+      expect(missing, "no visible focus ring on: " + [...new Set(missing)].join(", ")).toEqual([]);
+    });
+  }
 
   test("the ring colour reaches 3:1 against the page in every theme", async ({ page }) => {
     await bootViewer(page, DATA);
