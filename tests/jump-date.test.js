@@ -123,8 +123,10 @@ test("a midnight skipped by DST resolves to the transition instant (Santiago, Ha
   assert.strictEqual(parseJumpDate("2024-09-07", createZoneClock("America/Santiago")).end, Date.UTC(2024, 8, 8, 4));
 });
 
+// The process's zone before any test here changes it (restored afterwards).
+const ZONE_AT_LOAD = Intl.DateTimeFormat().resolvedOptions().timeZone;
+const OFFSET_AT_LOAD = new Date(Date.UTC(2024, 8, 8, 12)).getTimezoneOffset();
 test("the same holds for the browser's own zone (\"local\")", () => {
-  const saved = process.env.TZ;
   try {
     process.env.TZ = "America/Santiago";
     const local = createZoneClock("local");
@@ -132,8 +134,17 @@ test("the same holds for the browser's own zone (\"local\")", () => {
     assert.strictEqual(zonedDayStart(2024, 8, 9, local), Date.UTC(2024, 8, 9, 3));
     assert.strictEqual(zonedDayStart(2024, 8, 7, local), Date.UTC(2024, 8, 7, 4));
   } finally {
-    if (saved === undefined) delete process.env.TZ; else process.env.TZ = saved;
+    // assign the original zone back: on Windows Node, deleting TZ (when it
+    // wasn't set) doesn't reset the process's zone
+    process.env.TZ = ZONE_AT_LOAD;
   }
+});
+
+// Fix round 2: switching TZ must not leak into later tests. On Windows Node
+// deleting process.env.TZ doesn't reset the zone; it has to be assigned back.
+test("the zone switch above is undone", () => {
+  assert.strictEqual(Intl.DateTimeFormat().resolvedOptions().timeZone, ZONE_AT_LOAD);
+  assert.strictEqual(new Date(Date.UTC(2024, 8, 8, 12)).getTimezoneOffset(), OFFSET_AT_LOAD);
 });
 
 // SP8 fix round 1: slashed dates are read month first (US). A first number
