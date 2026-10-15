@@ -58,7 +58,9 @@ internet. Have several group chats? A picker switches between them.
     filter: `after:2021-06` starts on June 1, 2021 and `before:2021-06` keeps
     all of June. `after:2024-01-07 before:2024-01-07` is exactly that day. A
     date that doesn't exist (`2023-02-30`) is ignored with a note in the result
-    line instead of being rolled over to another day.
+    line instead of being rolled over to another day. Slashed dates are read
+    month first (`6/14/2021`); a day-first one (`14/06/2021`) is ignored with a
+    note to use `2021-06-14` or `Jun 14 2021`.
 - Dates and every stats bucket follow your browser's timezone by default; any
   IANA zone (or UTC) can be picked in Settings.
 - Multiple group chats: a conversation picker switches between every group in

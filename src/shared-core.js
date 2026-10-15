@@ -216,6 +216,8 @@
         start/end: the period as [start, end) epoch ms at midnight in the zone;
      -> { error: "invalid" } when it has a date's shape but the date doesn't
         exist (2023-02-30, month 13, a year before 1000) — never rolled over;
+     -> { error: "order" } for a day-first slashed date (13/01/2024): slashed
+        dates are month/day/year;
      -> null when it isn't a date at all. Pure; tests/jump-date.test.js. */
   const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   function zonedDayStart(y, mo, d, clock) {
@@ -255,7 +257,12 @@
     if (!s) return null;
     let m, y, mo = 0, d = 1, unit;
     if ((m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(s))) { y = +m[1]; mo = +m[2] - 1; d = +m[3]; unit = "day"; }
-    else if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s))) { y = +m[3]; mo = +m[1] - 1; d = +m[2]; unit = "day"; }
+    else if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s))) {
+      // Slashed dates are month first (US). A first number over 12 is a
+      // day-first date: say so rather than "no such date".
+      if (+m[1] > 12) return { error: "order" };
+      y = +m[3]; mo = +m[1] - 1; d = +m[2]; unit = "day";
+    }
     else if ((m = /^(\d{4})[-/.](\d{1,2})$/.exec(s))) { y = +m[1]; mo = +m[2] - 1; unit = "month"; }
     else if ((m = /^(\d{4})$/.exec(s))) { y = +m[1]; unit = "year"; }
     else if ((m = /^([a-z]+\.?) (\d{1,2})(?:st|nd|rd|th)? (\d{4})$/i.exec(s))) {

@@ -91,6 +91,24 @@ test.describe("jump to date (UX-9)", () => {
     await expect(page.locator("#tl-list .msg.flash")).toHaveCount(0);
     expect(await page.locator("#tl-scroll").evaluate((s) => s.scrollTop)).toBe(before);
   });
+
+  test("a day-first date says to use an unambiguous form; the hint names month/day/year", async ({ page }) => {
+    const row = await paletteJump(page, "13/01/2024");
+    await expect(row.locator(".cmdk-label")).toHaveText("13/01/2024 isn't month/day/year");
+    await expect(row.locator(".cmdk-sub")).toHaveText("Use YYYY-MM-DD or Jan 7 2024");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".toast")).toHaveText("13/01/2024 isn't month/day/year. Use YYYY-MM-DD or Jan 7 2024");
+    await expect(page.locator("#tl-list .msg.flash")).toHaveCount(0);
+    // the "not a date" hint names the slashed form's order
+    await page.locator("#tl-jumpdate").click();
+    const box = page.getByRole("textbox", { name: "Date to jump to" });
+    await box.fill("someday");
+    await box.press("Enter");
+    await expect(page.locator(".cal-msg")).toHaveText("Not a date. Try 2021-06-14, June 2021, Jan 7 2024 or 6/14/2021 (month/day/year)");
+    await box.fill("13/01/2024");
+    await box.press("Enter");
+    await expect(page.locator(".cal-msg")).toHaveText("13/01/2024 isn't month/day/year. Use YYYY-MM-DD or Jan 7 2024");
+  });
 });
 
 test("jump-to-date buckets days in the configured zone", async ({ page }) => {
@@ -124,5 +142,8 @@ test.describe("before:/after: share the parser and are inclusive (VC-28)", () =>
     await afterSearchRun(page, () => page.locator("#s-input").fill("before:2024-01-32"));
     expect(await count(page)).toBe(8);
     await expect(page.locator("#s-meta")).toContainText("Ignored before:2024-01-32 — no such date");
+    await afterSearchRun(page, () => page.locator("#s-input").fill("after:13/01/2024"));
+    expect(await count(page)).toBe(8);
+    await expect(page.locator("#s-meta")).toContainText("Ignored after:13/01/2024 — use YYYY-MM-DD or Jan 7 2024");
   });
 });

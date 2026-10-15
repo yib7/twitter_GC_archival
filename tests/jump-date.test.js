@@ -44,7 +44,7 @@ test("US M/D/YYYY (the palette's old second form) still works", () => {
 });
 
 test("dates that don't exist are rejected, not rolled over", () => {
-  for (const s of ["2023-02-30", "2024-02-30", "2023-02-29", "2021-13", "2021-00", "2021-06-00", "2021-06-31", "Feb 30 2023", "31 April 2022", "13/01/2024", "0000", "0999-01-01"]) {
+  for (const s of ["2023-02-30", "2024-02-30", "2023-02-29", "2021-13", "2021-00", "2021-06-00", "2021-06-31", "Feb 30 2023", "31 April 2022", "0000", "0999-01-01"]) {
     const p = parseJumpDate(s, UTC);
     assert.ok(p && p.error === "invalid", s + " → " + JSON.stringify(p));
   }
@@ -134,4 +134,16 @@ test("the same holds for the browser's own zone (\"local\")", () => {
   } finally {
     if (saved === undefined) delete process.env.TZ; else process.env.TZ = saved;
   }
+});
+
+// SP8 fix round 1: slashed dates are read month first (US). A first number
+// over 12 is almost certainly day-first (13/01/2024) — that's an "order"
+// error (the UI says to use YYYY-MM-DD or Jan 7 2024), not "no such date".
+test("a day-first slashed date is an order error, not an impossible date", () => {
+  for (const s of ["13/01/2024", "31/12/2023", "25/6/2021"]) {
+    assert.deepStrictEqual(parseJumpDate(s, UTC), { error: "order" }, s);
+  }
+  // month-first with an impossible day is still "invalid"; a valid M/D is a day
+  assert.deepStrictEqual(parseJumpDate("2/30/2023", UTC), { error: "invalid" });
+  assert.strictEqual(parseJumpDate("12/13/2023", UTC).key, "2023-12-13");
 });

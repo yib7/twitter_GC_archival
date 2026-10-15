@@ -1807,7 +1807,7 @@ function runSearch() {
   q = q.replace(/\b(before|after):("[^"]*"|\S+)/ig, (match, op, val) => {
     const p = GCAShared.parseJumpDate(val.replace(/"/g, ""), CLOCK);
     if (!p) return match;
-    if (p.error) { opDateNotes.push(op.toLowerCase() + ":" + val); return " "; }
+    if (p.error) { opDateNotes.push(op.toLowerCase() + ":" + val + (p.error === "order" ? " — use YYYY-MM-DD or Jan 7 2024" : " — no such date")); return " "; }
     if (op.toLowerCase() === "before") opTo = p.end - 1; else opFrom = p.start;
     return " ";
   });
@@ -1909,7 +1909,7 @@ function runSearch() {
     sEls.meta.append(" · ", b);
   }
   // VC-28: say which date operator was dropped (text node — never markup).
-  opDateNotes.forEach((n) => sEls.meta.append(" · Ignored " + n + " — no such date"));
+  opDateNotes.forEach((n) => sEls.meta.append(" · Ignored " + n));
   // QA-15: bumped on every completed run (debounced or not), so tests can wait
   // for "the search actually re-ran" instead of a fixed sleep timed to the
   // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
@@ -5258,11 +5258,17 @@ function exportQuoteCard(i) {
 // same parser as before:/after:), so "2021-06", "June 2021" and "Jan 7 2024"
 // all work, and an impossible date is rejected instead of rolled over.
 // Returns true if it navigated.
-const DATE_HINT = "Try 2021-06-14, June 2021 or Jan 7 2024";
+const DATE_HINT = "Try 2021-06-14, June 2021, Jan 7 2024 or 6/14/2021 (month/day/year)";
+const DATE_ORDER_HINT = "Use YYYY-MM-DD or Jan 7 2024";
+// The message for a parseJumpDate error: an impossible date, or a day-first
+// slashed date (slashed dates are read month/day/year).
+function dateErrorText(raw, p) {
+  return p.error === "order" ? raw + " isn't month/day/year. " + DATE_ORDER_HINT : "No such date: " + raw;
+}
 function jumpToDate(input) {
   const p = GCAShared.parseJumpDate(String(input), CLOCK);
   if (!p) { toast("Not a date. " + DATE_HINT); return false; }
-  if (p.error) { toast("No such date: " + String(input).trim()); return false; }
+  if (p.error) { toast(dateErrorText(String(input).trim(), p)); return false; }
   return jumpToPeriod(p);
 }
 // Jump to the first message of a parsed period ([p.start, p.end) in the
@@ -5487,7 +5493,7 @@ function openCalendar() {
     const raw = $(".cal-input").value.trim();
     const p = GCAShared.parseJumpDate(raw, CLOCK);
     if (!p) msgEl.textContent = "Not a date. " + DATE_HINT;
-    else if (p.error) msgEl.textContent = "No such date: " + raw;
+    else if (p.error) msgEl.textContent = dateErrorText(raw, p);
     else go(p);
   });
   $(".cal-close").onclick = close;
@@ -5608,6 +5614,7 @@ function openCommandPalette() {
     const p = GCAShared.parseJumpDate(q, CLOCK);
     if (!p) return null;
     const raw = q.trim();
+    if (p.error === "order") return { ico: "calendar", label: raw + " isn't month/day/year", sub: DATE_ORDER_HINT, hint: "Date", run: () => jumpToDate(raw) };
     if (p.error) return { ico: "calendar", label: "No such date: " + raw, sub: "Check the day and month. " + DATE_HINT, hint: "Date", run: () => jumpToDate(raw) };
     const what = p.unit === "day" ? "this day" : p.unit === "month" ? "this month" : "this year";
     return { ico: "calendar", label: "Jump to " + p.label, sub: "First message of " + what + " in the timeline", hint: "Date", run: () => jumpToPeriod(p) };
