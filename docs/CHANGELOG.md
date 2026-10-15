@@ -92,6 +92,9 @@ All notable changes to this project are recorded here.
   a "not found" message shows what a full path looks like.
 - Build can't be started twice at once; a failing file dialog says what went
   wrong; the wizard checks there is enough free disk space before copying.
+- A save (names, photos, removals) whose upload was still arriving when a
+  build started now waits for the build ("try again") instead of running in
+  the middle of it, where the build could overwrite what it saved.
 - The double-click launchers say plainly when Node.js is missing or older
   than 18, or when they are run from inside the ZIP, instead of showing a raw
   error. The launchers and the server need Node 18 or newer.

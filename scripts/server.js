@@ -1042,6 +1042,11 @@ function apiParts(res, group) {
 
 /* ---- endpoint: save names / pfps / GC photo / "this is you" --------------- */
 function apiIdentity(body, res) {
+  // The router checks for a running build before reading the body, but a big
+  // save (photos) can still be arriving when a merge starts; the merge would
+  // then save its older copy of config.json over this one. Check again now
+  // that the body is in (nothing below awaits, so no merge can start after).
+  if (job) return sendJSON(res, 409, { error: BUSY });
   fs.mkdirSync(path.join(PERSONAL, "pfps"), { recursive: true });
   const cfg = loadConfig();
   // What the archive was actually BUILT without comes from
@@ -1234,6 +1239,7 @@ function apiIdentity(body, res) {
 /* ---- endpoint: what would removing these take out? ------ */
 // Read-only: the wizard asks before a save that removes more, with real counts.
 function apiRemovalPreview(body, res) {
+  if (job) return sendJSON(res, 409, { error: BUSY });   // a merge started while the body arrived (see apiIdentity)
   const list = (v) => (Array.isArray(v) ? v.map(String) : []);
   const make = () => [createRemovalCounter(list(body && body.ignoredGroups), list(body && body.ignoredUsers))];
   const cols = duringBlocking(() => foldBuilt(make)) || make();
