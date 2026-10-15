@@ -354,3 +354,37 @@ test.describe("UX-15: toasts are announced", () => {
     expect(seen).toContain("");
   });
 });
+
+test.describe("UX-16: the command palette is a combobox", () => {
+  test("combobox + listbox + options, with aria-activedescendant following the arrows", async ({ page }) => {
+    await bootViewer(page, DATA);
+    await page.keyboard.press("Control+k");
+    const input = page.locator(".cmdk-input");
+    await expect(input).toBeFocused();
+    await expect(input).toHaveAttribute("role", "combobox");
+    await expect(input).toHaveAttribute("aria-expanded", "true");
+    await expect(input).toHaveAttribute("aria-autocomplete", "list");
+    const lbId = await input.getAttribute("aria-controls");
+    const lb = page.locator("#" + lbId);
+    await expect(lb).toHaveAttribute("role", "listbox");
+    const opts = lb.getByRole("option");
+    expect(await opts.count()).toBeGreaterThan(3);
+    // group headings are presentational, never announced as options
+    expect(await lb.locator(".cmdk-group").evaluateAll((gs) => gs.every((g) => g.getAttribute("aria-hidden") === "true"))).toBe(true);
+    const active = async () => {
+      const id = await input.getAttribute("aria-activedescendant");
+      return page.locator("#" + id);
+    };
+    await expect(await active()).toHaveAttribute("aria-selected", "true");
+    expect(await (await active()).evaluate((e, first) => e === first, await opts.first().elementHandle())).toBe(true);
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    const third = await (await active()).evaluate((e) => [...e.parentElement.querySelectorAll("[role=option]")].indexOf(e));
+    expect(third).toBe(2);
+    await expect(lb.locator('[role=option][aria-selected="true"]')).toHaveCount(1);
+    await page.keyboard.type("zzzz-no-such-command");
+    await expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(await input.getAttribute("aria-activedescendant")).toBeNull();
+    await expect(page.locator("#sr-status")).toContainText("No matches");
+  });
+});

@@ -4911,10 +4911,10 @@ function openCommandPalette() {
   modal.innerHTML = `<div class="cmdk-card">
       <div class="cmdk-inputrow">
         ${searchSvg}
-        <input class="cmdk-input" type="text" aria-label="Command, person, or date" placeholder="Type a command, person, or date (YYYY-MM-DD)…" spellcheck="false" autocomplete="off">
+        <input class="cmdk-input" type="text" role="combobox" aria-expanded="true" aria-controls="cmdk-list" aria-autocomplete="list" aria-label="Command, person, or date" placeholder="Type a command, person, or date (YYYY-MM-DD)…" spellcheck="false" autocomplete="off">
         <span class="cmdk-esc" aria-hidden="true">ESC</span>
       </div>
-      <div class="cmdk-list"></div>
+      <div class="cmdk-list" id="cmdk-list" role="listbox" aria-label="Commands"></div>
       <div class="cmdk-foot">
         <span class="cmdk-f"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
         <span class="cmdk-f"><kbd>↵</kbd> select</span>
@@ -4963,7 +4963,12 @@ function openCommandPalette() {
     listEl.innerHTML = "";
     const rawQ = input.value.trim();
     const q = rawQ.toLowerCase();
+    // UX-16: the input is a combobox driving this listbox; the "selected" row
+    // is exposed through aria-activedescendant (focus stays in the input).
+    input.setAttribute("aria-expanded", filtered.length ? "true" : "false");
+    input.removeAttribute("aria-activedescendant");
     if (!filtered.length) {
+      announce("No matches for “" + rawQ + "”");
       listEl.appendChild(el("div", "cmdk-empty",
         '<div class="cmdk-empty-ic">' + searchSvg + "</div>" +
         "<h3>No matches for “" + esc(rawQ) + "”</h3>" +
@@ -4973,8 +4978,13 @@ function openCommandPalette() {
     let lastGroup = null;
     filtered.forEach((c, k) => {
       const g = GROUP_OF[c.hint] || c.hint;
-      if (g !== lastGroup) { listEl.appendChild(el("div", "cmdk-group", esc(g))); lastGroup = g; }
+      if (g !== lastGroup) {
+        const gh = el("div", "cmdk-group", esc(g)); gh.setAttribute("aria-hidden", "true");
+        listEl.appendChild(gh); lastGroup = g;
+      }
       const row = el("div", "cmdk-row" + (k === sel ? " sel" : ""));
+      row.id = "cmdk-opt-" + k; row.setAttribute("role", "option");
+      row.setAttribute("aria-selected", k === sel ? "true" : "false");
       const lead = c.pid != null
         ? pfpHtml(c.pid, "")
         : '<span class="cmdk-ico">' + cmdIco(c.ico) + "</span>";
@@ -4990,8 +5000,12 @@ function openCommandPalette() {
       row.onclick = () => choose(k);
       listEl.appendChild(row);
     });
+    input.setAttribute("aria-activedescendant", "cmdk-opt-" + sel);
   }
-  function highlight() { listEl.querySelectorAll(".cmdk-row").forEach((r, k) => r.classList.toggle("sel", k === sel)); }
+  function highlight() {
+    listEl.querySelectorAll(".cmdk-row").forEach((r, k) => { r.classList.toggle("sel", k === sel); r.setAttribute("aria-selected", k === sel ? "true" : "false"); });
+    if (filtered.length) input.setAttribute("aria-activedescendant", "cmdk-opt-" + sel);
+  }
   function choose(k) { const c = filtered[k]; modal.remove(); if (c) c.run(); }
 
   input.addEventListener("input", refresh);
