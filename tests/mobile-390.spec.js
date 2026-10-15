@@ -275,7 +275,7 @@ test.describe("I-1: the filter sheet's backdrop catches the tap", () => {
     await page.touchscreen.tap(195, y);
     await expect(filters).toBeHidden();
     expect(await view(page)).toBe("search");
-    await expect(page.locator("#filter-scrim")).not.toHaveClass(/on/);
+    await expect(page.locator("#filter-scrim")).not.toHaveClass(/\bon\b/);
   });
 });
 
