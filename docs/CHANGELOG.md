@@ -106,7 +106,23 @@ All notable changes to this project are recorded here.
 - Time Capsule sizes itself by layout, so it no longer ends up as a scroller
   inside the page scroller.
 
-### Fixed (importing and setup)
+### Added (importing and setup)
+
+- Pick the unzipped archive folder (or any file in it) instead of three
+  files: the wizard reads the archive's `data/manifest.js` to find every
+  messages part, the headers and the media folder, and falls back to finding
+  them by name. Paths in the manifest are never followed outside the folder.
+- "Check export" shows a preview before anything is written: group chats,
+  message counts per group, dates, people, photos & videos, and plain
+  warnings (missing part files, swapped files, 1:1 DMs left out, media that
+  belongs to no message, unreadable dates, nothing to import).
+- "Add a newer export": a built archive can take a newer download without
+  Start over. The preview shows what the archive already has and what the
+  export adds; merging keeps every message of the current archive, adds the
+  new ones once each, keeps names, photos, group names, "me" and removed
+  people, and leaves the pre-merge archive in `data.js.bak`.
+- A progress bar shows the photo & video copy during a build; media already
+  copied at the same size isn't copied again.
 
 - Very large exports build: the messages file is read as a stream and the
   archive is written in pieces, so a ~600 MB export no longer fails with a
@@ -142,6 +158,20 @@ All notable changes to this project are recorded here.
 - The double-click launchers say plainly when Node.js is missing or older
   than 18, or when they are run from inside the ZIP, instead of showing a raw
   error. `package.json` declares Node 18 or newer.
+- A reopened wizard shows the saved group name and photo, and saving no
+  longer blanks a group name saved earlier.
+- A person has the same avatar colour in the wizard as in the archive.
+- The wizard fits a 390px phone without sideways scrolling, and preview
+  warnings are readable on the Light theme.
+- The server reads the built archive as a stream for the wizard's status,
+  people and removal steps, so a big archive doesn't run it out of memory.
+- A build stops with a plain sentence when `data.js` is missing but its
+  backup or an unfinished save is beside it, instead of replacing that
+  history with the export alone. A first save blocked by another program
+  says so correctly.
+- Backup folders left by a killed build are cleared once a later build
+  succeeds; restoring a removed person's media copies only their messages'
+  media.
 - The launcher's server no longer stops under a hidden or sleeping tab: it
   exits a few seconds after the last open page is closed. If the server has
   stopped, the page says so and how to restart it.

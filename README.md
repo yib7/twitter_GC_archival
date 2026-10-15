@@ -150,9 +150,16 @@ node scripts/server.js                 # -> http://localhost:8765
 # then open  http://localhost:8765/setup.html
 ```
 
-1. Source: click Browse to pick your `direct-messages-group.js`, your
-   `direct-message-group-headers.js`, and your media folder (all three
-   required; native file dialogs on Windows), then Build.
+1. Source: click Browse next to **Archive folder** and open any file in your
+   unzipped archive (for example `Your archive.html`). The wizard reads the
+   archive's `data/manifest.js` to find the group messages (every `-partN`
+   file), the headers and the media folder, and falls back to looking for them
+   by name. You can still pick the three files yourself instead (native file
+   dialogs on Windows; paste paths elsewhere). Click **Check export** to see a
+   preview — group chats, message counts, dates, people, photos & videos and
+   any warnings (missing part files, swapped files, 1:1 DMs left out, ...) —
+   before anything is written, then **Build archive**. A progress bar shows the
+   media copy.
 2. Group *(optional)*: set the group name and photo (becomes the sidebar mark).
 3. People *(optional)*: each participant card shows sample messages and a few
    pieces of media they shared (Twitter/X links excluded, since they don't help
@@ -168,8 +175,13 @@ counts) rebuilds the archive without their messages and moves their media to
 `personal_data/.removed/`, so un-removing can bring it back. Start over erases
 all of it.
 
-> Adding a newer export later? Just re-run the wizard. The build is merge-aware,
-> so your history accumulates and is never lost.
+> Adding a newer export later? Open the wizard again and click **Add a newer
+> export** on step 1, pick the new archive, and check the preview (what your
+> archive already has, what the export adds). **Merge into archive** keeps your
+> current archive as the baseline and adds the new messages (deduplicated by
+> message id), so messages only in the older export stay. Names, photos, group
+> names, "me" and removed people are kept, and `data.js.bak` is the archive as
+> it was before the merge. To just edit names, use **Continue**.
 
 ### Naming participants
 
