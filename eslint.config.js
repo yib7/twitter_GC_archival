@@ -40,12 +40,24 @@ module.exports = [
     rules: { "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }] },
   },
   {
-    // Tests run in Node, but page.evaluate() callbacks reference browser globals.
+    // node:test unit tests (and the opt-in big-build test) never touch a page,
+    // so they get Node globals only: a stray `document` / `window` there is an error.
+    files: ["tests/**/*.test.js", "tests/**/*.big.js"],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
+    // Playwright specs and their helpers run in Node, but page.evaluate()
+    // callbacks reference browser globals.
+    files: ["tests/**/*.js"],
+    ignores: ["tests/**/*.test.js", "tests/**/*.big.js"],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
+  },
+  {
+    // Shared settings and rules for every test file.
     files: ["tests/**/*.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "commonjs",
-      globals: { ...globals.node, ...globals.browser },
     },
     rules: {
       "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }],
