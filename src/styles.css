@@ -742,8 +742,17 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .lightbox { position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(0,0,0,0.88); display: grid; place-items: center; padding: 30px; overflow: hidden; }
 .lightbox img, .lightbox video { max-width: 92vw; max-height: 88vh; border-radius: 10px; transition: transform 0.1s ease-out; cursor: grab; }
 .lightbox img:active, .lightbox video:active { cursor: grabbing; }
-.lightbox .lb-close { position: absolute; top: 18px; right: 24px; font-size: 30px; color: #fff; cursor: pointer; background: none; border: 0; z-index: 110; }
-.lightbox .lb-dl { position: absolute; top: 22px; left: 24px; color: #fff; text-decoration: none; font-size: 14px; background: rgba(255,255,255,0.15); padding: 8px 14px; border-radius: 8px; z-index: 110; backdrop-filter: blur(4px); transition: background 0.2s; }
+/* UX-28: the lightbox toolbar — one row in the top safe area */
+.lightbox .lb-bar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 110; display: flex; align-items: center; gap: 8px;
+  padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.65), transparent);
+}
+.lightbox .lb-grow { flex: 1; }
+.lightbox .lb-count { color: #fff; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; background: rgba(255,255,255,0.12); padding: 6px 11px; border-radius: 999px; }
+.lightbox .lb-close { font-size: 26px; line-height: 1; color: #fff; cursor: pointer; background: none; border: 0; padding: 4px 8px; border-radius: 8px; min-width: 40px; min-height: 40px; }
+.lightbox .lb-close:hover { background: rgba(255,255,255,0.15); }
+.lightbox .lb-dl { color: #fff; text-decoration: none; font-size: 13px; background: rgba(255,255,255,0.15); padding: 8px 14px; border-radius: 8px; backdrop-filter: blur(4px); transition: background 0.2s; white-space: nowrap; }
 .lightbox .lb-dl:hover { background: rgba(255,255,255,0.25); }
 .lightbox .lb-nav { position: absolute; top: 50%; transform: translateY(-50%); font-size: 40px; color: rgba(255,255,255,0.5); cursor: pointer; background: none; border: 0; z-index: 110; transition: color 0.2s; padding: 20px; }
 .lightbox .lb-nav:hover { color: #fff; }
@@ -1008,14 +1017,14 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* lightbox bookmark toggle (sits left of the download link) */
 .lb-pin {
-  position: absolute; top: 16px; right: 132px; z-index: 5;
+  white-space: nowrap;
   background: rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.15);
   color: #fff; border-radius: 8px; padding: 8px 12px; font-size: 13px; cursor: pointer;
   backdrop-filter: blur(4px);
 }
 .lb-pin:hover { background: rgba(0,0,0,0.7); }
 .lb-pin.on { border-color: var(--accent); color: var(--accent-text); }
-@media (max-width: 768px) { .lb-pin { right: 12px; top: 60px; } }
+@media (pointer: coarse) { .lightbox .lb-bar > :not(.lb-grow):not(.lb-count) { min-height: 44px; display: inline-flex; align-items: center; } }
 
 /* ---- Milestone cards ----------------------------------------------------- */
 .card.mile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }

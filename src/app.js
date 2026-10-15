@@ -1331,18 +1331,30 @@ function renderLightbox() {
   const close = closeLightbox;
   box.addEventListener("click", (e) => { if (e.target === box) close(); });
   
-  const x = btnEl("lb-close", "✕", "Close"); x.onclick = close; box.appendChild(x);
-  
+  // UX-28: one top toolbar inside the safe area — "n / N", then bookmark,
+  // download and close — instead of controls pinned at separate corners
+  // (Download used to sit over the sidebar brand).
+  const bar = el("div", "lb-bar");
+  const n = lbState.idxList.length;
+  const count = el("span", "lb-count", (lbState.pos + 1) + " / " + n);
+  count.setAttribute("aria-label", "Item " + (lbState.pos + 1) + " of " + n);
+  bar.appendChild(count);
+  bar.appendChild(el("span", "lb-grow"));
+
+  const lbPin = el("button", "lb-pin act-pin");
+  lbPin.type = "button"; lbPin.dataset.mid = m.i; setPinBtn(lbPin, isPinned(m.i));
+  lbPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); };
+  bar.appendChild(lbPin);
+
   const dl = el("a", "lb-dl", "↓ Download");
   dl.href = m.m;
   dl.download = m.m.split('/').pop() || "media";
   dl.onclick = (e) => e.stopPropagation();
-  box.appendChild(dl);
+  bar.appendChild(dl);
 
-  const lbPin = el("button", "lb-pin act-pin");
-  lbPin.dataset.mid = m.i; setPinBtn(lbPin, isPinned(m.i));
-  lbPin.onclick = (e) => { e.stopPropagation(); togglePin(m.i); };
-  box.appendChild(lbPin);
+  const x = btnEl("lb-close", "✕", "Close"); x.onclick = close; bar.appendChild(x);
+  bar.addEventListener("click", (e) => e.stopPropagation());
+  box.appendChild(bar);
 
   if (lbState.pos > 0) {
     const prev = btnEl("lb-nav lb-prev", "‹", "Previous");
@@ -4069,17 +4081,22 @@ function renderGallery() {
     return;
   }
   if (!v.innerHTML) {
-    v.innerHTML = `<div class="toolbar">
-        <div class="result-meta">Media Gallery — All Photos & Videos</div>
-      </div>
-      <div class="scroll" id="gal-scroll"><div class="gallery" id="gal-list"></div></div>`;
-    
-    galEls = { scroll: v.querySelector("#gal-scroll"), list: v.querySelector("#gal-list") };
-    
     const items = [];
+    const kinds = { img: 0, vid: 0, file: 0 };
     for (let i = 0; i < N; i++) {
-      if (MSGS[i].m) items.push(i);
+      if (MSGS[i].m) { items.push(i); const k = MSGS[i].k; kinds[k === "img" || k === "vid" ? k : "file"]++; }
     }
+    // UX-28: the standard page header (title + count), like every other view;
+    // the .page itself is the scroll root the lazy pages observe.
+    const parts = [];
+    if (kinds.img) parts.push(plural(kinds.img, "photo"));
+    if (kinds.vid) parts.push(plural(kinds.vid, "video"));
+    if (kinds.file) parts.push(plural(kinds.file, "file"));
+    v.innerHTML = `<div class="page" id="gal-scroll"><div class="page-head"><div class="page-title">Gallery</div>
+        <div class="page-sub">${esc(parts.length ? parts.join(" · ") + " · newest first" : "No media yet")}</div></div>
+      <div class="page-body"><div class="gallery" id="gal-list"></div></div></div>`;
+
+    galEls = { scroll: v.querySelector("#gal-scroll"), list: v.querySelector("#gal-list") };
     // MSGS is oldest-first; reverse in place so the gallery shows newest media
     // first (matches the lazy-loaded page order below).
     galleryState.items = items.reverse();

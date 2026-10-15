@@ -489,3 +489,43 @@ test.describe("UX-27: empty states say what to do next", () => {
     await expect(page.locator('#f-viewtoggle button[data-mode="list"]')).toHaveClass(/sel/);
   });
 });
+
+test.describe("UX-28: gallery basics", () => {
+  const overlap = (a, b) => !(a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y);
+
+  test("standard page header with a count", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "gallery" } });
+    await expect(page.locator("#view-gallery .page-head .page-title")).toHaveText("Gallery");
+    await expect(page.locator("#view-gallery .page-head .page-sub")).toContainText("2 photos");
+    await expect(page.locator("#view-gallery")).not.toContainText("Media Gallery —");
+    await expect(page.locator("#gal-list .gcell")).toHaveCount(2);
+  });
+
+  for (const vp of [{ width: 1280, height: 860 }, { width: 390, height: 844 }]) {
+    test("lightbox: n / N counter and a non-overlapping top toolbar at " + vp.width + "px", async ({ page }) => {
+      await page.setViewportSize(vp);
+      await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "gallery" } });
+      await page.locator("#gal-list .gcell").first().click();
+      const lb = page.locator(".lightbox");
+      await expect(lb.locator(".lb-count")).toHaveText("1 / 2");
+      await expect(lb.locator(".lb-count")).toHaveAttribute("aria-label", "Item 1 of 2");
+      await page.keyboard.press("ArrowRight");
+      await expect(page.locator(".lightbox .lb-count")).toHaveText("2 / 2");
+      const boxes = {};
+      for (const s of [".lb-count", ".lb-pin", ".lb-dl", ".lb-close"]) {
+        boxes[s] = await page.locator(".lightbox " + s).boundingBox();
+        expect(boxes[s].y, s).toBeGreaterThanOrEqual(0);
+        expect(boxes[s].x + boxes[s].width, s).toBeLessThanOrEqual(vp.width);
+      }
+      const keys = Object.keys(boxes);
+      for (let a = 0; a < keys.length; a++) for (let b = a + 1; b < keys.length; b++) expect(overlap(boxes[keys[a]], boxes[keys[b]]), keys[a] + " × " + keys[b]).toBe(false);
+      // all four share one toolbar row in the top safe area
+      expect(await page.locator(".lightbox .lb-bar").evaluate((b) => [".lb-count", ".lb-pin", ".lb-dl", ".lb-close"].every((s) => b.querySelector(s)))).toBe(true);
+      if (vp.width > 760) {
+        // Download no longer sits over the sidebar brand
+        const brand = await page.locator(".sidebar .brand").boundingBox();
+        if (brand) expect(overlap(boxes[".lb-dl"], brand)).toBe(false);
+      }
+    });
+  }
+});
