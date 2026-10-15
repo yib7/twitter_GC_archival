@@ -176,6 +176,7 @@ function fmtN(n) { return n.toLocaleString("en-US"); }
 // is reported as unexpected, still without a stack trace (GCA_DEBUG=1 adds it).
 function describeFailure(e) {
   if (e instanceof BuildError) return e.message;
+  if (e && e.userMessage) return e.userMessage;   // fs-io: a file held by another program
   const code = e && e.code;
   if (code === "ERR_STRING_TOO_LONG") return "A file is too large to read in one piece. Please report this — the build should stream it.";
   if (code === "ENOSPC") return "The disk is full. Free up some space and try again.";

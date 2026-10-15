@@ -8,6 +8,7 @@
 "use strict";
 
 const fs = require("fs");
+const path = require("path");
 const crypto = require("crypto");
 const { StringDecoder } = require("string_decoder");
 const { createExportScanner } = require("./build-core.js");
@@ -65,7 +66,10 @@ function readExportHead(file, max) {
 //
 // Windows: renaming over a file another process holds open can fail with
 // EPERM/EBUSY/EACCES. Retry with a short, growing back-off; if it still fails,
-// copy the (already complete) temp file over the target as a last resort.
+// move the old file aside and the new one in (Windows lets an open file be
+// renamed when its reader allows it, as Node and most programs do). The target
+// is never overwritten in place, so a failure can't truncate it, and the temp
+// file is only deleted while the old file is known to be intact.
 const RETRY_CODES = new Set(["EPERM", "EBUSY", "EACCES"]);
 // Leftover temp files from a crashed write match this (see apiReset).
 const TMP_RE = /\.\d+\.[0-9a-f]{8}\.tmp$/;
@@ -76,23 +80,52 @@ function sleepSync(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 function unlinkQuiet(f) { try { fs.unlinkSync(f); } catch (e) { /* already gone */ } }
-// Move a finished temp file into place. Returns "renamed" or "copied".
+// The target is held by another program and the old version is still in place.
+// `userMessage` is the plain sentence build.js and the server show as-is.
+function heldError(dest, cause) {
+  const name = "“" + path.basename(dest) + "”";
+  const e = new Error("Couldn't save " + name + ": another program is holding it open (antivirus, OneDrive or an editor?). " +
+    "Close that program and try again — the previous version of " + name + " is unchanged.");
+  e.code = (cause && cause.code) || "EBUSY";
+  e.path = dest;
+  e.userMessage = e.message;
+  return e;
+}
+// Move a finished temp file into place. Returns "renamed" or "swapped".
 function replaceFile(tmp, dest, opts) {
   opts = opts || {};
   const rename = opts.rename || fs.renameSync;
   const retries = opts.retries != null ? opts.retries : 8;
   const delay = opts.delayMs != null ? opts.delayMs : 40;
+  let last;
   for (let attempt = 0; ; attempt++) {
     try { rename(tmp, dest); return "renamed"; }
     catch (e) {
       if (!RETRY_CODES.has(e.code)) throw e;
+      last = e;
       if (attempt >= retries) break;
       sleepSync(delay * (attempt + 1));
     }
   }
-  fs.copyFileSync(tmp, dest);
-  unlinkQuiet(tmp);
-  return "copied";
+  // Fallback: old file aside, new file in, old file deleted.
+  const aside = tmpNameFor(dest);
+  try { rename(dest, aside); }
+  catch (e) { throw heldError(dest, last); }          // nothing moved: the caller removes tmp
+  try { rename(tmp, dest); }
+  catch (e) {
+    try { rename(aside, dest); }                       // put the old one back
+    catch (e2) {
+      // Neither could be put back: keep BOTH complete copies and say where.
+      const err = new Error("Couldn't save “" + path.basename(dest) + "”: another program is holding it. " +
+        "Nothing was lost: the new version is “" + path.basename(tmp) + "” and the previous one “" + path.basename(aside) +
+        "”, both in " + path.dirname(dest) + ". Close the other program, then rename one of them to “" + path.basename(dest) + "”.");
+      err.code = e.code; err.path = dest; err.userMessage = err.message; err.keepTemp = true;
+      throw err;
+    }
+    throw heldError(dest, e);
+  }
+  unlinkQuiet(aside);   // a reader still holding it keeps its handle; Windows deletes it on close
+  return "swapped";
 }
 function writeFileAtomic(dest, data, opts) {
   const tmp = tmpNameFor(dest);
@@ -102,7 +135,7 @@ function writeFileAtomic(dest, data, opts) {
     finally { fs.closeSync(fd); }
     return replaceFile(tmp, dest, opts);
   } catch (e) {
-    unlinkQuiet(tmp);
+    if (!e.keepTemp) unlinkQuiet(tmp);
     throw e;
   }
 }
@@ -118,7 +151,7 @@ function writeChunksAtomic(dest, chunks, opts) {
     } finally { fs.closeSync(fd); }
     return replaceFile(tmp, dest, opts);
   } catch (e) {
-    unlinkQuiet(tmp);
+    if (!e.keepTemp) unlinkQuiet(tmp);
     throw e;
   }
 }

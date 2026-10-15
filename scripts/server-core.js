@@ -310,6 +310,7 @@ function buildFailureMessage(stderr) {
 function friendlyError(e) {
   if (!e) return "Something went wrong.";
   if (e.statusCode && e.message) return String(e.message);
+  if (e.userMessage) return String(e.userMessage);   // fs-io: a file held by another program
   const where = e.path ? " (“" + path.basename(String(e.path)) + "”)" : "";
   switch (e.code) {
     case "ENOENT": return "A file or folder couldn't be found" + where + ". Check the path and try again.";

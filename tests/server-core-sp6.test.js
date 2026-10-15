@@ -35,6 +35,9 @@ test("friendlyError turns common Node fs errors into plain sentences without sta
   assert.match(core.friendlyError(e("EISDIR", "/a/dir")), /folder/);
   const http = Object.assign(new Error("Uploaded images must be 10 MB or smaller."), { statusCode: 413 });
   assert.equal(core.friendlyError(http), "Uploaded images must be 10 MB or smaller.", "our own user-facing messages pass through");
+  // fix round 1: fs-io's "held by another program" errors carry their own sentence
+  const held = Object.assign(new Error("x"), { code: "EBUSY", path: "/a/data.js", userMessage: "Couldn't save data.js: close the other program." });
+  assert.equal(core.friendlyError(held), "Couldn't save data.js: close the other program.");
   const odd = new Error("weird\n    at somewhere (x.js:1:1)");
   assert.doesNotMatch(core.friendlyError(odd), /at somewhere/);
 });
