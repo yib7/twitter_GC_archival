@@ -4703,6 +4703,7 @@ function renderConvPicker() {
   host.querySelector("#conv-select").onchange = (e) => activateConversation(e.target.value, true);
 }
 
+// Fills the onboarding card's wizard address (called once the card exists).
 function updateSetupUrlInfo() {
   // If the server injected the actual URL, use it; otherwise default message stays.
   if (window.GCA_SERVER_URL) {
@@ -4712,7 +4713,6 @@ function updateSetupUrlInfo() {
 }
 
 function init() {
-  updateSetupUrlInfo();
   applyTheme();
   initTheme();
   updateBrand();
@@ -4825,6 +4825,7 @@ function maybeShowOnboarding() {
   ov.querySelector("#onboard-people").onclick = () => { close(); setView("people"); };
   ov.querySelector("#onboard-dismiss").onclick = close;
   document.body.appendChild(ov);
+  updateSetupUrlInfo();
   // a real dialog — labelled, focus moved in and trapped; Esc = "Maybe later"
   // Opened at boot, so there is no opener to hand focus back to: return it to
   // the current view's own nav item (sidebar on desktop, tab bar on mobile).
