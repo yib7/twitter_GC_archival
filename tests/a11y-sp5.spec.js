@@ -562,3 +562,32 @@ test.describe("UX-29: Word Battles keeps the words you add", () => {
     expect(JSON.parse(await page.evaluate(() => localStorage.getItem("gca.settings"))).battleWords).toEqual(["pizza"]);
   });
 });
+
+test.describe("UX-32: no flash of message 0", () => {
+  const watchFlash = (page) => page.evaluate(() => {
+    window.__flashed = [];
+    new MutationObserver((ms) => ms.forEach((m) => {
+      if (m.target.classList && m.target.classList.contains("flash")) window.__flashed.push(m.target.dataset.idx);
+    })).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
+  });
+
+  test("opening the Timeline from the nav is quiet", async ({ page }) => {
+    await bootViewer(page, DATA);
+    await watchFlash(page);
+    await go(page, "timeline");
+    await expect(page.locator("#tl-list .msg").first()).toBeVisible();
+    await page.waitForTimeout(100);
+    expect(await page.evaluate(() => window.__flashed)).toEqual([]);
+    expect(await page.locator("#tl-scroll").evaluate((s) => s.scrollTop)).toBe(0);
+  });
+
+  test("a cold jump from Search highlights only its target", async ({ page }) => {
+    await bootViewer(page, DATA);
+    await watchFlash(page);
+    const card = page.locator('#s-list .msg[data-idx="4"]');
+    await card.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator('#tl-list .msg[data-idx="4"]')).toHaveClass(/flash/);
+    expect(await page.evaluate(() => window.__flashed)).toEqual(["4"]);
+  });
+});

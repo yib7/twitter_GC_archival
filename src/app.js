@@ -2158,7 +2158,7 @@ function ensureTimelineShell() {
 }
 
 // opts.quiet: restore a reading position — no flash; the anchor goes back to
-// opts.off px below the scroller top.
+// opts.off px below the scroller top. opts.top: open at the very top, quietly.
 function openTimeline(anchor, opts) {
   opts = opts || {};
   ensureTimelineShell();
@@ -2213,7 +2213,8 @@ function openTimeline(anchor, opts) {
   tlEls.scroll.scrollTop = offset;
   
   const target = tlEls.list.querySelector('[data-idx="' + anchor + '"]');
-  if (target) {
+  if (opts.top) tlEls.scroll.scrollTop = 0;   // first open: the very start, day pill and all, no highlight
+  else if (target) {
     if (opts.quiet) {
       tlEls.scroll.scrollTop += target.getBoundingClientRect().top - tlEls.scroll.getBoundingClientRect().top - (opts.off || 0);
     } else {
@@ -3821,7 +3822,10 @@ function setView(name) {
   else if (name === "timeline") {
     if (!tlBuilt) {
       if (tlResume) openTimeline(Math.min(tlResume.idx, Math.max(0, N - 1)), { quiet: true, off: tlResume.off });
-      else openTimeline(0);
+      // UX-32: a first open is quiet — it used to highlight message 0, and a
+      // cold jumpTo() (which opens the timeline first, then jumps) flashed
+      // message 0 before the real target.
+      else openTimeline(0, { top: true });
     }
   }
   else if (name === "stats") renderStats();
