@@ -318,3 +318,39 @@ test.describe("UX-14: every icon-only control has a name", () => {
     expect([...new Set(bad)], "unnamed: " + [...new Set(bad)].join(", ")).toEqual([]);
   });
 });
+
+test.describe("UX-15: toasts are announced", () => {
+  test("toast text lands in one persistent polite status region, even when repeated", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
+    const live = page.locator("#sr-status");
+    await expect(live).toHaveAttribute("role", "status");
+    await expect(live).toHaveAttribute("aria-live", "polite");
+    await expect(live).toHaveAttribute("aria-atomic", "true");
+    // visually hidden but not display:none (which would silence it)
+    const box = await live.evaluate((e) => { const r = e.getBoundingClientRect(); return { w: r.width, h: r.height, d: getComputedStyle(e).display }; });
+    expect(box.d).not.toBe("none");
+    expect(box.w).toBeLessThanOrEqual(1);
+    const msg = page.locator("#tl-list .msg").first();
+    await msg.hover();
+    await msg.getByRole("button", { name: "Bookmark" }).click();
+    await expect(live).toHaveText("★ Bookmarked");
+    await msg.hover();
+    await msg.getByRole("button", { name: "Bookmark" }).click();
+    await expect(live).toHaveText("Removed bookmark");
+    // the same message twice in a row is re-announced (the region is cleared first)
+    const seen = await page.evaluate(async () => {
+      const r = document.getElementById("sr-status"), out = [];
+      const mo = new MutationObserver(() => out.push(r.textContent));
+      mo.observe(r, { childList: true, characterData: true, subtree: true });
+      document.querySelector("#tl-list .msg .act-pin").click();
+      await new Promise((ok) => setTimeout(ok, 200));
+      document.querySelector("#tl-list .msg .act-pin").click();
+      document.querySelector("#tl-list .msg .act-pin").click();
+      await new Promise((ok) => setTimeout(ok, 200));
+      mo.disconnect();
+      return out;
+    });
+    expect(seen.filter((t) => t === "★ Bookmarked").length).toBeGreaterThanOrEqual(2);
+    expect(seen).toContain("");
+  });
+});

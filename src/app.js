@@ -1378,9 +1378,21 @@ function lbKeyHandler(e) {
 
 /* ---- Toast --------------------------------------------------------------- */
 let toastT = null;
+// UX-15: the visible toast is decoration for sighted users; the message is
+// announced through the persistent #sr-status live region (index.html). It is
+// cleared first so the same text twice in a row is announced again.
+let srT = 0;
+function announce(msg) {
+  const live = document.getElementById("sr-status");
+  if (!live) return;
+  live.textContent = "";
+  clearTimeout(srT);
+  srT = setTimeout(() => { live.textContent = msg; }, 50);
+}
 function toast(msg) {
   document.querySelectorAll(".toast").forEach((t) => t.remove());
-  const t = el("div", "toast", esc(msg)); document.body.appendChild(t);
+  const t = el("div", "toast", esc(msg)); t.setAttribute("aria-hidden", "true"); document.body.appendChild(t);
+  announce(msg);
   clearTimeout(toastT); toastT = setTimeout(() => { t.classList.add("fade-out"); setTimeout(() => t.remove(), 300); }, 2200);
 }
 
