@@ -607,18 +607,26 @@ test.describe("UX-33: the sticky day pill doesn't block what's under it", () => 
       expect(st.alpha, th).toBeLessThan(1);
       expect(st.blur, th).toBe(true);
     }
-    // stuck over a message: a click at the pill's centre reaches the message
-    const scroller = page.locator("#tl-scroll");
-    await scroller.evaluate((s) => { s.scrollTop = 600; });
-    await page.waitForTimeout(100);
-    const hit = await page.evaluate(() => {
-      const pills = [...document.querySelectorAll("#tl-list .daysep .daypill")].filter((p) => { const r = p.getBoundingClientRect(); return r.height && r.top >= 0 && r.top < 120; });
-      if (!pills.length) return "no stuck pill";
-      const r = pills[0].getBoundingClientRect();
-      const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-      return e && e.closest(".daypill") ? "pill" : "through";
+    // stuck over a message: scroll until a message (or its media) is really
+    // painted under the stuck pill's centre, then a click there must land on
+    // that message — not on the pill, and not on empty space.
+    const hit = await page.evaluate(async () => {
+      const s = document.getElementById("tl-scroll");
+      for (let top = 200; top < s.scrollHeight; top += 37) {
+        s.scrollTop = top;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const pill = [...document.querySelectorAll("#tl-list .daysep .daypill")].find((p) => { const r = p.getBoundingClientRect(); return r.height && r.top >= 0 && r.top < 120; });
+        if (!pill) continue;
+        const r = pill.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+        const stack = document.elementsFromPoint(x, y);
+        const under = stack.find((e) => !e.closest(".daypill") && e.closest(".media, .msg"));
+        if (!under) continue;
+        const e = document.elementFromPoint(x, y);
+        return e && e.closest(".media, .msg") ? "message" : e && e.closest(".daypill") ? "pill" : "other: " + (e && e.className);
+      }
+      return "never stuck over a message";
     });
-    expect(hit).toBe("through");
+    expect(hit).toBe("message");
   });
 });
 
