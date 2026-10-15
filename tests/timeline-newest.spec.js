@@ -150,6 +150,9 @@ test("Reset customization keeps reading positions (like bookmarks) and says so",
   await page.locator("#set-reset").click();
   await expect(page.locator(".toast")).toContainText(/reset/i);
   expect(msg).toMatch(/Keeps:[^\n]*reading positions/);
+  // across a reload, so it's the STORED position (not this session's memory)
+  await page.reload();
+  await expect(page.locator("#app")).toBeVisible();
   await page.locator('.nav-item[data-view="timeline"]').click();
   expect((await settledTimeline(page)).first).toBe(pos.first);
 });
