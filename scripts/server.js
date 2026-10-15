@@ -425,18 +425,19 @@ function apiSource(body, res) {
   // part1+ are never silently left behind.
   const groupFiles = partSiblings(groupAbs);
   const headerFiles = partSiblings(headersAbs);
+  const cfgNow = loadConfig();
   // Fix round 1 (#7): "<digits>-<name>.jpg" is also how phones and cameras name
   // pictures (20230301-IMG_0001.jpg), so the name alone can't tell a Pictures
   // folder from the group media. Only files whose number is a message id in
   // this export are copied, and a folder where none are is refused.
-  let ids = new Set();
+  // SP7: only the media of messages the archive keeps is copied — a removed
+  // group's or person's media would otherwise sit, unreferenced but servable,
+  // in media/ (the camera-roll check below still looks at every message).
+  let ids = null, keepIds = null;
   try {
-    duringBlocking(() => {
-      for (const f of groupFiles) {
-        scanExportFile(f, { onMessage: (ci, m) => { if (m && m.messageCreate && m.messageCreate.id != null) ids.add(String(m.messageCreate.id)); } });
-      }
-    });
-  } catch (e) { ids = null; /* unreadable: the build below says so plainly */ }
+    const got = duringBlocking(() => exportMessageIds(groupFiles, cfgNow.ignoredGroups, cfgNow.ignoredUsers));
+    ids = got.all; keepIds = got.keep;
+  } catch (e) { /* unreadable: the build below says so plainly */ }
   if (ids) {
     let candidates = 0, matching = 0;
     try {
@@ -492,7 +493,7 @@ function apiSource(body, res) {
     // copy synchronously, so bracket it in duringBlocking like the build below —
     // otherwise the auto-exit watchdog could mistake the frozen event loop for
     // the browser having closed.
-    media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids, journal: mediaJournal }));
+    media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids: keepIds || new Set(), journal: mediaJournal }));
     cfg.mediaDir = mediaDestDir;
     // SP-14: remembered so media pruned for a removed group / person can be
     // restored from the export if they're un-removed later.
@@ -561,6 +562,30 @@ function freeBytesAt(dir) {
   while (!fs.existsSync(d) && path.dirname(d) !== d) d = path.dirname(d);
   try { const st = fs.statfsSync(d); return Number(st.bavail) * Number(st.bsize); } catch (e) { return NaN; }
 }
+// The message ids in these export files: `all` of them, and `keep` — those
+// the archive keeps (not in a removed group, not from a removed person).
+// Streamed, one message at a time.
+function exportMessageIds(files, ignoredGroups, ignoredUsers) {
+  const G = new Set((Array.isArray(ignoredGroups) ? ignoredGroups : []).map(String));
+  const U = new Set((Array.isArray(ignoredUsers) ? ignoredUsers : []).map(String));
+  const all = new Set(), keep = new Set();
+  for (const f of files) {
+    const convOf = [];
+    scanExportFile(f, {
+      onConversationId: (ci, id) => { convOf[ci] = String(id); },
+      onMessage: (ci, m) => {
+        const mc = m && m.messageCreate;
+        if (!mc || mc.id == null) return;
+        const id = String(mc.id);
+        all.add(id);
+        if ((convOf[ci] != null && G.has(convOf[ci])) || U.has(String(mc.senderId))) return;
+        keep.add(id);
+      },
+    });
+  }
+  return { all, keep };
+}
+const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean);
 // The chosen export file plus its -partN siblings in the same folder (SP-2).
 function partSiblings(abs) {
   const dir = path.dirname(abs);
@@ -732,8 +757,14 @@ function apiIdentity(body, res) {
         if (moveFile(o.file, path.join(mediaDir, name))) quarantine.delete(name);
       }
       if (cfg.mediaSourceDir && fs.existsSync(cfg.mediaSourceDir)) {
-        try { duringBlocking(() => copyMediaFlat(cfg.mediaSourceDir, mediaDir, { skipExisting: true, skip: new Set(quarantine.keys()) })); }
-        catch (e) { console.error("Couldn't restore media from " + cfg.mediaSourceDir + ": " + (e && e.message)); }
+        // SP7 (SP6 review #5): the same message-id filter as the first copy —
+        // only media of this export's messages that are no longer removed.
+        try {
+          duringBlocking(() => {
+            const { keep } = exportMessageIds(asList(cfg.sourceJs).map((p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))), ignoredGroups, ignoredUsers);
+            copyMediaFlat(cfg.mediaSourceDir, mediaDir, { skipExisting: true, skip: new Set(quarantine.keys()), ids: keep });
+          });
+        } catch (e) { console.error("Couldn't restore media from " + cfg.mediaSourceDir + ": " + (e && e.message)); }
       }
     }
     const built = runBuild();
