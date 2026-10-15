@@ -48,9 +48,32 @@ internet. Have several group chats? A picker switches between them.
 
 - Search that shows exact matches first and falls back to typo-tolerant
   fuzzy matches (Fuse.js) when there are none; "+ Show close matches" adds
-  them on demand, and the matched text is highlighted either way. Filters: `has:media`, `has:links`,
-  `from:name`, `before:`/`after:` a date, exact `"quoted phrases"`, sorting,
+  them on demand, and the matched text is highlighted either way. Sorting,
   list/grid views, saved searches, and plain-text export of the results.
+  Search also covers the text a link shows (its full and display URL).
+  - Operators, typed in the box and shown as removable chips under it (click
+    a chip or press Backspace on it to drop it):
+
+    | Operator | Keeps messages… |
+    | --- | --- |
+    | `from:ann`, `from:"Ann Lee"` (alias `sender:`) | sent by that person. Matches display names and aliases; typing `from:` suggests people |
+    | `has:photo` `has:video` `has:file` | with a photo, a video or another attachment |
+    | `has:media` `has:link` `has:reacts` | with any media, a link, or reactions |
+    | `is:pinned` | you bookmarked |
+    | `after:2021-06` `before:2024` | from / through a date (see below) |
+    | `"exact phrase"` | containing the phrase word for word, in Fuzzy mode too |
+    | `-word`, `-"some phrase"` | without that word or phrase |
+
+    Operators work with any script and accents (`from:Zoë`, `-café`).
+  - **This chat / All chats**: All chats searches every group chat at once
+    (exact matches), grouped by chat with a count and a "Search only <chat>"
+    button on each group. Removed group chats and ignored people stay out.
+  - **Keyboard**: `/` focuses the box. Once a result has focus, `j` / `↓` and
+    `k` / `↑` move between results, `Enter` opens one, `c` shows its context
+    and `b` bookmarks it.
+  - **Command palette** (Cmd/Ctrl-K): besides commands, people and dates, it
+    shows the five newest matching messages in this chat. "See all in Search"
+    opens the full result list.
   - Dates in `before:`/`after:` can be a day (`2021-06-14`), a month
     (`2021-06`) or a year (`2021`), or a quoted natural date
     (`after:"June 2021"`, `before:"Jan 7 2024"`). Both are **inclusive** of the
@@ -77,8 +100,8 @@ internet. Have several group chats? A picker switches between them.
   message by id only, so Back / Forward work across views and jumps (also
   from `file://`), and "Link" on a message copies an ids-only link to it (from
   `file://` just the `#…` part, so your local path isn't shared). Your
-  search text never goes in the URL; Back / Forward and reload restore it from
-  the tab's history state.
+  search text never goes in the URL (only the All chats switch does, as
+  `&s=all`); Back / Forward and reload restore it from the tab's history state.
 - Gallery of every photo and video, with a lightbox.
 - Reactions render inline under each message, including custom emoji
   reactions shown as the actual glyph rather than a generic placeholder.

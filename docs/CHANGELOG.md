@@ -142,6 +142,49 @@ All notable changes to this project are recorded here.
   natural date, and are documented as inclusive of the whole period they
   name. An impossible date is ignored with a note in the result line.
 
+### Added (search)
+
+- An "All chats" switch in Search looks through every group chat at once. The
+  results are grouped by chat, with this chat first. Each group's header shows
+  the chat's name and how many messages matched, plus a "Search only <chat>"
+  button that runs the same search in that chat. Group chats you removed and
+  people you ignored stay out. The address remembers the switch (`&s=all`)
+  but never your search text. All chats shows exact matches only.
+- The command palette (Cmd/Ctrl-K) searches messages too. After the commands
+  it lists the five newest messages in this chat that match, each with a
+  highlighted snippet, the sender and the date. The last row reads "See all
+  in Search" and opens the Search view with your query. The palette
+  understands the same operators as Search.
+- Search operators show as chips under the box ("From Ann", "Has photo",
+  "Since Jun 2021", "Not "spoiler""). Click a chip, or press Backspace /
+  Delete on it, to remove that operator from your query.
+- Typing `from:` opens a list of people to pick from. It matches display
+  names and their aliases (the name set in setup, a name set in People, and
+  "User N"). Ignored people never appear. Use the arrow keys and Enter / Tab
+  to pick a name.
+- New operators: `has:photo`, `has:video`, `has:file` and `is:pinned`
+  (bookmarked messages). `has:link` and `has:reacts` join `has:media`.
+- Keyboard navigation in the results. Once a result has focus, j / ↓ and
+  k / ↑ move to the next or previous result, Enter opens it, c shows its
+  context and b bookmarks it. The keys do nothing while you type in the box,
+  and a screen reader hears "Result n of N" once you stop.
+
+### Changed (search)
+
+- Operators work with accented and non-Latin names and words (`from:Zoë`,
+  `-café`). An operator no longer needs a space after it, and an operator
+  you're still typing waits until you finish. `from:` matches a full name, the
+  start of a name or word, or any part of a name, and an ambiguous `from:`
+  you're still typing shows suggestions instead of guessing. A `from:` that
+  names nobody says "No one named …" instead of being ignored.
+- Quoted phrases stay exact in Fuzzy mode: a close match must still contain
+  every `"quoted phrase"` word for word.
+- Search finds the text a link shows: its full and display URLs, not just
+  the t.co short link. The word cloud and the keyword statistics are
+  unchanged.
+- The Timeline's "Search" button opens the Search view with the box focused,
+  the same as `/`. The command palette is still Cmd/Ctrl-K.
+
 ### Added (importing and setup)
 
 - Pick the unzipped archive folder (or any file in it) instead of three
