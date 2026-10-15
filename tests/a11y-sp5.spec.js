@@ -440,3 +440,52 @@ test.describe("UX-19: desktop search is unchanged", () => {
     expect(await page.evaluate(() => !!document.activeElement.closest("#s-filters"))).toBe(false);
   });
 });
+
+test.describe("UX-27: empty states say what to do next", () => {
+  const PLAIN = { conversations: [conv("A", "Alpha", LIST.map((m) => ({ i: m.i, s: m.s, t: m.t, x: m.x || "text" })))] };
+  const cta = (page, v) => page.locator("#view-" + v + " .empty").getByRole("button");
+  const onView = (page, v) => expect(page.locator('.nav-item[data-view="' + v + '"]')).toHaveAttribute("aria-current", "page");
+
+  test("Capsule with nothing on this day → Open Timeline", async ({ page }) => {
+    await page.clock.setFixedTime(new Date("2025-07-04T12:00:00Z"));
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "capsule" } });
+    await expect(page.locator("#view-capsule .empty .hint")).toContainText(/earlier years/);
+    await cta(page, "capsule").click();
+    await onView(page, "timeline");
+  });
+
+  test("Pinned with no bookmarks explains ☆ / ⋯ → Open Timeline", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "pins" } });
+    await expect(page.locator("#view-pins .empty .hint")).toContainText("☆");
+    await expect(page.locator("#view-pins .empty .hint")).toContainText("⋯");
+    await cta(page, "pins").click();
+    await onView(page, "timeline");
+  });
+
+  test("Gallery with no media → Search messages", async ({ page }) => {
+    await bootViewer(page, PLAIN, { ls: { "gca.lastView": "gallery" } });
+    await cta(page, "gallery").click();
+    await onView(page, "search");
+  });
+
+  test("Hall of Fame with no reactions → Open Timeline", async ({ page }) => {
+    await bootViewer(page, PLAIN, { ls: { "gca.lastView": "hof" } });
+    await cta(page, "hof").click();
+    await onView(page, "timeline");
+  });
+
+  test("Search with no results → Clear all filters; grid with no media → Switch to List", async ({ page }) => {
+    await bootViewer(page, DATA);
+    await page.locator("#s-input").fill("zzqxnothing");
+    const b = page.locator("#s-list .empty").getByRole("button", { name: "Clear search & filters" });
+    await expect(b).toBeVisible();
+    await b.click();
+    await expect(page.locator("#s-input")).toHaveValue("");
+    await expect(page.locator("#s-list .msg").first()).toBeVisible();
+    await page.locator("#s-input").fill("third");
+    await page.locator('#f-viewtoggle button[data-mode="grid"]').click();
+    await page.locator("#s-list .empty").getByRole("button", { name: "Switch to List" }).click();
+    await expect(page.locator("#s-list .msg").first()).toContainText("third message");
+    await expect(page.locator('#f-viewtoggle button[data-mode="list"]')).toHaveClass(/sel/);
+  });
+});

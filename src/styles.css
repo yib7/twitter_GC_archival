@@ -521,7 +521,9 @@ button, input, select, textarea { font-family: inherit; }
 .empty { text-align: center; color: var(--text-dim); padding: 80px 20px; }
 .empty .big { font-size: 40px; margin-bottom: 14px; opacity: 0.5; }
 .empty .big svg { width: 46px; height: 46px; stroke-width: 1.5; }
-.empty .hint { font-size: 13px; margin-top: 8px; }
+.empty .hint { font-size: 13px; margin-top: 8px; max-width: 44ch; margin-inline: auto; }
+.empty .empty-title { color: var(--text); font-weight: 600; }
+.empty .empty-cta { margin-top: 16px; }
 
 /* sentinel */
 .sentinel { height: 1px; }

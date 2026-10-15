@@ -1225,6 +1225,14 @@ function asButton(node, go, label) {
   cardActivation(node, go);
   return node;
 }
+// UX-27: an empty state says what happened, what to do, and offers the next
+// step as a button (cta = [label, fn]).
+function emptyState(icon, title, hint, cta) {
+  const d = el("div", "empty", '<div class="big">' + cmdIco(icon) + '</div><div class="empty-title">' + esc(title) + "</div>" +
+    (hint ? '<div class="hint">' + esc(hint) + "</div>" : ""));
+  if (cta) { const b = btnEl("btn primary sm empty-cta", esc(cta[0])); b.onclick = cta[1]; d.appendChild(b); }
+  return d;
+}
 // A real <button> with a type, an accessible name and optional pressed state.
 function btnEl(cls, html, label, pressed) {
   const b = el("button", cls, html);
@@ -1835,8 +1843,10 @@ function runSearch() {
   if (!out.length) {
     sEls.list.className = "list";
     sEls.list.appendChild(matched && F.grid
-      ? el("div", "empty", '<div class="big">' + cmdIco("camera") + '</div><div>No media in these results.</div><div class="hint">' + fmtNum(matched) + (matched === 1 ? " message matches" : " messages match") + ' — switch to List to see ' + (matched === 1 ? "it" : "them") + '.</div>')
-      : el("div", "empty", '<div class="big">' + cmdIco("search") + '</div><div>No messages match your search.</div><div class="hint">Try fewer words or clear a filter.</div>'));
+      ? emptyState("camera", "No media in these results.", fmtNum(matched) + (matched === 1 ? " message matches" : " messages match") + " — switch to List to see " + (matched === 1 ? "it" : "them") + ".",
+        ["Switch to List", () => sEls.viewtoggle.querySelector('button[data-mode="list"]').click()])
+      : emptyState("search", "No messages match your search.", "Try fewer words, switch to Fuzzy, or clear the filters.",
+        ["Clear search & filters", () => { clearAllFilters(); if (matchMedia("(pointer: fine)").matches) sEls.input.focus(); }]));
     return;
   }
   appendResultsPage();
@@ -4019,7 +4029,9 @@ function renderCapsule() {
   
   const years = Object.keys(matchesByYear).sort((a,b) => b - a);
   if (years.length === 0) {
-    body.innerHTML = `<div class="empty"><div class="big">${cmdIco("clock")}</div><div>No messages found on this day in past years.</div></div>`;
+    body.appendChild(emptyState("clock", "Nothing was said on " + DAY.formatToParts(Date.now()).filter((p) => p.type === "month" || p.type === "day").map((p) => p.value).join(" ") + " in earlier years.",
+      "The capsule shows messages sent on today's date in earlier years — check back another day, or read the whole story.",
+      ["Open Timeline", () => setView("timeline")]));
     return;
   }
   
@@ -4073,7 +4085,8 @@ function renderGallery() {
     galleryState.items = items.reverse();
     // AN-20: no media → say so, not a blank grid.
     if (!items.length) {
-      galEls.list.innerHTML = '<div class="empty"><div class="big">' + cmdIco("gallery") + '</div><div>No photos or videos in this conversation yet.</div></div>';
+      galEls.list.appendChild(emptyState("gallery", "No photos or videos in this conversation yet.",
+        "Shared photos and videos collect here. Links and text are in Search.", ["Search messages", () => setView("search")]));
     }
 
     galleryObserver = new IntersectionObserver((entries) => {
@@ -4191,7 +4204,9 @@ function renderHallOfFame() {
   v.querySelectorAll(".hof-yr").forEach((b) => { b.onclick = () => { hofYear = b.dataset.yr; renderHallOfFame(); }; });
 
   if (!items.length) {
-    v.querySelector("#hof-list").appendChild(el("div", "empty", '<div class="big">' + cmdIco("hof") + '</div><div>No reacted messages in this period.</div>'));
+    v.querySelector("#hof-list").appendChild(hofYear !== "all"
+      ? emptyState("hof", "No reacted messages in " + hofYear + ".", "Try another year, or the whole chat.", ["Show all time", () => { hofYear = "all"; renderHallOfFame(); }])
+      : emptyState("hof", "No reacted messages yet.", "Messages people react to are ranked here, most reactions first.", ["Open Timeline", () => setView("timeline")]));
     return;
   }
 
@@ -4643,7 +4658,8 @@ function renderPins() {
 
   const list = v.querySelector("#pins-list");
   if (!total) {
-    list.appendChild(el("div", "empty", '<div class="big">' + cmdIco("pins") + '</div><div>No bookmarks yet.</div><div class="hint">Hover any message and tap the ☆ to pin it here.</div>'));
+    list.appendChild(emptyState("pins", "No bookmarks yet.",
+      "In the Timeline, hover a message (or tap its ⋯ on a phone) and choose ☆ to keep it here.", ["Open Timeline", () => setView("timeline")]));
     if (hidden > 0) list.appendChild(hiddenNote());
     return;
   }
