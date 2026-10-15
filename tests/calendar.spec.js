@@ -203,3 +203,39 @@ test.describe("calendar at 390px on a touch screen", () => {
     await expect(page.locator("#tab-more")).toBeFocused();
   });
 });
+
+// Fix round 1: with a corrupt outlier the span tops 60 years and only years
+// with messages are listed. Stepping out of a listed year (by day, by month,
+// or in the month strip) skips to the nearest listed year in that direction,
+// so the year strip always keeps a selected button and a Tab stop.
+test("an outlier year: stepping between listed years skips the empty span and keeps a Tab stop", async ({ page }) => {
+  const L = [{ i: "x0", s: "u1", t: Date.parse("1905-03-01T12:00:00Z"), x: "corrupt" }].concat(LIST.map((m, k) => Object.assign({}, m, { i: "y" + k })));
+  await bootViewer(page, { conversations: [conv("A", "Alpha", L)] }, { ls: UTC });
+  await openCal(page);   // June 1, 2023
+  await expect(dlg(page).locator(".cal-yr")).toHaveText(["1905", "2022", "2023"]);
+  const focused = () => page.evaluate(() => document.activeElement.getAttribute("aria-label"));
+  const yearStops = async () => ({
+    pressed: await dlg(page).locator(".cal-yr[aria-pressed='true']").allTextContents(),
+    stops: await dlg(page).locator(".cal-yr[tabindex='0']").allTextContents(),
+  });
+  for (let k = 0; k < 17; k++) await page.keyboard.press("PageUp");   // → Jan 1, 2022
+  expect(await focused()).toMatch(/^Saturday, January 1, 2022/);
+  await page.keyboard.press("ArrowLeft");                             // Dec 31, 2021 isn't listed → Dec 31, 1905
+  expect(await focused()).toMatch(/^Sunday, December 31, 1905/);
+  expect(await yearStops()).toEqual({ pressed: ["1905"], stops: ["1905"] });
+  await page.keyboard.press("PageDown");                              // → the next listed year, January 2022
+  expect(await focused()).toMatch(/^Monday, January 31, 2022/);
+  await page.keyboard.press("PageUp");
+  expect(await focused()).toMatch(/^Sunday, December 31, 1905/);
+  await page.keyboard.press("ArrowDown");                             // a week on, still skipping the gap
+  expect(await focused()).toMatch(/^Friday, January 7, 2022/);
+  expect(await yearStops()).toEqual({ pressed: ["2022"], stops: ["2022"] });
+  // the month strip skips the gap too
+  await dlg(page).locator(".cal-mo[aria-pressed='true']").focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(dlg(page).locator(".cal-mo[aria-pressed='true']")).toHaveAccessibleName("December 1905: no messages");
+  await expect(dlg(page).locator(".cal-mo[aria-pressed='true']")).toBeFocused();
+  expect(await yearStops()).toEqual({ pressed: ["1905"], stops: ["1905"] });
+  await page.keyboard.press("ArrowRight");
+  await expect(dlg(page).locator(".cal-mo[aria-pressed='true']")).toHaveAccessibleName("January 2022: no messages");
+});

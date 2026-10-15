@@ -5464,8 +5464,22 @@ function openCalendar() {
     if (focusSel) { const f = modal.querySelector(focusSel); if (f) f.focus(); }
   }
   // Move the selected day; re-draws only when the month changes.
+  // With an outlier only years with messages are listed: a step that leaves a
+  // listed year lands in the nearest listed year in that direction (its
+  // December going back, its January going forward, same day clamped), so the
+  // year strip always has a selected button and a Tab stop.
+  const dimOf = (y, mo) => new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+  function snapListed(dn, dir) {
+    const { y, d } = ymdOf(dn);
+    if (!dir || C.yearList.indexOf(y) >= 0) return dn;
+    const ys = C.yearList.filter((x) => (dir < 0 ? x < y : x > y));
+    if (!ys.length) return st.dn;
+    const ny = dir < 0 ? ys[ys.length - 1] : ys[0], nmo = dir < 0 ? 11 : 0;
+    return dnOf(ny, nmo, Math.min(d, dimOf(ny, nmo)));
+  }
   function moveDay(dn) {
     dn = Math.max(firstDn, Math.min(lastDn, dn));
+    dn = snapListed(dn, Math.sign(dn - st.dn));
     const a = ymdOf(st.dn), b = ymdOf(dn);
     st.dn = dn;
     if (a.y !== b.y || a.mo !== b.mo) draw();
@@ -5498,8 +5512,9 @@ function openCalendar() {
   function selectMonth(y, mo, focus) {
     const t = new Date(Date.UTC(y, mo, 1));
     if (t.getUTCFullYear() < C.yearList[0] || t.getUTCFullYear() > C.yearList[C.yearList.length - 1]) return;
-    const d = Math.min(ymdOf(st.dn).d, new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate());
-    st.dn = dnOf(t.getUTCFullYear(), t.getUTCMonth(), d);
+    const d = Math.min(ymdOf(st.dn).d, dimOf(t.getUTCFullYear(), t.getUTCMonth()));
+    const dn = dnOf(t.getUTCFullYear(), t.getUTCMonth(), d);
+    st.dn = snapListed(dn, Math.sign(dn - st.dn));
     draw(focus ? '.cal-mo[aria-pressed="true"]' : null);
   }
   monthsEl.addEventListener("click", (e) => {
