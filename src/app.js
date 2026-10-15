@@ -402,13 +402,17 @@ function validateSettings(raw, base) {
   return GCAShared.validateSettings(raw, base ? Object.assign({ base }, SETTINGS_RULES) : SETTINGS_RULES);
 }
 
+// The toast timers (see Toast below) are declared before the first settings
+// write: a failed save at boot shows a toast, which must not find them uninitialised.
+let toastT = null, srT = 0;
 let settings = loadSettings();
 // persist the one-time "unmarked UTC -> local" migration, so the stored
 // blob matches what is in effect (and the rule never has to run again).
+// A failed write leaves it unsaved; it applies again on the next load.
 (function persistTzMigration() {
   let raw = null;
   try { raw = JSON.parse(localStorage.getItem("gca.settings") || "null"); } catch (e) { /* unreadable: nothing to migrate */ }
-  if (isPlainObj(raw) && raw.timezone === "UTC" && raw.tzExplicit !== true) saveSettings();
+  try { if (isPlainObj(raw) && raw.timezone === "UTC" && raw.tzExplicit !== true) saveSettings(); } catch (e) { /* not saved this time */ }
 })();
 migratePfpsKey();
 initDateFormatters();
@@ -1477,11 +1481,10 @@ function lbKeyHandler(e) {
 }
 
 /* ---- Toast --------------------------------------------------------------- */
-let toastT = null;
+// (toastT and srT are declared near the top, before boot can call toast.)
 // the visible toast is decoration for sighted users; the message is
 // announced through the persistent #sr-status live region (index.html). It is
 // cleared first so the same text twice in a row is announced again.
-let srT = 0;
 function announce(msg) {
   const live = document.getElementById("sr-status");
   if (!live) return;
