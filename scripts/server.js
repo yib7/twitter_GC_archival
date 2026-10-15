@@ -1526,6 +1526,12 @@ server.on("error", (err) => {
 // copyMediaFlat() in-process. `server.on("error", ...)` above is a harmless
 // registration either way, so it's left outside the guard.
 if (require.main === module) {
+  // A bad GCA_PORT makes listen() throw synchronously (the "error" handler
+  // above never sees it), so check it first and say so in one line.
+  if (!Number.isInteger(PORT) || PORT < 0 || PORT > 65535) {
+    console.error("GCA_PORT must be a number from 1 to 65535 (got " + JSON.stringify(process.env.GCA_PORT) + ").");
+    process.exit(1);
+  }
   server.listen(PORT, HOST, () => {
     // GCA_PORT=0 asks the OS to pick a free port; server.address().port is the
     // ONLY way to learn what it actually bound. Reassign PORT here, before the

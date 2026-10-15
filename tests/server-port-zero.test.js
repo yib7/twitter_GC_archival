@@ -1,7 +1,7 @@
 require("./_real-data-guard.js");   // refuse to run outside a clean checkout — required first, consistently
 const { test, after } = require("node:test");
 const assert = require("node:assert");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -49,3 +49,22 @@ test("GCA_PORT=0 makes the server bind an OS-assigned free port, print it, and a
   const body = await res.json();
   assert.equal(body.ok, true);
 });
+
+// An invalid GCA_PORT is a setting the user typed (.env.example invites it):
+// it gets one plain line and exit code 1, never a Node stack trace.
+for (const bad of ["abc", "70000", "-1", "80.5"]) {
+  test("GCA_PORT=" + bad + " stops the server with one plain line and no stack trace", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "gca-badport-"));
+    try {
+      const r = spawnSync(process.execPath, [path.join(__dirname, "..", "scripts", "server.js")], {
+        cwd: path.join(__dirname, ".."), encoding: "utf8", timeout: 10000,
+        env: Object.assign({}, process.env, { GCA_PERSONAL: dir, GCA_PORT: bad, GCA_NO_ROOT_FALLBACK: "1" }),
+      });
+      assert.equal(r.status, 1, r.stdout + r.stderr);
+      assert.match(r.stderr, /GCA_PORT/);
+      assert.ok(r.stderr.includes(JSON.stringify(bad)), "the line quotes the value: " + r.stderr);
+      assert.doesNotMatch(r.stderr, /^\s+at /m, "no stack frames");
+      assert.doesNotMatch(r.stdout, /running at/);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  });
+}
