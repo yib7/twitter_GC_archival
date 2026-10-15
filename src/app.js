@@ -696,7 +696,7 @@ function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 // UX-17: the mobile More sheet (persistent markup, a layer only while .on) and
 // the onboarding card join the same stack; a layer that isn't simply removed
 // supplies its own box._close().
-const MODAL_SEL = ".sheet.on, .filters.open, .onboard, .cmdk, .ctx-modal, .kb-modal, .lightbox, .profile-modal";
+const MODAL_SEL = ".sheet.on, .filters.open, .onboard, .cmdk, .ctx-modal, .kb-modal, .cal-modal, .lightbox, .profile-modal";
 function topModal() {
   const all = document.querySelectorAll(MODAL_SEL);
   return all.length ? all[all.length - 1] : null;
@@ -2275,9 +2275,9 @@ function ensureTimelineShell() {
     </div>
     <button class="tl-latest" id="tl-latest" type="button" aria-label="Jump to latest message" title="Jump to latest (End)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13M6 12l6 6 6-6"/></svg><span>Latest</span></button>
   `;
-  // Both route through the command palette: it accepts YYYY-MM-DD dates
-  // directly (dateCmd), so it doubles as the jump-to-date UI.
-  v.querySelector("#tl-jumpdate").onclick = () => openCommandPalette();
+  // SP8: "Jump to date" opens the calendar (which has its own typed-date
+  // box); "Search" opens the command palette, which also takes dates.
+  v.querySelector("#tl-jumpdate").onclick = () => openCalendar();
   v.querySelector("#tl-search").onclick = () => openCommandPalette();
   tlEls = { scroll: v.querySelector("#tl-scroll"), list: v.querySelector("#tl-list") };
   v.querySelector("#tl-latest").onclick = jumpToLatest;
@@ -5286,6 +5286,220 @@ function jumpToPeriod(p) {
 }
 
 /* ===========================================================================
+   CALENDAR — year / month scrubber + month heatmap (SP8)
+   ======================================================================== */
+/* The Timeline's "Jump to date" (and the palette's "Browse by date") opens a
+   dialog to browse and jump through history:
+     - a typed-date box (GCAShared.parseJumpDate, like the palette);
+     - a year strip and a month strip whose bars are message volume — the
+       year / month scrubber; arrows move the selection (by month across years
+       in the month strip), which re-draws the day grid;
+     - a month heatmap: one named button per day ("Saturday, January 7, 2023:
+       7 messages"), shaded by volume (lv0 none … lv4 busiest, sqrt scale
+       against the archive's busiest day). Arrow keys move by day / week,
+       Page Up / Down by month, Home / End to the month's first / last day,
+       Enter jumps (closing the dialog) through jumpToPeriod, which says
+       honestly where it landed.
+   Everything comes from timeAgg() — the cached per-conversation time index,
+   so days are the CONFIGURED zone's days (incl. "local") and opening it costs
+   no per-message work. Roving tabindex: each strip / grid is one Tab stop. */
+const MON_LONG = GCAShared.MONTH_NAMES;
+const DOW_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+// zoned day number <-> calendar fields (pure UTC arithmetic on day numbers)
+const dnOf = (y, mo, d) => Math.floor(Date.UTC(y, mo, d) / DAY_MS);
+function ymdOf(dn) { const w = new Date(dn * DAY_MS); return { y: w.getUTCFullYear(), mo: w.getUTCMonth(), d: w.getUTCDate(), dow: w.getUTCDay() }; }
+function calData() {
+  const agg = timeAgg();
+  if (!agg.cal) {
+    const months = new Map();   // year*12+month -> count
+    let maxMonth = 0;
+    for (const [k, c] of agg.monthArr) {
+      const y = +k.slice(0, 4), mo = +k.slice(5, 7) - 1;
+      months.set(y * 12 + mo, c);
+      if (c > maxMonth) maxMonth = c;
+    }
+    let maxDay = 0;
+    for (let k = 0; k < agg.dayCounts.length; k++) if (agg.dayCounts[k] > maxDay) maxDay = agg.dayCounts[k];
+    const years = new Map();
+    for (const [mk, c] of months) years.set(Math.floor(mk / 12), (years.get(Math.floor(mk / 12)) || 0) + c);
+    let ys = [...years.keys()].sort((a, b) => a - b);
+    // A corrupt outlier timestamp can stretch the span to centuries: list
+    // every year in a normal span, only the years with messages otherwise.
+    if (ys.length && ys[ys.length - 1] - ys[0] <= 60) { const all = []; for (let y = ys[0]; y <= ys[ys.length - 1]; y++) all.push(y); ys = all; }
+    else ys = ys.filter((y) => years.get(y));
+    agg.cal = { months, maxMonth, maxDay, years, yearList: ys };
+  }
+  return agg.cal;
+}
+function dayCount(dn) {
+  const agg = timeAgg(), k = dn - agg.dayMin;
+  return k >= 0 && k < agg.dayCounts.length ? agg.dayCounts[k] : 0;
+}
+const countLbl = (n) => (n ? plural(n, "message") : "no messages");
+function openCalendar() {
+  if (!N) return;
+  const prev = document.querySelector(".cal-modal");
+  if (prev) { prev.remove(); restoreFocus(prev); }
+  closeMsgActs();
+  const C = calData(), TI = timeIndex();
+  // Start on the day being read in the Timeline, else the newest message's day.
+  let i0 = N - 1;
+  if (curView === "timeline") { const p = timelineFirstVisible(); if (p && !p.end) i0 = p.idx; }
+  const st = { dn: TI.day[i0] };
+  const firstDn = dnOf(C.yearList[0], 0, 1), lastDn = dnOf(C.yearList[C.yearList.length - 1], 11, 31);
+  const modal = el("div", "cal-modal");
+  modal.innerHTML = `<div class="cal-card">
+      <div class="cal-head"><h2 class="cal-title" id="cal-title">Jump to date</h2><button class="cal-close" type="button" aria-label="Close">✕</button></div>
+      <form class="cal-form" novalidate><input class="cal-input" type="text" aria-label="Date to jump to" placeholder="2021-06-14, June 2021, Jan 7 2024" autocomplete="off" spellcheck="false"><button class="btn primary sm cal-go" type="submit">Go</button></form>
+      <div class="cal-msg" role="status"></div>
+      <div class="cal-years" role="group" aria-label="Year"></div>
+      <div class="cal-months" role="group" aria-label="Month"></div>
+      <div class="cal-dow" aria-hidden="true">${DOW_LONG.map((d) => "<span>" + d.slice(0, 2) + "</span>").join("")}</div>
+      <div class="cal-days" role="group" aria-describedby="cal-hint"></div>
+      <div class="cal-hint" id="cal-hint">Arrow keys move by day · Page Up / Down by month · Enter jumps</div>
+      <div class="cal-foot"><span class="cal-range"></span><button class="btn primary sm cal-month-go" type="button"></button></div>
+    </div>`;
+  const $ = (q) => modal.querySelector(q);
+  const yearsEl = $(".cal-years"), monthsEl = $(".cal-months"), daysEl = $(".cal-days"), msgEl = $(".cal-msg"), monthGo = $(".cal-month-go");
+  $(".cal-range").textContent = "Messages from " + dShort.format(MSGS[0].t) + " to " + dShort.format(MSGS[N - 1].t);
+  const close = () => { modal.remove(); restoreFocus(modal); };
+  const go = (p) => { modal.remove(); jumpToPeriod(p); };
+  const periodOf = (key) => GCAShared.parseJumpDate(key, CLOCK);
+  const p2 = (n) => String(n).padStart(2, "0");
+
+  function drawYears() {
+    const { y } = ymdOf(st.dn);
+    yearsEl.replaceChildren(...C.yearList.map((yy) => {
+      const b = el("button", "cal-yr"); b.type = "button"; b.textContent = String(yy);
+      b.dataset.y = yy; b.setAttribute("aria-pressed", yy === y ? "true" : "false");
+      b.setAttribute("aria-label", yy + ": " + countLbl(C.years.get(yy) || 0));
+      b.tabIndex = yy === y ? 0 : -1;
+      return b;
+    }));
+    const on = yearsEl.querySelector('[aria-pressed="true"]');
+    if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  function drawMonths() {
+    const { y, mo } = ymdOf(st.dn);
+    monthsEl.replaceChildren(...MON_LONG.map((name, m) => {
+      const c = C.months.get(y * 12 + m) || 0;
+      const b = el("button", "cal-mo"); b.type = "button"; b.dataset.mo = m;
+      b.setAttribute("aria-pressed", m === mo ? "true" : "false");
+      b.setAttribute("aria-label", name + " " + y + ": " + countLbl(c));
+      b.tabIndex = m === mo ? 0 : -1;
+      const bar = el("span", "cal-bar"); bar.setAttribute("aria-hidden", "true");
+      if (c) bar.style.setProperty("--h", Math.max(8, Math.round(100 * Math.sqrt(c / C.maxMonth))) + "%");
+      if (!c) bar.classList.add("cal-bar-0");
+      const lb = el("span", "cal-mo-lbl"); lb.textContent = name.slice(0, 3);
+      b.append(bar, lb);
+      return b;
+    }));
+    monthGo.textContent = "Jump to " + MON_LONG[mo] + " " + y;
+    daysEl.setAttribute("aria-label", MON_LONG[mo] + " " + y);
+  }
+  function drawDays() {
+    const { y, mo } = ymdOf(st.dn);
+    const first = dnOf(y, mo, 1), dim = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    const cells = [];
+    for (let k = 0; k < ymdOf(first).dow; k++) { const pad = el("span", "cal-pad"); pad.setAttribute("aria-hidden", "true"); cells.push(pad); }
+    for (let d = 1; d <= dim; d++) {
+      const dn = first + d - 1, c = dayCount(dn);
+      const lv = c ? Math.max(1, Math.min(4, Math.ceil(4 * Math.sqrt(c / C.maxDay)))) : 0;
+      const b = el("button", "cal-d lv" + lv); b.type = "button"; b.dataset.dn = dn; b.textContent = String(d);
+      b.setAttribute("aria-label", DOW_LONG[ymdOf(dn).dow] + ", " + MON_LONG[mo] + " " + d + ", " + y + ": " + countLbl(c));
+      b.tabIndex = dn === st.dn ? 0 : -1;
+      cells.push(b);
+    }
+    daysEl.replaceChildren(...cells);
+  }
+  function draw(focusSel) {
+    drawYears(); drawMonths(); drawDays();
+    if (focusSel) { const f = modal.querySelector(focusSel); if (f) f.focus(); }
+  }
+  // Move the selected day; re-draws only when the month changes.
+  function moveDay(dn) {
+    dn = Math.max(firstDn, Math.min(lastDn, dn));
+    const a = ymdOf(st.dn), b = ymdOf(dn);
+    st.dn = dn;
+    if (a.y !== b.y || a.mo !== b.mo) draw();
+    daysEl.querySelectorAll(".cal-d").forEach((n) => { n.tabIndex = +n.dataset.dn === dn ? 0 : -1; });
+    const f = daysEl.querySelector('[data-dn="' + dn + '"]'); if (f) f.focus();
+  }
+  // Same day-of-month in another month, clamped to that month's length.
+  function shiftMonth(dn, k) {
+    const { y, mo, d } = ymdOf(dn);
+    const t = new Date(Date.UTC(y, mo + k, 1));
+    const dim = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate();
+    return dnOf(t.getUTCFullYear(), t.getUTCMonth(), Math.min(d, dim));
+  }
+  const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
+  daysEl.addEventListener("keydown", (e) => {
+    if (!e.target.classList.contains("cal-d")) return;
+    const { y, mo } = ymdOf(st.dn);
+    const delta = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[e.key];
+    if (delta) { stop(e); moveDay(st.dn + delta); }
+    else if (e.key === "PageUp" || e.key === "PageDown") { stop(e); moveDay(shiftMonth(st.dn, e.key === "PageUp" ? -1 : 1)); }
+    else if (e.key === "Home") { stop(e); moveDay(dnOf(y, mo, 1)); }
+    else if (e.key === "End") { stop(e); moveDay(dnOf(y, mo + 1, 0)); }
+  });
+  daysEl.addEventListener("click", (e) => {
+    const b = e.target.closest(".cal-d"); if (!b) return;
+    const { y, mo, d } = ymdOf(+b.dataset.dn);
+    go(periodOf(y + "-" + p2(mo + 1) + "-" + p2(d)));
+  });
+  // Month strip: select (re-draws the grid); arrows move by month, across years.
+  function selectMonth(y, mo, focus) {
+    const t = new Date(Date.UTC(y, mo, 1));
+    if (t.getUTCFullYear() < C.yearList[0] || t.getUTCFullYear() > C.yearList[C.yearList.length - 1]) return;
+    const d = Math.min(ymdOf(st.dn).d, new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate());
+    st.dn = dnOf(t.getUTCFullYear(), t.getUTCMonth(), d);
+    draw(focus ? '.cal-mo[aria-pressed="true"]' : null);
+  }
+  monthsEl.addEventListener("click", (e) => {
+    const b = e.target.closest(".cal-mo"); if (!b) return;
+    selectMonth(ymdOf(st.dn).y, +b.dataset.mo, true);
+  });
+  monthsEl.addEventListener("keydown", (e) => {
+    const { y, mo } = ymdOf(st.dn);
+    const delta = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1 }[e.key];
+    if (delta) { stop(e); selectMonth(y, mo + delta, true); }
+    else if (e.key === "Home") { stop(e); selectMonth(y, 0, true); }
+    else if (e.key === "End") { stop(e); selectMonth(y, 11, true); }
+  });
+  // Year strip: select a year (same month, clamped); arrows step through the list.
+  function selectYear(yy) {
+    if (yy == null) return;
+    const { mo, d } = ymdOf(st.dn);
+    st.dn = dnOf(yy, mo, Math.min(d, new Date(Date.UTC(yy, mo + 1, 0)).getUTCDate()));
+    draw('.cal-yr[aria-pressed="true"]');
+  }
+  yearsEl.addEventListener("click", (e) => { const b = e.target.closest(".cal-yr"); if (b) selectYear(+b.dataset.y); });
+  yearsEl.addEventListener("keydown", (e) => {
+    const k = C.yearList.indexOf(ymdOf(st.dn).y);
+    const to = { ArrowLeft: k - 1, ArrowRight: k + 1, ArrowUp: k - 1, ArrowDown: k + 1, Home: 0, End: C.yearList.length - 1 }[e.key];
+    if (to == null) return;
+    stop(e);
+    selectYear(C.yearList[Math.max(0, Math.min(C.yearList.length - 1, to))]);
+  });
+  monthGo.onclick = () => { const { y, mo } = ymdOf(st.dn); go(periodOf(y + "-" + p2(mo + 1))); };
+  $(".cal-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const raw = $(".cal-input").value.trim();
+    const p = GCAShared.parseJumpDate(raw, CLOCK);
+    if (!p) msgEl.textContent = "Not a date. " + DATE_HINT;
+    else if (p.error) msgEl.textContent = "No such date: " + raw;
+    else go(p);
+  });
+  $(".cal-close").onclick = close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) close(); });
+  modal._close = close;
+  draw();
+  document.body.appendChild(modal);
+  applyDialog(modal, null, { initial: '.cal-d[tabindex="0"]' });
+  modal.setAttribute("aria-labelledby", "cal-title");
+}
+
+/* ===========================================================================
    COMMAND PALETTE (Ctrl/Cmd+K)
    ======================================================================== */
 // Line-icon set — symbols from the mockup's IC map (mock-cmdk.html) plus a few
@@ -5341,6 +5555,7 @@ function buildCommands() {
   ];
   views.forEach(([v, ico, label, sub]) => cmds.push({ ico, label, sub, hint: "View", run: () => setView(v) }));
   cmds.push({ ico: "random", label: "Random quote", sub: "Jump somewhere unexpected", hint: "Action", run: () => jumpTo(Math.floor(Math.random() * N)) });
+  cmds.push({ ico: "calendar", label: "Browse by date (calendar)", sub: "Message volume by year, month and day", hint: "Action", run: () => openCalendar() });
   cmds.push({ ico: "keyboard", label: "Keyboard shortcuts", sub: "Every key, at a glance", hint: "Help", run: () => toggleKeyboardHelp() });
   cmds.push({ ico: "accent", label: "Cycle accent color", sub: "Rotate through the accent palette", hint: "Theme", run: () => {
     const i = (ACCENTS.indexOf(settings.accent) + 1) % ACCENTS.length;

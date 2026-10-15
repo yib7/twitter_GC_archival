@@ -364,7 +364,7 @@ test.describe("UX-14: every icon-only control has a name", () => {
     expect(loose).toEqual([]);
   });
 
-  test("lightbox, profile, context, keyboard-help and palette overlays", async ({ page }) => {
+  test("lightbox, profile, context, keyboard-help, calendar and palette overlays", async ({ page }) => {
     await bootViewer(page, RICH_DATA);
     const bad = [];
     await go(page, "gallery");
@@ -385,6 +385,10 @@ test.describe("UX-14: every icon-only control has a name", () => {
     await page.keyboard.press("?");
     await expect(page.locator(".kb-modal")).toBeVisible();
     bad.push(...(await unnamed(page, ".kb-modal")).map((d) => "kb: " + d));
+    await page.keyboard.press("Escape");
+    await page.locator("#tl-jumpdate").click();
+    await expect(page.locator(".cal-modal")).toBeVisible();
+    bad.push(...(await unnamed(page, ".cal-modal")).map((d) => "calendar: " + d));
     await page.keyboard.press("Escape");
     await page.keyboard.press("Control+k");
     await expect(page.locator(".cmdk")).toBeVisible();
@@ -792,6 +796,16 @@ test.describe("Contrast of rendered text, every view × theme", () => {
         for (const f of await contrastFailures(page, "#view-" + v)) bad.push(v + ": " + f);
       }
       for (const f of await contrastFailures(page, ".sidebar")) bad.push("sidebar: " + f);
+      // SP8: the Timeline's "Jump to latest" pill (shown here regardless of
+      // the scroll position) and the calendar dialog
+      await go(page, "timeline");
+      await page.evaluate(() => { document.getElementById("tl-latest").hidden = false; });
+      for (const f of await contrastFailures(page, "#tl-latest")) bad.push("latest: " + f);
+      await page.evaluate(() => { document.getElementById("tl-latest").hidden = true; });
+      await page.locator("#tl-jumpdate").click();
+      await expect(page.locator(".cal-modal .cal-d").first()).toBeVisible();
+      for (const f of await contrastFailures(page, ".cal-modal")) bad.push("calendar: " + f);
+      await page.keyboard.press("Escape");
       // every Wrapped slide, not just the first: each has its own backdrop wash
       await go(page, "wrapped");
       const slides = await page.locator("#wr-dots button").count();

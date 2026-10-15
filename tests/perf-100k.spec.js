@@ -41,7 +41,7 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 const MULT = Number(process.env.GCA_PERF_MULT) || (process.env.CI ? 2 : 1);
 const RATIO = { statsCold: 14, convSwitchStats: 14 };
 const THROTTLE = Number(process.env.GCA_PERF_CPU_THROTTLE) || 1;
-const BUDGET = { statsFirst: 400, convSwitchStats: 400, wrappedFirst: 400, capsule: 400, fuzzyKey: 120, exactKey: 120, forcedFuzzy: 400 };
+const BUDGET = { statsFirst: 400, convSwitchStats: 400, wrappedFirst: 400, capsule: 400, fuzzyKey: 120, exactKey: 120, forcedFuzzy: 400, calendarOpen: 120 };
 const BIG = "910000000000000001", SIDE = "910000000000000002";
 
 test.use({ timezoneId: "America/New_York" });
@@ -159,6 +159,19 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   R.capsule = [await timed(page, nav("capsule")), await timed(page, nav("capsule"))];
   await expect(page.locator("#capsule-body")).toBeVisible();
 
+  // --- SP8 calendar: open the Timeline's "Jump to date" heatmap right after a
+  // conversation switch (fresh time index / aggregate), best of 2.
+  R.calendarOpen = [];
+  for (let k = 0; k < 2; k++) {
+    await timed(page, nav("timeline"));
+    await timed(page, pickConv(SIDE));
+    await timed(page, pickConv(BIG));
+    R.calendarOpen.push(await timed(page, 'document.getElementById("tl-jumpdate").click()'));
+    await expect(page.locator(".cal-modal .cal-d").first()).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".cal-modal")).toHaveCount(0);
+  }
+
   // --- Search keystrokes ------------------------------------------------------
   await timed(page, nav("search"));
   await expect(page.locator("#s-input")).toBeVisible();
@@ -199,4 +212,5 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   expect.soft(Math.max(...R.fuzzyKey), "fuzzy keystroke (worst query)").toBeLessThan(BUDGET.fuzzyKey * MULT);
   expect.soft(Math.max(...R.exactKey), "exact keystroke (worst query)").toBeLessThan(BUDGET.exactKey * MULT);
   expect.soft(best(R.forcedFuzzy), "forced fuzzy (Show close matches)").toBeLessThan(BUDGET.forcedFuzzy * MULT);
+  expect.soft(best(R.calendarOpen), "calendar open after a convo switch").toBeLessThan(BUDGET.calendarOpen * MULT);
 });
