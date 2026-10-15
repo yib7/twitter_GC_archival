@@ -451,7 +451,14 @@ function personCard(p) {
   main.appendChild(name);
 
   const meta = document.createElement("div"); meta.className = "su-meta";
-  meta.innerHTML = `${p.count.toLocaleString()} messages · id ${escapeHtml(String(p.id))}`;
+  // SP-13: members who never posted still get a card; say so, and when they
+  // joined / left the group, as a memory jog for who they are.
+  const when = (t) => new Date(t).toLocaleDateString(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
+  const bits = [p.count ? `${p.count.toLocaleString()} messages` : "No messages"];
+  if (p.joined != null && isFinite(p.joined)) bits.push("joined " + when(p.joined));
+  if (p.left != null && isFinite(p.left)) bits.push("left " + when(p.left));
+  bits.push("id " + String(p.id));
+  meta.textContent = bits.join(" · ");
   main.appendChild(meta);
 
   const me = document.createElement("label"); me.className = "su-me";

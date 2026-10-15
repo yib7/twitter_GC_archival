@@ -343,11 +343,27 @@ function collectParticipants(data, groupId) {
   const convs = (data && data.conversations) || [];
   const scoped = groupId != null && groupId !== "";
   const map = new Map();
+  const entry = (id) => {
+    let p = map.get(id);
+    if (!p) { p = { id, count: 0, samples: [], _seen: new Set(), media: [] }; map.set(id, p); }
+    return p;
+  };
   for (const c of convs) {
     if (scoped && String(c.id) !== String(groupId)) continue;
+    // SP-13: everyone on the roster gets a card, even with no messages (a
+    // lurker, or someone known only from the headers file) — plus when they
+    // joined / left, as a memory jog for naming them.
+    for (const id of (c.participants || [])) entry(String(id));
+    for (const e of (c.events || [])) {
+      if (e.type !== "join" && e.type !== "leave") continue;
+      for (const raw of (e.ids || [])) {
+        const p = entry(String(raw));
+        if (e.type === "join" && (p.joined == null || e.t < p.joined)) p.joined = e.t;
+        if (e.type === "leave" && (p.left == null || e.t > p.left)) p.left = e.t;
+      }
+    }
     for (const m of (c.msgs || [])) {
-      let p = map.get(m.s);
-      if (!p) { p = { id: m.s, count: 0, samples: [], _seen: new Set(), media: [] }; map.set(m.s, p); }
+      const p = entry(m.s);
       p.count++;
       const t = (m.x || "").trim();
       if (t.length > 14 && !/^https?:/.test(t) && !X_LINK.test(t) && p.samples.length < 40) {
@@ -359,8 +375,13 @@ function collectParticipants(data, groupId) {
     }
   }
   return [...map.values()]
-    .sort((a, b) => b.count - a.count)
-    .map((p) => ({ id: p.id, count: p.count, samples: p.samples.sort((a, b) => b.length - a.length).slice(0, 10), media: p.media }));
+    .sort((a, b) => b.count - a.count || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0))
+    .map((p) => {
+      const out = { id: p.id, count: p.count, samples: p.samples.sort((a, b) => b.length - a.length).slice(0, 10), media: p.media };
+      if (p.joined != null) out.joined = p.joined;
+      if (p.left != null) out.left = p.left;
+      return out;
+    });
 }
 
 /* ---- export identification ------------------------------------------------ */

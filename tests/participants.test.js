@@ -36,3 +36,41 @@ test("a participant's count + media are scoped to the selected group", () => {
   assert.strictEqual(u1.count, 2);
   assert.strictEqual(u1.media.length, 1);
 });
+
+// SP-13: people known only from the headers file (lurkers, people who joined
+// or left) are in c.participants and the join/leave events but sent nothing.
+// They still need a card in the wizard, or they stay "User 1234" forever.
+const QUIET = {
+  conversations: [
+    { id: "G1", type: "group", participants: ["u1", "u9", "u8"], count: 1,
+      msgs: [{ i: "a1", s: "u1", t: 5000, x: "the only message in here" }],
+      events: [
+        { t: 1000, type: "join", s: "u1", ids: ["u9", "u8"] },
+        { t: 9000, type: "leave", ids: ["u9"] },
+        { t: 9500, type: "name", s: "u1", name: "Quiet Crew" },
+      ] },
+    { id: "G2", type: "group", participants: ["u7"], count: 0, msgs: [], events: [] },
+  ],
+};
+
+test("SP-13: header-only participants get an entry with count 0, after everyone who posted", () => {
+  const parts = collectParticipants(QUIET, "G1");
+  assert.deepStrictEqual(parts.map((p) => p.id), ["u1", "u8", "u9"]);
+  const u9 = parts.find((p) => p.id === "u9");
+  assert.strictEqual(u9.count, 0);
+  assert.deepStrictEqual(u9.samples, []);
+  assert.deepStrictEqual(u9.media, []);
+});
+
+test("SP-13: joined / left dates come from the group's events (a memory jog for naming)", () => {
+  const parts = collectParticipants(QUIET, "G1");
+  const u9 = parts.find((p) => p.id === "u9"), u8 = parts.find((p) => p.id === "u8");
+  assert.strictEqual(u9.joined, 1000);
+  assert.strictEqual(u9.left, 9000);
+  assert.strictEqual(u8.joined, 1000);
+  assert.strictEqual(u8.left, undefined);
+});
+
+test("SP-13: the unscoped roster includes quiet members of every group", () => {
+  assert.deepStrictEqual(collectParticipants(QUIET).map((p) => p.id).sort(), ["u1", "u7", "u8", "u9"]);
+});

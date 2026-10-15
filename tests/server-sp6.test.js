@@ -262,3 +262,19 @@ describe("SP-22: the pages can't be framed", () => {
     assert.match(r.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
   });
 });
+
+describe("SP-13: header-only members reach the naming step", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("a member known only from the headers file is in /api/parts with 0 messages and a join date", async () => {
+    const f = X.writeExport(scratch());
+    assert.equal((await source(S, f.group, f.headers, f.media)).status, 200);
+    const j = await (await S.get("/api/parts?group=1000000001")).json();
+    const lurker = j.parts.find((p) => p.id === "444");
+    assert.ok(lurker, "444 has a card");
+    assert.equal(lurker.count, 0);
+    assert.equal(lurker.joined, X.T0 + 5000);
+  });
+});
