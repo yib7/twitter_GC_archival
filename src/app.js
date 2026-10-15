@@ -1190,8 +1190,13 @@ function msgActions(wrap, m, items) {
 function closeMsgActs() {
   let closed = false;
   document.querySelectorAll(".msg.acts-open").forEach((w) => {
+    const b = w.querySelector(".msg-more");
+    // I-2: on touch the closed toolbar is display:none, which would drop a
+    // keyboard user's focus to <body> — hand it back to this message's ⋯.
+    const acts = w.querySelector(".msg-acts");
+    const hadFocus = !!(acts && acts.contains(document.activeElement));
     w.classList.remove("acts-open"); closed = true;
-    const b = w.querySelector(".msg-more"); if (b) b.setAttribute("aria-expanded", "false");
+    if (b) { b.setAttribute("aria-expanded", "false"); if (hadFocus) b.focus(); }
   });
   return closed;
 }

@@ -54,6 +54,25 @@ test.describe("UX-1: touch users reach message actions through a ⋯ button", ()
   });
 });
 
+test.describe("I-2: running a toolbar action keeps keyboard focus on a touch screen", () => {
+  test("⋯ → Enter → Tab → Enter on Bookmark leaves focus on the message's ⋯, not <body>", async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
+    const msg = page.locator("#tl-list .msg").nth(1);
+    const more = msg.getByRole("button", { name: "Message actions" });
+    await more.focus();
+    await page.keyboard.press("Enter");
+    await expect(msg.locator(".msg-acts")).toBeVisible();
+    // Tab until the Bookmark action has focus
+    for (let k = 0; k < 6 && !(await page.evaluate(() => document.activeElement.classList.contains("act-pin"))); k++) await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement.classList.contains("act-pin"))).toBe(true);
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".toast")).toContainText("Bookmarked");
+    await expect(msg.locator(".msg-acts")).toBeHidden();
+    expect(await page.evaluate(() => document.activeElement.tagName)).not.toBe("BODY");
+    await expect(more).toBeFocused();
+  });
+});
+
 test.describe("UX-17: the More sheet is a real dialog", () => {
   test("inert while closed; on open aria-modal with focus inside and trapped; Esc closes back to the More tab", async ({ page }) => {
     await bootViewer(page, DATA);
