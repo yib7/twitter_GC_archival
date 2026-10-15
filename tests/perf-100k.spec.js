@@ -20,6 +20,10 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 //   "Show close matches" (forced) .. < 400   (a deliberate click, not a keystroke)
 //   palette keystroke (SP9 UX-8) ... < 120   (the palette's debounced message
 //     hits — same budget as a Search keystroke)
+//   All chats keystroke (SP9) ...... < 120   (exact tier over BOTH chats,
+//     120k messages, grouped — the same keystroke budget)
+//   All chats switch-on (SP9) ...... < 400   (a deliberate click: builds the
+//     other chat's search index lazily, then runs the query)
 //
 // CI robustness: shared CI runners are slower and noisier than a dev box, so
 // every budget is multiplied by GCA_PERF_MULT (default 1 locally, 2 when
@@ -43,7 +47,7 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 const MULT = Number(process.env.GCA_PERF_MULT) || (process.env.CI ? 2 : 1);
 const RATIO = { statsCold: 14, convSwitchStats: 14 };
 const THROTTLE = Number(process.env.GCA_PERF_CPU_THROTTLE) || 1;
-const BUDGET = { statsFirst: 400, convSwitchStats: 400, wrappedFirst: 400, capsule: 400, fuzzyKey: 120, exactKey: 120, forcedFuzzy: 400, calendarOpen: 120, paletteKey: 120 };
+const BUDGET = { statsFirst: 400, convSwitchStats: 400, wrappedFirst: 400, capsule: 400, fuzzyKey: 120, exactKey: 120, forcedFuzzy: 400, calendarOpen: 120, paletteKey: 120, allChatsKey: 120, allChatsFirst: 400 };
 const BIG = "910000000000000001", SIDE = "910000000000000002";
 
 test.use({ timezoneId: "America/New_York" });
@@ -225,6 +229,16 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   }
   await page.keyboard.press("Escape");
 
+  // All chats scope (SP9): the exact tier across both conversations.
+  R.allChatsFirst = [await timed(page, "document.querySelector('#s-scope [data-scope=all]').click()")];
+  await expect(page.locator("#s-meta")).toContainText("in 2 chats");
+  R.allChatsKey = [];
+  R.allChatsMeta = [];
+  for (const q of ["movie night", "the", "hilarious"]) {
+    const k = await keystroke(page, q);
+    R.allChatsKey.push(k.ms); R.allChatsMeta.push(k.meta);
+  }
+
   R.longTasks = await page.evaluate(() => window.__lt.map(Math.round));
   await testInfo.attach("perf-100k.json", { body: JSON.stringify(R, null, 1), contentType: "application/json" });
   console.log("[perf-100k]", JSON.stringify(R));
@@ -246,4 +260,7 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   expect.soft(best(R.calendarOpen), "calendar open after a convo switch").toBeLessThan(BUDGET.calendarOpen * MULT);
   expect(Math.max(...R.paletteRows), "the palette shows message hits").toBe(5);
   expect.soft(Math.max(...R.paletteKey), "palette keystroke (worst query)").toBeLessThan(BUDGET.paletteKey * MULT);
+  expect(R.allChatsMeta[1], "All chats searched both chats").toMatch(/ in 2 chats/);
+  expect.soft(Math.max(...R.allChatsKey), "All chats keystroke (worst query)").toBeLessThan(BUDGET.allChatsKey * MULT);
+  expect.soft(best(R.allChatsFirst), "All chats switch-on (lazy index)").toBeLessThan(BUDGET.allChatsFirst * MULT);
 });

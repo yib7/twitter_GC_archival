@@ -233,6 +233,24 @@ button, input, select, textarea { font-family: inherit; }
 .search-box input::placeholder { color: var(--text-faint); }
 .search-clear { background: none; border: 0; color: var(--text-dim); cursor: pointer; font-size: 16px; padding: 4px; }
 .search-clear:hover { color: var(--text); }
+/* SP9: This chat / All chats scope, beside the box */
+.s-scope { align-self: stretch; flex-shrink: 0; }
+.s-scope button { padding: 0 14px; white-space: nowrap; }
+@media (max-width: 760px) {
+  .search-row { flex-wrap: wrap; }
+  .s-scope { order: 3; flex-basis: 100%; }
+  .s-scope button { flex: 1; min-height: 40px; }
+}
+/* SP9: All chats results — one header per chat (name, count, search-only) */
+.s-conv-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 18px auto 6px; max-width: 920px; font-size: 12px;
+}
+.res-page:first-child .s-conv-head:first-child { margin-top: 0; }
+.s-conv-name { color: var(--text); font-weight: 700; font-size: 13px; }
+.s-conv-n { color: var(--text-dim); }
+.s-conv-rule { flex: 1; min-width: 12px; height: 1px; background: var(--border); }
+.s-conv-go { font-size: 12px; }
 /* SP9 (UX-21): applied operators as removable chips under the box */
 .s-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .s-chips[hidden] { display: none; }

@@ -847,3 +847,42 @@ test.describe("SP9: search chips and the from: autocomplete", () => {
     });
   }
 });
+
+// SP9: All chats (scope toggle + grouped results with their per-chat headers)
+// and the command palette's message hits, in every theme.
+const MULTI_DATA = { conversations: CONTRAST_DATA.conversations.concat([conv("B", "Beta", [
+  { i: "b1", s: "u7", t: Date.parse("2024-06-01T12:00:00Z"), x: "volley at noon, bring pizza" },
+  { i: "b2", s: "u8", t: Date.parse("2024-06-01T12:05:00Z"), x: "no volley today" },
+])]) };
+test.describe("SP9: All chats results and palette message hits", () => {
+  for (const th of THEMES) {
+    test("contrast and focus rings · " + th, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await bootViewer(page, MULTI_DATA, { ls: { "gca.theme": th, "gca.conv": "A" } });
+      await installHelpers(page);
+      const bad = [];
+      await page.locator("#s-input").fill("volley");
+      await page.locator('#s-scope [data-scope="all"]').click();
+      await expect(page.locator("#s-list .s-conv-head")).toHaveCount(2);
+      for (const f of await contrastFailures(page, "#s-scope")) bad.push("scope: " + f);
+      for (const f of await contrastFailures(page, "#s-list")) bad.push("grouped results: " + f);
+      // from the All chats button through the filter bar into the grouped list
+      await page.locator('#s-scope [data-scope="all"]').focus();
+      await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");   // a keyboard focus (:focus-visible)
+      const ringScope = await page.evaluate(() => window.__ring(document.activeElement));
+      if (!ringScope.ok) bad.push("ring: the scope toggle");
+      const { missing, seen } = await tabWalk(page, 30);
+      expect(seen.filter((d) => d.indexOf("s-conv-go") >= 0).length, "the walk reaches a group's Search only button: " + seen.join(" ")).toBe(1);
+      // (each result card is several stops) — the second header's button, reached from the keyboard too
+      await page.locator("#s-list .s-conv-go").nth(1).focus();
+      await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+      if (!(await page.evaluate(() => window.__ring(document.activeElement).ok))) bad.push("ring: the second group's Search only button");
+      for (const m of missing) bad.push("ring: " + m);
+      await page.keyboard.press("Control+k");
+      await page.locator(".cmdk-input").fill("volley");
+      await expect(page.locator(".cmdk-list .cmdk-msg").first()).toBeVisible();
+      for (const f of await contrastFailures(page, ".cmdk")) bad.push("palette: " + f);
+      expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
+    });
+  }
+});

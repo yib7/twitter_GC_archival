@@ -1520,8 +1520,78 @@ function syncDateBounds() {
 let searchBuilt = false;
 let sEls = {};
 let sDeb = 0;   // the box's 150 ms search debounce
-let resState = { idx: [], page: 0 };
+// resState.groups is set for an All chats run (see runSearchAll): the list is
+// then a flat run of rows — each group's header followed by its messages.
+let resState = { idx: [], page: 0, groups: null, rows: 0 };
 let resObserver = null;
+
+/* ---- "All chats" scope (SP9) -------------------------------------------------
+   One query across every visible conversation (removed groups never), results
+   grouped per chat. A flag, not a filter: resetSearchFilters() leaves it alone
+   and it survives a conversation switch; the address carries it as &s=all
+   (navHash), the query text never. Indexes for the other chats are built on
+   first use and cached per conversation (keyed on the ignored-people set and
+   the message array, so un/ignoring someone rebuilds just that); the active
+   chat reuses MSGS / LOWER. Exact tier only — no typo-tolerant pass across
+   chats — so Fuzzy/Exact and Grid are hidden while it is on. */
+let searchScope = "this";
+const convSearchIdx = new Map();
+function allScope() { return searchScope === "all" && visibleConvos().length > 1; }
+function gridOn() { return F.grid && !allScope(); }
+function setSearchScope(sc) {
+  searchScope = sc === "all" ? "all" : "this";
+  syncScopeUi();
+  if (searchBuilt && sEls.input) { clearTimeout(sDeb); runSearch(); }
+}
+function syncScopeUi() {
+  if (!sEls.scope) return;
+  const all = allScope();
+  sEls.scope.hidden = visibleConvos().length < 2;
+  sEls.scope.querySelectorAll("button").forEach((b) => {
+    const on = (b.dataset.scope === "all") === all;
+    b.classList.toggle("sel", on);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  sEls.matchtoggle.hidden = all; sEls.viewtoggle.hidden = all; sEls.matchhint.hidden = all;
+  sEls.input.placeholder = all ? "Search all chats…  (exact words; use \"quotes\" for phrases)" : sEls.input.dataset.ph;
+}
+// The chats an All chats run covers — the active one first, then picker order —
+// each with its (lazily built) search data.
+function scopeData() {
+  const ignored = ignoredUserIds(), key = [...ignored].sort().join(",");
+  const vis = visibleConvos();
+  const isCur = (c) => !!CONV && c.id === CONV.id;
+  return vis.filter(isCur).concat(vis.filter((c) => !isCur(c))).map((c) => {
+    if (isCur(c)) return { conv: c, msgs: MSGS, lower: LOWER, active: true, senders: null };
+    let d = convSearchIdx.get(c.id);
+    if (!d || d.key !== key || d.src !== c.msgs) {
+      const ms = withoutIgnored(c.msgs || [], ignored), lower = new Array(ms.length), senders = new Map();
+      for (let i = 0; i < ms.length; i++) { lower[i] = searchText(ms[i]); senders.set(ms[i].s, (senders.get(ms[i].s) || 0) + 1); }
+      d = { key, src: c.msgs, conv: c, msgs: ms, lower, active: false, senders };
+      convSearchIdx.set(c.id, d);
+    }
+    return d;
+  });
+}
+// The people a from: can name in the current scope: this chat's participants,
+// or everyone who posts in a searched chat (ignored people are gone from both).
+function scopeParts() {
+  if (!allScope()) return PARTS;
+  const counts = new Map();
+  PARTS.forEach((p) => counts.set(p.id, p.count));
+  scopeData().forEach((d) => { if (d.senders) d.senders.forEach((n, id) => counts.set(id, (counts.get(id) || 0) + n)); });
+  return [...counts].map(([id, count]) => ({ id, count })).sort((a, b) => b.count - a.count);
+}
+// "Search only <chat>": the same query in one chat (This chat scope).
+function searchOnlyIn(convId) {
+  const q = sEls.input.value;
+  searchScope = "this";
+  if (!CONV || CONV.id !== convId) activateConversation(convId, true);   // Search is rebuilt for that chat
+  else syncScopeUi();
+  sEls.input.value = q; sEls.clear.hidden = !q;
+  clearTimeout(sDeb); runSearch();
+  sEls.input.focus();
+}
 
 function ensureSearch() {
   if (searchBuilt) return;
@@ -1535,6 +1605,10 @@ function ensureSearch() {
           <input id="s-input" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="s-ac" aria-label="Search messages" placeholder="Search ${fmtNum(N)} messages…  (use &quot;quotes&quot; for exact phrases)" autocomplete="off" spellcheck="false" />
           <button class="search-clear" id="s-clear" type="button" title="Clear" aria-label="Clear search" hidden>✕</button>
           <div class="s-ac" id="s-ac" role="listbox" aria-label="People" hidden></div>
+        </div>
+        <div class="seg s-scope" id="s-scope" role="group" aria-label="Search in" hidden>
+          <button type="button" data-scope="this" aria-pressed="true">This chat</button>
+          <button type="button" data-scope="all" aria-pressed="false">All chats</button>
         </div>
         <button class="pill f-toggle" id="f-toggle" type="button" aria-expanded="false" aria-controls="s-filters">${cmdIco("settings")} Filters <span class="badge" id="f-toggle-n" hidden>0</span></button>
       </div>
@@ -1591,8 +1665,10 @@ function ensureSearch() {
     sort: v.querySelector("#f-sort"),
     matchtoggle: v.querySelector("#f-matchtoggle"), matchhint: v.querySelector("#s-matchhint"),
     filters: v.querySelector("#s-filters"), ftoggle: v.querySelector("#f-toggle"), ftoggleN: v.querySelector("#f-toggle-n"),
-    chips: v.querySelector("#s-chips"), ac: v.querySelector("#s-ac"),
+    chips: v.querySelector("#s-chips"), ac: v.querySelector("#s-ac"), scope: v.querySelector("#s-scope"),
   };
+  sEls.input.dataset.ph = sEls.input.placeholder;
+  sEls.scope.querySelectorAll("button").forEach((b) => { b.onclick = () => setSearchScope(b.dataset.scope); });
   // UX-19: on a phone the filter bar is a bottom sheet behind "Filters (n)".
   sEls.ftoggle.onclick = (e) => { e.stopPropagation(); if (sEls.filters.classList.contains("open")) closeFilterSheet(); else openFilterSheet(); };
   v.querySelector("#f-done").onclick = () => closeFilterSheet();
@@ -1718,7 +1794,7 @@ function personNames(id) {
   [nameOf(id), settings.names[id], LOCAL_NAMES[id], GENERIC[id]].forEach((n) => { if (n && out.indexOf(n) < 0) out.push(n); });
   return out;
 }
-function searchPeople() { return PARTS.map((p) => ({ id: p.id, names: personNames(p.id) })); }
+function searchPeople(list) { return (list || scopeParts()).map((p) => ({ id: p.id, names: personNames(p.id) })); }
 function buildSearchCtx(raw, people) {
   const pq = GCAShared.parseSearchQuery(raw, { clock: CLOCK });
   const ctx = { raw: String(raw || ""), pq, needles: pq.needles, phrases: pq.phrases, excludes: pq.excludes,
@@ -1862,6 +1938,9 @@ function runSearch() {
 
   F.needles = SQ.needles;
   updateClearAllBtn();
+  syncScopeUi();
+  if (allScope()) { runSearchAll(); return; }
+  resState.groups = null;
 
   let out;
   // What List mode would show for this query — the "N messages match" in Grid
@@ -1876,7 +1955,7 @@ function runSearch() {
     searchKind = canFuzzy ? "exact-first" : "exact";
     // The fallback is decided on what the view can show: in Grid mode literal
     // hits without media don't count (they would only produce "No media").
-    const shown = F.grid ? out.filter((i) => MSGS[i].m) : out;
+    const shown = gridOn() ? out.filter((i) => MSGS[i].m) : out;
     if (canFuzzy && (fuzzyForceQ || !shown.length)) {
       const lit = out;
       fuzzyPattern = F.needles.join(" ");
@@ -1902,19 +1981,15 @@ function runSearch() {
     out = literalHits(SQ, MSGS, LOWER);
   }
 
-  // Apply sort order (relevance = leave as-built: Fuse order, or newest-first)
-  if (F.sort === "newest") out.sort((a, b) => MSGS[b].t - MSGS[a].t);
-  else if (F.sort === "oldest") out.sort((a, b) => MSGS[a].t - MSGS[b].t);
-  else if (F.sort === "reactions") out.sort((a, b) => ((MSGS[b].r ? MSGS[b].r.length : 0) - (MSGS[a].r ? MSGS[a].r.length : 0)) || (MSGS[b].t - MSGS[a].t));
-  else if (F.sort === "longest") out.sort((a, b) => ((MSGS[b].x || "").length - (MSGS[a].x || "").length) || (MSGS[b].t - MSGS[a].t));
+  sortHits(out, MSGS);
 
   // VC-16: grid mode renders only messages with media, so the result set it
   // counts, pages and empty-states over must be that subset too.
   const matched = listCount >= 0 ? listCount : out.length;
-  if (F.grid) out = out.filter((i) => MSGS[i].m);
+  if (gridOn()) out = out.filter((i) => MSGS[i].m);
 
   resState.idx = out; resState.page = 0;
-  sEls.list.className = F.grid ? "gallery-pages" : "list";
+  sEls.list.className = gridOn() ? "gallery-pages" : "list";
   if (resPageObs) resPageObs.disconnect();
   sEls.list.innerHTML = "";
   // VC-2: a new result set starts at the top — keeping the old offset hid the
@@ -1925,11 +2000,11 @@ function runSearch() {
   const hasFilter = ctxFiltered(SQ);
   const fuzzyRun = searchKind === "fallback" || searchKind === "forced";
   const sortLbl = { relevance: fuzzyRun ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
-  const noun = (F.grid ? " media message" : " message") + (out.length === 1 ? "" : "s");
+  const noun = (gridOn() ? " media message" : " message") + (out.length === 1 ? "" : "s");
   sEls.meta.textContent = !hasFilter
     ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Try from:name, has:photo, has:link, is:pinned, after:2021-06, before:2024, -word"
     : searchKind === "fallback" && out.length
-      ? "No exact " + (F.grid ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (F.grid ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
+      ? "No exact " + (gridOn() ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (gridOn() ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
       : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
   // The per-query opt-in / opt-out for close matches (Fuzzy mode only).
   if (searchKind === "exact-first" || searchKind === "forced") {
@@ -1954,7 +2029,7 @@ function runSearch() {
 
   if (!out.length) {
     sEls.list.className = "list";
-    sEls.list.appendChild(matched && F.grid
+    sEls.list.appendChild(matched && gridOn()
       ? emptyState("camera", "No media in these results.", fmtNum(matched) + (matched === 1 ? " message matches" : " messages match") + " — switch to List to see " + (matched === 1 ? "it" : "them") + ".",
         ["Switch to List", () => sEls.viewtoggle.querySelector('button[data-mode="list"]').click()])
       : emptyState("search", "No messages match your search.", "Try fewer words, switch to Fuzzy, or clear the filters.",
@@ -1963,6 +2038,76 @@ function runSearch() {
   }
   appendResultsPage();
 }
+// Apply the sort order (relevance = leave as-built: Fuse order, or newest-first).
+function sortHits(out, ms) {
+  if (F.sort === "newest") out.sort((a, b) => ms[b].t - ms[a].t);
+  else if (F.sort === "oldest") out.sort((a, b) => ms[a].t - ms[b].t);
+  else if (F.sort === "reactions") out.sort((a, b) => ((ms[b].r ? ms[b].r.length : 0) - (ms[a].r ? ms[a].r.length : 0)) || (ms[b].t - ms[a].t));
+  else if (F.sort === "longest") out.sort((a, b) => ((ms[b].x || "").length - (ms[a].x || "").length) || (ms[b].t - ms[a].t));
+}
+// An All chats run: the literal tier per chat, grouped (active chat first).
+function runSearchAll() {
+  searchKind = "exact";
+  const groups = [];
+  let total = 0, pos = 0;
+  for (const d of scopeData()) {
+    const idx = literalHits(SQ, d.msgs, d.lower);
+    if (!idx.length) continue;
+    sortHits(idx, d.msgs);
+    groups.push({ d, idx, start: pos });
+    pos += 1 + idx.length; total += idx.length;
+  }
+  const act = groups.find((g) => g.d.active);
+  // idx stays the active chat's hits: the lightbox steps through those
+  resState = { idx: act ? act.idx : [], page: 0, groups, rows: pos, total };
+  sEls.list.className = "list";
+  if (resPageObs) resPageObs.disconnect();
+  sEls.list.innerHTML = "";
+  sEls.scroll.scrollTop = 0;
+  if (resObserver) resObserver.disconnect();
+  const sortLbl = { relevance: "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
+  const nChats = groups.length;
+  const inChats = " in " + fmtNum(nChats) + (nChats === 1 ? " chat" : " chats");
+  sEls.meta.textContent = !ctxFiltered(SQ)
+    ? "Showing all " + fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + ", newest first — start typing or add a filter. Try from:name, has:photo, is:pinned, -word"
+    : fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + " · exact matches · sorted by " + sortLbl;
+  SQ.notes.forEach((n) => sEls.meta.append(" · " + n));
+  renderChips();
+  sEls.meta.dataset.gen = String((Number(sEls.meta.dataset.gen) || 0) + 1);
+  if (curView === "search") navCommit("replace");
+  if (!total) {
+    sEls.list.appendChild(emptyState("search", "No messages match in any chat.",
+      "All chats finds exact matches only — try fewer words, or search This chat, where Fuzzy also finds close matches.",
+      ["Search this chat", () => setSearchScope("this")]));
+    return;
+  }
+  appendResultsPage();
+}
+// Row `pos` of an All chats run: { g, i } (i < 0 = the group's header).
+function groupRow(pos) {
+  const gs = resState.groups;
+  let lo = 0, hi = gs.length - 1;
+  while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (gs[mid].start <= pos) lo = mid; else hi = mid - 1; }
+  const g = gs[lo], k = pos - g.start;
+  return { g, i: k === 0 ? -1 : g.idx[k - 1] };
+}
+function convHeadEl(g) {
+  const c = g.d.conv, n = g.idx.length;
+  const h = el("div", "s-conv-head");
+  const nm = el("span", "s-conv-name"); nm.setAttribute("role", "heading"); nm.setAttribute("aria-level", "2");
+  nm.textContent = convLabel(c);
+  h.appendChild(nm);
+  h.appendChild(el("span", "s-conv-n", fmtNum(n) + (n === 1 ? " message" : " messages")));
+  if (g.d.active) h.appendChild(el("span", "pins-conv-cur", "this chat"));
+  h.appendChild(el("span", "s-conv-rule"));
+  const b = btnEl("meta-act s-conv-go", "");
+  b.textContent = "Search only " + convLabel(c);
+  b.onclick = () => (g.d.active ? setSearchScope("this") : searchOnlyIn(c.id));
+  h.appendChild(b);
+  return h;
+}
+function resRows() { return resState.groups ? resState.rows : resState.idx.length; }
+
 /* ---- Results windowing (VC-29, SP3) -----------------------------------------
    Results arrive as 60-row .res-page blocks appended by the bottom sentinel
    (infinite scroll). resPageObs then keeps only the pages within ~1500px of the
@@ -1975,11 +2120,28 @@ function runSearch() {
 let resPageObs = null;
 function renderResPage(pg) {
   const idx = resState.idx, k = +pg.dataset.p;
+  if (resState.groups) {
+    const fr = document.createDocumentFragment();
+    for (let pos = k * PAGE, end = Math.min(resState.rows, (k + 1) * PAGE); pos < end; pos++) {
+      const { g, i } = groupRow(pos);
+      let card;
+      if (i < 0) card = convHeadEl(g);
+      else {
+        card = g.d.active ? renderMsg(i, { clickable: true, needles: F.needles }) : renderForeignPin(g.d.conv, g.d.msgs[i], F.needles);
+        card.dataset.pos = pos;
+      }
+      fr.appendChild(card);
+    }
+    pg.replaceChildren(fr);
+    pg.style.height = "";
+    delete pg.dataset.empty;
+    return;
+  }
   const slice = idx.slice(k * PAGE, (k + 1) * PAGE);
   // Fuzzy highlight ranges for just this page (P2-6): Fuse's includeMatches is
   // per text, so scoring the page's texts gives the same ranges the full run
   // would have, without paying for them on every hit.
-  if (fuzzyPattern && fuzzyRanges && !F.grid && !pg.dataset.hl) {
+  if (fuzzyPattern && fuzzyRanges && !gridOn() && !pg.dataset.hl) {
     pg.dataset.hl = "1";
     const hl = new Fuse(slice.map((i) => LOWER[i]), Object.assign({ includeMatches: true }, FUSE_OPTS));
     for (const r of hl.search(fuzzyPattern)) {
@@ -1993,18 +2155,20 @@ function renderResPage(pg) {
     }
   }
   const frag = document.createDocumentFragment();
-  for (const i of slice) {
-    if (F.grid) frag.appendChild(galleryCell(i, idx));   // idx is already the media subset (VC-16)
-    else frag.appendChild(renderMsg(i, { clickable: true, needles: F.needles, ranges: fuzzyRanges ? fuzzyRanges.get(i) : null }));
-  }
+  slice.forEach((i, n) => {
+    const card = gridOn() ? galleryCell(i, idx)   // idx is already the media subset (VC-16)
+      : renderMsg(i, { clickable: true, needles: F.needles, ranges: fuzzyRanges ? fuzzyRanges.get(i) : null });
+    card.dataset.pos = k * PAGE + n;
+    frag.appendChild(card);
+  });
   pg.replaceChildren(frag);
   pg.style.height = "";
   delete pg.dataset.empty;
 }
 function appendResultsPage() {
-  const { idx, page } = resState;
-  if (page * PAGE >= idx.length) return;
-  const pg = el("div", F.grid ? "res-page gallery" : "res-page");
+  const { page } = resState, rows = resRows();
+  if (page * PAGE >= rows) return;
+  const pg = el("div", gridOn() ? "res-page gallery" : "res-page");
   pg.dataset.p = page;
   renderResPage(pg);
   const old = sEls.list.querySelector(".sentinel"); if (old) old.remove();
@@ -2012,7 +2176,7 @@ function appendResultsPage() {
   if (resPageObs) resPageObs.observe(pg);
   resState.page++;
   // re-arm sentinel
-  if (resState.page * PAGE < idx.length) {
+  if (resState.page * PAGE < rows) {
     const sentinel = el("div", "sentinel"); sEls.list.appendChild(sentinel);
     resObserver.observe(sentinel);
   }
@@ -2141,7 +2305,7 @@ function acCandidates(value) {
     }
     return best;
   };
-  const scored = PARTS.map((p) => ({ p, names: personNames(p.id) })).map((x) => Object.assign(x, { r: rank(x.names) })).filter((x) => x.r < 9);
+  const scored = scopeParts().map((p) => ({ p, names: personNames(p.id) })).map((x) => Object.assign(x, { r: rank(x.names) })).filter((x) => x.r < 9);
   // the substring tier only when nothing matches a name / word start
   const tier = scored.some((x) => x.r <= 3) ? scored.filter((x) => x.r <= 3) : scored;
   return tier.sort((a, b) => a.r - b.r || b.p.count - a.p.count).slice(0, 8);
@@ -2263,6 +2427,22 @@ function clearAllFilters() {
   sEls.input.focus();
 }
 function exportResults() {
+  if (resState.groups) {
+    if (!resState.total) { toast("No results to export"); return; }
+    const out = [];
+    resState.groups.forEach((g) => {
+      out.push("== " + convLabel(g.d.conv) + " ==");
+      g.idx.forEach((i) => { const m = g.d.msgs[i]; out.push(DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " ")); });
+      out.push("");
+    });
+    const bl = new Blob([out.join("\n")], { type: "text/plain" });
+    const u = URL.createObjectURL(bl);
+    const a = document.createElement("a");
+    a.href = u; a.download = "search-results-all-chats-" + new Date().toISOString().slice(0,10) + ".txt";
+    a.click(); URL.revokeObjectURL(u);
+    toast("Exported " + fmtNum(resState.total) + " results from " + resState.groups.length + (resState.groups.length === 1 ? " chat" : " chats"));
+    return;
+  }
   if (!resState.idx.length) { toast("No results to export"); return; }
   const lines = resState.idx.map(i => {
     const m = MSGS[i];
@@ -4188,6 +4368,7 @@ function navHash() {
   const p = [];
   if (curView) p.push("v=" + encodeURIComponent(curView));
   if (CONV) p.push("c=" + encodeURIComponent(CONV.id));
+  if (curView === "search" && allScope()) p.push("s=all");   // SP9: the scope flag (never the query)
   if (curView === "timeline" && navMsg != null) p.push("m=" + encodeURIComponent(navMsg));
   return "#" + p.join("&");
 }
@@ -4242,7 +4423,7 @@ function parseHash(h) {
     const k = part.indexOf("=");
     if (k <= 0) continue;
     const key = part.slice(0, k);
-    if ((key !== "v" && key !== "c" && key !== "m") || Object.prototype.hasOwnProperty.call(out, key)) continue;
+    if ((key !== "v" && key !== "c" && key !== "m" && key !== "s") || Object.prototype.hasOwnProperty.call(out, key)) continue;
     let val;
     try { val = decodeURIComponent(part.slice(k + 1).replace(/\+/g, " ")); } catch (e) { continue; }
     if (val.length > 200) continue;
@@ -4286,6 +4467,9 @@ function applyHash(h, state) {
         viewSet = true;
       }
     } else if (view) {
+      // SP9: the search scope is part of the address (&s=all)
+      const scopeWas = searchScope;
+      if (view === "search") searchScope = st.s === "all" ? "all" : "this";
       if (view !== curView || view === "search") setView(view);
       viewSet = true;
       // the entry's own query (no state — a typed / pasted address — leaves
@@ -4293,7 +4477,7 @@ function applyHash(h, state) {
       const q = stateQ(state);
       if (view === "search" && sEls.input && q != null && sEls.input.value !== q) {
         sEls.input.value = q; sEls.clear.hidden = !q; runSearch();
-      }
+      } else if (view === "search" && sEls.input && searchScope !== scopeWas) runSearch();
     }
   } finally { hashApplying = false; }
   return viewSet;
@@ -5271,7 +5455,7 @@ function renderPins() {
 // actions (context peek, lightbox, quote card). This mirrors its card markup
 // with the actions that make sense cross-chat; activating the row switches to
 // that conversation and jumps to the message.
-function renderForeignPin(conv, m) {
+function renderForeignPin(conv, m, needles) {
   const wrap = el("div", "msg clickable");
   const av = el("div", "av"); applyPfp(av, m.s); wrap.appendChild(av);
   const body = el("div", "msg-body");
@@ -5285,7 +5469,7 @@ function renderForeignPin(conv, m) {
   body.appendChild(msgActions(wrap, m, { conv: conv.id }, ["jump", "link"]));
 
   const txt = (m.x || "").trim();
-  if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.dir = "auto"; bubbleEl.innerHTML = renderText(m.x, m.u); body.appendChild(bubbleEl); }
+  if (txt) { const bubbleEl = el("div", "bubble"); bubbleEl.dir = "auto"; bubbleEl.innerHTML = renderText(m.x, m.u); highlightDOM(bubbleEl, needles); body.appendChild(bubbleEl); }
   if (m.m) {
     // no cross-conversation lightbox — media clicks just travel to the message
     const d = el("div", "media");
@@ -5812,6 +5996,7 @@ function buildCommands() {
 function openSearchWith(q) {
   setView("search");
   if (q != null && sEls.input) {
+    searchScope = "this";   // the palette's hits (and its count) are this chat's
     clearTimeout(sDeb);
     sEls.input.value = q; sEls.clear.hidden = !q;
     runSearch();
@@ -5942,7 +6127,7 @@ function openCommandPalette() {
   function runHits() {
     if (!modal.isConnected) return;
     const raw = input.value;
-    const ctx = buildSearchCtx(raw);
+    const ctx = buildSearchCtx(raw, searchPeople(PARTS));
     const idx = ctxFiltered(ctx) ? literalHits(ctx, MSGS, LOWER) : [];
     hits = { q: raw, idx: idx.slice(0, PALETTE_HITS), total: idx.length, needles: ctx.needles };
     // keep the selection on the same row (the hits go in before "See all")
