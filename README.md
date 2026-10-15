@@ -75,7 +75,8 @@ internet. Have several group chats? A picker switches between them.
   doesn't exist or falls outside the archive.
 - Deep links: the address bar tracks the view, conversation and jumped-to
   message by id only, so Back / Forward work across views and jumps (also
-  from `file://`), and "Link" on a message copies an ids-only link to it. Your
+  from `file://`), and "Link" on a message copies an ids-only link to it (from
+  `file://` just the `#…` part, so your local path isn't shared). Your
   search text never goes in the URL; Back / Forward and reload restore it from
   the tab's history state.
 - Gallery of every photo and video, with a lightbox.

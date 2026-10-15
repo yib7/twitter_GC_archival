@@ -4131,13 +4131,19 @@ function onHashNav() {
   applyHash(location.hash, history.state);
   writeHash(navHash(), false);   // canonical form of whatever was applied
 }
-// A shareable link to one message: ids only.
+// A shareable link to one message: ids only. From file:// the page address is
+// a local path (often with the OS user name in it), so only the "#…" part is
+// copied there, and the toast says where to paste it.
 function msgLink(convId, mid) {
-  return location.href.split("#")[0] + "#v=timeline&c=" + encodeURIComponent(convId) + "&m=" + encodeURIComponent(mid);
+  const h = "#v=timeline&c=" + encodeURIComponent(convId) + "&m=" + encodeURIComponent(mid);
+  return location.protocol === "file:" ? h : location.href.split("#")[0] + h;
 }
 function copyMsgLink(convId, mid) {
+  const local = location.protocol === "file:";
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(msgLink(convId, mid)).then(() => toast("Copied link to message")).catch(() => toast("Copy failed"));
+    navigator.clipboard.writeText(msgLink(convId, mid))
+      .then(() => toast(local ? "Copied the message's #link — paste it at the end of this archive's address to open it" : "Copied link to message"))
+      .catch(() => toast("Copy failed"));
   } else toast("Copy failed");
 }
 

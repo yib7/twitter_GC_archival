@@ -284,3 +284,26 @@ test("a shared #m= link: read on, reload, and you stay where you read to", async
   await textInView(page, reading);
   await expect(page.locator("#tl-list .msg.flash")).toHaveCount(0);
 });
+
+// Fix round 1: from file:// the full link would carry the local path (and with
+// it the OS user name). Copy only the "#…" part there, and say how to use it.
+test("file:// — Copy link copies only the #… part and says where to paste it", async ({ page, context, browserName }) => {
+  test.skip(browserName !== "chromium", "clipboard permissions");
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const url = pathToFileURL(path.join(__dirname, "..", "index.html")).href;
+  await page.addInitScript(() => { try { localStorage.setItem("gca.onboarded", "1"); } catch (e) { /* storage blocked */ } });
+  await page.goto(url + "#v=timeline");
+  await expect(page.locator("#app")).toBeVisible();
+  expect(await page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample === true)).toBe(true);
+  const msg = page.locator("#tl-list .msg").filter({ has: page.locator(".bubble") }).last();
+  await msg.hover();
+  await msg.getByRole("button", { name: "Copy link to message" }).click();
+  await expect(page.locator(".toast")).toHaveText("Copied the message's #link — paste it at the end of this archive's address to open it");
+  const link = await page.evaluate(() => navigator.clipboard.readText());
+  expect(link).toMatch(/^#v=timeline&c=[^&]+&m=[^&]+$/);
+  expect(link).not.toMatch(/file:|[\/]Users[\/]|index\.html/i);
+  const idx = await msg.getAttribute("data-idx");
+  await page.locator('.nav-item[data-view="stats"]').click();
+  await page.goto(url + link);
+  await expect(page.locator('#tl-list .msg[data-idx="' + idx + '"]')).toHaveClass(/flash/);
+});
