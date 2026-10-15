@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, hashId, initials } = GCAShared;
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators (VC-5/VC-6) — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, cleanBattleWords } = GCAShared;
 // SP4: the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with (AN-1, AN-2, AN-8..AN-11).
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -382,7 +382,10 @@ const DEFAULTS = deepFreeze({
   // UX-20 (SP3): dates render in the viewer's own zone by default. tzExplicit
   // marks a zone picked in Settings — see validateSettings (shared-core) for
   // how an unmarked legacy "UTC" is migrated.
-  timezone: "local", tzExplicit: false
+  timezone: "local", tzExplicit: false,
+  // UX-29: the words added in Word Battles (newest first), kept across
+  // people changes and reloads.
+  battleWords: []
 });
 const FONT_MIN = 13, FONT_MAX = 19;   // the Settings slider's range
 function deepFreeze(o) { Object.values(o).forEach((v) => { if (v && typeof v === "object") deepFreeze(v); }); return Object.freeze(o); }
@@ -3723,7 +3726,7 @@ function fillTzOptions(sel, filter) {
 // of DEFAULTS so nothing can alias the defaults afterwards.
 const RESET_CONFIRM = "Reset customization?\n\n" +
   "Resets: theme, accent color, font size, density, avatar & timestamp display, people & group names, person colors, and saved searches.\n\n" +
-  "Keeps: bookmarks, “this is me”, hidden people & groups, timezone, and profile & group photos.";
+  "Keeps: bookmarks, Word Battles words, “this is me”, hidden people & groups, timezone, and profile & group photos.";
 // What an Import can replace, in the order its confirm lists them. A section is
 // replaced only when the file carries at least one of its fields.
 const IMPORT_SECTIONS = [
@@ -3734,6 +3737,7 @@ const IMPORT_SECTIONS = [
   ["group names & photos", ["gc", "gcName", "gcPhoto"]],
   ["saved searches", ["saved"]],
   ["bookmarks", ["pins"]],
+  ["Word Battles words", ["battleWords"]],
   ["“this is me”", ["me"]],
   ["timezone", ["timezone", "tzExplicit"]],
   ["hidden people & groups", ["ignoredUsers", "ignoredGroups"]],
@@ -3752,6 +3756,7 @@ function resetCustomization() {
   const prev = settings;
   const next = cloneDefaults();
   next.pins = prev.pins.slice();
+  next.battleWords = prev.battleWords.slice();
   next.me = prev.me;
   next.ignoredUsers = prev.ignoredUsers.slice();
   next.ignoredGroups = prev.ignoredGroups.slice();
@@ -5336,15 +5341,23 @@ function renderBattles() {
   const sel2 = v.querySelector("#battle-p2");
   sel1.value = battleP1;
   sel2.value = battleP2;
-  sel1.onchange = () => { battleP1 = sel1.value; renderBattles(); };
-  sel2.onchange = () => { battleP2 = sel2.value; renderBattles(); };
+  // UX-29: changing a person used to re-render the whole view, dropping every
+  // added word (and a half-typed one). Now only the picker avatar and the
+  // results update; the words live in settings.battleWords.
+  const pickAv = (sel, id) => {
+    const old = sel.parentElement.querySelector(".av");
+    const tmp = document.createElement("div"); tmp.innerHTML = pfpHtml(id, "width:40px;height:40px;font-size:15px");
+    if (old) old.replaceWith(tmp.firstElementChild); else sel.before(tmp.firstElementChild);
+  };
+  sel1.onchange = () => { battleP1 = sel1.value; pickAv(sel1, battleP1); drawBattleResults(); };
+  sel2.onchange = () => { battleP2 = sel2.value; pickAv(sel2, battleP2); drawBattleResults(); };
 
   v.querySelector("#battle-go").onclick = () => {
     const word = v.querySelector("#battle-word").value.trim();
-    if (word) addBattleRow(word);
+    if (word) addBattleWord(word);
   };
   v.querySelector("#battle-word").onkeydown = (e) => {
-    if (e.key === "Enter") { const w = e.target.value.trim(); if (w) addBattleRow(w); }
+    if (e.key === "Enter") { const w = e.target.value.trim(); if (w) addBattleWord(w); }
   };
 
   drawBattleResults();
@@ -5371,6 +5384,7 @@ function drawBattleResults() {
   const battleWords = ["lol", "lmao", "bruh", "nah", "bro", "damn", "like", "yeah", "fuck", "man", "shit", "good", "love", "dead", "fire", "real", "nice", "wait", "facts", "honestly", "literally", "actually", "think", "know", "gonna"];
 
   let html = '<div class="battle-rows">';
+  settings.battleWords.forEach((word) => { html += battleRowHtml(word); });
   battleWords.forEach(word => {
     const c1 = counts1.get(wordKey(word)) || 0;
     const c2 = counts2.get(wordKey(word)) || 0;
@@ -5403,14 +5417,28 @@ function drawBattleResults() {
   </div>`;
 
   container.innerHTML = html;
+  container.querySelectorAll(".battle-remove").forEach((b) => {
+    b.onclick = () => {
+      settings.battleWords = settings.battleWords.filter((w) => w !== b.dataset.word);
+      saveSettings(); drawBattleResults();
+    };
+  });
 }
 
-function addBattleRow(word) {
-  const container = document.getElementById("battle-results");
-  if (!container) return;
-  const rows = container.querySelector(".battle-rows");
-  if (!rows) return;
+// Add a word to the battle (newest first; a word already there stays put).
+function addBattleWord(word) {
+  const inp = document.getElementById("battle-word");
+  const k = word.trim().toLowerCase();
+  if (settings.battleWords.some((w) => w.toLowerCase() === k)) { if (inp) inp.value = ""; toast("“" + word.trim() + "” is already in the battle"); return; }
+  settings.battleWords = cleanBattleWords([word].concat(settings.battleWords));
+  saveSettings();
+  drawBattleResults();
+  if (inp) inp.value = "";
+}
 
+// One custom-word row: counted with the same whole-word keys as everything
+// else (AN-10), removable.
+function battleRowHtml(word) {
   const keys = wordKeys(word);
   const probe = keys.length ? keys.reduce((a, b) => (b.length > a.length ? b : a)) : "";
   let c1 = 0, c2 = 0;
@@ -5427,15 +5455,14 @@ function addBattleRow(word) {
   const w2 = (c2 / max * 100).toFixed(0);
   const winner = c1 > c2 ? "left" : c2 > c1 ? "right" : "tie";
 
-  const row = el("div", "battle-row battle-added");
-  row.innerHTML = `
+  return `<div class="battle-row battle-added">
     <div class="battle-count ${winner === 'left' ? 'battle-winner' : ''}">${fmtNum(c1)}</div>
     <div class="battle-bar-left"><div class="battle-fill-left" style="width:${w1}%"></div></div>
     <div class="battle-word">${esc(word)}</div>
     <div class="battle-bar-right"><div class="battle-fill-right" style="width:${w2}%"></div></div>
-    <div class="battle-count ${winner === 'right' ? 'battle-winner' : ''}">${fmtNum(c2)}</div>`;
-  rows.insertBefore(row, rows.firstChild);
-  document.getElementById("battle-word").value = "";
+    <div class="battle-count ${winner === 'right' ? 'battle-winner' : ''}">${fmtNum(c2)}</div>
+    <button class="icon-btn battle-remove" type="button" data-word="${esc(word)}" aria-label="Remove “${esc(word)}”" title="Remove">✕</button>
+  </div>`;
 }
 
 /* ===========================================================================

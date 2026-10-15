@@ -1446,8 +1446,14 @@ html[data-theme="light"] .wr-slide::after {
 .battle-custom { display: flex; gap: 10px; align-items: center; }
 .battle-rows { display: flex; flex-direction: column; gap: 6px; }
 .battle-row {
-  display: grid; grid-template-columns: 50px 1fr 80px 1fr 50px; gap: 8px; align-items: center;
+  display: grid; grid-template-columns: 50px 1fr 80px 1fr 50px 32px; gap: 8px; align-items: center;
   padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+/* UX-29: added words carry a remove button in the last column */
+.battle-remove { width: 32px; height: 32px; display: grid; place-items: center; font-size: 13px; }
+@media (pointer: coarse) {
+  .battle-row { grid-template-columns: 40px 1fr 72px 1fr 40px 44px; gap: 6px; }
+  .battle-remove { width: 44px; height: 44px; }
 }
 .battle-row.battle-added { animation: battleSlide 0.3s ease; }
 @keyframes battleSlide { from { opacity: 0; transform: translateY(-10px); } }

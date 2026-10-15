@@ -18,6 +18,7 @@ const DEFAULTS = Object.freeze({
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
   colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true,
   saved: [], pins: [], ignoredUsers: [], ignoredGroups: [], timezone: "local", tzExplicit: false,
+  battleWords: [],
 });
 const RULES = { defaults: DEFAULTS, fontMin: 13, fontMax: 19, densities: ["comfortable", "compact"] };
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
@@ -174,4 +175,19 @@ test("Import: an unmarked UTC in the file does not override the current zone", (
   assert.equal(t.timezone, "UTC");
   // A marker without a usable zone changes nothing.
   assert.equal(validateSettings({ timezone: "Not/AZone", tzExplicit: true }, Object.assign({ base: validateSettings({}, RULES) }, RULES)).tzExplicit, false);
+});
+
+// UX-29: the custom Word Battles words persist in settings, so they come
+// through the same gate — strings only, trimmed, ≤40 chars, de-duplicated
+// case-insensitively (first spelling wins), at most 30.
+test("validateSettings keeps battle words as a clean, de-duplicated list", () => {
+  const long = "x".repeat(41);
+  const s = validateSettings({ battleWords: ["lol", " LOL ", "", "   ", 5, null, {}, long, "bruh", "<img src=x>", "Bruh"] }, RULES);
+  assert.deepStrictEqual(s.battleWords, ["lol", "bruh", "<img src=x>"]);
+  const many = Array.from({ length: 50 }, (_, k) => "w" + k);
+  assert.equal(validateSettings({ battleWords: many }, RULES).battleWords.length, 30);
+  // not an array → the base / default list
+  assert.deepStrictEqual(validateSettings({ battleWords: "lol" }, RULES).battleWords, []);
+  const base = validateSettings({ battleWords: ["keep"] }, RULES);
+  assert.deepStrictEqual(validateSettings({}, Object.assign({ base }, RULES)).battleWords, ["keep"]);
 });

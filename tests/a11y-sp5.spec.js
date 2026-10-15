@@ -529,3 +529,36 @@ test.describe("UX-28: gallery basics", () => {
     });
   }
 });
+
+test.describe("UX-29: Word Battles keeps the words you add", () => {
+  test("custom words survive changing the people, de-duplicate, persist, and can be removed", async ({ page }) => {
+    await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "battles" } });
+    const word = page.locator("#battle-word");
+    const added = page.locator("#battle-results .battle-added .battle-word");
+    await word.fill("pizza"); await word.press("Enter");
+    await word.fill("movies"); await page.locator("#battle-go").click();
+    await word.fill("PIZZA"); await word.press("Enter");        // duplicate → still one row
+    await expect(added).toHaveText(["movies", "pizza"]);   // newest first
+    // a half-typed word survives a people change too
+    await word.fill("tonig");
+    await page.locator("#battle-p2").selectOption("u3");
+    await expect(added).toHaveText(["movies", "pizza"]);
+    await expect(word).toHaveValue("tonig");
+    // the picker avatar follows the selection
+    await expect(page.locator('.battle-picker .av[data-id="u3"]')).toHaveCount(1);
+    // counts are recomputed for the new pair: u1 says "pizza" in every volley, u3 never does
+    const pizzaRow = page.locator("#battle-results .battle-added", { has: page.locator(".battle-word", { hasText: /^pizza$/ }) });
+    const counts = (await pizzaRow.locator(".battle-count").allTextContents()).map(Number);
+    expect(counts[0]).toBeGreaterThan(0);
+    expect(counts[1]).toBe(0);
+    // persisted in settings
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem("gca.settings"))).battleWords).toEqual(["movies", "pizza"]);
+    await page.reload();
+    await go(page, "battles");
+    await expect(added).toHaveText(["movies", "pizza"]);
+    // removable
+    await page.getByRole("button", { name: "Remove “movies”" }).click();
+    await expect(added).toHaveText(["pizza"]);
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem("gca.settings"))).battleWords).toEqual(["pizza"]);
+  });
+});

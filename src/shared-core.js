@@ -630,6 +630,19 @@
   // zone) — and otherwise `rules.defaults` (boot). Never literals, so changing a
   // default (e.g. the timezone) changes every fallback with it.
   //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
+  // UX-29: custom Word Battles words — strings only, trimmed, ≤40 chars,
+  // de-duplicated case-insensitively (first spelling wins), at most 30.
+  function cleanBattleWords(a) {
+    const seen = new Set(), out = [];
+    for (const w of Array.isArray(a) ? a : []) {
+      if (typeof w !== "string") continue;
+      const t = w.trim();
+      if (!t || t.length > 40 || seen.has(t.toLowerCase())) continue;
+      seen.add(t.toLowerCase()); out.push(t);
+      if (out.length >= 30) break;
+    }
+    return out;
+  }
   function validateSettings(raw, rules) {
     const D = rules.defaults;
     const B = isPlainObj(rules.base) ? rules.base : D;
@@ -664,6 +677,7 @@
     if (Array.isArray(src.ignoredUsers)) s.ignoredUsers = idList(src.ignoredUsers);
     if (Array.isArray(src.ignoredGroups)) s.ignoredGroups = idList(src.ignoredGroups);
     if (Array.isArray(src.saved)) s.saved = src.saved.map(cleanSaved).filter(Boolean);
+    if (Array.isArray(src.battleWords)) s.battleWords = cleanBattleWords(src.battleWords);
     return s;
   }
   return {
@@ -674,6 +688,6 @@
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
-    isPlainObj, cleanMap, idList, cleanSaved, validateSettings,
+    isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, validateSettings,
   };
 });
