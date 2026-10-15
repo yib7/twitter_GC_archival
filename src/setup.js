@@ -295,10 +295,17 @@ function buildLogHtml(log) {
   const s = String(log || "").trim();
   return s ? `<details class="build-log"><summary>Build log</summary><pre>${escapeHtml(s)}</pre></details>` : "";
 }
+// Things the server fixed up on its own (SP-7, SP-8), so nothing is a surprise.
+function buildNotesHtml(j) {
+  const n = [];
+  if (j.swapped) n.push("Your messages and headers files were picked the other way round — they were swapped back automatically.");
+  if (j.mediaDescended) n.push(`Used the <code>${escapeHtml(j.mediaDescended)}</code> folder inside the folder you picked for media.`);
+  return n.length ? `<ul class="build-notes">${n.map((l) => `<li>${l}</li>`).join("")}</ul>` : "";
+}
 // "Warning: …" lines from the build, plus skipped media, surfaced on success.
 function buildWarningsHtml(j) {
   const w = String(j.log || "").split(/\r?\n/).filter((l) => /^Warning:/.test(l)).map((l) => l.replace(/^Warning:\s*/, ""));
-  if (j.mediaSkipped > 0) w.push(`${Number(j.mediaSkipped).toLocaleString()} media file(s) were skipped because another file already had the same name.`);
+  if (j.mediaUnmatched > 0) w.push(`${Number(j.mediaUnmatched).toLocaleString()} item(s) in the media folder weren't message photos or videos and were left out.`);
   return w.length ? `<ul class="build-warnings">${w.map((l) => `<li>Warning: ${escapeHtml(l)}</li>`).join("")}</ul>` : "";
 }
 
@@ -327,7 +334,7 @@ $("#btn-build").onclick = async () => {
       `✓ Built <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)` +
       (j.partFiles > 1 ? ` from <b>${Number(j.partFiles)}</b> message part files` : "") +
       (j.mediaCopied ? `, copied <b>${j.mediaCopied.toLocaleString()}</b> media files` : "") +
-      `.<ul>${groupList}</ul>` + buildWarningsHtml(j) + buildLogHtml(j.log), "ok");
+      `.<ul>${groupList}</ul>` + buildNotesHtml(j) + buildWarningsHtml(j) + buildLogHtml(j.log), "ok");
     lockSource(true);
     go(2);
   } catch (e) {

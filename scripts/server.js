@@ -22,7 +22,7 @@ const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
-const { buildFailureMessage, friendlyError, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -167,23 +167,36 @@ function decodeDataUrl(url) {
   if (buf.length > MAX_IMAGE_BYTES) throw httpError(413, "Uploaded images must be 10 MB or smaller.");
   return { buf, ext };
 }
-// Flattens srcDir's tree into destDir by basename. Two files sharing a
-// basename in different source subfolders would otherwise silently clobber
-// (last-write-wins, data loss with no signal) — instead, keep the first one
-// encountered and count the rest as skipped so the caller can warn.
+// SP-7: copies only the top-level files of srcDir that are named like X's
+// message media ("<messageId>-<name>.<image/video ext>", MEDIA_FILE_RE).
+// Subfolders, symlinks and anything else are left behind and counted as
+// `unmatched`, so a mis-picked folder can never drag other private files
+// (1:1 DMs, account.js, other media) into the servable personal_data/media/.
+// X's group media folder is flat, so there are no same-name clashes to resolve.
 function copyMediaFlat(srcDir, destDir) {
   fs.mkdirSync(destDir, { recursive: true });
-  const taken = new Set();
-  let copied = 0, skipped = 0;
-  (function walk(dir) {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, e.name);
-      if (e.isDirectory()) walk(full);
-      else if (taken.has(e.name)) { skipped++; }   // duplicate basename → keep first, don't clobber
-      else { fs.copyFileSync(full, path.join(destDir, e.name)); taken.add(e.name); copied++; }
-    }
-  })(srcDir);
-  return { copied, skipped };
+  let copied = 0, unmatched = 0;
+  for (const e of fs.readdirSync(srcDir, { withFileTypes: true })) {
+    if (e.isFile() && MEDIA_FILE_RE.test(e.name)) { fs.copyFileSync(path.join(srcDir, e.name), path.join(destDir, e.name)); copied++; }
+    else unmatched++;
+  }
+  return { copied, unmatched };
+}
+// SP-7: the folder the user picked → the group media folder to copy from.
+// Picking the archive (or its data/ folder) uses its direct_messages_group_media
+// inside; a folder that is clearly something else is refused with a reason.
+function resolveMediaDir(abs, typed) {
+  let st;
+  try { st = fs.statSync(abs); } catch (e) { return { error: "Media folder not found: " + typed }; }
+  if (!st.isDirectory()) return { error: "The media folder you chose is a file, not a folder: " + typed + ". Pick the direct_messages_group_media folder." };
+  for (const rel of ["direct_messages_group_media", path.join("data", "direct_messages_group_media")]) {
+    const child = path.join(abs, rel);
+    try { if (fs.statSync(child).isDirectory()) return { dir: child, descended: rel }; } catch (e) { /* not here */ }
+  }
+  let names;
+  try { names = fs.readdirSync(abs); } catch (e) { return { error: friendlyError(e) }; }
+  const problem = mediaFolderProblem(path.basename(abs), names);
+  return problem ? { error: problem } : { dir: abs };
 }
 // Open a native Windows file/folder picker and return the chosen absolute path.
 // `which` ("group" | "headers") only tailors the file dialog's title + filter —
@@ -235,21 +248,36 @@ function apiSource(body, res) {
   if (!mediaDirIn) return sendJSON(res, 400, { error: "Choose your direct_messages_group_media folder." });
 
   const absOf = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, p));
-  const groupAbs = absOf(groupJs), headersAbs = absOf(headersJs), mediaAbs = absOf(mediaDirIn);
+  let groupAbs = absOf(groupJs), headersAbs = absOf(headersJs);
   // SP-1 / SP-17: check what was picked BEFORE copying anything, so a wrong,
   // empty or missing file gets one plain sentence and nothing is half-written.
-  const fileProblem = (abs, typed, role, expected) => {
+  const fileProblem = (abs, typed, role) => {
     let st;
     try { st = fs.statSync(abs); } catch (e) { return role + " not found: " + typed; }
     if (st.isDirectory()) return "The " + role.toLowerCase() + " you chose is a folder, not a file: " + typed + ". Pick the .js file inside it.";
     if (!st.isFile()) return "The " + role.toLowerCase() + " you chose isn't a regular file: " + typed;
-    return wrongKindMessage(identifyExport(readExportHead(abs)), expected, path.basename(abs));
+    return null;
   };
-  const groupBad = fileProblem(groupAbs, groupJs, "Messages file", "messages");
+  const groupBad = fileProblem(groupAbs, groupJs, "Messages file");
   if (groupBad) return sendJSON(res, 400, { error: groupBad });
-  const headersBad = fileProblem(headersAbs, headersJs, "Headers file", "headers");
+  const headersBad = fileProblem(headersAbs, headersJs, "Headers file");
   if (headersBad) return sendJSON(res, 400, { error: headersBad });
-  if (!fs.existsSync(mediaAbs) || !fs.statSync(mediaAbs).isDirectory()) return sendJSON(res, 400, { error: "Media folder not found: " + mediaDirIn });
+  // SP-8: each file names itself (window.YTD.<name>), so two files picked the
+  // wrong way round are simply swapped back; any other mix-up is refused.
+  let groupKind = identifyExport(readExportHead(groupAbs)), headersKind = identifyExport(readExportHead(headersAbs));
+  let swapped = false;
+  if (groupKind.kind === "headers" && headersKind.kind === "messages") {
+    [groupAbs, headersAbs] = [headersAbs, groupAbs];
+    [groupKind, headersKind] = [headersKind, groupKind];
+    swapped = true;
+  }
+  const wrong = wrongKindMessage(groupKind, "messages", path.basename(groupAbs)) || wrongKindMessage(headersKind, "headers", path.basename(headersAbs));
+  if (wrong) return sendJSON(res, 400, { error: wrong });
+  // SP-7: only the group media folder — never the whole data/ folder (1:1 DMs,
+  // account details …), which would become servable under personal_data/media/.
+  const mediaPick = resolveMediaDir(absOf(mediaDirIn), mediaDirIn);
+  if (mediaPick.error) return sendJSON(res, 400, { error: mediaPick.error });
+  const mediaAbs = mediaPick.dir;
 
   const cfg = loadConfig();
   const cfgBefore = fs.existsSync(CONFIG) ? fs.readFileSync(CONFIG) : null;
@@ -282,9 +310,6 @@ function apiSource(body, res) {
   // the browser having closed.
   const mediaDestDir = path.join(PERSONAL, "media");
   const media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir));
-  if (media.skipped > 0) {
-    console.warn("Skipped " + media.skipped + " media file(s) with a basename already used by another file — only the first of each was kept.");
-  }
   cfg.mediaDir = mediaDestDir;
   saveConfig(cfg);
 
@@ -316,7 +341,7 @@ function apiSource(body, res) {
   const data = readBuiltData();
   const groups = (data && data.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, mediaCopied: media.copied, mediaSkipped: media.skipped, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog.trim() });
+  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaUnmatched: media.unmatched, mediaDescended: mediaPick.descended || null, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog.trim() });
 }
 // The chosen export file plus its -partN siblings in the same folder (SP-2).
 function partSiblings(abs) {

@@ -38,3 +38,17 @@ test("friendlyError turns common Node fs errors into plain sentences without sta
   const odd = new Error("weird\n    at somewhere (x.js:1:1)");
   assert.doesNotMatch(core.friendlyError(odd), /at somewhere/);
 });
+
+// ---- SP-7: only the group media folder, only message media ---------------
+test("MEDIA_FILE_RE matches X message media names only", () => {
+  for (const ok of ["9002-AbCdEf.png", "123-x.JPG", "1-a.jpeg", "77-clip.mp4", "8-a.webm", "9-b.mov", "10-c.m4v", "11-d.gif", "12-e.webp"]) assert.match(ok, core.MEDIA_FILE_RE, ok);
+  for (const bad of ["direct-messages.js", "account.js", "photo.jpg", "9002-a.txt", "9002-.png", "abc-1.png", "9002-a.png.exe", "desktop.ini"]) assert.doesNotMatch(bad, core.MEDIA_FILE_RE, bad);
+});
+
+test("mediaFolderProblem refuses the data folder, any folder of .js files and 1:1 DM media", () => {
+  assert.match(core.mediaFolderProblem("data", ["9002-a.png"]), /data folder/);
+  assert.match(core.mediaFolderProblem("export", ["direct-messages.js", "account.js"]), /data folder/);
+  assert.match(core.mediaFolderProblem("direct_messages_media", ["8001-a.jpg"]), /1:1/);
+  assert.equal(core.mediaFolderProblem("direct_messages_group_media", ["9002-a.png"]), null);
+  assert.equal(core.mediaFolderProblem("my media", []), null);
+});

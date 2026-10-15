@@ -292,4 +292,23 @@ function friendlyError(e) {
   }
 }
 
-module.exports = { buildFailureMessage, friendlyError, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP-7: what may be copied in as group media ------------------------- */
+// X names group-DM media "<messageId>-<random>.<ext>"; nothing else in an
+// export (account.js, tweets, 1:1 DM media folders) looks like that.
+const MEDIA_FILE_RE = /^\d+-[^/\\]+\.(?:jpe?g|png|gif|webp|mp4|mov|m4v|webm)$/i;
+// Why a picked folder (its own name + the names inside it) is clearly NOT the
+// group media folder, or null when it may be. Called only after the caller
+// looked for a direct_messages_group_media folder inside it.
+function mediaFolderProblem(dirName, names) {
+  const n = String(dirName || "");
+  if (/^direct_messages_media$/i.test(n)) {
+    return "“" + n + "” is the media from your 1:1 direct messages, not your group chats. Pick the direct_messages_group_media folder next to it.";
+  }
+  if (/^data$/i.test(n) || (names || []).some((f) => /\.js$/i.test(f))) {
+    return "“" + n + "” looks like your archive's data folder (it holds .js export files), not the group media folder. " +
+      "Pick the direct_messages_group_media folder inside it — the archive never copies your other private files.";
+  }
+  return null;
+}
+
+module.exports = { buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

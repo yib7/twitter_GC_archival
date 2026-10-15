@@ -64,3 +64,83 @@ describe("SP-2: multi-part exports through the wizard", () => {
     assert.ok(g.participants.includes("333"), "the part1-only sender is a real participant");
   });
 });
+
+describe("SP-8: swapped messages / headers files", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("messages and headers files picked the other way round are swapped back, and the build has real text", async () => {
+    const f = X.writeExport(scratch());
+    const r = await source(S, f.headers, f.group, f.media);
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.swapped, true, "the response says the files were swapped back");
+    const cfg = JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+    assert.equal(path.basename(cfg.sourceJs[0]), "direct-messages-group.js");
+    const g = readData(S.personal).conversations.find((c) => c.id === "1000000001");
+    assert.ok(g.msgs.some((m) => m.x), "messages carry their text, not blanks");
+  });
+
+  test("the same file picked for both gets a plain error and builds nothing", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    const r = await source(S, f.headers, f.headers, f.media);
+    const j = await r.json();
+    assert.equal(r.status, 400);
+    assert.match(j.error, /headers file/);
+    assert.ok(!fs.existsSync(path.join(S.personal, "data.js")));
+  });
+});
+
+describe("SP-7: the media folder is validated and only message media is copied", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+  const mediaNames = () => fs.readdirSync(path.join(S.personal, "media")).sort();
+
+  test("picking the archive's data/ folder uses its direct_messages_group_media child, never 1:1 DMs or account.js", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    const r = await source(S, f.group, f.headers, f.data);
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.mediaCopied, 3);
+    assert.deepEqual(mediaNames(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
+  });
+
+  test("a folder of .js export files with no group media inside is refused, nothing copied", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    fs.renameSync(f.media, f.media + "-moved");   // data/ without direct_messages_group_media
+    const r = await source(S, f.group, f.headers, f.data);
+    const j = await r.json();
+    assert.equal(r.status, 400, JSON.stringify(j));
+    assert.match(j.error, /direct_messages_group_media/);
+    assert.ok(!fs.existsSync(path.join(S.personal, "media")) || mediaNames().length === 0);
+  });
+
+  test("the 1:1 direct_messages_media folder is refused", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    const r = await source(S, f.group, f.headers, path.join(f.data, "direct_messages_media"));
+    const j = await r.json();
+    assert.equal(r.status, 400, JSON.stringify(j));
+    assert.match(j.error, /1:1/);
+  });
+
+  test("only top-level message media files are copied; the rest are counted, not copied", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    fs.writeFileSync(path.join(f.media, "notes.txt"), "x");
+    fs.writeFileSync(path.join(f.media, "desktop.ini"), "x");
+    fs.mkdirSync(path.join(f.media, "sub"));
+    fs.writeFileSync(path.join(f.media, "sub", "9003-Nested.jpg"), "x");
+    const r = await source(S, f.group, f.headers, f.media);
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.mediaCopied, 3);
+    assert.equal(j.mediaUnmatched, 3, "notes.txt, desktop.ini and the sub/ folder are left out and reported");
+    assert.deepEqual(mediaNames(), ["9002-AbCdEf.png", "9002-ZzSecond.jpg", "9101-Other.mp4"]);
+  });
+});
