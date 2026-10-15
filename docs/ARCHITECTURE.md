@@ -8,7 +8,7 @@ build step for the front-end.
 
 ```mermaid
 flowchart LR
-  X["raw X export<br/>direct-messages-group.js<br/>direct-messages-group-headers.js<br/>direct_messages_group_media/"]
+  X["raw X export<br/>direct-messages-group.js<br/>direct-message-group-headers.js<br/>direct_messages_group_media/"]
   B["build.js<br/>parse · merge · resolve media · dedupe"]
   D["personal_data/data.js<br/>window.CHAT_DATA"]
   V["the viewer<br/>index.html · src/app.js · src/styles.css"]

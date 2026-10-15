@@ -2,6 +2,9 @@
   "name": "group-chat-archive",
   "version": "1.3.0",
   "private": true,
+  "engines": {
+    "node": ">=18"
+  },
   "description": "Offline browser for Twitter/X group DM exports.",
   "scripts": {
     "start": "node scripts/server.js",

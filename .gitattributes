@@ -7,5 +7,11 @@
 *.command text eol=lf
 *.sh text eol=lf
 
+# Windows batch files must be CRLF in the working tree (and in a GitHub ZIP):
+# with LF-only line endings cmd.exe can miss a `goto` label, which would skip
+# the launcher's friendly error messages.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
 # Vendored binaries: leave bytes untouched.
 lib/*.min.js -text
