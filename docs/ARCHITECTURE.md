@@ -26,7 +26,7 @@ that the viewer reads.
 ### Setup wizard & `personal_data/`
 
 First-run setup is a served page (`setup.html` + `src/setup.js` + `src/setup.css`)
-backed by three small JSON endpoints in `scripts/server.js` (Node built-ins only).
+backed by a small JSON API in `scripts/server.js` (Node built-ins only; table below).
 It exists because a pure `file://` page can't write config or copy a multi-GB
 media folder. The contract is **"UI collects config, Node builds"**: the wizard
 gathers paths/names/photos and triggers `build.js` server-side.
@@ -35,13 +35,22 @@ All real, per-user data lands in one git-ignored folder:
 
 ```
 personal_data/
-  config.json   { sourceJs:[paths], headersJs, mediaDir, me, gcName, gcPhoto, names:{}, pfps:{} }
-  data.js       built window.CHAT_DATA
-  local.js      window.LOCAL_NAMES / LOCAL_PFPS / LOCAL_ME / LOCAL_GC{name,photo}
-  source/       copied raw export .js (direct-messages-group.js + -headers.js)
+  config.json   { sourceJs:[paths], headersJs: path|[paths], mediaDir, mediaSourceDir,
+                  me, names:{id:name}, pfps:{id:path}, gc:{convId:{name,photo}},
+                  ignoredUsers:[ids], ignoredGroups:[convIds] }
+  data.js       built window.CHAT_DATA (data.js.bak: the archive before the last merge)
+  local.js      window.LOCAL_NAMES / LOCAL_PFPS / LOCAL_ME / LOCAL_GC{convId:{name,photo}}
+                / LOCAL_IGNORED_USERS / LOCAL_IGNORED_GROUPS
+  source/       copied raw export .js (direct-messages-group*.js + the headers file)
   media/        copied group media (referenced by root-relative path)
-  pfps/         gc.<ext> + <participantId>.<ext> profile images
+  pfps/         <name>_pfp.<ext> per person (unnamed: <id>.<ext>), group_<name>_pfp.<ext>
+                per group chat (unnamed: gc-<convId>.<ext>); clashes get an id suffix
+  .removed/     messages.js: removed people's / group chats' messages, kept aside
 ```
+
+An older `config.json` with a single `gcName` / `gcPhoto` (and a `local.js`
+with a flat `LOCAL_GC{name,photo}`) is still read; the next identity save
+migrates it to the per-group `gc` map.
 
 `config.json` is the wizard↔build contract and the **only** way the build is
 driven: `build.js` reads its `sourceJs` + `headersJs` + `mediaDir` and writes
@@ -53,13 +62,41 @@ Server endpoints:
 
 | Endpoint | Role |
 |----------|------|
-| `GET /api/pick-file?for=group\|headers` · `GET /api/pick-folder[?for=root]` | Open a native Windows file/folder dialog (PowerShell `OpenFileDialog` / `FolderBrowserDialog`) and return the chosen absolute path, so users can browse instead of typing. `for` tailors the file dialog's title + filter. Falls back to manual entry off Windows. Both also require the `X-GCA-Token` header carrying the random per-process token the server injects into `setup.html` only (never logged or stored), plus an own-or-absent `Origin` and `Sec-Fetch-Site: same-origin` when sent (`isPickerRequestAllowed`); without it they return `403` before any dialog opens. |
+| `GET /api/ping?c=<page id>` · `POST /api/bye?c=<page id>` | Page presence for the double-click launcher (see `src/keepalive.js`): a ping says a page is open, the beacon says it closed. |
+| `GET /api/pick-file?for=group\|headers` · `GET /api/pick-folder[?for=root]` | Open a native Windows dialog (PowerShell `OpenFileDialog`; for a folder, the media folder or with `for=root` the unzipped archive, the user opens any file inside it and the server returns that file's parent directory) and return the chosen absolute path, so users can browse instead of typing. `for` tailors the file dialog's title + filter. Falls back to manual entry off Windows. Both also require the `X-GCA-Token` header carrying the random per-process token the server injects into `setup.html` only (never logged or stored), plus an own-or-absent `Origin` and `Sec-Fetch-Site: same-origin` when sent (`isPickerRequestAllowed`); without it they return `403` before any dialog opens. |
 | `POST /api/preflight` | Same body as `/api/source`. **Read-only** preview: streams the export (one message at a time) and returns per-group counts, date ranges and participants, totals, 1:1 DM counts, the media that would be copied (and media of no message), what an existing archive already holds (`merge`: overlap, new messages, new / kept group chats) and plain `warnings` (`{code, text}`: zero messages, swapped files, missing parts, manifest problems, DMs left out, unmatched media, overlap, removed people's messages, bad dates). Nothing under `personal_data/` changes; `409` while a build runs. |
 | `POST /api/source` | `{ archiveRoot }` **or** `{ groupJs, headersJs, mediaDir }`. An archive folder (or any file in it) is resolved through `data/manifest.js` (`locateExport` in `scripts/fs-io.js`; never outside the picked folder) united with the export-named files in the data folder (a stale manifest can't hide a part), with a file-name scan as fallback; the three fields are validated (all **required** and existing). Copies the `.js` files into `personal_data/source/` and media into `personal_data/media/` (one file at a time, each to a temp name renamed into place; a non-empty file already there is never replaced), writes `config.json`, runs `build.js` as a child process with the existing `data.js` as the merge baseline, and returns a summary (`merged`, `older`, `previousMsgs`, `added` for a merge). A merge of an export with no group messages is refused (`422`); an export older than the archive doesn't re-point `mediaSourceDir`, and the build keeps the archive's copies of messages both have (reactions united). `build.js` keeps the messages it leaves out for removed people / group chats in `personal_data/.removed/messages.js` (archive format; written as a superset before `data.js`, narrowed after) and folds them back once un-removed (the file stays, empty, while anything is removed; an archive with removals and no such file is rebuilt once with its unchanged config before a merge copies anything, and a failed merge puts the file back). Un-removing restores media from `mediaSourceDir` for the ids in `data.js` and the quarantine. One job at a time: a second build, a save, a removal preview, a preflight or Start over gets `409` while it runs. |
 | `GET /api/progress` | `{ running: false }`, or `{ running: true, phase, files, totalFiles, bytes, totalBytes }` while a build copies media — the wizard's progress bar. |
 | `GET /api/status` | Whether an archive is built, its groups (streamed summary, no message bodies), the saved `names`, `pfps`, `me`, `gc` (saved group names + photo paths), `ignoredGroups` and `ignoredUsers`, so a reopened wizard shows what was saved. |
-| `GET /api/parts` | Participants from the built data, each with up to 10 Twitter/X-link-free sample messages + a few shared-media paths. |
-| `POST /api/identity` | `{ me, gcName, gcPhoto, names, pfps }` (images as data URLs) → write files into `personal_data/pfps/`, then `personal_data/local.js`. |
+| `GET /api/parts[?group=<convId>]` | Participants from the built data (one group chat when `group` is given), each with up to 10 Twitter/X-link-free sample messages + a few shared-media paths. |
+| `POST /api/identity` | `{ me, names, pfps, gc: {convId: {name, photo}}, ignoredUsers, ignoredGroups }` (new images as data URLs; every photo is decoded and size-checked before anything is written, `413` names the one too large) → files in `personal_data/pfps/`, then `config.json` and `personal_data/local.js`. A changed removal list rebuilds the archive. `me: ""` clears "this is you"; a missing field keeps the saved value. |
+| `POST /api/removal-preview` | `{ ignoredUsers, ignoredGroups }` → `{ messages, media, groups, people }`: what a removal would take out of the built archive. Writes nothing. |
+| `POST /api/reset` | Start over: deletes `config.json`, `data.js(.bak)`, `local.js`, `source/`, `media/`, `pfps/` and `.removed/` under `personal_data/` (and any leftover backup folders), leaving an empty `personal_data/`. |
+
+The routes that change state or open a dialog (`reset`, `source`,
+`preflight`, `identity`, `removal-preview`, `pick-file`, `pick-folder`, `bye`)
+form the server's `GUARDED` set and also need an own-or-absent `Origin` /
+`Referer` (see `scripts/server-core.js` below). While a build runs, `identity`,
+`reset`, `removal-preview`, `preflight` and a second `source` get `409`.
+
+### Content-Security-Policy
+
+`index.html` and `setup.html` each carry the policy in a `<meta
+http-equiv="Content-Security-Policy">` tag (`default-src 'self'`,
+`script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self'
+data:`, `object-src 'none'`, `base-uri 'self'`, …). Because it is a meta tag,
+the browser enforces it over `file://` too, where it stands alone with no
+nonce. Every script is a same-origin file, so no hash or `'unsafe-inline'` is
+needed for scripts.
+
+When served, `scripts/server.js` injects one inline config script
+(`window.GCA_SERVER_URL`, plus the picker token `window.GCA_TOKEN` on
+`setup.html` only). For that it generates a fresh random nonce per response,
+adds `'nonce-<value>'` to the meta tag's `script-src`, and puts the same
+nonce on the injected `<script>`. A meta CSP can't set `frame-ancestors`, so
+every HTML response also gets two headers: `X-Frame-Options: DENY` and
+`Content-Security-Policy: frame-ancestors 'none'`. Those headers exist only in
+served mode; nothing frames a `file://` page.
 
 ## Files
 
@@ -67,14 +104,15 @@ Server endpoints:
 |------|------|
 | `scripts/build.js` | Node script and the filesystem shell around `build-core.js`. Wizard-driven (requires `personal_data/config.json`; exits otherwise): reads the export file(s), calls `assembleConversations()`, and writes `personal_data/data.js`. Merge-aware: re-reads the previous build as a baseline so history accumulates. Group-chats only, 1:1 DMs (id shape `a-b`) are skipped. |
 | `scripts/build-core.js` | The pure archive-assembly logic (no filesystem I/O), so it can be unit-tested in isolation (`tests/build-core.test.js`). Folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, and, when the headers file is supplied, folds `direct-message-group-headers.js` (metadata only: it adds no messages but completes each conversation's participant roster and join/leave/name events). Also owns `collectParticipants` (used by the server's `/api/parts`) and `require()`s the shared `X_LINK` regex from `src/shared-core.js`. |
-| `scripts/make_sample.js` | Node script. Deterministic synthetic-data generator → `data.sample.js` (3 group chats, ~130 messages, tagged `__sample`) plus placeholder SVG media/avatars. Zero real data. |
+| `scripts/make_sample.js` | Node script. Deterministic synthetic-data generator → `data.sample.js` (3 group chats, 660 messages over ~18 months, tagged `__sample`, with renames, joins and a leave, reactions, links, multi-photo messages and RTL / emoji text) plus placeholder SVG photos/avatars. A fixed seed and a fixed `generatedAt` make the output byte-identical on every run (`tests/make-sample.test.js`; CI regenerates it and fails on any diff). `--out <dir>` writes somewhere else. Zero real data. |
 | `setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard (served). Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
-| `index.html` | App shell + sidebar markup. Loads `src/theme-boot.js`, then `data.sample.js` first, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/shared-core.js`, then `src/app.js`. |
+| `index.html` | App shell + sidebar markup. Script load order: `src/theme-boot.js` (in `<head>`), `src/keepalive.js`, `data.sample.js`, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `lib/`, then `src/shared-core.js`, then `src/app.js`. The four optional files are plain `<script src … data-optional>` tags with no `onerror` handler: when served, a missing one comes back as an empty `200`; over `file://` the browser just logs a not-found line. |
 | `src/app.js` | The entire UI. See "Runtime model" below. |
 | `src/shared-core.js` | Single source for the constants/helpers three consumers all need to agree on: `PALETTE` (avatar colors), `X_LINK` (Twitter/X link matcher), `hashId`, `initials`, `paletteColor`, plus the text-analysis definitions (emoji, tokenizer, stopwords, keywords, link platforms, `plural`) and the time index (see *Analytics definitions*). Dual-target, no bundler: a UMD-style wrapper sets `window.GCAShared` when loaded as a plain `<script>` (`index.html`/`setup.html`, before `app.js`/`setup.js`) and exports the same object via `module.exports` when `require()`d from Node (`scripts/build-core.js`). Replaces three previously-duplicated copies of the same constants; `tests/shared-core.test.js` asserts every consumer wires up this module and none re-declares its own copy. |
-| `src/theme-boot.js` | Applies the saved `gca.theme` (light/dim/lightsout) to `<html data-theme>` before first paint, avoiding a flash of the wrong theme. Externalized into its own same-origin file (loaded first, in `<head>`, in both `index.html` and `setup.html`) rather than an inline `<script>` block, so the served-mode CSP's `script-src 'self'` needs no per-inline-script hash or `'unsafe-inline'`. No-op over `file://` (`localStorage` still works there; the `<meta>` CSP applies as-is, with no nonce). |
+| `src/theme-boot.js` | Applies the saved `gca.theme` (light/dim/lightsout) to `<html data-theme>` before first paint, avoiding a flash of the wrong theme. Externalized into its own same-origin file (loaded first, in `<head>`, in both `index.html` and `setup.html`) rather than an inline `<script>` block, so the `<meta>` CSP's `script-src 'self'` needs no per-inline-script hash or `'unsafe-inline'`. No-op over `file://` (`localStorage` still works there; the `<meta>` CSP applies as-is, with no nonce). |
 | `src/styles.css` | App styles + the X design-token theme system: `html[data-theme]` blocks for Light, Dim, and Lights out. Accent, font size, and density stay JS-driven CSS variables. |
-| `scripts/server.js` | Static file server with HTTP range support (for video), plus the setup-wizard API (`/api/source`, `/api/parts`, `/api/identity`). Not required for daily use, the app runs from `file://`. In served mode it adds a per-response nonce to the page's `<meta>` CSP (`script-src 'self' 'nonce-<random>'`, matched to the one inline config script it injects), sends every HTML page with `X-Frame-Options: DENY` + a `Content-Security-Policy: frame-ancestors 'none'` header (a meta CSP can't set `frame-ancestors`) and `Cache-Control: no-store`, and enforces the Host/Origin guard below on every request. |
+| `scripts/server.js` | Static file server with HTTP range support (for video), plus the setup-wizard API (the endpoint table above). Serves only an allowlist of paths (`isServablePath`). Not required for daily use, the app runs from `file://`. It adds the per-response CSP nonce and the frame headers described under *Content-Security-Policy*, sends HTML with `Cache-Control: no-store`, and enforces the Host/Origin guard below on every request. |
+| `scripts/fs-io.js` | The filesystem helpers `build.js` and `server.js` share: streaming readers for the export, `locateExport` (manifest-first archive lookup) and atomic writes. |
 | `scripts/server-core.js` | Pure, side-effect-free server helpers (path allowlist `isServablePath`, `pfpFileName`, `isInsidePersonal`, `openerCommand`, idle-liveness, name merges), split out so the security-sensitive routing rules are unit-tested in isolation (`tests/server-core.test.js`), mirroring the `build.js` / `build-core.js` split. Also owns the **Host/Origin guard**: `isAllowedHost(hostHeader, port)` checks every request's `Host` header against a loopback-hostname allowlist (blocks DNS-rebinding — a malicious external DNS name that resolves to `127.0.0.1` — and any host/port mismatch); `isAllowedOrigin(originHeader, refererHeader, port)` additionally checks `Origin`/`Referer` on the state-changing routes in `server.js`'s `GUARDED` set (`/api/reset`, `/api/source`, `/api/preflight`, `/api/identity`, `/api/removal-preview`, `/api/pick-file`, `/api/pick-folder`, `/api/bye`), rejecting any cross-origin `POST` (CSRF). Both return `403` on failure; `tests/server-host-guard.test.js` and `tests/server-core.test.js` cover the malformed-header and DNS-rebind edge cases. |
 | `src/keepalive.js` | Page presence for the double-click launcher (which starts the server with `--open`), loaded first (before the archive data) by `index.html`/`setup.html` when served over http(s). Each page pings `GET /api/ping?c=<page id>` (every 15 s, and at once when it becomes visible again) and sends a `POST /api/bye?c=<page id>` beacon on `pagehide`. The server exits ~20 s after the last open page said goodbye, or after 30 min with no contact at all (`makeLiveness`), so a throttled or sleeping background tab never stops it, while closing the browser still closes the command window. If a ping fails, the page shows a banner saying the server stopped and how to restart it. No-op over `file://`; harmless against a manually-started server. |
 | `lib/` | Vendored Fuse.js (Apache-2.0) + Chart.js (MIT). |
@@ -84,14 +122,18 @@ Server endpoints:
 ```js
 {
   generatedAt,
+  ignoredUsers?: [id], ignoredGroups?: [convId],    // what this build left out
   conversations: [
     { id, type:"group", title, participants:[id], count,
-      msgs:  [ { i, s, t, x, u?, m?, k?, r? } ],   // id, sender, time(ms), text,
-                                                   //   urls, media-path, kind, reactions
+      msgs:  [ { i, s, t, x, u?, m?, k?, mx?, r? } ],  // id, sender, time(ms), text,
+                                                       //   urls, first media path + kind
+                                                       //   ("img"|"vid"|"file"), further
+                                                       //   media [{m,k}], reactions [{s,k}]
       events:[ { t, type:"name"|"join"|"leave"|"create", ... } ] }
   ]
 }
 ```
+`data.sample.js` adds `__sample: true` (see *First-run onboarding*).
 The viewer also accepts the legacy single-conversation shape
 (`{ conversationId, msgs, events }`), `normalizeConvos()` wraps it into a
 one-element `conversations` array.
@@ -184,9 +226,11 @@ in `nameOf()`: user-saved (`settings.names`, People tab → localStorage) →
 `window.LOCAL_NAMES` (gitignored `local.js`) → `GENERIC` → `User <id4>`.
 Profile pictures: `PFPS = { ...LOCAL_PFPS, ...settings.pfps }`, where in-app
 uploads (People tab) are stored as data URLs in `settings.pfps` so editing works
-from `file://` with no server. The group photo + name come from
-`window.LOCAL_GC` / `settings.gcPhoto`/`gcName` (`updateBrand()`), and the
-wizard's "this is you" marker is `window.LOCAL_ME` (a default for `settings.me`).
+from `file://` with no server. Each group chat's photo + name come from
+`settings.gc[convId]`, else `window.LOCAL_GC[convId]` (the wizard's
+per-group map; a legacy flat `LOCAL_GC` / `settings.gcName` / `gcPhoto` is still
+honoured) (`updateBrand()`), and the wizard's "this is you" marker is
+`window.LOCAL_ME` (a default for `settings.me`).
 
 ### First-run onboarding
 The shipped demo (`data.sample.js`) carries a `__sample` flag; any real build
@@ -211,5 +255,43 @@ the sheet). Desktop and non-DOM contexts are unaffected; the whole layer is
 `display:none` above the breakpoint.
 
 ### Local data
-All viewer state (theme, names, profile pictures, bookmarks, saved searches)
-lives in `localStorage` under `gca.*` keys.
+All viewer state lives in `localStorage` under `gca.*` keys: `gca.settings`
+(theme, accent, names, bookmarks, saved searches, …), `gca.pfps` and `gca.gc`
+(in-app profile and group photos, kept apart because data URLs are large),
+`gca.theme` (read by `theme-boot.js` before first paint), `gca.conv`,
+`gca.lastView`, `gca.tlpos` (Timeline reading positions), `gca.shareRedact`
+(the Share dialog's "Hide names" choice) and `gca.onboarded`.
+
+## Testing
+
+| Command | What runs |
+|---------|-----------|
+| `npm run test:unit` | `node --test "tests/**/*.test.js"`: pure-module and Node-script tests (build, server helpers, the sample generator, launchers, …). The glob form needs Node 21+. |
+| `npx playwright test` (`npm run test:e2e`) | Every `tests/*.spec.js` in Chromium against a server Playwright starts itself. Two projects: `main` (everything else, in parallel) and `perf` (`tests/perf-100k.spec.js`, the 100k-message budgets), which runs after `main` on one worker so its timings don't compete with the rest of the suite. `npx playwright test --project=perf --no-deps` runs the budgets alone. |
+| `npm run test:smoke` | `tests/smoke.spec.js` only. |
+| `npm run test:big` | `tests/build-600mb.big.js`: an opt-in build of a ~600 MB synthetic export (slow, needs disk). |
+| `npm run lint` | ESLint with `--max-warnings=0`. `*.test.js` files get Node globals only; specs get Node + browser. |
+
+The e2e server is isolated from any real archive: `playwright.config.js`
+requires `tests/_real-data-guard.js` first, serves on port 8799, and points
+`GCA_PERSONAL` at a fresh temp folder. Specs that need data use
+`data.sample.js` or inject their own.
+
+Environment switches used only by the tests and the harness (never needed
+for normal use, so they are not in `.env.example`):
+
+| Variable | Effect |
+|----------|--------|
+| `GCA_E2E_PERSONAL_DIR` | The temp `GCA_PERSONAL` folder `playwright.config.js` creates once and shares with its workers (set by the config, not by hand; a value pointing anywhere else is refused). |
+| `GCA_NO_ROOT_FALLBACK=1` | The server never reads the legacy root `data.js` / `names.local.js`; they are served empty. Set by the e2e harness so a test server can't see a real archive in the checkout. |
+| `GCA_NO_NATIVE_PICKER=1` | The file/folder pickers report "unsupported" instead of opening a real, blocking dialog. |
+| `GCA_AUTO_EXIT=1` | Turns on the launcher's exit-when-the-last-page-closes behaviour without `--open`. |
+| `GCA_SCAN_CHUNK=<bytes>` | Read size for the streaming export readers; tests force tiny chunks to hit chunk-boundary cases. |
+| `GCA_TEST_FREE_BYTES=<n>` | Pretends the disk has `n` free bytes, for the free-space check. |
+| `GCA_TEST_BUILD_CRASH=<point>` · `GCA_TEST_COPY_CRASH=<file>` | Simulate a crash at a named build step, or half-way through copying a named media file, to test recovery. |
+| `GCA_TEST_COPY_DELAY_MS=<ms>` | Slows each media copy, so tests can observe progress and the one-job-at-a-time lock. |
+| `GCA_BIG=1` | Opts in to `tests/build-600mb.big.js` (`npm run test:big` sets it). |
+| `GCA_PERF_MULT=<n>` | Multiplies every perf-100k budget (default 1, 2 on CI). |
+| `GCA_PERF_CPU_THROTTLE=<n>` | Slows the page's CPU n-fold during perf-100k, to rehearse a slower machine. |
+| `PLAYWRIGHT_BASE_URL` | Points the suite at an already-running server instead of the isolated one; this turns off the harness's own isolation, so only use it with a server started on an empty, throwaway `GCA_PERSONAL`. |
+| `CI` | Set by GitHub Actions: a committed `test.only` fails the run (`forbidOnly`), and the perf budgets double. |
