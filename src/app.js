@@ -66,7 +66,19 @@ function rebuildIndexes() {
   N = MSGS.length;
   LOWER = new Array(N);
   ID2IDX = new Map();
-  for (let i = 0; i < N; i++) { LOWER[i] = (MSGS[i].x || "").toLowerCase(); ID2IDX.set(MSGS[i].i, i); }
+  for (let i = 0; i < N; i++) { LOWER[i] = searchText(MSGS[i]); ID2IDX.set(MSGS[i].i, i); }
+}
+// VC-12: what Search reads for a message — its text plus the expanded and
+// display URLs of its links (renderText shows those, not the raw t.co link,
+// so what you see is what you can find). Search only: the word cloud and the
+// keyword analytics read m.x through plainText() / tokenize() (a LOWER probe
+// there is only a prefilter, re-checked on m.x).
+function searchText(m) {
+  const x = m.x || "", u = m.u;
+  if (!Array.isArray(u) || !u.length) return x.toLowerCase();
+  let extra = "";
+  for (const e of u) if (e && (e.e || e.d)) extra += " \u0001 " + (e.e || "") + " \u0001 " + (e.d || "");
+  return (x + extra).toLowerCase();
 }
 
 function assignGenericNames() {
