@@ -146,3 +146,31 @@ describe("SP7 fix 1: a build cut off part-way keeps data.js, data.js.bak and the
     assert.deepEqual(idsIn(readData(S.personal), "1000000002"), ["9101", "9102"]);
   });
 });
+
+// SP7 fix round 2 (#1): an archive whose removals were made before the
+// quarantine existed has no .removed/messages.js. Its first merge used to be
+// the first build to fill it — after config was already re-pointed at the
+// newer export, so the older export's removed messages (9004) were lost. The
+// merge now rebuilds once with the archive's own (unchanged) config first.
+describe("SP7 fix round 2: a legacy archive (removals but no quarantine) keeps older-only removed messages through a merge", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("build A, remove 333, (legacy: no quarantine), merge B, un-remove 333 → 9004 is back", async () => {
+    assert.equal((await source(S, X.writeExport(scratch()))).status, 200);
+    assert.equal((await identity(S, ["333"])).status, 200);
+    fs.rmSync(Q(S), { force: true });   // as an archive built before the quarantine existed
+    const m = await S.post("/api/source", { archiveRoot: X.writeExportB(scratch()).root });
+    assert.equal(m.status, 200, JSON.stringify(await m.clone().json()));
+    assert.deepEqual(quarIds(S), ["9004", "9008"], "the merge kept A's removed message aside");
+    assert.equal((await identity(S, [])).status, 200);
+    assert.deepEqual(idsIn(readData(S.personal), "1000000001"), ["9001", "9002", "9003", "9004", "9005", "9006", "9007", "9008"]);
+  });
+
+  test("a removal that took nothing out leaves an (empty) quarantine, so the next merge doesn't rebuild first again", async () => {
+    assert.equal((await identity(S, ["999"])).status, 200);   // nobody's messages
+    assert.ok(fs.existsSync(Q(S)), "the quarantine marks the archive as already set aside");
+    assert.deepEqual(quarIds(S), []);
+  });
+});

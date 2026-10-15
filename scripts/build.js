@@ -147,8 +147,11 @@ function loadQuarantine(acc) {
   }
 }
 // Write the quarantine (atomically), or remove it when nothing is left in it.
-function writeQuarantine(convs) {
-  if (!convs.length) { if (fs.existsSync(QUAR)) fs.rmSync(QUAR, { force: true }); return; }
+// Fix round 2 (#1): while anything is removed it stays, even empty — its
+// presence says this archive's removals have been set aside (an archive with
+// removals and no quarantine predates it; see sourceAndBuild in server.js).
+function writeQuarantine(convs, keepEmpty) {
+  if (!convs.length && !keepEmpty) { if (fs.existsSync(QUAR)) fs.rmSync(QUAR, { force: true }); return; }
   fs.mkdirSync(path.dirname(QUAR), { recursive: true });
   writeChunksAtomic(QUAR, core.archiveChunks({ generatedAt: new Date().toISOString(), removedMessages: true }, convs));
 }
@@ -248,11 +251,12 @@ function main() {
   // coming back), then data.js, then narrow the quarantine to what is still
   // removed. Cut off anywhere, every message is in data.js or the quarantine.
   const anyRemoved = removed.length > 0, anyBack = restored.length > 0;
-  if (anyRemoved || anyBack || hadQuarantine) writeQuarantine(core.mergeQuarantine(removed, restored));
+  const anyIgnored = ignoredUsers.length > 0 || ignoredGroups.length > 0;
+  if (anyRemoved || anyBack || hadQuarantine || anyIgnored) writeQuarantine(core.mergeQuarantine(removed, restored), anyIgnored);
   crashPoint("after-quarantine");
   writeArchive({ generatedAt: new Date().toISOString(), ignoredUsers, ignoredGroups }, conversations);
   crashPoint("after-archive");
-  if (anyBack) writeQuarantine(removed);
+  if (anyBack) writeQuarantine(removed, anyIgnored);
   if (anyRemoved) log("Kept out (removed people / group chats):", removed.reduce((n, c) => n + c.count, 0), "message(s), in personal_data/.removed/messages.js.");
 
   const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);

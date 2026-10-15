@@ -409,6 +409,9 @@ function pickReply(p) {
 // group chats / people, kept so un-removing can restore it. Never served (it
 // isn't under an allowlisted prefix); Start over erases it.
 const REMOVED = path.join(PERSONAL, ".removed");
+// SP7 fix round 1 (#1): the messages build.js keeps out for removed people /
+// group chats (same format as data.js; never served).
+const REMOVED_MSGS = path.join(REMOVED, "messages.js");
 // name -> { kind, id, file } for every quarantined file.
 function listQuarantine() {
   const out = new Map();
@@ -635,6 +638,21 @@ async function sourceAndBuild(body, res, progress) {
   const spaceErr = diskSpaceProblem(copyBytesNeeded(groupFiles.concat(headerFiles), mediaAbs), freeBytesAt(PERSONAL));
   if (spaceErr) return sendJSON(res, 507, { error: spaceErr });
 
+  // SP7 fix round 2 (#1): an archive whose removals predate the quarantine
+  // has never set its removed messages aside — they are only in the copies of
+  // the export it was built from, which this merge re-points config away from
+  // (and prunes). Rebuild once first with the archive's own, unchanged config,
+  // so the quarantine holds them before anything is copied or re-pointed.
+  const legacy = legacyQuarantineSources(cfgNow);
+  if (legacy) {
+    progress.phase = "build";
+    const pre = await runBuildAsync();
+    if (!pre.ok) {
+      return sendJSON(res, 422, { error: "Before adding this export, your archive has to be rebuilt once to keep the messages of the people and group chats you removed, and that rebuild failed: " + pre.error, log: pre.log });
+    }
+    progress.phase = "check";
+  }
+
   // Copy every source into personal_data/source/ so ALL private data lives under
   // personal_data/ (the export is just as private as the messages).
   const srcDir = path.join(PERSONAL, "source");
@@ -706,6 +724,20 @@ async function sourceAndBuild(body, res, progress) {
   const groups = groupsOf(readSummary());
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
   sendJSON(res, 200, { ok: true, merged: !!before, older, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
+}
+// SP7 fix round 2 (#1): true when the built archive has removed people or
+// group chats but no quarantine (built before it existed) and the export
+// copies it was built from are all still there to rebuild from. Without those
+// copies the removed messages can't be recovered, so there is nothing to do.
+function legacyQuarantineSources(cfg) {
+  if (!builtArchiveFiles().length || fs.existsSync(REMOVED_MSGS)) return false;
+  if (!asList(cfg.ignoredUsers).length && !asList(cfg.ignoredGroups).length) return false;
+  const files = asList(cfg.sourceJs).concat(asList(cfg.headersJs)).map((p) => (path.isAbsolute(p) ? p : path.join(ROOT, p)));
+  if (!asList(cfg.sourceJs).length || !files.every((f) => fs.existsSync(f))) {
+    console.error("[setup] this archive's removed messages were never set aside and its export copies are gone; merging without them.");
+    return false;
+  }
+  return true;
 }
 // The media folder against this export's message ids: files that will be
 // copied (`files`, `bytes`), files of removed people / groups (`removed`)
