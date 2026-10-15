@@ -89,3 +89,63 @@ test("createRedactor: generic 'User N' labels only redact as a whole, not the wo
   const out = r.text("the user said User 2 was right");
   assert.match(out, /^the user said Person A was right$/);
 });
+
+// SP10 review: probes that leaked through "Hide names". Over-redaction is the
+// safe direction for a shared image, so scripts written without spaces (or
+// with attached particles / prefixes) match without word boundaries.
+const leaks = (people, text, names) => {
+  const out = createRedactor(people).text(text);
+  for (const n of names) assert.ok(!out.includes(n), JSON.stringify(n) + " leaked in " + JSON.stringify(out));
+  assert.match(out, /Person A/, out);
+  return out;
+};
+
+test("redaction: a Korean name with an attached particle (민수는)", () => {
+  assert.strictEqual(leaks([{ id: "k", names: ["민수"] }], "민수는 갔어", ["민수"]), "Person A는 갔어");
+});
+
+test("redaction: Hebrew and Arabic names behind a one-letter prefix", () => {
+  leaks([{ id: "h", names: ["דני"] }], "ולדני", ["דני"]);
+  leaks([{ id: "a", names: ["محمد"] }], "ومحمد", ["محمد"]);
+  // harakat on the name in the text are marks: still the same name
+  leaks([{ id: "a", names: ["محمد"] }], "قال مُحَمَّد", ["مُحَمَّد", "محمد"]);
+});
+
+test("redaction: Chinese and Japanese names inside unspaced text", () => {
+  leaks([{ id: "c", names: ["李小龙"] }], "李小龙说你好", ["李小龙"]);
+  leaks([{ id: "j", names: ["さくら"] }], "さくらちゃん", ["さくら"]);
+  leaks([{ id: "j", names: ["サクラ"] }], "サクラさん来た", ["サクラ"]);
+});
+
+test("redaction: two-letter words of a multi-word name", () => {
+  assert.strictEqual(leaks([{ id: "q", names: ["Jo Quill"] }], "Jo said hi", ["Jo"]), "Person A said hi");
+  leaks([{ id: "d", names: ["Don Li"] }], "ask Li tomorrow", ["Li"]);
+  // still whole words only
+  assert.strictEqual(createRedactor([{ id: "q", names: ["Jo Quill"] }]).text("a joke"), "a joke");
+});
+
+test("redaction: curly and straight apostrophes are the same name", () => {
+  leaks([{ id: "o", names: ["O'Brien"] }], "O’Brien called", ["O’Brien", "Brien"]);
+  leaks([{ id: "o", names: ["O’Brien"] }], "O'Brien called", ["O'Brien", "Brien"]);
+});
+
+test("redaction: Turkish dotted capitals and other case/mark folds", () => {
+  // "İ".toLowerCase() is "i̇" (i + U+0307) and the regex `i` flag does not
+  // fold İ at all, so names are compared on a locale-free fold: NFD, marks
+  // dropped, then lower case (İ → I → i).
+  leaks([{ id: "t", names: ["İsmail"] }], "İSMAİL geldi", ["İSMAİL", "SMA"]);
+  leaks([{ id: "t", names: ["İsmail"] }], "ismail geldi", ["ismail"]);
+  leaks([{ id: "t", names: ["Ismail"] }], "İsmail geldi", ["İsmail", "smail"]);
+  leaks([{ id: "g", names: ["Νίκος"] }], "ΝΙΚΟΣ ήρθε", ["ΝΙΚΟΣ"]);   // final sigma
+  leaks([{ id: "s", names: ["Strauß"] }], "STRAUSS hier", ["STRAUSS"]);
+  // a decomposed accent in the text goes with the name it sits on
+  assert.strictEqual(createRedactor([{ id: "x", names: ["José"] }]).text("Jose\u0301!"), "Person A!");
+});
+
+test("redaction: a stopword word of a name is redacted only when written like a name", () => {
+  const r = createRedactor([{ id: "w", names: ["Will Day"] }]);
+  assert.strictEqual(r.text("will he?"), "will he?");
+  assert.strictEqual(r.text("Will said hi"), "Person A said hi");
+  assert.strictEqual(r.text("WILL DAY"), "Person A");
+  assert.strictEqual(r.text("a long day"), "a long Person A");   // over-redaction is the safe side
+});

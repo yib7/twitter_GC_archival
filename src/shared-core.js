@@ -911,13 +911,44 @@
   // aliases…] }] — everyone in the chat, not only who is on the card, since a
   // message can name anyone. label(id) gives "Person A", "Person B", … in the
   // order people are first met; text(s) replaces every @handle with
-  // "@someone" and every name, alias, accent-free spelling of one and word
-  // (3+ letters, not a stopword) of a multi-word name with that person's
-  // label, case-insensitively and only as a whole word. A generic "User N"
-  // alias is redacted only whole, so the word "user" survives.
+  // "@someone" and every name, alias and word (2+ letters) of a multi-word
+  // name with that person's label. Over-redaction is the safe direction:
+  //  - Names and text are compared on a locale-free fold (redactFold): NFD,
+  //    combining marks dropped, lower-cased per character, ’ ‘ ʼ → ', final
+  //    ς → σ, ß → ss. So İSMAİL, ismail and İsmail, José and Jose, O’Brien and
+  //    O'Brien are the same name. (The regex `i` flag can't do this: İ has no
+  //    simple case fold, and "İ".toLowerCase() is "i" + U+0307.)
+  //  - Latin, Cyrillic, Greek… names match only as whole words. Names with
+  //    Han, kana, Hangul, Thai, Hebrew or Arabic letters match anywhere:
+  //    those scripts attach particles/prefixes (민수는, ולדני, ومحمد) or write
+  //    no spaces at all (李小龙说你好).
+  //  - A word of a multi-word name that is also a stopword ("Will" in "Will
+  //    Day") is redacted only when written like a name (Will, WILL), so
+  //    "will he?" survives. A generic "User N" alias is redacted only whole.
   const RE_GENERIC_NAME = /^user\s+\d+$/i;
+  const RE_NOBOUND_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Thai}\p{Script=Hebrew}\p{Script=Arabic}]/u;
+  const RE_HANGUL_CHAR = /\p{Script=Hangul}/u;
+  function redactFoldChar(c) {
+    if (c === "\u2019" || c === "\u2018" || c === "\u02bc") return "'";
+    if (RE_HANGUL_CHAR.test(c)) return c;          // NFD would split syllables into jamo
+    return (c.normalize ? c.normalize("NFD") : c).replace(/\p{M}+/gu, "").toLowerCase().replace(/ς/g, "σ").replace(/ß/g, "ss");
+  }
+  // The fold plus, for every folded UTF-16 unit, the [start, end) of the
+  // original character it came from — so a match maps back to the text.
+  function redactFold(s) {
+    let out = "";
+    const st = [], en = [];
+    let i = 0;
+    for (const c of s) {
+      const f = redactFoldChar(c);
+      for (let k = 0; k < f.length; k++) { st.push(i); en.push(i + c.length); }
+      out += f;
+      i += c.length;
+    }
+    return { out, st, en };
+  }
   function createRedactor(people) {
-    const ids = new Map(), byTerm = new Map();
+    const ids = new Map(), byTerm = new Map(), nameCase = new Map();
     let next = 0;
     const letter = (k) => (k < 26 ? String.fromCharCode(65 + k) : String(k + 1));
     const label = (id) => {
@@ -925,34 +956,55 @@
       if (!ids.has(id)) ids.set(id, "Person " + letter(next++));
       return ids.get(id);
     };
-    const add = (t, id) => { t = t.trim(); const k = t.toLowerCase(); if (t && !byTerm.has(k)) byTerm.set(k, id); };
+    const add = (t, id) => { const k = redactFold(t.trim()).out.replace(/\s+/g, " "); if (k && !byTerm.has(k)) byTerm.set(k, id); };
     for (const p of people || []) {
+      const id = String(p.id);
       for (const raw of p.names || []) {
         const n = String(raw == null ? "" : raw).replace(/^@+/, "").trim();
         if (!n) continue;
-        const folded = n.normalize ? n.normalize("NFD").replace(/\p{M}+/gu, "") : n;
-        for (const v of [n, folded]) {
-          add(v, String(p.id));
-          if (RE_GENERIC_NAME.test(v)) continue;
-          const words = v.split(/[^\p{L}\p{N}'’]+/u).filter(Boolean);
-          if (words.length > 1) for (const w of words) if ([...w].length >= 3 && !/^\d+$/.test(w) && !isStopword(w)) add(w, String(p.id));
+        add(n, id);
+        if (RE_GENERIC_NAME.test(n)) continue;
+        const words = n.split(/[^\p{L}\p{N}\p{M}'’‘ʼ]+/u).filter(Boolean);
+        if (words.length < 2) continue;
+        for (const w of words) {
+          if ([...w].length < 2 || /^\d+$/.test(w)) continue;
+          if (isStopword(w.toLowerCase().replace(/[’‘ʼ]/g, "'"))) {
+            // only as a name is written: Title case or all caps
+            const t = w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+            for (const v of [t, w.toUpperCase()]) if (!nameCase.has(v)) nameCase.set(v, id);
+          } else add(w, id);
         }
       }
     }
     const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const B0 = "(?<![\\p{L}\\p{N}_])", B1 = "(?![\\p{L}\\p{N}_])";
+    const alt = (t) => { const e = esc(t).replace(/ /g, "\\s+"); return RE_NOBOUND_SCRIPT.test(t) ? e : B0 + e + B1; };
     const terms = [...byTerm.keys()].sort((a, b) => b.length - a.length);
-    const re = terms.length ? new RegExp("(?<![\\p{L}\\p{N}_])(?:" + terms.map((t) => esc(t).replace(/\s+/g, "\\s+")).join("|") + ")(?![\\p{L}\\p{N}_])", "giu") : null;
+    const re = terms.length ? new RegExp(terms.map(alt).join("|"), "gu") : null;
+    const caseTerms = [...nameCase.keys()].sort((a, b) => b.length - a.length);
+    const reCase = caseTerms.length ? new RegExp(B0 + "(?:" + caseTerms.map(esc).join("|") + ")" + B1, "gu") : null;
+    const RE_MARK_AT = /^\p{M}/u;
     const text = (s) => {
       let out = String(s == null ? "" : s);
       if (out.indexOf("@") !== -1) out = out.replace(RE_MENTION, "$1@someone");
-      if (!re) return out;
-      return out.replace(re, (m) => {
-        let id = byTerm.get(m.toLowerCase().replace(/\s+/g, " "));
-        // the regex's case folding can differ from toLowerCase() (İ, K…):
-        // find the term the hard way — a matched name is never left in place
-        if (id == null) for (const [k, v] of byTerm) if (new RegExp("^" + esc(k).replace(/\s+/g, "\\s+") + "$", "iu").test(m)) { id = v; break; }
-        return id != null ? label(id) : "someone";
-      });
+      if (re) {
+        const F = redactFold(out);
+        let res = "", last = 0, m;
+        re.lastIndex = 0;
+        while ((m = re.exec(F.out))) {
+          if (!m[0]) { re.lastIndex++; continue; }
+          const a = F.st[m.index];
+          let b = F.en[m.index + m[0].length - 1];
+          while (b < out.length && RE_MARK_AT.test(out.slice(b))) b++;   // a decomposed accent stays with its letter
+          if (a < last) continue;
+          const id = byTerm.get(m[0].replace(/\s+/g, " "));
+          res += out.slice(last, a) + (id != null ? label(id) : "someone");
+          last = b;
+        }
+        out = res + out.slice(last);
+      }
+      if (reCase) out = out.replace(reCase, (w) => label(nameCase.get(w)));
+      return out;
     };
     return { label, text };
   }
