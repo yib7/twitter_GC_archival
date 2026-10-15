@@ -19,12 +19,16 @@ async function startServer(extraEnv) {
     env: Object.assign({}, process.env, { GCA_PERSONAL: personal, GCA_PORT: "0", GCA_NO_ROOT_FALLBACK: "1", GCA_NO_NATIVE_PICKER: "1" }, extraEnv || {}),
     stdio: "pipe",
   });
-  let stderr = "";
+  // Everything the server prints, from spawn on (before the boot line), so a
+  // "never prints X" assertion also covers the startup output.
+  let stdout = "", stderr = "";
+  proc.stdout.on("data", (c) => { stdout += c.toString("utf8"); });
   proc.stderr.on("data", (c) => { stderr += c.toString("utf8"); });
   const port = await waitForBootLine(proc, 10000);
   const base = "http://127.0.0.1:" + port;
   return {
     port, base, personal, proc,
+    stdout: () => stdout,
     stderr: () => stderr,
     url: (p) => base + p,
     post: (p, body, headers) => fetch(base + p, { method: "POST", headers: Object.assign({ "Content-Type": "application/json" }, headers || {}), body: JSON.stringify(body || {}) }),

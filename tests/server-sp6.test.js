@@ -185,10 +185,12 @@ describe("SP-11: the native pickers need the setup page's token", () => {
     const token = tokenFrom(setup);
     assert.match(token || "", /^[0-9a-f]{64}$/);
     assert.equal(tokenFrom(await (await S.get("/index.html")).text()), undefined);
-    let out = "";
-    S.proc.stdout.on("data", (c) => { out += c; });
     await S.get("/api/pick-file", { "X-GCA-Token": token });
-    assert.ok(!S.stderr().includes(token) && !out.includes(token), "the token is never logged");
+    await new Promise((r) => setTimeout(r, 200));   // let any output reach us
+    // fix round 1 (review #8): the harness records stdout/stderr from spawn on,
+    // so the startup banner is checked too, not just what came after boot
+    assert.match(S.stdout(), /Group Chat Archive running at/, "the capture starts at spawn");
+    assert.ok(!S.stderr().includes(token) && !S.stdout().includes(token), "the token is never logged");
   });
 
   test("no token (the no-referrer <img> attack) or a wrong one is refused; the right one reaches the picker", async () => {
