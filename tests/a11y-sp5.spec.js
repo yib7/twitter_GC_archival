@@ -926,3 +926,27 @@ test.describe("SP10: Share dialog and Wrapped story controls", () => {
     });
   }
 });
+
+// SP10 review: Wrapped's washes and gradient text are mixed from the accent,
+// so the contrast pass runs again with extreme accents — a very light one
+// (#facc15) and a dark one (#1e3a8a) — over every slide, in every theme.
+test.describe("SP10: Wrapped contrast with a very light and a dark accent", () => {
+  for (const accent of ["#facc15", "#1e3a8a"]) {
+    for (const th of THEMES) {
+      test(accent + " · " + th, async ({ page }) => {
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await bootViewer(page, CONTRAST_DATA, { ls: { "gca.theme": th, "gca.settings": JSON.stringify({ me: "u1", accent }) } });
+        const bad = [];
+        await go(page, "wrapped");
+        const slides = await page.locator("#wr-segs .wr-seg").count();
+        expect(slides).toBeGreaterThan(3);
+        for (let k = 0; k < slides; k++) {
+          if (k) await page.locator("#wr-next").click();
+          await page.waitForTimeout(120);
+          for (const f of await contrastFailures(page, "#view-wrapped")) bad.push("slide " + (k + 1) + ": " + f);
+        }
+        expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
+      });
+    }
+  }
+});

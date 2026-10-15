@@ -1367,11 +1367,16 @@ html[data-theme="light"] .wr-slide::after {
 }
 /* UX-23: every wash derives from --accent (a custom accent recolours the
    whole story); slides differ by where the glow sits and how far the accent
-   is mixed toward --text. */
+   is mixed toward --wr-tint. The tint is the text colour on Light (it deepens
+   a pale accent) but the page colour on the dark themes: mixing toward light
+   text there turned a pale accent (#facc15) into a near-white glow behind
+   light text (Dim, 4.1:1). */
+.wr-stage { --wr-tint: var(--bg-page); }
+html[data-theme="light"] .wr-stage { --wr-tint: var(--text); }
 .wr-bg-hero {
   background:
     radial-gradient(620px 420px at 26% 8%, color-mix(in srgb, var(--accent) 46%, transparent), transparent 60%),
-    radial-gradient(560px 460px at 88% 96%, color-mix(in srgb, color-mix(in srgb, var(--accent) 60%, var(--text)) 36%, transparent), transparent 62%),
+    radial-gradient(560px 460px at 88% 96%, color-mix(in srgb, color-mix(in srgb, var(--accent) 60%, var(--wr-tint)) 36%, transparent), transparent 62%),
     linear-gradient(160deg, color-mix(in srgb, var(--accent) 14%, var(--bg-page)), var(--bg-page) 72%);
 }
 .wr-bg-vol {
@@ -1381,18 +1386,18 @@ html[data-theme="light"] .wr-slide::after {
 }
 .wr-bg-people {
   background:
-    radial-gradient(640px 460px at 20% 8%, color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, var(--text)) 40%, transparent), transparent 60%),
+    radial-gradient(640px 460px at 20% 8%, color-mix(in srgb, color-mix(in srgb, var(--accent) 70%, var(--wr-tint)) 40%, transparent), transparent 60%),
     linear-gradient(160deg, color-mix(in srgb, var(--accent) 12%, var(--bg-page)), var(--bg-page) 74%);
 }
 .wr-bg-word {
   background:
     radial-gradient(680px 460px at 80% 10%, color-mix(in srgb, var(--accent) 44%, transparent), transparent 58%),
-    radial-gradient(520px 380px at 6% 100%, color-mix(in srgb, color-mix(in srgb, var(--accent) 55%, var(--text)) 30%, transparent), transparent 60%),
+    radial-gradient(520px 380px at 6% 100%, color-mix(in srgb, color-mix(in srgb, var(--accent) 55%, var(--wr-tint)) 30%, transparent), transparent 60%),
     linear-gradient(200deg, color-mix(in srgb, var(--accent) 14%, var(--bg-page)), var(--bg-page) 74%);
 }
 .wr-bg-star {
   background:
-    radial-gradient(640px 460px at 50% 0%, color-mix(in srgb, color-mix(in srgb, var(--accent) 80%, var(--text)) 42%, transparent), transparent 60%),
+    radial-gradient(640px 460px at 50% 0%, color-mix(in srgb, color-mix(in srgb, var(--accent) 80%, var(--wr-tint)) 42%, transparent), transparent 60%),
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--bg-page)), var(--bg-page) 74%);
 }
 .wr-inner { margin: auto; max-width: 680px; width: 100%; position: relative; z-index: 2; }
