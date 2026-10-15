@@ -233,7 +233,12 @@
       if (delta === 0) break;
       guess += delta;
     }
-    if (guess + clock.offset(guess) === target) return guess;
+    if (guess + clock.offset(guess) === target) {
+      // A midnight shown twice (DST ending at 01:00 — Gaza): the solve can
+      // land on the second; the day starts at the first, under the earlier offset.
+      const first = target - clock.offset(guess - 26 * 3600000);
+      return first < guess && first + clock.offset(first) === target ? first : guess;
+    }
     // No such wall-clock midnight (DST starting AT 00:00 — Santiago, Havana,
     // Asunción, old São Paulo): the day starts at the transition, i.e. the
     // earliest instant whose wall clock is at/after the target. Bisect (to the

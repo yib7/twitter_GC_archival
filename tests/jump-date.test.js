@@ -123,6 +123,24 @@ test("a midnight skipped by DST resolves to the transition instant (Santiago, Ha
   assert.strictEqual(parseJumpDate("2024-09-07", createZoneClock("America/Santiago")).end, Date.UTC(2024, 8, 8, 4));
 });
 
+// a zone whose DST ends at 01:00 (Gaza in 2016, Havana) reads 00:00 twice
+// that night. The day starts at the FIRST midnight, so its first hour is
+// never left out of jumps / after: while the time index counts it there.
+test("a midnight repeated by DST resolves to the first one (Gaza, Havana)", () => {
+  const cases = [
+    ["Asia/Gaza", 2016, 9, 29, Date.UTC(2016, 9, 28, 21), "2016-10-29 00:00"],
+    ["America/Havana", 2024, 10, 3, Date.UTC(2024, 10, 3, 4), "2024-11-03 00:00"],
+  ];
+  for (const [zone, y, mo, d, at, wall] of cases) {
+    const r = startsAt(zone, y, mo, d);
+    assert.deepStrictEqual(r, { t: at, wall }, zone);
+    assert.strictEqual(r.t - startsAt(zone, y, mo, d - 1).t, 24 * 3600000, zone + " previous day length");
+    assert.strictEqual(startsAt(zone, y, mo, d + 1).t - r.t, 25 * 3600000, zone + " day length");
+  }
+  assert.strictEqual(parseJumpDate("2016-10-29", createZoneClock("Asia/Gaza")).start, Date.UTC(2016, 9, 28, 21));
+  assert.strictEqual(parseJumpDate("2016-10-28", createZoneClock("Asia/Gaza")).end, Date.UTC(2016, 9, 28, 21));
+});
+
 // The process's zone before any test here changes it (restored afterwards).
 const ZONE_AT_LOAD = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const OFFSET_AT_LOAD = new Date(Date.UTC(2024, 8, 8, 12)).getTimezoneOffset();
