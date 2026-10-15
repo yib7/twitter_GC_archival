@@ -271,8 +271,11 @@ messages, media, profile pictures, names, and packaged archives are listed in
 [`.gitignore`](.gitignore). The only data committed is the fully synthetic
 sample.
 
-When you run the local setup server (`scripts/server.js`), it sends a
-Content-Security-Policy header and validates every request's Host/Origin
-against a loopback allowlist, rejecting cross-origin and DNS-rebinding
+When you run the local setup server (`scripts/server.js`), its pages
+carry a strict Content-Security-Policy (`script-src 'self'` plus a per-response
+nonce) and are sent with `X-Frame-Options: DENY` and a `frame-ancestors 'none'`
+CSP header so no other site can frame them. It also validates every request's
+Host/Origin against a loopback allowlist, and the native file pickers need a
+per-run token only the setup page receives, rejecting cross-origin and DNS-rebinding
 attempts. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. It's
 not needed for daily use — the built archive runs from `file://`.

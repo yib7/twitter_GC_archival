@@ -587,6 +587,11 @@ function serveStatic(req, res) {
     // For HTML files served from the server, inject the server URL so client code
     // can use it instead of hardcoding localhost and the port.
     const isHtmlFile = type === "text/html" && (p === "/index.html" || p === "/setup.html");
+    // SP-22: a <meta> CSP can't say frame-ancestors, so send it (and the older
+    // X-Frame-Options) as real headers: no other site may frame these pages to
+    // trick a click on Build, Save or Start over. The page's own meta CSP
+    // still carries the rest of the policy (and works over file:// too).
+    const frameGuard = type === "text/html" ? { "X-Frame-Options": "DENY", "Content-Security-Policy": "frame-ancestors 'none'" } : {};
     const range = req.headers.range;
     if (range && /^bytes=/.test(range)) {
       const m = /^bytes=(\d*)-(\d*)$/.exec(range);
@@ -607,6 +612,7 @@ function serveStatic(req, res) {
       }
       end = Math.min(end, st.size - 1);
       res.writeHead(206, {
+        ...frameGuard,
         "Content-Type": type, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff",
         "Content-Range": `bytes ${start}-${end}/${st.size}`, "Content-Length": end - start + 1,
       });
@@ -642,6 +648,7 @@ function serveStatic(req, res) {
           );
         const body = Buffer.from(injectedData, "utf8");
         res.writeHead(200, {
+          ...frameGuard,
           "Content-Type": type,
           "Content-Length": body.length,
           "Cache-Control": "no-store",   // carries this run's token; never reuse a stale copy
@@ -651,7 +658,7 @@ function serveStatic(req, res) {
         res.end(body);
       });
     } else {
-      res.writeHead(200, { "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
+      res.writeHead(200, { ...frameGuard, "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
       if (req.method === "HEAD") return res.end();
       fs.createReadStream(file).pipe(res);
     }

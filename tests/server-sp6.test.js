@@ -241,3 +241,24 @@ describe("SP-19: group and person photos never share a file", () => {
     assert.equal(read(cfg.gc["1000000001"].photo).length, 64);
   });
 });
+
+describe("SP-22: the pages can't be framed", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  for (const p of ["/setup.html", "/index.html", "/"]) {
+    test(p + " is sent with X-Frame-Options: DENY and CSP frame-ancestors 'none'", async () => {
+      const r = await S.get(p);
+      assert.equal(r.status, 200);
+      assert.equal(r.headers.get("x-frame-options"), "DENY");
+      assert.match(r.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
+    });
+  }
+  test("a Range request for a page carries the same headers", async () => {
+    const r = await S.get("/index.html", { Range: "bytes=0-9" });
+    assert.equal(r.status, 206);
+    assert.equal(r.headers.get("x-frame-options"), "DENY");
+    assert.match(r.headers.get("content-security-policy") || "", /frame-ancestors 'none'/);
+  });
+});
