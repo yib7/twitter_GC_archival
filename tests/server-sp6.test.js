@@ -278,3 +278,36 @@ describe("SP-13: header-only members reach the naming step", () => {
     assert.equal(lurker.joined, X.T0 + 5000);
   });
 });
+
+describe("SP-15: paths are accepted the way people paste them", () => {
+  let S, home;
+  before(async () => {
+    home = scratch("gca-sp6-home-");
+    S = await startServer({ HOME: home, USERPROFILE: home });   // os.homedir() for this server only
+  });
+  after(() => S.stop());
+
+  test("Explorer's quoted \"Copy as path\" works for all three fields", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(scratch());
+    const q = (p) => '"' + p + '"';
+    const r = await source(S, q(f.group), q(f.headers), "  " + q(f.media) + "  ");
+    assert.equal(r.status, 200, JSON.stringify(await r.json()));
+  });
+
+  test("~/ paths resolve against the home folder", async () => {
+    await S.post("/api/reset", {});
+    const f = X.writeExport(path.join(home, "Downloads", "twitter-export"));
+    const rel = (p) => "~/" + path.relative(home, p).split(path.sep).join("/");
+    const r = await source(S, rel(f.group), rel(f.headers), rel(f.media));
+    assert.equal(r.status, 200, JSON.stringify(await r.json()));
+  });
+
+  test("a path that isn't there says to paste the full path, with an example", async () => {
+    const f = X.writeExport(scratch());
+    const r = await source(S, "direct-messages-group.js", f.headers, f.media);
+    const j = await r.json();
+    assert.equal(r.status, 400);
+    assert.match(j.error, /not found: direct-messages-group\.js\. Paste the full path, e\.g\. /);
+  });
+});

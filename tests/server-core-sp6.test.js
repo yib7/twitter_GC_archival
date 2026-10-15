@@ -81,3 +81,31 @@ test("isPickerRequestAllowed needs the per-process token AND an own/absent Origi
   assert.equal(ok({ "x-gca-token": T, "sec-fetch-site": "same-site" }), false, "another localhost port is same-site, not same-origin");
   assert.equal(core.isPickerRequestAllowed({ "x-gca-token": "" }, "", P), false, "never allowed with an empty server token");
 });
+
+// ---- SP-15: pasted paths -------------------------------------------------
+test("normalizeUserPath strips one pair of surrounding quotes (Explorer's Copy as path)", () => {
+  const win = { platform: "win32", home: "C:/Users/me" };
+  assert.equal(core.normalizeUserPath('"C:/Users/me/Downloads/data/direct-messages-group.js"', win), "C:/Users/me/Downloads/data/direct-messages-group.js");
+  assert.equal(core.normalizeUserPath("  'D:/x y/z.js'  ", win), "D:/x y/z.js");
+  assert.equal(core.normalizeUserPath('"unbalanced', win), '"unbalanced', "only a matching pair is removed");
+});
+
+test("normalizeUserPath expands a leading ~ to the home folder", () => {
+  const nix = { platform: "linux", home: "/home/me" };
+  assert.equal(core.normalizeUserPath("~/Downloads/data", nix), "/home/me/Downloads/data");
+  assert.equal(core.normalizeUserPath("~", nix), "/home/me");
+  assert.equal(core.normalizeUserPath("~bob/x", nix), "~bob/x", "other users' ~name is left alone");
+  assert.equal(core.normalizeUserPath('"~/a b/c"', nix), "/home/me/a b/c");
+});
+
+test("normalizeUserPath unescapes Terminal-style backslash-spaces off Windows only", () => {
+  const BS = String.fromCharCode(92);
+  assert.equal(core.normalizeUserPath("/Users/me/My" + BS + " Archive/data", { platform: "darwin", home: "/Users/me" }), "/Users/me/My Archive/data");
+  const winPath = "C:" + BS + "My Stuff" + BS + "data";
+  assert.equal(core.normalizeUserPath(winPath, { platform: "win32", home: "C:" + BS + "Users" + BS + "me" }), winPath, "Windows backslashes are separators");
+});
+
+test("pathNotFoundHint gives a full-path example for the platform", () => {
+  assert.match(core.pathNotFoundHint("win32", "direct-messages-group.js"), /full path.*C:.*Users.*data.*direct-messages-group\.js/);
+  assert.match(core.pathNotFoundHint("darwin", "direct_messages_group_media"), /full path.*\/Users\/.*data\/direct_messages_group_media/);
+});

@@ -343,4 +343,24 @@ function isPickerRequestAllowed(headers, token, port) {
   return isAllowedOrigin(h.origin, h.referer, port);
 }
 
-module.exports = { isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+/* ---- SP-15: paths as people actually paste them -------------------------- */
+// Explorer's "Copy as path" wraps the path in double quotes; macOS / Linux
+// users type ~/Downloads/... or paste a Terminal-escaped "My\ Archive". Undo
+// all three (one matching pair of quotes; a leading ~ or ~/; backslash-space
+// off Windows, where backslash is the path separator instead).
+function normalizeUserPath(raw, opts) {
+  const o = opts || {};
+  let s = String(raw == null ? "" : raw).trim();
+  if (s.length >= 2 && (s[0] === '"' || s[0] === "'") && s[s.length - 1] === s[0]) s = s.slice(1, -1).trim();
+  if (o.platform !== "win32") s = s.replace(/\\ /g, " ");
+  if (o.home && (s === "~" || /^~[\\/]/.test(s))) s = String(o.home).replace(/[\\/]+$/, "") + s.slice(1);
+  return s;
+}
+// The "not found" hint: what a full path looks like on this platform.
+function pathNotFoundHint(platform, name) {
+  const ex = platform === "win32" ? "C:\\Users\\you\\Downloads\\twitter-\u2026\\data\\" + name
+    : (platform === "darwin" ? "/Users/you" : "/home/you") + "/Downloads/twitter-\u2026/data/" + name;
+  return "Paste the full path, e.g. " + ex;
+}
+
+module.exports = { normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

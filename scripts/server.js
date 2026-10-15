@@ -23,7 +23,7 @@ const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
 const { collectParticipants, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
 const { writeFileAtomic, readExportHead, TMP_RE } = require("./fs-io.js");
-const { isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
+const { normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -193,7 +193,7 @@ function copyMediaFlat(srcDir, destDir) {
 // inside; a folder that is clearly something else is refused with a reason.
 function resolveMediaDir(abs, typed) {
   let st;
-  try { st = fs.statSync(abs); } catch (e) { return { error: "Media folder not found: " + typed }; }
+  try { st = fs.statSync(abs); } catch (e) { return { error: "Media folder not found: " + typed + ". " + pathNotFoundHint(process.platform, "direct_messages_group_media") + "." }; }
   if (!st.isDirectory()) return { error: "The media folder you chose is a file, not a folder: " + typed + ". Pick the direct_messages_group_media folder." };
   for (const rel of ["direct_messages_group_media", path.join("data", "direct_messages_group_media")]) {
     const child = path.join(abs, rel);
@@ -248,9 +248,11 @@ function readBuiltData() {
 /* ---- endpoint: point at source + build ----------------------------------- */
 function apiSource(body, res) {
   // All three pieces of the group export are required.
-  const groupJs = body.groupJs ? String(body.groupJs).trim() : "";
-  const headersJs = body.headersJs ? String(body.headersJs).trim() : "";
-  const mediaDirIn = body.mediaDir ? String(body.mediaDir).trim() : "";
+  // SP-15: accept paths as pasted ("quoted", ~/..., My\ Archive)
+  const userPath = (v) => normalizeUserPath(v, { platform: process.platform, home: os.homedir() });
+  const groupJs = userPath(body.groupJs);
+  const headersJs = userPath(body.headersJs);
+  const mediaDirIn = userPath(body.mediaDir);
   if (!groupJs) return sendJSON(res, 400, { error: "Choose your direct-messages-group.js file." });
   if (!headersJs) return sendJSON(res, 400, { error: "Choose your direct-message-group-headers.js file." });
   if (!mediaDirIn) return sendJSON(res, 400, { error: "Choose your direct_messages_group_media folder." });
@@ -259,16 +261,16 @@ function apiSource(body, res) {
   let groupAbs = absOf(groupJs), headersAbs = absOf(headersJs);
   // SP-1 / SP-17: check what was picked BEFORE copying anything, so a wrong,
   // empty or missing file gets one plain sentence and nothing is half-written.
-  const fileProblem = (abs, typed, role) => {
+  const fileProblem = (abs, typed, role, expectName) => {
     let st;
-    try { st = fs.statSync(abs); } catch (e) { return role + " not found: " + typed; }
+    try { st = fs.statSync(abs); } catch (e) { return role + " not found: " + typed + ". " + pathNotFoundHint(process.platform, expectName) + "."; }
     if (st.isDirectory()) return "The " + role.toLowerCase() + " you chose is a folder, not a file: " + typed + ". Pick the .js file inside it.";
     if (!st.isFile()) return "The " + role.toLowerCase() + " you chose isn't a regular file: " + typed;
     return null;
   };
-  const groupBad = fileProblem(groupAbs, groupJs, "Messages file");
+  const groupBad = fileProblem(groupAbs, groupJs, "Messages file", "direct-messages-group.js");
   if (groupBad) return sendJSON(res, 400, { error: groupBad });
-  const headersBad = fileProblem(headersAbs, headersJs, "Headers file");
+  const headersBad = fileProblem(headersAbs, headersJs, "Headers file", "direct-message-group-headers.js");
   if (headersBad) return sendJSON(res, 400, { error: headersBad });
   // SP-8: each file names itself (window.YTD.<name>), so two files picked the
   // wrong way round are simply swapped back; any other mix-up is refused.
