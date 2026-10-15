@@ -117,3 +117,39 @@ test("Stats chart tooltips wear --on-accent on the accent fill (chartTheme)", as
   expect(r.on).toBe("#ffffff");
   expect([r.title, r.body, r.bg]).toEqual([r.on, r.on, r.fill]);
 });
+
+// I-4: a link/file chip inside your own message sits on an accent-tinted fill;
+// its domain and its dim label line both need 4.5:1 there, for every preset
+// accent in every theme (the label was a fixed white 80%: ~2.8:1 on X blue).
+test("link chip text in your own messages passes on every preset accent and theme", async ({ page }) => {
+  const T0 = Date.parse("2024-03-10T12:00:00Z");
+  const CHIP = { conversations: [conv("A", "Alpha", [
+    { i: "c0", s: "u1", t: T0, x: "the doc", m: "sample_media/report.pdf", k: "file" },
+    { i: "c1", s: "u2", t: T0 + 60000, x: "thanks" },
+  ])] };
+  await bootViewer(page, CHIP, { ls: { "gca.settings": JSON.stringify({ me: "u1" }) } });
+  const custom = page.locator("#set-accent-custom");
+  const bad = [];
+  for (const t of THEMES) {
+    await setTheme(page, t);
+    for (const a of ACCENTS) {
+      await page.locator('.nav-item[data-view="settings"]').click();
+      await custom.fill(a);
+      await page.locator('.nav-item[data-view="timeline"]').click();
+      const chip = page.locator("#tl-list .msg.me a.urlchip").first();
+      await expect(chip).toBeVisible();
+      const r = await chip.evaluate((c) => {
+        const parse = (s) => { const m = s.match(/[\d.]+(e-?\d+)?/g).map(Number), k = /^color\(srgb/.test(s) ? 255 : 1; return { r: m[0] * k, g: m[1] * k, b: m[2] * k, a: m.length > 3 ? m[3] : 1 }; };
+        const over = (t, u) => ({ r: t.r * t.a + u.r * (1 - t.a), g: t.g * t.a + u.g * (1 - t.a), b: t.b * t.a + u.b * (1 - t.a), a: 1 });
+        const lum = (c) => [c.r, c.g, c.b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, k) => s + v * [0.2126, 0.7152, 0.0722][k], 0);
+        const cr = (x, y) => { const p = lum(x), q = lum(y); return (Math.max(p, q) + 0.05) / (Math.min(p, q) + 0.05); };
+        const bg = parse(getComputedStyle(c).backgroundColor);
+        const out = {};
+        for (const s of [".dom", ".lbl"]) out[s] = +cr(over(parse(getComputedStyle(c.querySelector(s)).color), bg), bg).toFixed(2);
+        return out;
+      });
+      for (const k in r) if (r[k] < 4.5) bad.push(t + " " + a + " " + k + " " + r[k]);
+    }
+  }
+  expect(bad, bad.join("\n")).toEqual([]);
+});
