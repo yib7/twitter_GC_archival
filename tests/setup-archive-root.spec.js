@@ -49,6 +49,26 @@ test("a folder with no group chat files gets one plain sentence", async ({ page 
   } finally { fs.rmSync(empty, { recursive: true, force: true }); }
 });
 
+test("on a 390px phone the wizard and the preview fit without sideways scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(BASE + "/setup.html");
+  const fits = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+  expect(await fits(), "empty wizard").toBe(true);
+  await page.locator("#src-root").fill(F.root);
+  await page.locator("#btn-build").click();
+  await expect(page.locator("#preflight")).toBeVisible();
+  for (const theme of ["light", "dim", "lightsout"]) {
+    await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
+    expect(await fits(), "preview, " + theme).toBe(true);
+  }
+  // warnings read in the body text colour (yellow text is unreadable on Light)
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
+  const warn = await page.locator("#pf-warnings li").first().evaluate((el) => getComputedStyle(el).color);
+  const text = await page.evaluate(() => getComputedStyle(document.body).color);
+  expect(warn).toBe(text);
+  expect(fs.readdirSync(personal)).toEqual([]);
+});
+
 test("picking only the archive folder builds every part, with the media", async ({ page }) => {
   await page.goto(BASE + "/setup.html");
   await expect(page.locator(".setup-or")).toContainText(/or pick the three files yourself/i);

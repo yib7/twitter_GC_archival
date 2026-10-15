@@ -2,6 +2,9 @@
 .setup-body {
   min-height: 100vh; margin: 0; background: var(--bg-page); color: var(--text);
   font-family: var(--font); display: grid; place-items: start center; padding: 40px 20px;
+  /* the one column never grows past the viewport: a grid item's min-content
+     (nowrap stepper labels, long paths) would otherwise widen the page */
+  grid-template-columns: minmax(0, 680px); justify-content: center;
 }
 .setup-shell {
   width: 100%; max-width: 680px; background: var(--bg-panel); border: 1px solid var(--border-lift);
@@ -308,7 +311,9 @@
 .pf-groups li:last-child { border-bottom: 0; }
 .pf-groups b { color: var(--text); }
 .pf-groups .pf-removed { color: var(--text-faint); }
-.pf-warnings { margin: 0; padding: 10px 17px 4px 35px; border-top: 1px dashed var(--border-lift); font-size: 13px; line-height: 1.5; color: var(--warning, var(--text)); }
+/* text in --text (readable on Light too); the bullet carries the warning colour */
+.pf-warnings { margin: 0; padding: 10px 17px 4px 35px; border-top: 1px dashed var(--border-lift); font-size: 13px; line-height: 1.5; color: var(--text); }
+.pf-warnings li::marker { color: var(--warning, var(--accent)); }
 .pf-warnings:empty { display: none; }
 .pf-warnings li + li { margin-top: 4px; }
 .pf-warnings li.pf-ok { list-style: none; margin-left: -18px; color: var(--success); }
@@ -332,3 +337,16 @@
 .setup-merge b { color: var(--text); }
 .setup-merge code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .setup-merge .setup-actions, .setup-locked .setup-actions { margin-top: 10px; }
+
+/* ---- Phones (390px): no sideways scroll ---------------------------------- */
+@media (max-width: 520px) {
+  .setup-body { padding: 16px 12px; }
+  .setup-shell { min-width: 0; padding: 20px 16px; border-radius: 16px; }
+  .setup-steps li { gap: 6px; font-size: 12px; }
+  .setup-steps li::after { min-width: 6px; margin: 0 6px; }
+  .setup-steps li:not(.active) { font-size: 0; }   /* only the current step keeps its label */
+  .setup-steps li:not(.active)::before { font-size: 13px; }
+  .setup-label, .setup-hint, .setup-label code { overflow-wrap: anywhere; }
+  .setup-pickrow { flex-wrap: wrap; }
+  .setup-pickrow .setup-input { min-width: 0; flex: 1 1 180px; }
+}
