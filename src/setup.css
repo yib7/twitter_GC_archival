@@ -140,6 +140,9 @@
   background: linear-gradient(160deg, var(--accent), var(--accent-deep)); color: #fff;
   border-color: transparent; box-shadow: 0 8px 22px -8px var(--accent-glow);
 }
+/* a button that can't be pressed yet looks it (e.g. the merge button waiting for the
+   older-export confirm, SP7 fix round 1) */
+.setup-shell .btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
 .btn.primary:hover:not(:disabled) { box-shadow: 0 12px 30px -8px var(--accent-glow); }
 
 .setup-result {

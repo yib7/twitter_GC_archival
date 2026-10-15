@@ -34,8 +34,11 @@ test("an older export is merged only after ticking the extra confirm", async ({ 
   await expect(ok).toBeVisible();
   await expect(ok).not.toBeChecked();
   await expect(confirm).toBeDisabled();
+  // and it looks off, not just ignores clicks
+  expect(Number(await confirm.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(0.7);
   await ok.check();
   await expect(confirm).toBeEnabled();
+  expect(Number(await confirm.evaluate((el) => getComputedStyle(el).opacity))).toBe(1);
   await ok.uncheck();
   await expect(confirm).toBeDisabled();
   await ok.check();
