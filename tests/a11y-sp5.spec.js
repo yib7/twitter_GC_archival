@@ -620,3 +620,67 @@ test.describe("UX-33: the sticky day pill doesn't block what's under it", () => 
     expect(hit).toBe("through");
   });
 });
+
+// Rendered-text contrast: every visible text run against the colour actually
+// behind it (ancestor backgrounds composited, element opacity applied).
+// Normal text ≥ 4.5:1, large text (≥24px, or ≥18.66px bold) ≥ 3:1. Text over
+// an image / gradient can't be computed from styles and is skipped.
+async function contrastFailures(page, root) {
+  return page.evaluate((sel) => {
+    const parse = (c) => {
+      const m = c.match(/[\d.]+(e-?\d+)?/g); if (!m) return null;
+      const a = m.map(Number), k = /^color\(srgb/.test(c) ? 255 : 1; // color-mix() computes to color(srgb 0–1)
+      return { r: a[0] * k, g: a[1] * k, b: a[2] * k, a: a.length > 3 ? a[3] : 1 };
+    };
+    const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
+    const lum = (c) => [c.r, c.g, c.b].map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, k) => s + v * [0.2126, 0.7152, 0.0722][k], 0);
+    const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const bgOf = (e) => {
+      const layers = [];
+      for (let n = e; n; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.backgroundImage !== "none") return null;
+        const c = parse(cs.backgroundColor);
+        if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; }
+      }
+      let acc = parse(getComputedStyle(document.body).backgroundColor);
+      for (let k = layers.length - 1; k >= 0; k--) acc = over(layers[k], acc);
+      return acc;
+    };
+    const out = [];
+    const r0 = document.querySelector(sel);
+    for (const e of r0.querySelectorAll("*")) {
+      if (![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+      if (e.closest("[aria-hidden=true], svg, canvas, button:disabled, .wr-stage, .wr-card")) continue;
+      const cs = getComputedStyle(e);
+      const r = e.getBoundingClientRect();
+      if (!r.width || !r.height || cs.visibility === "hidden") continue;
+      let op = 1; for (let n = e; n; n = n.parentElement) op *= Number(getComputedStyle(n).opacity);
+      if (op < 0.05) continue;
+      const bg = bgOf(e); if (!bg) continue;
+      let fg = parse(cs.color); fg = over({ r: fg.r, g: fg.g, b: fg.b, a: fg.a * op }, bg);
+      const px = parseFloat(cs.fontSize), bold = Number(cs.fontWeight) >= 700;
+      const need = px >= 24 || (bold && px >= 18.66) ? 3 : 4.5;
+      const cr = ratio(fg, bg);
+      if (cr < need) out.push((e.parentElement.className ? String(e.parentElement.className).split(" ")[0] + ">" : "") + e.tagName.toLowerCase() + "." + String(e.className).trim().split(/\s+/).slice(0, 2).join(".") + " “" + e.textContent.trim().slice(0, 18) + "” " + cr.toFixed(2));
+    }
+    return out;
+  }, root);
+}
+
+test.describe("Contrast of rendered text, every view × theme", () => {
+  for (const th of THEMES) {
+    test(th, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await bootViewer(page, RICH_DATA, { ls: { "gca.theme": th, "gca.settings": JSON.stringify({ saved: [{ name: "pizza", q: "pizza", f: {} }] }) } });
+      const bad = [];
+      for (const v of ["search", "timeline", "gallery", "pins", "hof", "wrapped", "capsule", "stats", "threads", "chains", "battles", "people", "settings"]) {
+        await go(page, v);
+        await page.waitForTimeout(v === "stats" ? 700 : 120);
+        for (const f of await contrastFailures(page, "#view-" + v)) bad.push(v + ": " + f);
+      }
+      for (const f of await contrastFailures(page, ".sidebar")) bad.push("sidebar: " + f);
+      expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
+    });
+  }
+});

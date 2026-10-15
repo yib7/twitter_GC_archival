@@ -3231,7 +3231,7 @@ function fillStatsDeferred(v, s, cloudWords) {
           <div style="width:${(r.given / maxReactTotal * 100).toFixed(1)}%; background:var(--accent); height:8px; border-radius:4px;" title="Given: ${fmtNum(r.given)}"></div>
           <span style="color:var(--accent-text); font-weight:600; width:30px">${fmtNum(r.given)}</span>
           <div style="width:${(r.received / maxReactTotal * 100).toFixed(1)}%; background:var(--success); height:8px; border-radius:4px;" title="Received: ${fmtNum(r.received)}"></div>
-          <span style="color:var(--success); font-weight:600; width:30px">${fmtNum(r.received)}</span>
+          <span style="color:var(--success-text); font-weight:600; width:30px">${fmtNum(r.received)}</span>
         </div>
       </div>`;
     }
@@ -3305,10 +3305,13 @@ function fillStatsDeferred(v, s, cloudWords) {
       cloudWords.forEach(([w, c]) => {
         const t = (c - cmin) / span;                 // 0..1
         const size = (13 + t * 23).toFixed(1);       // 13px → 36px
-        const op = (0.6 + t * 0.4).toFixed(2);
+        // Frequency is shown by size and by a dim → full text-colour ramp. Both
+        // ends are ≥ 4.5:1, so rarer words never fade below the AA line
+        // (opacity used to drop them to ~2.5:1).
+        const ink = Math.round(t * 100);
         const chip = btnEl("word cloud-word", esc(w) + "<b>" + fmtNum(c) + "</b>", "Search “" + w + "” — " + fmtNum(c) + " uses");
         chip.style.fontSize = size + "px";
-        chip.style.opacity = op;
+        chip.style.color = "color-mix(in srgb, var(--text) " + ink + "%, var(--text-dim))";
         chip.title = fmtNum(c) + " uses — click to search";
         chip.onclick = () => { setView("search"); clearAllFilters(); sEls.input.value = w; sEls.clear.hidden = false; runSearch(); };
         wc.appendChild(chip);

@@ -19,6 +19,7 @@
   --accent-2:#f91880; --accent-2-deep:#c81a6a; --accent-2-glow:rgba(249,24,128,.22);
   /* Semantic — X repost green / premium yellow / error red */
   --success:#00ba7c; --warning:#ffd400; --danger:#f4212e; --danger-deep:#c81a24;
+  --success-text:#00ba7c; /* green as text; Light darkens it to clear 4.5:1 on white */
   --success-bg:rgba(0,186,124,.12); --warning-bg:rgba(255,212,0,.14); --danger-bg:rgba(244,33,46,.12);
   /* Medals */
   --medal-gold:#e9b949; --medal-silver:#c2ccdc; --medal-bronze:#cd8b5e;
@@ -62,6 +63,7 @@ html[data-theme="light"]{
   --bg-page:#ffffff; --bg-panel:#ffffff; --bg-card:#f7f9f9; --bg-hover:#f7f9f9; --bg-inset:#f7f9f9;
   --border:#eff3f4; --border-lift:#cfd9de; --border-accent:#1d9bf0;
   --text:#0f1419; --text-dim:#536471; --text-faint:#66737d; --hover:rgba(15,20,25,.03);
+  --success-text:#007a52;
   --el1:0 0 0 1px #eff3f4; --el2:0 4px 16px -6px rgba(101,119,134,.3);
   --el3:0 0 0 1px #eff3f4,0 24px 50px -16px rgba(101,119,134,.4); --glow-accent:0 0 22px -10px var(--accent-glow);
   /* UX-11: the bright name hues above are dark-theme colours (1.8–3.0:1 on
@@ -589,7 +591,7 @@ button, input, select, textarea { font-family: inherit; }
 .super .s-title { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-dim); margin-top: 2px; }
 .super .s-stat { font-size: 12px; color: var(--text-faint); margin-top: 3px; font-variant-numeric: tabular-nums; }
 .super .s-tie { font-size: 12px; color: var(--text-dim); margin-top: 1px; }
-.super .s-def { font-size: 11px; line-height: 1.35; color: var(--text-faint); margin-top: 5px; opacity: .85; }
+.super .s-def { font-size: 11px; line-height: 1.35; color: var(--text-faint); margin-top: 5px; }
 .card.super { align-items: flex-start; }
 
 .section { margin-top: 38px; }
@@ -646,8 +648,10 @@ button.word { font-family: inherit; color: var(--text); line-height: inherit; }
 .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; padding: 0; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px currentColor; }
 /* "Automatic" swatch: the person's hash hue; picking it clears the override. */
-.swatch-auto { padding: 0; font-size: 10px; font-weight: 700; line-height: 18px; color: #fff; background: var(--p); text-align: center; }
-.swatch-auto.sel { color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--p); }
+/* The "A" uses the page colour: every --p-* is tuned to 4.5:1 against --bg-page,
+   so the letter on the fill clears 4.5:1 too, in every theme. */
+.swatch-auto { padding: 0; font-size: 10px; font-weight: 700; line-height: 18px; color: var(--bg-page); background: var(--p); text-align: center; }
+.swatch-auto.sel { color: var(--bg-page); box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--p); }
 /* Platform link bars (UX-24): theme tokens, never fixed brand hexes — TikTok
    used to be #222, invisible on Lights out. */
 .plat-tt { background: var(--text); }
