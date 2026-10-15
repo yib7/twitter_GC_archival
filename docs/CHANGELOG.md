@@ -125,9 +125,12 @@ All notable changes to this project are recorded here.
   in the archive isn't copied again.
 - Removed people's and group chats' messages are kept aside in
   `personal_data/.removed/messages.js`, so un-removing brings them back even
-  after merging a newer export that no longer has them.
+  after merging a newer export that no longer has them. An archive whose
+  removals were made before this is rebuilt once before its first merge, so
+  they are kept aside too; a merge that fails puts them back as they were.
 - Merging an export older than the archive asks first, and keeps the
   archive's newer copies of messages (edits); reactions from both are kept.
+  Re-adding an export the archive already has asks to "re-add anyway".
   An export with no group messages can't be merged.
 - Media copies never replace a file the archive already has and never leave
   a half-copied file behind; a manifest that doesn't list every part file

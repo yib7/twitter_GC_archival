@@ -184,7 +184,7 @@ with a newer export that no longer has them). Start over erases all of it.
 > names, "me" and removed people are kept, and `data.js.bak` is the archive as
 > it was before the merge. Media already in the archive is never replaced. An
 > export with no group messages can't be merged, and one older than your
-> archive needs an extra "merge anyway" tick: the archive keeps its newer
+> archive (or one it already has) needs an extra tick: the archive keeps its newer
 > copies of messages it already has (reactions from both are kept). To just
 > edit names, use **Continue**.
 
