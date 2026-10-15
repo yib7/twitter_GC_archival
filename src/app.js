@@ -137,6 +137,7 @@ function withoutIgnored(list, ignored) {
 function activateConversation(id, rerender) {
   const c = CONVOS.find(x => x.id === id) || CONVOS[0];
   if (!c) return;
+  saveTlPos();   // SP8: the conversation being left keeps its reading position
   CONV = c;
   try { localStorage.setItem("gca.conv", c.id); } catch (e) {}
   const ignored = ignoredUserIds();
@@ -2157,15 +2158,93 @@ function invalidateTimeline() {
   if (virtObs) { try { virtObs.disconnect(); } catch (e) {} virtObs = null; }
 }
 // The first message whose top is inside the timeline scroller, and how far
-// below the scroller's top edge it sits.
+// below the scroller's top edge it sits. end: the scroller is at the very
+// bottom (reading the newest message) — reopened as "at the newest", so a
+// later rebuild with more messages still lands on the newest one.
 function timelineFirstVisible() {
-  if (!tlBuilt || !tlEls.scroll) return null;
-  const top = tlEls.scroll.getBoundingClientRect().top;
+  if (!tlBuilt || !tlEls.scroll || !tlEls.scroll.clientHeight) return null;
+  const s = tlEls.scroll;
+  const end = s.scrollHeight - s.scrollTop - s.clientHeight < 8;
+  const top = s.getBoundingClientRect().top;
   for (const n of tlEls.list.querySelectorAll(".msg")) {
     const t = n.getBoundingClientRect().top;
-    if (t >= top) return { idx: +n.dataset.idx, off: t - top };
+    if (t >= top) return { idx: +n.dataset.idx, off: t - top, end };
   }
   return null;
+}
+/* ---- Reading position per conversation (SP8) ---------------------------------
+   The Timeline opens at the NEWEST message the first time, and afterwards where
+   that conversation was last being read — across conversation switches and
+   reloads. Stored as { convId: { m: message id, o: px offset } | { e: 1 } (at
+   the newest), t: last write } under gca.tlpos, capped to TLPOS_MAX
+   conversations (oldest write dropped). Ids and offsets only, never text.
+   Every storage access is guarded; tlPosMem mirrors the map so positions still
+   follow conversation switches within a session when storage is blocked.
+   Reset customization keeps them (navigation state, like bookmarks). */
+const TLPOS_KEY = "gca.tlpos", TLPOS_MAX = 50;
+let tlPosMem = null;
+function tlPosMap() {
+  if (!tlPosMem) {
+    tlPosMem = {};
+    try {
+      const o = JSON.parse(localStorage.getItem(TLPOS_KEY) || "{}");
+      if (isPlainObj(o)) for (const k in o) if (isPlainObj(o[k])) tlPosMem[k] = o[k];
+    } catch (e) { /* storage blocked / corrupt: start empty */ }
+  }
+  return tlPosMem;
+}
+// The saved position of the ACTIVE conversation as { idx, off } / { end: true },
+// or null (never read, or its message is gone / hidden now).
+function storedTlPos() {
+  const e = CONV && Object.prototype.hasOwnProperty.call(tlPosMap(), CONV.id) ? tlPosMap()[CONV.id] : null;
+  if (!e) return null;
+  if (e.e === 1) return { end: true };
+  const idx = ID2IDX.get(e.m);
+  return idx == null ? null : { idx, off: Math.max(0, Math.min(+e.o || 0, 4000)) };
+}
+// Record where the (visible) Timeline is being read for the active conversation.
+function saveTlPos() {
+  if (!CONV || !N || curView !== "timeline") return;
+  const p = timelineFirstVisible();
+  if (!p || !MSGS[p.idx]) return;
+  const map = tlPosMap();
+  delete map[CONV.id];   // re-insert last: key order = write order
+  map[CONV.id] = p.end ? { e: 1, t: Date.now() } : { m: MSGS[p.idx].i, o: Math.round(p.off), t: Date.now() };
+  const keys = Object.keys(map);
+  for (let k = 0; k < keys.length - TLPOS_MAX; k++) delete map[keys[k]];
+  try { localStorage.setItem(TLPOS_KEY, JSON.stringify(map)); } catch (e) { /* storage blocked: memory only */ }
+}
+// Open the active conversation's Timeline where it was last read (this session's
+// tlResume first — e.g. after a timezone rebuild — then the saved position),
+// else at the newest message.
+function openTimelineAtReadingPosition() {
+  const pos = tlResume || storedTlPos();
+  if (pos && !pos.end && pos.idx != null) openTimeline(Math.min(pos.idx, Math.max(0, N - 1)), { quiet: true, off: pos.off });
+  else openTimeline(N - 1, { bottom: true });
+}
+// "Jump to latest" button / End key, and Home.
+function jumpToLatest() { tlEdge(N - 1, { bottom: true }); }
+function jumpToOldest() { tlEdge(0, { top: true }); }
+function tlEdge(idx, opts) {
+  if (!N) return;
+  // A keyboard user on a message (or on the button, which hides at the
+  // newest) moves with the jump instead of dropping to <body> when the old
+  // chunk is virtualized away.
+  const a = document.activeElement;
+  const carry = !!(a && tlEls.scroll && (tlEls.scroll.contains(a) || a.id === "tl-latest"));
+  openTimeline(idx, opts);
+  updateLatestBtn();
+  if (carry) {
+    const m = tlEls.list.querySelector('.msg[data-idx="' + idx + '"]');
+    if (m) { try { m.focus({ preventScroll: true }); } catch (e) {} }
+  }
+}
+// The floating "Jump to latest" button shows once the reader is more than
+// half a screen above the newest message.
+function updateLatestBtn() {
+  const b = document.getElementById("tl-latest"), s = tlEls.scroll;
+  if (!b || !s) return;
+  b.hidden = !N || s.scrollHeight - s.scrollTop - s.clientHeight <= Math.max(200, s.clientHeight / 2);
 }
 const CHUNK_SIZE = 50;
 let numChunks = 0, chunkHeights = [], chunkRendered = [], eventBuckets = [];
@@ -2188,12 +2267,21 @@ function ensureTimelineShell() {
     <div class="scroll" id="tl-scroll" style="position:relative;">
       <div class="list" id="tl-list"></div>
     </div>
+    <button class="tl-latest" id="tl-latest" type="button" aria-label="Jump to latest message" title="Jump to latest (End)" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v13M6 12l6 6 6-6"/></svg><span>Latest</span></button>
   `;
   // Both route through the command palette: it accepts YYYY-MM-DD dates
   // directly (dateCmd), so it doubles as the jump-to-date UI.
   v.querySelector("#tl-jumpdate").onclick = () => openCommandPalette();
   v.querySelector("#tl-search").onclick = () => openCommandPalette();
   tlEls = { scroll: v.querySelector("#tl-scroll"), list: v.querySelector("#tl-list") };
+  v.querySelector("#tl-latest").onclick = jumpToLatest;
+  // SP8: keep the "Jump to latest" button and the saved reading position
+  // current (one rAF per scroll burst; the save waits for the scroll to rest).
+  let latestRaf = 0, posT = 0;
+  tlEls.scroll.addEventListener("scroll", () => {
+    if (!latestRaf) latestRaf = requestAnimationFrame(() => { latestRaf = 0; updateLatestBtn(); });
+    clearTimeout(posT); posT = setTimeout(saveTlPos, 250);
+  }, { passive: true });
   // The shell was just rebuilt with an EMPTY #tl-list, so the chunk bookkeeping
   // must restart too. numChunks survives resetDerived(); if the next active
   // conversation has the SAME chunk count as the last one, openTimeline() would
@@ -2225,6 +2313,7 @@ function ensureTimelineShell() {
 
 // opts.quiet: restore a reading position — no flash; the anchor goes back to
 // opts.off px below the scroller top. opts.top: open at the very top, quietly.
+// opts.bottom: open at the very bottom (the newest message), quietly.
 function openTimeline(anchor, opts) {
   opts = opts || {};
   ensureTimelineShell();
@@ -2279,7 +2368,8 @@ function openTimeline(anchor, opts) {
   tlEls.scroll.scrollTop = offset;
   
   const target = tlEls.list.querySelector('[data-idx="' + anchor + '"]');
-  if (opts.top) tlEls.scroll.scrollTop = 0;   // first open: the very start, day pill and all, no highlight
+  if (opts.top) tlEls.scroll.scrollTop = 0;   // the very start, day pill and all, no highlight
+  else if (opts.bottom) tlEls.scroll.scrollTop = tlEls.scroll.scrollHeight;   // the newest message, no highlight
   else if (target) {
     if (opts.quiet) {
       tlEls.scroll.scrollTop += target.getBoundingClientRect().top - tlEls.scroll.getBoundingClientRect().top - (opts.off || 0);
@@ -2291,6 +2381,7 @@ function openTimeline(anchor, opts) {
   
   // Re-enable smooth scrolling after jumping
   setTimeout(() => tlEls.scroll.style.scrollBehavior = "", 10);
+  updateLatestBtn();
 }
 
 function renderChunk(idx, container) {
@@ -2358,7 +2449,14 @@ function renderEvent(e) {
   else if (e.type === "create") txt = (e.s ? bn(e.s) : "Someone") + " created the conversation";
   return el("div", "sysline", '<span class="chip">' + SYS_EVENT_ICON + "<span>" + txt + "</span></span>");
 }
-function jumpTo(i) { setView("timeline"); openTimeline(i); }
+// tlJumping: setView("timeline") must not first restore the reading position
+// (an extra render + scroll) when a jump is about to land somewhere anyway.
+let tlJumping = false;
+function jumpTo(i) {
+  tlJumping = true;
+  try { setView("timeline"); } finally { tlJumping = false; }
+  openTimeline(i);
+}
 
 /* ===========================================================================
    STATS VIEW
@@ -3796,7 +3894,7 @@ function fillTzOptions(sel, filter) {
 // of DEFAULTS so nothing can alias the defaults afterwards.
 const RESET_CONFIRM = "Reset customization?\n\n" +
   "Resets: theme, accent color, font size, density, avatar & timestamp display, people & group names, person colors, and saved searches.\n\n" +
-  "Keeps: bookmarks, Word Battles words, “this is me”, hidden people & groups, timezone, and profile & group photos.";
+  "Keeps: bookmarks, Word Battles words, “this is me”, hidden people & groups, timezone, timeline reading positions, and profile & group photos.";
 // What an Import can replace, in the order its confirm lists them. A section is
 // replaced only when the file carries at least one of its fields.
 const IMPORT_SECTIONS = [
@@ -3872,8 +3970,9 @@ function segWire(seg, cur, cb) {
 let curView = null;
 function setView(name) {
   // Remember where the timeline was being read, so a rebuild (timezone
-  // change) can reopen there instead of at the top.
-  if (curView === "timeline" && name !== "timeline") tlResume = timelineFirstVisible();
+  // change) can reopen there instead of at the top — and (SP8) for the next
+  // visit / reload of this conversation.
+  if (curView === "timeline" && name !== "timeline") { tlResume = timelineFirstVisible(); saveTlPos(); }
   curView = name;
   try { localStorage.setItem("gca.lastView", name); } catch(e) {}
   document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== "view-" + name));
@@ -3889,13 +3988,12 @@ function setView(name) {
   if (name !== "search") closeFilterSheet();
   if (name === "search") { ensureSearch(); setTimeout(() => { if (sEls.input && !topModal() && matchMedia("(pointer: fine)").matches) sEls.input.focus(); }, 0); }
   else if (name === "timeline") {
-    if (!tlBuilt) {
-      if (tlResume) openTimeline(Math.min(tlResume.idx, Math.max(0, N - 1)), { quiet: true, off: tlResume.off });
-      // UX-32: a first open is quiet — it used to highlight message 0, and a
-      // cold jumpTo() (which opens the timeline first, then jumps) flashed
-      // message 0 before the real target.
-      else openTimeline(0, { top: true });
-    }
+    // UX-32: an open is quiet (no highlight) and a cold jumpTo() doesn't
+    // render a position first. SP8 supersedes where a first open lands: the
+    // newest message (or where this conversation was last read), not the top.
+    if (!tlBuilt && !tlJumping) openTimelineAtReadingPosition();
+    else if (!tlBuilt) ensureTimelineShell();
+    updateLatestBtn();
   }
   else if (name === "stats") renderStats();
   else if (name === "people") renderPeople();
@@ -4017,7 +4115,16 @@ function init() {
       const si = document.getElementById("s-input"); if (si) si.focus();
     }
     if (e.key === "?" && document.activeElement.tagName !== "INPUT" && !e.ctrlKey && !e.metaKey) { e.preventDefault(); toggleKeyboardHelp(); }
+    // SP8: Home / End = oldest / newest message in the Timeline (a text field
+    // keeps its own Home / End; an open overlay keeps the keys too).
+    if ((e.key === "Home" || e.key === "End") && curView === "timeline" && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey &&
+        !topModal() && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable) {
+      e.preventDefault();
+      if (e.key === "End") jumpToLatest(); else jumpToOldest();
+    }
   });
+  // SP8: a reload / closed tab keeps the Timeline's reading position.
+  window.addEventListener("pagehide", saveTlPos);
 
   document.getElementById("boot").hidden = true;
   document.getElementById("app").hidden = false;
@@ -4603,6 +4710,7 @@ function toggleKeyboardHelp() {
       <div class="kb-body">
         <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette (jump anywhere)</span></div>
         <div class="kb-row"><kbd>/</kbd><span>Focus search</span></div>
+        <div class="kb-row"><kbd>Home</kbd> <kbd>End</kbd><span>Oldest / newest message in the Timeline</span></div>
         <div class="kb-row"><kbd>?</kbd><span>Show this help</span></div>
         <div class="kb-row"><kbd>Esc</kbd><span>Close palette / modal / lightbox / popover</span></div>
         <div class="kb-row"><kbd>←</kbd> <kbd>→</kbd><span>Navigate lightbox</span></div>

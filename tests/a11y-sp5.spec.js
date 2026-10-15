@@ -712,6 +712,9 @@ test.describe("UX-32: no flash of message 0", () => {
     })).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class"] });
   });
 
+  // SP8 supersedes WHERE the first open lands — the newest message, not the
+  // top (scrollTop 0) — and keeps UX-32's guarantee: quiet, nothing flashes.
+  // timeline-newest.spec.js also checks message 0 is never painted first.
   test("opening the Timeline from the nav is quiet", async ({ page }) => {
     await bootViewer(page, DATA);
     await watchFlash(page);
@@ -719,7 +722,7 @@ test.describe("UX-32: no flash of message 0", () => {
     await expect(page.locator("#tl-list .msg").first()).toBeVisible();
     await page.waitForTimeout(100);
     expect(await page.evaluate(() => window.__flashed)).toEqual([]);
-    expect(await page.locator("#tl-scroll").evaluate((s) => s.scrollTop)).toBe(0);
+    expect(await page.locator("#tl-scroll").evaluate((s) => s.scrollHeight - s.scrollTop - s.clientHeight)).toBeLessThan(4);
   });
 
   test("a cold jump from Search highlights only its target", async ({ page }) => {

@@ -1629,3 +1629,18 @@ html[data-theme="light"] .wr-slide::after {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
 .gca-server-down[hidden] { display: none; }
+
+/* ---- SP8: Timeline "Jump to latest" ------------------------------------- */
+.tl-latest {
+  position: absolute; bottom: 24px; right: 28px; z-index: 15;
+  display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0 16px 0 12px;
+  border: 0; border-radius: var(--radius-pill); background: var(--accent-fill); color: var(--on-accent);
+  font: 600 13.5px/1 var(--font); cursor: pointer; box-shadow: 0 4px 16px var(--accent-glow);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.tl-latest svg { width: 17px; height: 17px; stroke-width: 2.2; }
+.tl-latest:hover { transform: translateY(-1px); box-shadow: 0 6px 24px var(--accent-glow); }
+.tl-latest:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 3px; }
+@media (max-width: 760px) { .tl-latest { bottom: 74px; right: 16px; } }   /* clear the fixed tab bar */
+@media (pointer: coarse) { .tl-latest { height: 44px; } }
+@media print { .tl-latest { display: none !important; } }

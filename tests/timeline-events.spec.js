@@ -69,6 +69,10 @@ test("timeline renders create/name system events that precede the first message"
   await expect(page.locator(".msg").first()).toBeVisible();
 
   await page.locator('.nav-item[data-view="timeline"]').click();
+  // SP8: the Timeline opens at the newest message now; Home goes to the
+  // oldest, where these events live.
+  await expect(page.locator('#tl-list .msg[data-idx="99"]')).toBeVisible();
+  await page.keyboard.press("Home");
   const chunk0 = page.locator('#tl-list [data-c="0"]');
   await expect(chunk0.locator(".msg").first()).toBeVisible();
 
@@ -87,6 +91,10 @@ test("an event tied to a chunk boundary renders in exactly one chunk", async ({ 
   await expect(page.locator(".msg").first()).toBeVisible();
 
   await page.locator('.nav-item[data-view="timeline"]').click();
+  // SP8: the Timeline opens at the newest message now; Home goes to the
+  // oldest, where these events live.
+  await expect(page.locator('#tl-list .msg[data-idx="99"]')).toBeVisible();
+  await page.keyboard.press("Home");
   const chunk0 = page.locator('#tl-list [data-c="0"]');
   await expect(chunk0.locator(".msg").first()).toBeVisible();
 
