@@ -2219,6 +2219,17 @@ function saveTlPos() {
   const keys = Object.keys(map);
   for (let k = 0; k < keys.length - TLPOS_MAX; k++) delete map[keys[k]];
   try { localStorage.setItem(TLPOS_KEY, JSON.stringify(map)); } catch (e) { /* storage blocked: memory only */ }
+  // The entry's #m= names the message a jump landed on. Once the reader has
+  // scrolled it out of view, stop naming it (replace, not push), so a reload
+  // reopens this reading position instead of snapping back to the jump.
+  if (navMsg != null && !jumpTargetInView()) { navMsg = null; navCommit("replace"); }
+}
+function jumpTargetInView() {
+  const i = ID2IDX.get(navMsg);
+  const n = i == null ? null : tlEls.list.querySelector('.msg[data-idx="' + i + '"]');
+  if (!n) return false;
+  const r = n.getBoundingClientRect(), sr = tlEls.scroll.getBoundingClientRect();
+  return r.bottom > sr.top && r.top < sr.bottom;
 }
 // Open the active conversation's Timeline where it was last read (this session's
 // tlResume first — e.g. after a timezone rebuild — then the saved position),

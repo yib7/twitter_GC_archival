@@ -238,3 +238,49 @@ test("file:// — the hash still drives navigation and Back works", async ({ pag
   await expect(page.locator('#tl-list .msg[data-idx="3"]')).toHaveClass(/flash/);
   expect(errors).toEqual([]);
 });
+
+// Fix round 1: #m= names the message a jump landed on. Once the reader scrolls
+// away from it, the entry stops naming it (replaceState), so a reload reopens
+// the reading position instead of snapping back to the jump target.
+const firstVisibleText = (page) => page.evaluate(() => {
+  const s = document.getElementById("tl-scroll"), top = s.getBoundingClientRect().top;
+  for (const n of document.querySelectorAll("#tl-list .msg")) {
+    if (n.getBoundingClientRect().top >= top) return n.querySelector(".bubble").textContent.trim();
+  }
+  return null;
+});
+async function readOn(page, dy) {
+  await page.locator("#tl-scroll").evaluate((s, d) => { s.scrollTop += d; }, dy);
+  await expect.poll(async () => (await params(page)).m).toBeUndefined();
+  await page.waitForTimeout(400);   // let the debounced reading-position save land
+  return firstVisibleText(page);
+}
+const textInView = (page, text) => expect(page.locator("#tl-list .msg", { has: page.locator(".bubble", { hasText: new RegExp("^" + text + "$") }) })).toBeInViewport();
+
+test("reload after a jump and reading on reopens the reading position, not the jump target", async ({ page }) => {
+  await boot(page, "", { "gca.lastView": "timeline" });
+  await page.keyboard.press("Control+K");
+  await page.locator(".cmdk-input").fill("2023-01-11");
+  await page.keyboard.press("Enter");
+  const target = (await page.locator("#tl-list .msg.flash .bubble").textContent()).trim();
+  expect((await params(page)).m).toBeDefined();
+  const reading = await readOn(page, -6000);   // ~70 messages up
+  expect(reading).not.toBe(target);
+  await page.reload();
+  await viewShown(page, "timeline");
+  await textInView(page, reading);
+  await expect(page.locator("#tl-list .msg.flash")).toHaveCount(0);
+});
+
+test("a shared #m= link: read on, reload, and you stay where you read to", async ({ page }) => {
+  await boot(page, "#c=B&m=b120");
+  await flashed(page, 120);
+  const reading = await readOn(page, 6000);
+  expect(reading).not.toBe("bravo line 120");
+  expect((await params(page)).c).toBe("B");
+  await page.reload();
+  await viewShown(page, "timeline");
+  await expect(page.locator("#conv-select")).toHaveValue("B");
+  await textInView(page, reading);
+  await expect(page.locator("#tl-list .msg.flash")).toHaveCount(0);
+});
