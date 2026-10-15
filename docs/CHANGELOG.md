@@ -117,17 +117,20 @@ All notable changes to this project are recorded here.
   position. Links work from `file://` too. A link into a hidden or missing
   conversation or message says so and falls back; anything malformed in the
   address is ignored.
-- "Link" on a message copies an ids-only link that opens that message.
+- "Link" on a message copies an ids-only link that opens that message. Opened
+  from a local file, it copies just the `#…` part (so your folder path isn't
+  shared) and says to paste it at the end of the archive's address.
 - The Timeline opens at the newest message and remembers where you were
   reading in each conversation (on this device). A "Latest" button appears
   when you scroll up, and Home / End jump to the oldest / newest message.
 - "Jump to date" opens a calendar: year and month strips with message-volume
   bars, and a month heatmap of days you can browse with the arrow keys
   (Page Up / Down by month, Enter jumps). It is also in the command palette as
-  "Browse by date (calendar)".
+  "Browse by date (calendar)" and, on phones, in the More sheet.
 - Jumping to a date accepts natural forms ("June 2021", "Jan 7 2024", "2021"),
   rejects dates that don't exist ("No such date: 2023-02-30") instead of
-  rolling them over, and says honestly where it landed when the date is
+  rolling them over, reads slashed dates month first (a day-first 13/01/2024
+  says to use 2024-01-13 or Jan 13 2024 instead), and says honestly where it landed when the date is
   before the first message, after the last, or on a day with no messages.
 
 ### Changed (navigation)
