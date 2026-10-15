@@ -4,59 +4,9 @@ All notable changes to this project are recorded here.
 
 ## Unreleased
 
-### Changed
+### Fixes
 
-- Dates now follow your browser's own timezone by default instead of UTC.
-  If you never picked a zone, a previously saved "UTC" (the old default) moves
-  to the new default once; a zone you picked, UTC included, is kept. Settings
-  now lists every timezone your browser knows, with a filter box.
-- Search shows exact matches first. Typo-tolerant "close matches" appear
-  automatically when nothing matches exactly, and a "+ Show close matches"
-  link adds them on demand.
-- An invalid saved timezone now falls back to the browser's zone (it used to
-  fall back to UTC).
-
-### Added (Wrapped and sharing)
-
-- Wrapped plays like a story: tap the left or right third of a slide (or
-  swipe) to move, press and hold to pause, and a segmented progress bar
-  replaces the dots and fits a phone screen. Slides advance on their own
-  (with a Pause/Play button) unless you prefer reduced motion; screen readers
-  hear which slide you moved to, but not every automatic step. Arrow keys and
-  Space move the story only when focus isn't on a control inside it.
-- Share any message, Hall of Fame entry or Wrapped slide as an image. One
-  renderer draws all three in your current theme and accent. The Share
-  dialog previews the card, saves a PNG, and can copy it to the clipboard
-  where the browser supports it. Nothing is uploaded and file names only
-  carry ids and years. This replaces the old "Quote" PNG export.
-- "Hide names & photos" in the Share dialog swaps every name, alias, @handle
-  and photo for "Person A/B/C" and plain discs, in titles and rankings too.
-  It is on by default for Wrapped slides that rank people, and your last
-  choice is remembered on this device.
-
-### Changed (Wrapped)
-
-- Wrapped backdrops and highlights are mixed from your accent colour in all
-  three themes instead of fixed violet/amber washes.
-- The softer text tweaks made for contrast now apply only to Light and Dim;
-  Lights-out keeps its original colours. The Wrapped secondary text was
-  silently ignoring its contrast tweak (a CSS variable referring to itself)
-  and now reads at full contrast.
-
-### Performance
-
-- On a 100,000-message archive, opening Stats or switching conversations with
-  Stats open is roughly 8x faster (about 1.2 s down to about 130 ms): the
-  overview paints first and the heavy sections fill in right after, and every
-  analytics view shares one cached per-conversation time index.
-- Fuzzy searches narrow the archive with a prefilter before scoring, so a
-  typo'd keystroke stays under about 60 ms on 100k messages with identical
-  results.
-- The search result list keeps only the pages near the viewport rendered, so
-  scrolling through a huge result set no longer grows the page without bound.
-  Infinite scroll is unchanged.
-
-### Fixed (analytics)
+#### Analytics
 
 - Emoji are counted as whole sequences everywhere: a skin-toned, combined
   (family, flag, keycap) emoji is one emoji, not two or five.
@@ -84,7 +34,7 @@ All notable changes to this project are recorded here.
   day", "<1s" replies; empty Stats panels are hidden, an empty gallery says so,
   and the keyboard help shows ⌘ on Apple devices.
 
-### Accessibility
+#### Accessibility
 
 - Every keyboard stop shows a visible focus ring, and every clickable card,
   chip, swatch, cloud word, chart bar and message photo is a real button or
@@ -109,138 +59,7 @@ All notable changes to this project are recorded here.
 - The theme switch lives in the sidebar and the More sheet instead of
   floating over content.
 
-### Changed (mobile and UX)
-
-- On phones, search filters collapse into a "Filters" sheet with an active-
-  filter badge, and the search box no longer autofocuses (no surprise
-  keyboard). Tapping outside the sheet only closes it, and widening the
-  window turns it back into the inline filter bar.
-- On touch screens the ⋯ on your own messages sits on the left, clear of
-  your avatar.
-- On touch screens, controls have 44px targets.
-- Settings rows and Stats grids reflow to one column on narrow screens
-  instead of overflowing.
-- Empty states say what to do next and offer a button (Clear search &
-  filters, Switch to List, Open Timeline, Search messages).
-- Gallery has the standard page header with an item count; the lightbox has
-  one top toolbar with "n / N", Bookmark, Download and Close.
-- Word Battles keeps the words you add when you change the people and across
-  reloads. Duplicates are refused, each custom word can be removed, Reset
-  keeps them, and Import/Export treats them as their own section. A word
-  over 40 characters, or the 31st word pushing out the oldest, says so.
-- Opening the Timeline no longer flashes message 0 before your place, and the
-  sticky day pill is translucent and no longer blocks taps on media under it.
-- Time Capsule sizes itself by layout, so it no longer ends up as a scroller
-  inside the page scroller.
-
-### Added (navigation)
-
-- The address bar now tracks where you are, as ids only (`#v=view&c=conversation`,
-  plus the message a Timeline jump landed on). Your search text is never put in
-  the address or its history entry's URL: Back, Forward and reload restore it
-  from the browser's per-tab history state instead. Back and Forward
-  walk your view switches, conversation switches and jumps; after jumping from
-  a search result, Back returns to the result list at the same scroll
-  position. Links work from `file://` too. A link into a hidden or missing
-  conversation or message says so and falls back; anything malformed in the
-  address is ignored.
-- "Link" on a message copies an ids-only link that opens that message. Opened
-  from a local file, it copies just the `#…` part (so your folder path isn't
-  shared) and says to paste it at the end of the archive's address.
-- The Timeline opens at the newest message and remembers where you were
-  reading in each conversation (on this device). A "Latest" button appears
-  when you scroll up, and Home / End jump to the oldest / newest message.
-- "Jump to date" opens a calendar: year and month strips with message-volume
-  bars, and a month heatmap of days you can browse with the arrow keys
-  (Page Up / Down by month, Enter jumps). It is also in the command palette as
-  "Browse by date (calendar)" and, on phones, in the More sheet.
-- Jumping to a date accepts natural forms ("June 2021", "Jan 7 2024", "2021"),
-  rejects dates that don't exist ("No such date: 2023-02-30") instead of
-  rolling them over, reads slashed dates month first (a day-first 13/01/2024
-  says to use 2024-01-13 or Jan 13 2024 instead), and says honestly where it landed when the date is
-  before the first message, after the last, or on a day with no messages.
-
-### Changed (navigation)
-
-- The Timeline no longer opens at the oldest message (it opens at your last
-  reading position, else the newest). "Reset customization" keeps the saved
-  reading positions.
-- `before:` / `after:` accept a month (`2021-06`), a year (`2024`) or a quoted
-  natural date, and are documented as inclusive of the whole period they
-  name. An impossible date is ignored with a note in the result line.
-
-### Added (search)
-
-- An "All chats" switch in Search looks through every group chat at once. The
-  results are grouped by chat, with this chat first. Each group's header shows
-  the chat's name and how many messages matched, plus a "Search only <chat>"
-  button that runs the same search in that chat. Group chats you removed and
-  people you ignored stay out. The address remembers the switch (`&s=all`)
-  but never your search text. All chats shows exact matches only.
-- The command palette (Cmd/Ctrl-K) searches messages too. After the commands
-  it lists the five newest messages in this chat that match, each with a
-  highlighted snippet, the sender and the date. The last row reads "See all
-  in Search" and opens the Search view with your query. The palette
-  understands the same operators as Search.
-- Search operators show as chips under the box ("From Ann", "Has photo",
-  "Since Jun 2021", "Not "spoiler""). Click a chip, or press Backspace /
-  Delete on it, to remove that operator from your query.
-- Typing `from:` opens a list of people to pick from. It matches display
-  names and their aliases (the name set in setup, a name set in People, and
-  "User N"). Ignored people never appear. Use the arrow keys and Enter / Tab
-  to pick a name.
-- New operators: `has:photo`, `has:video`, `has:file` and `is:pinned`
-  (bookmarked messages). `has:link` and `has:reacts` join `has:media`.
-- Keyboard navigation in the results. Once a result has focus, j / ↓ and
-  k / ↑ move to the next or previous result, Enter opens it, c shows its
-  context and b bookmarks it. The keys do nothing while you type in the box,
-  and a screen reader hears "Result n of N" once you stop.
-
-### Changed (search)
-
-- Operators work with accented and non-Latin names and words (`from:Zoë`,
-  `-café`). An operator no longer needs a space after it, and an operator
-  you're still typing waits until you finish. `from:` matches a full name, the
-  start of a name or word, or any part of a name, and an ambiguous `from:`
-  you're still typing shows suggestions instead of guessing. A `from:` that
-  names nobody says "No one named …" instead of being ignored.
-- Quoted phrases stay exact in Fuzzy mode: a close match must still contain
-  every `"quoted phrase"` word for word.
-- Search finds the text a link shows: its full and display URLs, not just
-  the t.co short link. The word cloud and the keyword statistics are
-  unchanged.
-- The Timeline's "Search" button opens the Search view with the box focused,
-  the same as `/`. The command palette is still Cmd/Ctrl-K.
-
-### Added (importing and setup)
-
-- Pick the unzipped archive folder (or any file in it) instead of three
-  files: the wizard reads the archive's `data/manifest.js` to find every
-  messages part, the headers and the media folder, and falls back to finding
-  them by name. Paths in the manifest are never followed outside the folder.
-- "Check export" shows a preview before anything is written: group chats,
-  message counts per group, dates, people, photos & videos, and plain
-  warnings (missing part files, swapped files, 1:1 DMs left out, media that
-  belongs to no message, unreadable dates, nothing to import).
-- "Add a newer export": a built archive can take a newer download without
-  Start over. The preview shows what the archive already has and what the
-  export adds; merging keeps every message of the current archive, adds the
-  new ones once each, keeps names, photos, group names, "me" and removed
-  people, and leaves the pre-merge archive in `data.js.bak`.
-- A progress bar shows the photo & video copy during a build; media already
-  in the archive isn't copied again.
-- Removed people's and group chats' messages are kept aside in
-  `personal_data/.removed/messages.js`, so un-removing brings them back even
-  after merging a newer export that no longer has them. An archive whose
-  removals were made before this is rebuilt once before its first merge, so
-  they are kept aside too; a merge that fails puts them back as they were.
-- Merging an export older than the archive asks first, and keeps the
-  archive's newer copies of messages (edits); reactions from both are kept.
-  Re-adding an export the archive already has asks to "re-add anyway".
-  An export with no group messages can't be merged.
-- Media copies never replace a file the archive already has and never leave
-  a half-copied file behind; a manifest that doesn't list every part file
-  no longer hides the unlisted parts.
+#### Importing, building and setup
 
 - Very large exports build: the messages file is read as a stream and the
   archive is written in pieces, so a ~600 MB export no longer fails with a
@@ -275,7 +94,7 @@ All notable changes to this project are recorded here.
   wrong; the wizard checks there is enough free disk space before copying.
 - The double-click launchers say plainly when Node.js is missing or older
   than 18, or when they are run from inside the ZIP, instead of showing a raw
-  error. `package.json` declares Node 18 or newer.
+  error. The launchers and the server need Node 18 or newer.
 - A reopened wizard shows the saved group name and photo, and saving no
   longer blanks a group name saved earlier.
 - A person has the same avatar colour in the wizard as in the archive.
@@ -294,6 +113,207 @@ All notable changes to this project are recorded here.
   exits a few seconds after the last open page is closed. If the server has
   stopped, the page says so and how to restart it.
 
+#### Viewer and demo
+
+- The Stats hero's secondary text is really dimmed in all three themes; its
+  contrast tweak used to refer to itself and was silently dropped.
+- The optional data-file probes in `index.html` no longer carry `onerror`
+  handlers the Content-Security-Policy blocked anyway; a missing optional
+  file still only logs a not-found line over `file://`.
+- The demo data spans about 18 months (January 2024 to July 2025) across
+  three group chats, with renames, joins and a leave, reactions, links,
+  several photos on one message and right-to-left and emoji text. It is
+  generated the same way on every run, and its placeholder media are all
+  labelled as photos (one used to be an image file tagged as a video).
+
+#### Tooling
+
+- `package.json` `engines` is now `^22.13.0 || >=24`, the versions the
+  dev tooling (ESLint 10, Playwright, `node --test` with a glob) really needs.
+  The app itself still runs on Node 18.
+- The 100k-message performance test runs after the rest of the suite, on one
+  worker, so its timings don't compete with other tests.
+- CI fails when `data.sample.js` or `sample_media/` differ from what the
+  generator makes.
+
+### Features
+
+#### Dates and search
+
+- Dates now follow your browser's own timezone by default instead of UTC.
+  If you never picked a zone, a previously saved "UTC" (the old default) moves
+  to the new default once; a zone you picked, UTC included, is kept. Settings
+  now lists every timezone your browser knows, with a filter box.
+- Search shows exact matches first. Typo-tolerant "close matches" appear
+  automatically when nothing matches exactly, and a "+ Show close matches"
+  link adds them on demand.
+- An invalid saved timezone now falls back to the browser's zone (it used to
+  fall back to UTC).
+
+#### Search
+
+- An "All chats" switch in Search looks through every group chat at once. The
+  results are grouped by chat, with this chat first. Each group's header shows
+  the chat's name and how many messages matched, plus a "Search only <chat>"
+  button that runs the same search in that chat. Group chats you removed and
+  people you ignored stay out. The address remembers the switch (`&s=all`)
+  but never your search text. All chats shows exact matches only.
+- The command palette (Cmd/Ctrl-K) searches messages too. After the commands
+  it lists the five newest messages in this chat that match, each with a
+  highlighted snippet, the sender and the date. The last row reads "See all
+  in Search" and opens the Search view with your query. The palette
+  understands the same operators as Search.
+- Search operators show as chips under the box ("From Ann", "Has photo",
+  "Since Jun 2021", "Not "spoiler""). Click a chip, or press Backspace /
+  Delete on it, to remove that operator from your query.
+- Typing `from:` opens a list of people to pick from. It matches display
+  names and their aliases (the name set in setup, a name set in People, and
+  "User N"). Ignored people never appear. Use the arrow keys and Enter / Tab
+  to pick a name.
+- New operators: `has:photo`, `has:video`, `has:file` and `is:pinned`
+  (bookmarked messages). `has:link` and `has:reacts` join `has:media`.
+- Keyboard navigation in the results. Once a result has focus, j / ↓ and
+  k / ↑ move to the next or previous result, Enter opens it, c shows its
+  context and b bookmarks it. The keys do nothing while you type in the box,
+  and a screen reader hears "Result n of N" once you stop.
+- Operators work with accented and non-Latin names and words (`from:Zoë`,
+  `-café`). An operator no longer needs a space after it, and an operator
+  you're still typing waits until you finish. `from:` matches a full name, the
+  start of a name or word, or any part of a name, and an ambiguous `from:`
+  you're still typing shows suggestions instead of guessing. A `from:` that
+  names nobody says "No one named …" instead of being ignored.
+- Quoted phrases stay exact in Fuzzy mode: a close match must still contain
+  every `"quoted phrase"` word for word.
+- Search finds the text a link shows: its full and display URLs, not just
+  the t.co short link. The word cloud and the keyword statistics are
+  unchanged.
+- The Timeline's "Search" button opens the Search view with the box focused,
+  the same as `/`. The command palette is still Cmd/Ctrl-K.
+
+#### Navigation
+
+- The address bar now tracks where you are, as ids only (`#v=view&c=conversation`,
+  plus the message a Timeline jump landed on). Your search text is never put in
+  the address or its history entry's URL: Back, Forward and reload restore it
+  from the browser's per-tab history state instead. Back and Forward
+  walk your view switches, conversation switches and jumps; after jumping from
+  a search result, Back returns to the result list at the same scroll
+  position. Links work from `file://` too. A link into a hidden or missing
+  conversation or message says so and falls back; anything malformed in the
+  address is ignored.
+- "Link" on a message copies an ids-only link that opens that message. Opened
+  from a local file, it copies just the `#…` part (so your folder path isn't
+  shared) and says to paste it at the end of the archive's address.
+- The Timeline opens at the newest message and remembers where you were
+  reading in each conversation (on this device). A "Latest" button appears
+  when you scroll up, and Home / End jump to the oldest / newest message.
+- "Jump to date" opens a calendar: year and month strips with message-volume
+  bars, and a month heatmap of days you can browse with the arrow keys
+  (Page Up / Down by month, Enter jumps). It is also in the command palette as
+  "Browse by date (calendar)" and, on phones, in the More sheet.
+- Jumping to a date accepts natural forms ("June 2021", "Jan 7 2024", "2021"),
+  rejects dates that don't exist ("No such date: 2023-02-30") instead of
+  rolling them over, reads slashed dates month first (a day-first 13/01/2024
+  says to use 2024-01-13 or Jan 13 2024 instead), and says honestly where it landed when the date is
+  before the first message, after the last, or on a day with no messages.
+- The Timeline no longer opens at the oldest message (it opens at your last
+  reading position, else the newest). "Reset customization" keeps the saved
+  reading positions.
+- `before:` / `after:` accept a month (`2021-06`), a year (`2024`) or a quoted
+  natural date, and are documented as inclusive of the whole period they
+  name. An impossible date is ignored with a note in the result line.
+
+#### Wrapped and sharing
+
+- Wrapped plays like a story: tap the left or right third of a slide (or
+  swipe) to move, press and hold to pause, and a segmented progress bar
+  replaces the dots and fits a phone screen. Slides advance on their own
+  (with a Pause/Play button) unless you prefer reduced motion; screen readers
+  hear which slide you moved to, but not every automatic step. Arrow keys and
+  Space move the story only when focus isn't on a control inside it.
+- Share any message, Hall of Fame entry or Wrapped slide as an image. One
+  renderer draws all three in your current theme and accent. The Share
+  dialog previews the card, saves a PNG, and can copy it to the clipboard
+  where the browser supports it. Nothing is uploaded and file names only
+  carry ids and years. This replaces the old "Quote" PNG export.
+- "Hide names & photos" in the Share dialog swaps every name, alias, @handle
+  and photo for "Person A/B/C" and plain discs, in titles and rankings too.
+  It is on by default for Wrapped slides that rank people, and your last
+  choice is remembered on this device.
+- Wrapped backdrops and highlights are mixed from your accent colour in all
+  three themes instead of fixed violet/amber washes.
+- The softer text tweaks made for contrast now apply only to Light and Dim;
+  Lights-out keeps its original colours. The Wrapped secondary text was
+  silently ignoring its contrast tweak (a CSS variable referring to itself)
+  and now reads at full contrast.
+
+#### Importing and setup
+
+- Pick the unzipped archive folder (or any file in it) instead of three
+  files: the wizard reads the archive's `data/manifest.js` to find every
+  messages part, the headers and the media folder, and falls back to finding
+  them by name. Paths in the manifest are never followed outside the folder.
+- "Check export" shows a preview before anything is written: group chats,
+  message counts per group, dates, people, photos & videos, and plain
+  warnings (missing part files, swapped files, 1:1 DMs left out, media that
+  belongs to no message, unreadable dates, nothing to import).
+- "Add a newer export": a built archive can take a newer download without
+  Start over. The preview shows what the archive already has and what the
+  export adds; merging keeps every message of the current archive, adds the
+  new ones once each, keeps names, photos, group names, "me" and removed
+  people, and leaves the pre-merge archive in `data.js.bak`.
+- A progress bar shows the photo & video copy during a build; media already
+  in the archive isn't copied again.
+- Removed people's and group chats' messages are kept aside in
+  `personal_data/.removed/messages.js`, so un-removing brings them back even
+  after merging a newer export that no longer has them. An archive whose
+  removals were made before this is rebuilt once before its first merge, so
+  they are kept aside too; a merge that fails puts them back as they were.
+- Merging an export older than the archive asks first, and keeps the
+  archive's newer copies of messages (edits); reactions from both are kept.
+  Re-adding an export the archive already has asks to "re-add anyway".
+  An export with no group messages can't be merged.
+- Media copies never replace a file the archive already has and never leave
+  a half-copied file behind; a manifest that doesn't list every part file
+  no longer hides the unlisted parts.
+
+#### Mobile and UX
+
+- On phones, search filters collapse into a "Filters" sheet with an active-
+  filter badge, and the search box no longer autofocuses (no surprise
+  keyboard). Tapping outside the sheet only closes it, and widening the
+  window turns it back into the inline filter bar.
+- On touch screens the ⋯ on your own messages sits on the left, clear of
+  your avatar.
+- On touch screens, controls have 44px targets.
+- Settings rows and Stats grids reflow to one column on narrow screens
+  instead of overflowing.
+- Empty states say what to do next and offer a button (Clear search &
+  filters, Switch to List, Open Timeline, Search messages).
+- Gallery has the standard page header with an item count; the lightbox has
+  one top toolbar with "n / N", Bookmark, Download and Close.
+- Word Battles keeps the words you add when you change the people and across
+  reloads. Duplicates are refused, each custom word can be removed, Reset
+  keeps them, and Import/Export treats them as their own section. A word
+  over 40 characters, or the 31st word pushing out the oldest, says so.
+- Opening the Timeline no longer flashes message 0 before your place, and the
+  sticky day pill is translucent and no longer blocks taps on media under it.
+- Time Capsule sizes itself by layout, so it no longer ends up as a scroller
+  inside the page scroller.
+
+#### Performance
+
+- On a 100,000-message archive, opening Stats or switching conversations with
+  Stats open is roughly 8x faster (about 1.2 s down to about 130 ms): the
+  overview paints first and the heavy sections fill in right after, and every
+  analytics view shares one cached per-conversation time index.
+- Fuzzy searches narrow the archive with a prefilter before scoring, so a
+  typo'd keystroke stays under about 60 ms on 100k messages with identical
+  results.
+- The search result list keeps only the pages near the viewport rendered, so
+  scrolling through a huge result set no longer grows the page without bound.
+  Infinite scroll is unchanged.
+
 ### Security
 
 - The native file pickers require a per-session token and a same-origin
@@ -301,7 +321,19 @@ All notable changes to this project are recorded here.
 - Pages are sent with `X-Frame-Options: DENY` and `frame-ancestors 'none'`, so
   they can't be framed by another site.
 
-## v1.4.0 (unreleased) — code-audit remediation
+### Docs
+
+- ARCHITECTURE lists every setup-server endpoint, the real `config.json` and
+  `local.js` shapes, the script load order, the CSP and a Testing section;
+  README describes the Node versions, project layout and data schema as they
+  are, with new screenshots and a new walkthrough recorded from the demo data.
+- `.env.example` lists only the variables a user may set (`GCA_PORT`,
+  `GCA_PERSONAL`, `GCA_DEBUG`); the test switches are documented in
+  ARCHITECTURE.
+- The vendored Fuse.js and Chart.js ship with their license texts, and
+  docs/CREDITS.md records where they come from and their SHA-256 hashes.
+
+## v1.4.0 (2026-08-25)
 
 ### Added
 
@@ -339,8 +371,8 @@ All notable changes to this project are recorded here.
 - The setup server now rejects requests with a foreign Host header or a
   cross-origin Origin/Referer, closing a cross-site path to the destructive
   reset endpoint and a DNS-rebinding exposure.
-- Added a Content-Security-Policy (served mode) as a second line of defense
-  behind the existing output escaping.
+- Added a Content-Security-Policy (a `<meta>` tag, so it also applies over
+  `file://`) as a second line of defense behind the existing output escaping.
 - The identity endpoint (`POST /api/identity`) no longer lets a `__proto__`
   key in the request body repoint an internal object's prototype
   (prototype-pollution hardening; the exposure was narrow, since the same
