@@ -644,6 +644,41 @@ function animateCounts(rootEl) {
 }
 
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
+// A person's name as chat conv shows it: an unnamed person is that chat's
+// "User N" (genericFor), so a row from another chat (All chats, Pinned, the
+// export) reads as it does in its own chat. nameIn(CONV, id) is nameOf(id).
+function nameIn(conv, id) { return settings.names[id] || LOCAL_NAMES[id] || (conv ? genericFor(conv)[id] : GENERIC[id]) || ("User " + String(id).slice(-4)); }
+// Another chat's "User N" labels ({ id: label }), numbered the way
+// computeParticipants orders the active chat's (senders by message count,
+// then quiet members: roster, reactions, events; ignored people left out).
+// The active chat's are GENERIC. Cached per chat, keyed like convSearchIdx
+// (the ignored set and the message array).
+const genericCache = new Map();
+function genericFor(conv) {
+  if (CONV && conv.id === CONV.id) return GENERIC;
+  const ignored = ignoredUserIds(), key = [...ignored].sort().join(",");
+  let g = genericCache.get(conv.id);
+  if (!g || g.key !== key || g.src !== conv.msgs) {
+    const counts = new Map();
+    for (const m of conv.msgs || []) if (!ignored.has(String(m.s))) counts.set(m.s, (counts.get(m.s) || 0) + 1);
+    const order = [...counts].sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+    const seen = new Set(counts.keys());
+    const quiet = (id) => {
+      if (id == null || id === "") return;
+      id = String(id);
+      if (seen.has(id) || ignored.has(id)) return;
+      seen.add(id); order.push(id);
+    };
+    (conv.participants || []).forEach(quiet);
+    for (const m of conv.msgs || []) if (m.r && !ignored.has(String(m.s))) m.r.forEach((x) => quiet(x.s));
+    (conv.events || []).forEach((e) => { (e.ids || []).forEach(quiet); quiet(e.s); });
+    const names = {};
+    order.forEach((id, i) => { names[id] = "User " + (i + 1); });
+    g = { key, src: conv.msgs, names };
+    genericCache.set(conv.id, g);
+  }
+  return g.names;
+}
 // ONE person colour everywhere: avatars, names, cards, Word
 // Battles, foreign pins and the share cards all read personColor().
 // X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
@@ -783,7 +818,7 @@ function indexAtOrAfter(t) {
 // without the server). Mutated in place by the People-tab pfp uploader.
 const PFPS = Object.assign({}, (typeof window !== "undefined" && window.LOCAL_PFPS) || {}, settings.pfps);
 
-function applyPfp(av, id) {
+function applyPfp(av, id, name) {
   av.dataset.id = id;
   av.classList.add("av-clickable");
   const photo = sanitizePhoto(PFPS[id]);
@@ -798,7 +833,7 @@ function applyPfp(av, id) {
     av.style.backgroundImage = "";     // clear any prior photo; CSS .av gradient uses --p/--f
     av.style.setProperty("--p", p);
     av.style.setProperty("--f", f);
-    av.textContent = initials(nameOf(id));
+    av.textContent = initials(name || nameOf(id));
   }
 }
 
@@ -1336,7 +1371,7 @@ function appendMoreMedia(d, m) {
   });
   d.appendChild(row);
 }
-function renderReacts(r) {
+function renderReacts(r, nameFn) {
   const wrap = el("div", "reacts");
   // Group by an effective key that distinguishes custom-emoji glyphs:
   // plain reaction keys ("funny", "like", ...) group as before, but a
@@ -1358,7 +1393,7 @@ function renderReacts(r) {
     const glyph = isCustom ? esc(g.e) : (REACT[g.k] || "•");
     const label = isCustom ? esc(g.e) : g.k;
     const c = el("span", "react", glyph + ' <span class="who">' + g.senders.length + "</span>");
-    c.title = label + " — " + g.senders.map(nameOf).join(", ");
+    c.title = label + " — " + g.senders.map(nameFn || nameOf).join(", ");
     wrap.appendChild(c);
   });
   return wrap;
@@ -1582,13 +1617,17 @@ function scopeData() {
   });
 }
 // The people a from: can name in the current scope: this chat's participants,
-// or everyone who posts in a searched chat (ignored people are gone from both).
-function scopeParts() {
-  if (!allScope()) return PARTS;
-  const counts = new Map();
-  PARTS.forEach((p) => counts.set(p.id, p.count));
-  scopeData().forEach((d) => { if (d.senders) d.senders.forEach((n, id) => counts.set(id, (counts.get(id) || 0) + n)); });
-  return [...counts].map(([id, count]) => ({ id, count })).sort((a, b) => b.count - a.count);
+// or everyone who posts in a searched chat (ignored people are gone from both),
+// once per chat, since an unnamed person is a different "User N" in each.
+// [{ conv, id, count, names }]
+function scopeEntries() {
+  if (!allScope()) return PARTS.map((p) => ({ conv: CONV, id: p.id, count: p.count, names: personNames(p.id) }));
+  const out = [];
+  scopeData().forEach((d) => {
+    if (d.active) PARTS.forEach((p) => out.push({ conv: d.conv, id: p.id, count: p.count, names: personNames(p.id) }));
+    else d.senders.forEach((n, id) => out.push({ conv: d.conv, id, count: n, names: personNamesIn(d.conv, id) }));
+  });
+  return out;
 }
 // "Search only <chat>": the same query in one chat (This chat scope).
 function searchOnlyIn(convId) {
@@ -1804,19 +1843,52 @@ function personNames(id) {
   [nameOf(id), settings.names[id], LOCAL_NAMES[id], GENERIC[id]].forEach((n) => { if (n && out.indexOf(n) < 0) out.push(n); });
   return out;
 }
-function searchPeople(list) { return (list || scopeParts()).map((p) => ({ id: p.id, names: personNames(p.id) })); }
+// The same for a person in another chat, with that chat's "User N".
+function personNamesIn(conv, id) {
+  const out = [];
+  [nameIn(conv, id), settings.names[id], LOCAL_NAMES[id], genericFor(conv)[id]].forEach((n) => { if (n && out.indexOf(n) < 0) out.push(n); });
+  return out;
+}
+function searchPeople(list) { return (list || PARTS).map((p) => ({ id: p.id, names: personNames(p.id) })); }
+// from: value -> { ids, pending, names, byConv }. With no people list given,
+// the scope's people. In All chats it is one ranking over every chat's
+// people, so "User 2" is whoever is User 2 in each chat: byConv holds the
+// ids per chat (convId -> Set) and names the labels that matched.
+function resolveFrom(op, people) {
+  if (people || !allScope()) {
+    const r = GCAShared.resolvePeople(op.value, people || searchPeople(), { open: op.open });
+    return { ids: r.ids, pending: r.pending, names: r.ids.map(nameOf), byConv: null };
+  }
+  const entries = scopeEntries();
+  const r = GCAShared.resolvePeople(op.value, entries.map((e, k) => ({ id: k, names: e.names })), { open: op.open });
+  const byConv = new Map(), ids = [], names = [];
+  r.ids.forEach((k) => {
+    const e = entries[k];
+    if (!byConv.has(e.conv.id)) byConv.set(e.conv.id, new Set());
+    byConv.get(e.conv.id).add(e.id);
+    if (ids.indexOf(e.id) < 0) ids.push(e.id);
+    if (names.indexOf(e.names[0]) < 0) names.push(e.names[0]);
+  });
+  // still choosing only while the value names several people (not one person in several chats)
+  const pending = r.how === "none" ? r.pending : op.open && r.how !== "exact" && ids.length > 1;
+  return { ids, pending, names, byConv };
+}
 function buildSearchCtx(raw, people) {
   const pq = GCAShared.parseSearchQuery(raw, { clock: CLOCK });
   const ctx = { raw: String(raw || ""), pq, needles: pq.needles, phrases: pq.phrases, excludes: pq.excludes,
-    people: null, from: null, to: null, has: {}, pins: null, notes: [], chips: [] };
+    people: null, peopleIn: null, from: null, to: null, has: {}, pins: null, notes: [], chips: [] };
   for (const op of pq.ops) {
     if (op.pending) continue;
     if (op.key === "from") {
-      const r = GCAShared.resolvePeople(op.value, people || searchPeople(), { open: op.open });
+      const r = resolveFrom(op, people);
       if (r.pending) { op.pending = true; continue; }
       if (!ctx.people) ctx.people = new Set();
       r.ids.forEach((id) => ctx.people.add(id));
-      op.ids = r.ids;
+      if (r.byConv) {
+        if (!ctx.peopleIn) ctx.peopleIn = new Map();
+        r.byConv.forEach((s, cid) => { if (!ctx.peopleIn.has(cid)) ctx.peopleIn.set(cid, new Set()); s.forEach((id) => ctx.peopleIn.get(cid).add(id)); });
+      }
+      op.ids = r.ids; op.names = r.names;
       if (!r.ids.length) ctx.notes.push("No one named “" + op.value + "”");
     } else if (op.key === "before" || op.key === "after") {
       // a date that doesn't exist is dropped with a note, not rolled over
@@ -2073,7 +2145,9 @@ function runSearchAll() {
   const groups = [];
   let total = 0, pos = 0;
   for (const d of scopeData()) {
-    const idx = literalHits(SQ, d.msgs, d.lower);
+    // a from: names people per chat in All chats (each chat's "User N")
+    const ctx = SQ.peopleIn ? Object.assign({}, SQ, { people: SQ.peopleIn.get(d.conv.id) || new Set() }) : SQ;
+    const idx = literalHits(ctx, d.msgs, d.lower);
     if (!idx.length) continue;
     sortHits(idx, d.msgs);
     groups.push({ d, idx, start: pos });
@@ -2315,7 +2389,7 @@ function updateMatchHint() {
    so the box, the chips and the results never disagree. */
 const HAS_LABEL = { media: "media", link: "link", reacts: "reactions", photo: "photo", video: "video", file: "file" };
 function chipLabel(op) {
-  if (op.key === "from") return op.ids.length ? "From " + op.ids.map(nameOf).join(", ") : "From no one named “" + op.value + "”";
+  if (op.key === "from") return op.ids.length ? "From " + (op.names || op.ids.map(nameOf)).join(", ") : "From no one named “" + op.value + "”";
   if (op.key === "after") return "Since " + op.date.label;
   if (op.key === "before") return "Until " + op.date.label;
   if (op.key === "has") return "Has " + (HAS_LABEL[op.value] || op.value);
@@ -2392,8 +2466,18 @@ function acToken() {
 }
 function acCandidates(value) {
   // the same matcher as from: itself (GCAShared.rankPeople), best rank first,
-  // then whoever posts most
-  const people = scopeParts().map((p) => ({ id: p.id, names: personNames(p.id), p }));
+  // then whoever posts most. In All chats one row per name: an unnamed
+  // "User 2" of two chats is one choice, as from: treats it.
+  const rows = new Map(), all = allScope();
+  scopeEntries().forEach((e) => {
+    const key = all ? e.names[0] : e.id;
+    let r = rows.get(key);
+    if (!r) { r = { id: key, names: [], p: { id: e.id, count: 0 }, top: -1 }; rows.set(key, r); }
+    e.names.forEach((n) => { if (r.names.indexOf(n) < 0) r.names.push(n); });
+    r.p.count += e.count;
+    if (e.count > r.top) { r.top = e.count; r.p.id = e.id; }
+  });
+  const people = [...rows.values()];
   return GCAShared.rankPeople(value, people)
     .map((x) => ({ p: x.person.p, names: x.person.names, r: x.rank }))
     .sort((a, b) => a.r - b.r || b.p.count - a.p.count).slice(0, 8);
@@ -2515,8 +2599,8 @@ function clearAllFilters() {
   sEls.input.focus();
 }
 // One exported record per line — multi-line bodies flattened so the .txt
-// stays parseable.
-function exportLine(m) { return DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " "); }
+// stays parseable. conv: the chat the message is from (whose "User N" it uses).
+function exportLine(m, conv) { return DT.format(m.t) + " | " + nameIn(conv, m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " "); }
 // Save `lines` as a plain-text download called `name`.
 function downloadText(name, lines) {
   const blob = new Blob([lines.join("\n")], { type: "text/plain" });
@@ -2532,7 +2616,7 @@ function exportResults() {
     const out = [];
     resState.groups.forEach((g) => {
       out.push("== " + convLabel(g.d.conv) + " ==");
-      g.idx.forEach((i) => out.push(exportLine(g.d.msgs[i])));
+      g.idx.forEach((i) => out.push(exportLine(g.d.msgs[i], g.d.conv)));
       out.push("");
     });
     downloadText("search-results-all-chats-" + day + ".txt", out);
@@ -5659,7 +5743,7 @@ function renderPins() {
     ordered.forEach((c) => {
       const hits = byConv.get(c.id);
       lines.push("== " + convLabel(c) + " ==");
-      ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(exportLine(m)); });
+      ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(exportLine(m, c)); });
       lines.push("");
     });
     downloadText("pinned-messages-" + new Date().toISOString().slice(0,10) + ".txt", lines);
@@ -5676,10 +5760,11 @@ function renderPins() {
 // that conversation and jumps to the message.
 function renderForeignPin(conv, m, needles) {
   const wrap = el("div", "msg clickable");
-  const av = el("div", "av"); applyPfp(av, m.s); wrap.appendChild(av);
+  const who = (id) => nameIn(conv, id);   // names as that chat shows them
+  const av = el("div", "av"); applyPfp(av, m.s, who(m.s)); wrap.appendChild(av);
   const body = el("div", "msg-body");
   const head = el("div", "msg-head");
-  const nm = el("span", "msg-name"); nm.textContent = nameOf(m.s); nm.style.color = personColor(m.s).p;
+  const nm = el("span", "msg-name"); nm.textContent = who(m.s); nm.style.color = personColor(m.s).p;
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
@@ -5694,11 +5779,11 @@ function renderForeignPin(conv, m, needles) {
     const d = el("div", "media");
     if (m.k === "img") {
       const img = el("img"); img.loading = "lazy"; img.src = m.m;
-      img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
+      img.alt = "Photo from " + who(m.s) + " · " + DT.format(m.t);
       d.appendChild(img);
     } else if (m.k === "vid") {
       const vd = document.createElement("video"); vd.src = m.m; vd.controls = true; vd.preload = "none";
-      vd.setAttribute("aria-label", "Video from " + nameOf(m.s) + " · " + DT.format(m.t));
+      vd.setAttribute("aria-label", "Video from " + who(m.s) + " · " + DT.format(m.t));
       vd.addEventListener("click", (e) => e.stopPropagation());
       d.appendChild(vd);
     } else {
@@ -5709,7 +5794,7 @@ function renderForeignPin(conv, m, needles) {
     appendMoreMedia(d, m);   // the message's other files
     body.appendChild(d);
   }
-  if (m.r) body.appendChild(renderReacts(m.r));
+  if (m.r) body.appendChild(renderReacts(m.r, who));
   wrap.appendChild(body);
 
   cardActivation(wrap, go);

@@ -160,3 +160,59 @@ test("switching chats back and forth keeps All chats results right", async ({ pa
     await expect(page.locator("#s-list")).not.toContainText("Gus");
   }
 });
+
+// Unnamed people get a per-chat "User N" (by how much they post there). A row
+// from another chat must use THAT chat's label — the one its own view shows —
+// in All chats results, the export, Pinned and from:, never the "User 1234"
+// fallback or the active chat's numbering.
+test.describe("unnamed people in other chats keep their own chat's User N", () => {
+  const P = "3000001006";                       // 2nd-most-active in Beta; not in Alpha
+  const SHARED = "1000000001";                  // User 1 in Alpha, User 3 in Beta
+  const UA = msgs("ua", 5, { s: [SHARED, "1000000002", SHARED, "1000000002", SHARED], t0: T, x: (k) => "pizza a" + k });
+  const UB = msgs("ub", 6, { s: ["2000000007", P, "2000000007", P, "2000000007", SHARED], t0: T + 864e5, x: (k) => "pizza b" + k });
+  const UDATA = { conversations: [conv("A", "Alpha", UA), conv("B", "Beta", UB)] };
+  const uboot = (page, ls) => bootViewer(page, UDATA, { ls: Object.assign({ "gca.conv": "A" }, ls || {}) });
+  const betaRows = (page) => page.locator("#s-list .msg").filter({ hasText: /pizza b\d/ });
+  const nameIn = (row) => row.locator(".msg-name");
+
+  test("All chats rows, the export and from: use the other chat's label", async ({ page }) => {
+    const fs = require("fs");
+    await uboot(page);
+    await afterSearchRun(page, () => scopeBtn(page, "all").click());
+    await search(page, "pizza");
+    await expect(page.locator("#s-meta")).toContainText("11 messages in 2 chats");
+    await expect(betaRows(page)).toHaveCount(6);
+    await expect(page.locator("#s-list")).not.toContainText(/User \d{4}/);
+    await expect(nameIn(betaRows(page).filter({ hasText: "pizza b3" }))).toHaveText("User 2");
+    await expect(nameIn(betaRows(page).filter({ hasText: "pizza b5" }))).toHaveText("User 3");
+    await expect(nameIn(page.locator("#s-list .msg").filter({ hasText: "pizza a4" }))).toHaveText("User 1");
+    // the export says the same
+    const dlP = page.waitForEvent("download");
+    await page.locator("#f-export").click();
+    const text = fs.readFileSync(await (await dlP).path(), "utf8");
+    expect(text).not.toMatch(/User \d{4}/);
+    expect(text).toMatch(/\| User 2: pizza b3$/m);
+    expect(text).toMatch(/\| User 3: pizza b5$/m);
+    expect(text).toMatch(/\| User 2: pizza a3$/m);
+    // from:"User 2" is each chat's User 2: 1000000002 in Alpha, P in Beta
+    await search(page, 'from:"User 2" pizza');
+    await expect(page.locator("#s-meta")).toContainText("4 messages in 2 chats");
+    await expect(betaRows(page)).toHaveCount(2);
+    for (const k of ["b1", "b3"]) await expect(betaRows(page).filter({ hasText: "pizza " + k })).toHaveCount(1);
+    await expect(page.locator("#s-chips .s-chip")).toContainText("From User 2");
+    // and Beta's own view shows the same label
+    await page.locator("#conv-select").selectOption("B");
+    await page.locator('.nav-item[data-view="timeline"]').click();
+    await expect(nameIn(page.locator("#view-timeline .msg").filter({ hasText: "pizza b3" }))).toHaveText("User 2");
+  });
+
+  test("a pin from another chat shows that chat's label", async ({ page }) => {
+    await uboot(page, { "gca.lastView": "pins", "gca.settings": JSON.stringify({ pins: ["ub1"] }) });
+    const row = page.locator("#view-pins .msg").filter({ hasText: "pizza b1" });
+    await expect(nameIn(row)).toHaveText("User 2");
+    const dlP = page.waitForEvent("download");
+    await page.locator("#pins-export").click();
+    const text = require("fs").readFileSync(await (await dlP).path(), "utf8");
+    expect(text).toMatch(/\| User 2: pizza b1$/m);
+  });
+});
