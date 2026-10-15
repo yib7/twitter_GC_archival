@@ -1085,7 +1085,20 @@ function apiStatus(res) {
     me: cfg.me ?? null,
     names: cfg.names || {},
     pfps: cfg.pfps || {},
+    // SP-4: saved group names + photos, so a reopened wizard shows them and
+    // its next save doesn't blank them
+    gc: savedGroupIdentity(cfg.gc),
   });
+}
+function savedGroupIdentity(gc) {
+  const out = {};
+  if (!gc || typeof gc !== "object") return out;
+  for (const cid of Object.keys(gc)) {
+    if (cid === "__proto__") continue;
+    const e = gc[cid] || {};
+    out[cid] = { name: typeof e.name === "string" ? e.name : "", photo: typeof e.photo === "string" ? e.photo : "" };
+  }
+  return out;
 }
 
 /* ---- endpoint: wipe personal_data/ to start setup over -------------------- */

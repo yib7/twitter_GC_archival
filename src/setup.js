@@ -137,6 +137,9 @@ const state = { me: null, names: {}, pfps: {}, ignored: {}, ignoredGroups: {}, g
 // written to disk server-side — a path string there would be posted back as
 // if it were image data.
 let savedPfpPaths = {};
+// SP-4: group photos from an earlier save, for display only — the server
+// keeps a saved photo unless a new one is uploaded, so they're never re-sent.
+let savedGcPhotos = {};
 // What the last save (or the saved config, on reopen) already removed, so a
 // save that removes MORE asks first (fix round 1, #3).
 const savedIgnored = { users: {}, groups: {} };
@@ -152,7 +155,9 @@ let statusReady = null;
 // The per-group name+photo entry for the group currently being set up.
 function gcEntry() {
   const g = state.group || "";
-  return state.gc[g] || (state.gc[g] = { name: "", photo: null });
+  // SP-4: no "name" key until one is typed (or hydrated from the last save):
+  // { name: "" } on Save used to wipe a group name saved in an earlier run.
+  return state.gc[g] || (state.gc[g] = { photo: null });
 }
 
 // Fill both group <select>s and reveal them only when there's more than one group.
@@ -185,8 +190,9 @@ function refreshGroupStep() {
   const rm = $("#gc-remove"); if (rm) rm.checked = removed;
   const pane = $('.setup-pane[data-pane="2"]'); if (pane) pane.classList.toggle("group-removed", removed);
   const pv = $("#gc-preview");
+  const photo = e.photo || savedGcPhotos[state.group];
   if (pv) {
-    if (e.photo) { pv.textContent = ""; pv.style.backgroundImage = `url('${e.photo}')`; }
+    if (photo) { pv.textContent = ""; pv.style.backgroundImage = `url('${photo}')`; }
     else { pv.style.backgroundImage = ""; pv.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg>'; }
   }
 }
@@ -217,7 +223,8 @@ function renderFinishReceipt() {
   const g = groups.find((x) => String(x.id) === state.group) || groups[0];
   const e = state.gc[String(g.id)] || {};
   const nm = e.name || g.title || "Group " + String(g.id).slice(-4);
-  const markStyle = e.photo ? ` style="background-image:url('${e.photo}')"` : "";
+  const gcPhoto = e.photo || savedGcPhotos[String(g.id)];
+  const markStyle = gcPhoto ? ` style="background-image:url('${gcPhoto}')"` : "";
 
   const keptParts = PARTS.filter((p) => !state.ignored[p.id]);
   const stack = keptParts.slice(0, 6).map((p) => {
@@ -311,6 +318,17 @@ function loadStatus() {
       state.me = j && j.me != null ? String(j.me) : null;
       state.names = Object.assign({}, j && j.names || {});
       savedPfpPaths = Object.assign({}, j && j.pfps || {});
+      // SP-4: group names (editable, and re-sent unchanged on Save) and photos
+      // (display only) from the last save
+      savedGcPhotos = {};
+      const gc = j && j.gc && typeof j.gc === "object" ? j.gc : {};
+      Object.keys(gc).forEach((cid) => {
+        const e = gc[cid];
+        if (cid === "__proto__" || !e || typeof e !== "object") return;
+        const entry = state.gc[cid] || (state.gc[cid] = { photo: null });
+        if (typeof e.name === "string" && entry.name == null) entry.name = e.name;
+        if (typeof e.photo === "string" && e.photo) savedGcPhotos[cid] = e.photo;
+      });
       if (j && j.built) {
         built = true;
         groups = j.groups || [];
