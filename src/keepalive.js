@@ -14,11 +14,12 @@
  *     a banner saying so (and how to restart it) instead of a later
  *     "Failed to fetch".
  * A no-op over file:// (nothing to talk to) and harmless against a manually
- * started server (which ignores presence). */
+ * started server (which ignores presence). The banner needs one answered ping
+ * first: a page served by some other web server (no /api/ping) never shows it. */
 (function () {
   if (location.protocol !== "http:" && location.protocol !== "https:") return;
   var id = (Date.now().toString(36) + Math.random().toString(36).slice(2, 12)).replace(/[^A-Za-z0-9]/g, "");
-  var banner = null;
+  var banner = null, everUp = false;
 
   function showDown(down) {
     if (!down) { if (banner) banner.hidden = true; return; }
@@ -36,7 +37,7 @@
   function ping() {
     try {
       fetch("/api/ping?c=" + id, { cache: "no-store" })
-        .then(function (r) { showDown(!r.ok); }, function () { showDown(true); });
+        .then(function (r) { if (r.ok) everUp = true; showDown(everUp && !r.ok); }, function () { showDown(everUp); });
     } catch (e) { /* very old browser: nothing to do */ }
   }
   function bye() {

@@ -118,3 +118,25 @@ test("when the server has stopped, the page says so and how to fix it; it clears
   await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
   await expect(banner).toBeHidden();
 });
+
+// Served by some other web server (a static host, `npx serve`), /api/ping is
+// a 404 from the start: that is not "the server has stopped", so no banner.
+// The banner is only for a server that answered before and now doesn't.
+test("a page served by another web server (ping is 404 from the start) shows no banner", async ({ page }) => {
+  let pings = 0;
+  await page.route("**/api/ping*", (route) => { pings++; return route.fulfill({ status: 404, body: "Not found" }); });
+  await page.goto("/index.html");
+  await expect(page.locator("#app")).toBeVisible();
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect.poll(() => pings).toBeGreaterThan(1);
+  await page.evaluate(() => fetch("/api/ping?c=probe").then(() => 0));   // earlier pings have been handled
+  await expect(page.locator("#gca-server-down")).toHaveCount(0);
+  // once it has answered, a 404 or a refused ping is the server going away
+  await page.unroute("**/api/ping*");
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await page.route("**/api/ping*", (route) => route.fulfill({ status: 404, body: "Not found" }));
+  await expect.poll(async () => {
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    return page.locator("#gca-server-down").isVisible();
+  }).toBe(true);
+});
