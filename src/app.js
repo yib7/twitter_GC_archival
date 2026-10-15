@@ -1991,20 +1991,13 @@ function runSearch() {
   if (gridOn()) out = out.filter((i) => MSGS[i].m);
 
   resState.idx = out; resState.page = 0;
-  sEls.list.className = gridOn() ? "gallery-pages" : "list";
-  if (resPageObs) resPageObs.disconnect();
-  sEls.list.innerHTML = "";
-  // VC-2: a new result set starts at the top — keeping the old offset hid the
-  // best results above the fold and let the sentinel pull in page 2 at once.
-  sEls.scroll.scrollTop = 0;
-  if (resObserver) resObserver.disconnect();
+  resetResultList(gridOn() ? "gallery-pages" : "list");
 
   const hasFilter = ctxFiltered(SQ);
-  const fuzzyRun = searchKind === "fallback" || searchKind === "forced";
-  const sortLbl = { relevance: fuzzyRun ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
+  const sortLbl = sortLabel(searchKind === "fallback" || searchKind === "forced");
   const noun = (gridOn() ? " media message" : " message") + (out.length === 1 ? "" : "s");
   sEls.meta.textContent = !hasFilter
-    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — start typing or add a filter. Try from:name, has:photo, has:link, is:pinned, after:2021-06, before:2024, -word"
+    ? "Showing all " + fmtNum(out.length) + noun + ", newest first — " + SEARCH_HINT
     : searchKind === "fallback" && out.length
       ? "No exact " + (gridOn() ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (gridOn() ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
       : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
@@ -2018,16 +2011,7 @@ function runSearch() {
     b.onclick = () => { fuzzyForceQ = forced ? null : key; runSearch(); };
     sEls.meta.append(" · ", b);
   }
-  // VC-28 / SP9: say which operator was dropped or matched no one (text
-  // nodes — never markup).
-  SQ.notes.forEach((n) => sEls.meta.append(" · " + n));
-  renderChips();
-  // QA-15: bumped on every completed run (debounced or not), so tests can wait
-  // for "the search actually re-ran" instead of a fixed sleep timed to the
-  // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
-  // the search never reran at all. See search-operators.spec.js.
-  sEls.meta.dataset.gen = String((Number(sEls.meta.dataset.gen) || 0) + 1);
-  if (curView === "search") navCommit("replace");   // SP8: #q= follows the query
+  finishSearchMeta();
 
   if (!out.length) {
     sEls.list.className = "list";
@@ -2039,6 +2023,34 @@ function runSearch() {
     return;
   }
   appendResultsPage();
+}
+const SEARCH_HINT = "start typing or add a filter. Try from:name, has:photo, has:link, is:pinned, after:2021-06, before:2024, -word";
+// A new result set: observers off, the list emptied and back at the top.
+function resetResultList(cls) {
+  sEls.list.className = cls;
+  if (resPageObs) resPageObs.disconnect();
+  sEls.list.innerHTML = "";
+  // VC-2: a new result set starts at the top — keeping the old offset hid the
+  // best results above the fold and let the sentinel pull in page 2 at once.
+  sEls.scroll.scrollTop = 0;
+  if (resObserver) resObserver.disconnect();
+}
+// The "sorted by …" words (relevance means newest-first unless fuzzy-ranked).
+function sortLabel(fuzzyRun) {
+  return { relevance: fuzzyRun ? "relevance" : "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
+}
+// After a run's meta text: its notes, the chips, the run counter, history.
+function finishSearchMeta() {
+  // VC-28 / SP9: say which operator was dropped or matched no one (text
+  // nodes — never markup).
+  SQ.notes.forEach((n) => sEls.meta.append(" · " + n));
+  renderChips();
+  // QA-15: bumped on every completed run (debounced or not), so tests can wait
+  // for "the search actually re-ran" instead of a fixed sleep timed to the
+  // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
+  // the search never reran at all. See search-operators.spec.js.
+  sEls.meta.dataset.gen = String((Number(sEls.meta.dataset.gen) || 0) + 1);
+  if (curView === "search") navCommit("replace");   // SP8: the entry's query (history.state) follows the box
 }
 // Apply the sort order (relevance = leave as-built: Fuse order, or newest-first).
 function sortHits(out, ms) {
@@ -2062,21 +2074,13 @@ function runSearchAll() {
   const act = groups.find((g) => g.d.active);
   // idx stays the active chat's hits: the lightbox steps through those
   resState = { idx: act ? act.idx : [], page: 0, groups, rows: pos, total };
-  sEls.list.className = "list";
-  if (resPageObs) resPageObs.disconnect();
-  sEls.list.innerHTML = "";
-  sEls.scroll.scrollTop = 0;
-  if (resObserver) resObserver.disconnect();
-  const sortLbl = { relevance: "newest", newest: "newest", oldest: "oldest", reactions: "most reactions", longest: "longest" }[F.sort];
+  resetResultList("list");
   const nChats = groups.length;
   const inChats = " in " + fmtNum(nChats) + (nChats === 1 ? " chat" : " chats");
   sEls.meta.textContent = !ctxFiltered(SQ)
-    ? "Showing all " + fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + ", newest first — start typing or add a filter. Try from:name, has:photo, is:pinned, -word"
-    : fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + " · exact matches · sorted by " + sortLbl;
-  SQ.notes.forEach((n) => sEls.meta.append(" · " + n));
-  renderChips();
-  sEls.meta.dataset.gen = String((Number(sEls.meta.dataset.gen) || 0) + 1);
-  if (curView === "search") navCommit("replace");
+    ? "Showing all " + fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + ", newest first — " + SEARCH_HINT
+    : fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + " · exact matches · sorted by " + sortLabel(false);
+  finishSearchMeta();
   if (!total) {
     sEls.list.appendChild(emptyState("search", "No messages match in any chat.",
       "All chats finds exact matches only — try fewer words, or search This chat, where Fuzzy also finds close matches.",
@@ -2483,34 +2487,33 @@ function clearAllFilters() {
   runSearch();
   sEls.input.focus();
 }
+// One exported record per line — multi-line bodies flattened so the .txt
+// stays parseable.
+function exportLine(m) { return DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " "); }
+// Save `lines` as a plain-text download called `name`.
+function downloadText(name, lines) {
+  const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  a.click(); URL.revokeObjectURL(url);
+}
 function exportResults() {
+  const day = new Date().toISOString().slice(0, 10);
   if (resState.groups) {
     if (!resState.total) { toast("No results to export"); return; }
     const out = [];
     resState.groups.forEach((g) => {
       out.push("== " + convLabel(g.d.conv) + " ==");
-      g.idx.forEach((i) => { const m = g.d.msgs[i]; out.push(DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " ")); });
+      g.idx.forEach((i) => out.push(exportLine(g.d.msgs[i])));
       out.push("");
     });
-    const bl = new Blob([out.join("\n")], { type: "text/plain" });
-    const u = URL.createObjectURL(bl);
-    const a = document.createElement("a");
-    a.href = u; a.download = "search-results-all-chats-" + new Date().toISOString().slice(0,10) + ".txt";
-    a.click(); URL.revokeObjectURL(u);
+    downloadText("search-results-all-chats-" + day + ".txt", out);
     toast("Exported " + fmtNum(resState.total) + " results from " + resState.groups.length + (resState.groups.length === 1 ? " chat" : " chats"));
     return;
   }
   if (!resState.idx.length) { toast("No results to export"); return; }
-  const lines = resState.idx.map(i => {
-    const m = MSGS[i];
-    // one record per line — flatten multi-line bodies so the .txt stays parseable
-    return DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " ");
-  });
-  const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url; a.download = "search-results-" + new Date().toISOString().slice(0,10) + ".txt";
-  a.click(); URL.revokeObjectURL(url);
+  downloadText("search-results-" + day + ".txt", resState.idx.map((i) => exportLine(MSGS[i])));
   toast("Exported " + fmtNum(resState.idx.length) + " results");
 }
 
@@ -5496,14 +5499,11 @@ function renderPins() {
     ordered.forEach((c) => {
       const hits = byConv.get(c.id);
       lines.push("== " + convLabel(c) + " ==");
-      // one record per line — flatten multi-line bodies so the .txt stays parseable
-      ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(DT.format(m.t) + " | " + nameOf(m.s) + ": " + (m.x || "[media]").replace(/\r?\n/g, " ")); });
+      ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(exportLine(m)); });
       lines.push("");
     });
-    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "pinned-messages-" + new Date().toISOString().slice(0,10) + ".txt"; a.click();
-    URL.revokeObjectURL(url); toast("Exported " + fmtNum(total) + " bookmarks");
+    downloadText("pinned-messages-" + new Date().toISOString().slice(0,10) + ".txt", lines);
+    toast("Exported " + fmtNum(total) + " bookmarks");
   };
   const clr = v.querySelector("#pins-clear");
   if (clr) clr.onclick = () => { if (!confirm("Remove all bookmarks?")) return; settings.pins = []; saveSettings(); renderPins(); toast("Cleared bookmarks"); };

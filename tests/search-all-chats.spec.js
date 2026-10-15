@@ -124,3 +124,21 @@ test("no hit in any chat says so and offers This chat's close matches", async ({
   await expect(page.locator("#s-list .empty")).toContainText("No messages match in any chat");
   await expect(page.locator("#s-list .empty")).toContainText("exact");
 });
+
+test("Export writes the groups, one record per line, under each chat's name", async ({ page }) => {
+  const fs = require("fs");
+  await boot(page);
+  await search(page, "pizza");
+  await afterSearchRun(page, () => scopeBtn(page, "all").click());
+  const dlP = page.waitForEvent("download");
+  await page.locator("#f-export").click();
+  const dl = await dlP;
+  expect(dl.suggestedFilename()).toMatch(/^search-results-all-chats-\d{4}-\d{2}-\d{2}\.txt$/);
+  const text = fs.readFileSync(await dl.path(), "utf8");
+  const lines = text.split("\n");
+  expect(lines.filter((l) => l.startsWith("== "))).toEqual(["== Alpha ==", "== Beta ==", "== Gamma =="]);
+  const recs = lines.filter((l) => l && !l.startsWith("== "));
+  expect(recs).toHaveLength(10);
+  for (const l of recs) expect(l).toMatch(/ \| .+: pizza party number \d+$/);
+  expect(lines[1]).toContain("Ann: pizza party number 6");
+});
