@@ -498,6 +498,7 @@ function sourceNoteText(n) {
   const files = (list) => (list || []).map((f) => qn(typeof f === "string" ? f : f.file)).join(", ");
   switch (n && n.code) {
     case "manifest-missing": return "The archive's manifest lists files that aren't in the folder: " + files(n.files) + ". The archive may not have unzipped completely — their messages will be missing.";
+    case "manifest-extra": return "Also included " + files(n.files) + ": in the archive's data folder, though its manifest doesn't list " + (n.files.length === 1 ? "it" : "them") + ".";
     case "manifest-unsafe": return "Ignored " + plural(n.files.length, "path", "paths") + " in the archive's manifest that point outside the folder you picked.";
     case "manifest-unreadable": return "The archive's manifest couldn't be read, so its files were found by their names instead.";
     case "manifest-no-groups": return "The archive's manifest lists no group chats, so its files were found by their names instead.";

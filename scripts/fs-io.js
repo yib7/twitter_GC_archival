@@ -187,11 +187,28 @@ function locateExport(pickedIn) {
   }
   let names = [];
   try { names = fs.readdirSync(dataDir).filter((n) => isFile(path.join(dataDir, n))); } catch (e) { /* unreadable: nothing found */ }
+  const fam = exportFamilies(names);
+  const inside = (n) => realInside(path.join(dataDir, n));
   if (via === "scan") {
-    const fam = exportFamilies(names);
-    const inside = (n) => realInside(path.join(dataDir, n));
     messages = fam.messages.filter(inside).map((n) => path.join(dataDir, n));
     headers = fam.headers.filter(inside).map((n) => path.join(dataDir, n));
+  } else {
+    // SP7 fix round 1 (#6): the manifest isn't taken as the complete list — a
+    // stale one can leave out a part that is right there. Export-named files
+    // in the data folder it doesn't list are added, in part order.
+    const key = (p) => { const r = path.resolve(p); return process.platform === "win32" ? r.toLowerCase() : r; };
+    const partOf = (p) => { const m = /[-_.]part(\d+)\.js$/i.exec(path.basename(p)); return m ? Number(m[1]) : 0; };
+    const extra = [];
+    const unite = (list, scanned) => {
+      const have = new Set(list.map(key));
+      const add = scanned.filter(inside).map((n) => path.join(dataDir, n)).filter((p) => !have.has(key(p)));
+      if (!add.length) return list;
+      extra.push(...add.map((p) => path.basename(p)));
+      return list.concat(add).map((p, i) => ({ p, i, n: partOf(p) })).sort((a, b) => a.n - b.n || a.i - b.i).map((x) => x.p);
+    };
+    messages = unite(messages, fam.messages);
+    headers = unite(headers, fam.headers);
+    if (extra.length) notes.push({ code: "manifest-extra", files: extra });
   }
   if (!mediaDir) {
     const std = path.join(dataDir, "direct_messages_group_media");

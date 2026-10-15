@@ -118,6 +118,20 @@ test("locateExport falls back to scanning file names when there is no (usable) m
   assert.equal(loc2.messages.length, 2);
 });
 
+// SP7 fix round 1 (#6): the manifest isn't the whole story — a part on disk
+// that a stale manifest doesn't list is still found (by its export name).
+test("locateExport adds a part file on disk that the manifest doesn't list", () => {
+  const f = X.writeExport(scratch(), { manifest: true });
+  X.writeManifest(f.root, Object.assign({}, SPEC, { messages: ["data/direct-messages-group.js", "data/direct-messages-group-part2.js"] }));   // part1 not listed
+  fs.writeFileSync(path.join(f.data, "direct-messages-group-part2.js"), X.ytd("direct_messages_group", "part2", [X.conv("1000000001", [X.gmsg(9009, 111, X.T0 + 900e3, "part two")])]));
+  const loc = fsio.locateExport(f.root);
+  assert.equal(loc.via, "manifest");
+  assert.deepEqual(base(loc.messages), ["direct-messages-group.js", "direct-messages-group-part1.js", "direct-messages-group-part2.js"]);
+  const extra = loc.notes.find((n) => n.code === "manifest-extra");
+  assert.ok(extra, JSON.stringify(loc.notes));
+  assert.deepEqual(extra.files, ["direct-messages-group-part1.js"]);
+});
+
 test("locateExport reports manifest files that are missing (a part that didn't unzip)", () => {
   const f = X.writeExport(scratch(), { manifest: true });
   fs.rmSync(f.part1);
