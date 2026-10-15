@@ -20,7 +20,9 @@ const kindOf = (p) => {
   return IMG.has(e) ? "img" : VID.has(e) ? "vid" : "file";
 };
 
-const toMs = (iso) => (iso ? Date.parse(iso) : 0);
+// NaN (not 0 = 1970) for a missing or unparseable time — the accumulator skips
+// and counts those instead of storing a NaN/null timestamp (SP-21).
+const toMs = (iso) => (iso ? Date.parse(iso) : NaN);
 
 // a 1:1 DM id looks like "{userA}-{userB}"; a group id is a single numeric id
 const isGroupId = (id) => !/^\d+-\d+$/.test(String(id));
@@ -86,6 +88,7 @@ function createAccumulator(opts) {
     return c;
   };
   let prevCount = 0;
+  const warnings = { badTime: 0 };
 
   // 1) baseline = previously built data (so history is never lost)
   function addPrev(prev) {
@@ -98,6 +101,9 @@ function createAccumulator(opts) {
       if (pc.type) c.type = pc.type;
       (pc.msgs || []).forEach((m) => c.msgMap.set(m.i, m));
       (pc.events || []).forEach((e) => c.eventMap.set(eventKey(e), e));
+      // SP-21: people known only from an earlier build's headers (lurkers,
+      // joiners) stay on the roster even when the newer export has no headers.
+      (pc.participants || []).forEach((id) => c.headerParts.add(id));
       prevCount += (pc.msgs || []).length;
     });
   }
@@ -106,8 +112,17 @@ function createAccumulator(opts) {
   function addMessage(convId, m) {
     if (!m || typeof m !== "object") return;
     const c = getConvo(convId);
-    if (m.messageCreate) { const r = rawToRec(m.messageCreate); if (r.i) c.msgMap.set(r.i, r); }
-    else { const e = toEvent(m); if (e) c.eventMap.set(eventKey(e), e); }
+    if (m.messageCreate) {
+      const r = rawToRec(m.messageCreate);
+      if (!r.i) return;
+      if (!Number.isFinite(r.t)) { warnings.badTime++; return; }   // SP-21: skip + warn
+      c.msgMap.set(r.i, r);
+    } else {
+      const e = toEvent(m);
+      if (!e) return;
+      if (!Number.isFinite(e.t)) { warnings.badTime++; return; }
+      c.eventMap.set(eventKey(e), e);
+    }
   }
 
   // 2c) one entry of the group headers (metadata-only): no message bodies, so it
@@ -121,6 +136,7 @@ function createAccumulator(opts) {
       if (mc.recipientId) c.headerParts.add(mc.recipientId);
     } else {
       const e = toEvent(m);
+      if (e && !Number.isFinite(e.t)) { warnings.badTime++; return; }
       if (e) {
         c.eventMap.set(eventKey(e), e);
         if (e.s) c.headerParts.add(e.s);
@@ -162,7 +178,7 @@ function createAccumulator(opts) {
     // biggest conversation first, so the UI opens on the most active chat
     conversations.sort((a, b) => b.count - a.count);
 
-    return { conversations, totalMsgs, totalMedia, prevCount, groupsSeen };
+    return { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings };
   }
 
   return { addPrev, addMessage, addHeader, finish };

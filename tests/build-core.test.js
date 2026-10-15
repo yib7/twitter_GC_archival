@@ -207,3 +207,40 @@ test("title is the most recent name event, else 'Group <last4>'", () => {
   });
   assert.equal(onlyGroup(unnamed, "987654").title, "Group 7654");
 });
+
+// ---- SP-21: merges keep silent participants; bad timestamps are skipped -----
+test("SP-21: a merge keeps header-only participants from the previous build", () => {
+  const prev = {
+    conversations: [
+      { id: "G1", type: "group", title: "G", participants: ["u1", "lurker"], count: 1,
+        msgs: [{ i: "m1", s: "u1", t: Date.parse("2020-05-01T10:00:00Z"), x: "old" }], events: [] },
+    ],
+  };
+  // a newer export that comes WITHOUT a headers file
+  const res = assemble({ prev, exportDatas: [[conv("G1", [msg("m2", "u2", "2020-05-02T10:00:00Z", "new")])]] });
+  const g = onlyGroup(res, "G1");
+  assert.ok(g.participants.includes("lurker"), "the lurker known only from the earlier headers must survive the merge");
+  assert.ok(g.participants.includes("u2"));
+});
+
+test("SP-21: a removed (ignored) user is not resurrected from the previous roster", () => {
+  const prev = { conversations: [{ id: "G1", type: "group", participants: ["u1", "gone"], msgs: [{ i: "m1", s: "u1", t: 1, x: "a" }], events: [] }] };
+  const res = assemble({ prev, ignoredUsers: ["gone"] });
+  assert.deepEqual(onlyGroup(res, "G1").participants, ["u1"]);
+});
+
+test("SP-21: a message or event with an unparseable createdAt is skipped and counted, never stored as NaN/null", () => {
+  const res = assemble({
+    exportDatas: [[conv("G1", [
+      msg("m1", "u1", "2020-05-01T10:00:00Z", "fine"),
+      { messageCreate: { id: "m2", senderId: "u1", createdAt: "not a date", text: "bad time" } },
+      { messageCreate: { id: "m3", senderId: "u1", text: "no time at all" } },
+      { conversationNameUpdate: { createdAt: "garbage", initiatingUserId: "u1", name: "Nope" } },
+    ])]],
+  });
+  const g = onlyGroup(res, "G1");
+  assert.deepEqual(g.msgs.map((m) => m.i), ["m1"]);
+  assert.ok(g.msgs.every((m) => Number.isFinite(m.t)));
+  assert.equal(g.events.length, 0);
+  assert.equal(res.warnings.badTime, 3);
+});

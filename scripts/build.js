@@ -151,13 +151,14 @@ function main() {
   log("Media folders:", mediaDirs.map((d) => path.relative(here, d)).join(", ") || "(none)");
   const mediaIndex = buildMediaIndex(mediaDirs);
 
-  const { conversations, totalMsgs, totalMedia, prevCount, groupsSeen } = acc.finish(mediaIndex);
+  const { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings } = acc.finish(mediaIndex);
   if (!groupsSeen) {
     const names = exportFiles.map((f) => "\u201c" + path.basename(f) + "\u201d").join(", ");
     fail("No group chats were found in " + names + (seen.dm ? " — it only has 1:1 conversations" : "") +
       ". Make sure you picked direct-messages-group.js from the data folder of your Twitter/X archive.");
   }
   if (prev) log("Baseline from data.js:", prevCount, "messages.");
+  if (warnings.badTime) log("Warning: " + warnings.badTime + " message(s)/event(s) had a missing or unreadable date and were skipped.");
 
   writeArchive({ generatedAt: new Date().toISOString(), ignoredUsers, ignoredGroups }, conversations);
 
