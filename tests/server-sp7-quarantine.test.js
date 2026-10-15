@@ -198,3 +198,32 @@ describe("a failed merge build leaves the quarantine as it was", () => {
     } finally { S2.proc.kill(); }
   });
 });
+
+// A legacy archive (removals, no quarantine) whose export copies are also
+// gone can't set its removed messages aside any more. The merge still runs,
+// but the user is told, in the preview and in the reply, that un-removing
+// later only brings back what the newer export has.
+describe("a legacy archive whose export copies are gone says its removed messages weren't kept", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("the preview warns and the merge reply carries a plain note", async () => {
+    assert.equal((await source(S, X.writeExport(scratch()))).status, 200);
+    assert.equal((await identity(S, ["333"])).status, 200);
+    fs.rmSync(Q(S), { force: true });   // built before the quarantine existed
+    fs.rmSync(path.join(S.personal, "source"), { recursive: true, force: true });   // and its copies are gone
+    const B = X.writeExportB(scratch());
+    const p = await S.post("/api/preflight", { archiveRoot: B.root });
+    const pj = await p.json();
+    assert.equal(p.status, 200, JSON.stringify(pj));
+    const w = pj.warnings.find((x) => x.code === "legacy-removed-lost");
+    assert.ok(w && /un-remov/i.test(w.text), JSON.stringify(pj.warnings));
+    const m = await S.post("/api/source", { archiveRoot: B.root });
+    const j = await m.json();
+    assert.equal(m.status, 200, JSON.stringify(j));
+    const n = (j.notes || []).find((x) => x.code === "legacy-removed-lost");
+    assert.ok(n && typeof n.text === "string" && n.text.length > 20, JSON.stringify(j.notes));
+    assert.deepEqual(quarIds(S), ["9008"], "only B's removed message could be kept aside");
+  });
+});

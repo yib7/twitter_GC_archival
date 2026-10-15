@@ -75,3 +75,18 @@ test("off Windows the picker still explains to paste the path", async ({ page })
   await page.locator("#headers-browse").click();
   await expect(page.locator("#src-result")).toContainText(/only available on Windows/);
 });
+
+test("a note the server words (removed messages that couldn't be kept aside) is shown with the build result", async ({ page }) => {
+  const text = "The messages of people and group chats you removed earlier couldn't be kept aside.";
+  await page.route("**/api/source", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json",
+      body: JSON.stringify({ ok: true, merged: true, added: 3, totalMsgs: 8, groups: [{ id: "G1", title: "Grp", count: 8 }], mediaCopied: 0, notes: [{ code: "legacy-removed-lost", text }] }) }));
+  await mockPreflight(page);
+  await page.goto("/setup.html");
+  await page.locator("#src-group").fill("group.js");
+  await page.locator("#src-headers").fill("headers.js");
+  await page.locator("#src-media").fill("media");
+  await page.locator("#btn-build").click();
+  await page.locator("#btn-confirm").click();
+  await expect(page.locator("#src-result .build-notes")).toContainText(text);
+});

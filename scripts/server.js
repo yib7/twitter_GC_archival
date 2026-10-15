@@ -675,8 +675,10 @@ async function sourceAndBuild(body, res, progress) {
   // the export it was built from, which this merge re-points config away from
   // (and prunes). Rebuild once first with the archive's own, unchanged config,
   // so the quarantine holds them before anything is copied or re-pointed.
+  const notes = src.notes.slice();
   const legacy = legacyQuarantineSources(cfgNow);
-  if (legacy) {
+  if (legacy === "lost") notes.push(withText({ code: "legacy-removed-lost" }));
+  if (legacy === true) {
     progress.phase = "build";
     const pre = await runBuildAsync();
     if (!pre.ok) {
@@ -758,7 +760,7 @@ async function sourceAndBuild(body, res, progress) {
 
   const groups = groupsOf(readSummary());
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, merged: !!before, older, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
+  sendJSON(res, 200, { ok: true, merged: !!before, older, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
 // the ids of messages in the built archive and the
 // quarantine whose group chat and sender aren't removed (streamed).
@@ -779,15 +781,12 @@ function archiveKeptIds(ignoredGroups, ignoredUsers) {
 // true when the built archive has removed people or
 // group chats but no quarantine (built before it existed) and the export
 // copies it was built from are all still there to rebuild from. Without those
-// copies the removed messages can't be recovered, so there is nothing to do.
+// copies the removed messages can't be recovered: "lost", so the user is told.
 function legacyQuarantineSources(cfg) {
   if (!builtArchiveFiles().length || fs.existsSync(REMOVED_MSGS)) return false;
   if (!asList(cfg.ignoredUsers).length && !asList(cfg.ignoredGroups).length) return false;
   const files = asList(cfg.sourceJs).concat(asList(cfg.headersJs)).map((p) => (path.isAbsolute(p) ? p : path.join(ROOT, p)));
-  if (!asList(cfg.sourceJs).length || !files.every((f) => fs.existsSync(f))) {
-    console.error("[setup] this archive's removed messages were never set aside and its export copies are gone; merging without them.");
-    return false;
-  }
+  if (!asList(cfg.sourceJs).length || !files.every((f) => fs.existsSync(f))) return "lost";
   return true;
 }
 // The media folder against this export's message ids: files that will be
@@ -900,7 +899,7 @@ function apiPreflight(body, res) {
     groups: survey.groups, totals: survey.totals, dm: survey.dm,
     media: media ? { files: media.files, bytes: media.bytes, unmatched: media.unmatched, removed: media.removed, known: media.known } : null,
     merge,
-    warnings: preflightWarnings({ swapped: src.swapped, notes: src.notes, missingParts, survey, media, merge }),
+    warnings: preflightWarnings({ swapped: src.swapped, notes: src.notes.concat(legacyQuarantineSources(cfg) === "lost" ? [{ code: "legacy-removed-lost" }] : []), missingParts, survey, media, merge }),
   });
 }
 // "Add a newer export": what the built archive already holds, streamed —
