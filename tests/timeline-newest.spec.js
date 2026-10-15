@@ -156,3 +156,36 @@ test("Reset customization keeps reading positions (like bookmarks) and says so",
   await page.locator('.nav-item[data-view="timeline"]').click();
   expect((await settledTimeline(page)).first).toBe(pos.first);
 });
+
+// Fix round 1: the On-This-Day toast sits in the same bottom-right corner as
+// the "Latest" pill. While it's up the pill is lifted above it; once it's
+// dismissed the pill drops back.
+const OTD = msgs("o", 400, { s: ["u1", "u2"], step: 3600000 * 3, t0: Date.parse("2024-04-20T00:30:00Z") });
+const OTD_DATA = { conversations: [conv("O", "Otd", OTD)] };   // 2024-04-20 .. 2024-05-10
+const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+for (const vp of [{ width: 1280, height: 800 }, { width: 390, height: 844 }]) {
+  test.describe("Latest vs On This Day at " + vp.width + "px", () => {
+    test.use({ viewport: vp, hasTouch: vp.width < 500, isMobile: vp.width < 500 });
+    test("the toast never covers the Latest pill", async ({ page }) => {
+      await page.clock.setFixedTime(new Date("2025-05-01T12:00:00Z"));
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await bootViewer(page, OTD_DATA, { ls: { "gca.lastView": "timeline", "gca.settings": UTC } });
+      const toastEl = page.locator(".otd-toast");
+      await expect(toastEl).toBeVisible();
+      await page.locator("#tl-scroll").evaluate((s) => { s.scrollTop -= 3000; });
+      const pill = page.locator("#tl-latest");
+      await expect(pill).toBeVisible();
+      const p = await pill.boundingBox(), t = await toastEl.boundingBox();
+      expect(overlap(p, t), JSON.stringify({ p, t })).toBe(false);
+      expect(p.y + p.height).toBeLessThanOrEqual(t.y);   // above it, not beside it
+      // the pill is still clickable (not under the toast)
+      await pill.click();
+      await expect.poll(() => atBottom(page)).toBe(true);
+      // dismissed: the pill drops back to its corner
+      await page.locator("#tl-scroll").evaluate((s) => { s.scrollTop -= 3000; });
+      await toastEl.getByRole("button", { name: "Dismiss" }).click();
+      await expect(toastEl).toHaveCount(0);
+      await expect.poll(async () => (await pill.boundingBox()).y).toBeGreaterThan(p.y + 40);
+    });
+  });
+}

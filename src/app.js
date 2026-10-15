@@ -5808,6 +5808,9 @@ function showOnThisDayToast() {
   otdToast.onclick = () => { clearTimeout(timer); otdToast.remove(); setView("capsule"); };
   otdToast.querySelector(".otd-close").onclick = (e) => { e.stopPropagation(); dismiss(); };
   document.body.appendChild(otdToast);
+  // SP8: the Timeline's "Latest" pill shares this corner; CSS lifts it by the
+  // toast's real height while the toast is up (body:has(.otd-toast)).
+  document.body.style.setProperty("--otd-h", otdToast.offsetHeight + "px");
   timer = setTimeout(dismiss, 7000);
 }
 

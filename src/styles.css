@@ -1644,6 +1644,13 @@ html[data-theme="light"] .wr-slide::after {
 @media (max-width: 760px) { .tl-latest { bottom: 74px; right: 16px; } }   /* clear the fixed tab bar */
 @media (pointer: coarse) { .tl-latest { height: 44px; } }
 @media print { .tl-latest { display: none !important; } }
+/* The On-This-Day toast (fixed, bottom-right; full width above the tab bar on
+   phones) shares this corner: while it's up, lift the pill above it by its
+   measured height (--otd-h); it drops back once the toast is dismissed. */
+body:has(.otd-toast:not(.otd-exit)) .tl-latest { bottom: calc(24px + var(--otd-h, 150px) + 12px); }
+@media (max-width: 760px) {
+  body:has(.otd-toast:not(.otd-exit)) .tl-latest { bottom: calc(80px + var(--otd-h, 150px) + 12px); }
+}
 
 /* ---- SP8: calendar (year / month scrubber + month heatmap) -------------- */
 .cal-modal {
