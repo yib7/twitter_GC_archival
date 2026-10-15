@@ -1136,6 +1136,36 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .ctx-body .msg.ctx-center { background: var(--accent-glow); border-radius: 12px; }
 .ctx-foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; }
 
+/* ---- Share dialog (SP10): preview + Hide names + Copy / Download PNG ------ */
+.share-modal {
+  position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(0,0,0,0.7);
+  display: grid; place-items: center; padding: 16px;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); animation: kbIn 0.15s ease-out;
+}
+.share-card {
+  background: var(--bg-panel); border: 1px solid var(--border); border-radius: 16px;
+  width: 100%; max-width: 560px; max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px);
+  display: flex; flex-direction: column; box-shadow: 0 16px 48px rgba(0,0,0,0.55); overflow: hidden;
+}
+.share-card .ctx-head { padding: 10px 12px 10px 20px; }
+.share-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 16px 20px; display: grid; place-items: center; }
+.share-preview { display: block; width: auto; height: auto; max-width: 100%; max-height: 56vh; border-radius: 12px; border: 1px solid var(--border); }
+.share-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 12px 20px; border-top: 1px solid var(--border); }
+.share-redact { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 14px; color: var(--text); cursor: pointer; }
+.share-redact input { width: 20px; height: 20px; margin: 0; accent-color: var(--accent); }
+.share-acts { display: flex; gap: 8px; margin-left: auto; }
+.share-acts .btn[hidden] { display: none; }
+@media (pointer: coarse) {
+  .share-card .kb-close { min-width: 44px; min-height: 44px; }
+}
+@media (max-width: 480px) {
+  .share-modal { padding: 10px; }
+  .share-body { padding: 12px; }
+  .share-foot { padding: 10px 12px; }
+  .share-acts { width: 100%; }
+  .share-acts .btn { flex: 1; }
+}
+
 /* ---- Command palette (Ctrl/Cmd+K) ---------------------------------------- */
 .cmdk {
   position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(0,0,0,0.6);

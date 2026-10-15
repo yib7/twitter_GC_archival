@@ -635,7 +635,7 @@ function animateCounts(rootEl) {
 
 function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id] || ("User " + String(id).slice(-4)); }
 // ONE person colour everywhere (AN-15 / UX-25): avatars, names, cards, Word
-// Battles, foreign pins and the quote card all read personColor().
+// Battles, foreign pins and the share cards all read personColor().
 // X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
 // A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
 // (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
@@ -653,7 +653,7 @@ function personColor(id) {
 // in every theme (a bright yellow fails on white, a deep navy on black). Each
 // distinct override gets one --pc-<hex> custom property whose value is set per
 // theme (nudged toward white/black only as far as 4.5:1 needs), so switching
-// theme needs no re-render and cssColor() still resolves it for canvas.
+// theme needs no re-render and canvasColor() (share cards) still resolves it.
 const overrideVars = new Set();
 function overrideVar(c) {
   const key = c.slice(1).toLowerCase();
@@ -667,13 +667,6 @@ function overrideVar(c) {
     ).join("\n");
   }
   return "var(--pc-" + key + ")";
-}
-// Resolve a personColor() value to a concrete colour — for canvas drawing,
-// which can't read CSS custom properties.
-function cssColor(v, fallback) {
-  const m = /^var\((--[\w-]+)\)$/.exec(v || "");
-  if (!m) return v || fallback;
-  return getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim() || fallback;
 }
 
 /* ---- Bookmarks / Pinned messages ----------------------------------------- */
@@ -712,7 +705,7 @@ function cssEsc(s) { return String(s).replace(/["\\]/g, "\\$&"); }
 // UX-17: the mobile More sheet (persistent markup, a layer only while .on) and
 // the onboarding card join the same stack; a layer that isn't simply removed
 // supplies its own box._close().
-const MODAL_SEL = ".sheet.on, .filters.open, .onboard, .cmdk, .ctx-modal, .kb-modal, .cal-modal, .lightbox, .profile-modal";
+const MODAL_SEL = ".sheet.on, .filters.open, .onboard, .cmdk, .ctx-modal, .kb-modal, .cal-modal, .lightbox, .profile-modal, .share-modal";
 function topModal() {
   const all = document.querySelectorAll(MODAL_SEL);
   return all.length ? all[all.length - 1] : null;
@@ -1103,10 +1096,10 @@ function renderMsg(i, opts) {
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
-  // VC-25: Copy and Quote only make sense with text — on a media-only message
+  // VC-25: Copy and Share only make sense with text — on a media-only message
   // Copy used to copy "" and still toast "Copied text".
   const hasText = !!(m.x || "").trim();
-  const acts = msgActions(wrap, m, { i }, [hasText && "copy", "context", hasText && "quote", "jump", "link"]);
+  const acts = msgActions(wrap, m, { i }, [hasText && "copy", "context", hasText && "share", "jump", "link"]);
   body.appendChild(acts);
 
   const txt = (m.x || "").trim();
@@ -1152,7 +1145,7 @@ function renderMsg(i, opts) {
 // Fame, Context peek — instead of 4-6 closures per rendered message. What an
 // action needs is kept on the card (wrap._msgAct: the message, its index in
 // the active chat, or the conversation of a foreign pin).
-const MSG_ACT_LABELS = { copy: "Copy", context: "Context", quote: "Quote", jump: "Jump", link: "Link" };
+const MSG_ACT_LABELS = { copy: "Copy", context: "Context", share: "Share", jump: "Jump", link: "Link" };
 // Buttons whose visible text is short get a fuller accessible name (it still
 // contains the visible word — WCAG 2.5.3).
 const MSG_ACT_NAMES = { link: "Copy link to message" };
@@ -1193,7 +1186,9 @@ function jumpToConvMsg(convId, mid) {
 const MSG_ACTS = {
   copy: (a) => copyMsgText(a.m),
   context: (a) => openContextPeek(a.i),
-  quote: (a) => exportQuoteCard(a.i),
+  // the toolbar hides once the dialog takes focus: hand focus back to the
+  // message itself (a Tab stop that shows the toolbar again)
+  share: (a, wrap) => shareMessage(a.i, a.hof, wrap),
   jump: (a) => (a.conv != null ? jumpToConvMsg(a.conv, a.m.i) : jumpTo(a.i)),
   link: (a) => copyMsgLink(a.conv != null ? a.conv : CONV.id, a.m.i),
 };
@@ -1213,7 +1208,7 @@ document.addEventListener("click", (e) => {
   } else if (k === "pin") {
     togglePin(a.m.i); closeMsgActs();
   } else if (MSG_ACTS[k]) {
-    closeMsgActs(); MSG_ACTS[k](a);
+    closeMsgActs(); MSG_ACTS[k](a, wrap);
   }
 }, true);
 function closeMsgActs() {
@@ -5070,6 +5065,7 @@ function renderHallOfFame() {
     const m = MSGS[x.i];
     if (!(m.x && m.x.trim())) continue;
     const node = renderMsg(x.i, { clickable: true });
+    node._msgAct.hof = { rank: items.indexOf(x) + 1, year: hofYear };   // its Share card carries the rank
     const badge = el("div", "hof-badge", "🔥 " + fmtNum(x.rc));
     node.appendChild(badge);
     frag.appendChild(node);
@@ -5166,6 +5162,7 @@ const WR_ICON = {
   restart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 108-8M4 4v4h4"/></svg>',
   pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5v14M15 5v14"/></svg>',
   play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 5l12 7-12 7z"/></svg>',
+  share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>',
 };
 // slide kind → backdrop wash (intro/outro share the hero wash; every wash is
 // mixed from the accent, UX-23).
@@ -5215,6 +5212,7 @@ function renderWrapped() {
         <button class="nav-btn" id="wr-prev" type="button">${WR_ICON.back}Back</button>
         <div class="wr-mid">
           <button class="nav-btn wr-icon-btn" id="wr-play" type="button"></button>
+          <button class="nav-btn wr-icon-btn" id="wr-share" type="button" aria-label="Share slide" title="Share this slide as an image">${WR_ICON.share}<span class="wr-btn-txt">Share</span></button>
         </div>
         <button class="nav-btn primary" id="wr-next" type="button">Next${WR_ICON.next}</button>
       </div>
@@ -5227,6 +5225,7 @@ function renderWrapped() {
     const n = wrappedSlides(computeWrapped(wrappedYear)).length;
     if (wrappedSlide >= n - 1) { wrappedSlide = 0; wrEnded = false; drawWrappedSlide(); wrAnnounce(); } else wrappedGo(1, true);
   };
+  v.querySelector("#wr-share").onclick = shareWrappedSlide;
   v.querySelector("#wr-play").onclick = () => {
     if (wrEnded) { wrEnded = false; wrUserPaused = false; wrappedSlide = 0; drawWrappedSlide(); wrAnnounce(); return; }
     wrUserPaused = !wrUserPaused; paintWrappedPlay();
@@ -5450,7 +5449,7 @@ function toggleKeyboardHelp() {
         <div class="kb-row"><kbd>Esc</kbd><span>Close palette / modal / lightbox / popover</span></div>
         <div class="kb-row"><kbd>←</kbd> <kbd>→</kbd><span>Navigate lightbox</span></div>
         <div class="kb-row"><kbd>Scroll</kbd><span>Zoom image in lightbox</span></div>
-        <div class="kb-row"><kbd>★</kbd><span>Hover a message → bookmark, quote, or peek context</span></div>
+        <div class="kb-row"><kbd>★</kbd><span>Hover a message → bookmark, share, or peek context</span></div>
       </div>
       <div class="kb-footer">Press <kbd>Esc</kbd> or <kbd>?</kbd> to close</div>
     </div>`;
@@ -5636,7 +5635,7 @@ function renderPins() {
 
 // A pinned message from a conversation that is NOT active. renderMsg() can't be
 // reused here: it renders by index into the active MSGS and wires index-based
-// actions (context peek, lightbox, quote card). This mirrors its card markup
+// actions (context peek, lightbox, share card). This mirrors its card markup
 // with the actions that make sense cross-chat; activating the row switches to
 // that conversation and jumps to the message.
 function renderForeignPin(conv, m, needles) {
@@ -5727,109 +5726,344 @@ function openContextPeek(center) {
 }
 
 /* ===========================================================================
-   QUOTE CARD — render a message to a shareable PNG (offline, canvas)
+   SHARE CARDS — a message, a Hall of Fame card or a Wrapped slide as a PNG.
+   ONE pipeline (SP10): a builder turns what is shared into a card model (a
+   list of blocks), drawShareCard() lays the blocks out and paints them on a
+   canvas in the live theme + accent, and the Share dialog previews it with a
+   "Hide names" toggle and saves it. Fully offline: canvas → Blob →
+   a[download]; nothing is requested, written to the URL or logged, and the
+   file name carries ids / dates only.
    ======================================================================== */
 const RE_RTL_FIRST = /^[^\p{L}]*[\p{Script=Hebrew}\p{Script=Arabic}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}]/u;
-function exportQuoteCard(i) {
+const { wrapText, createRedactor } = GCAShared;
+const SHARE_W = 720, SHARE_PAD = 48, SHARE_DPR = 2;
+// "Hide names", remembered per viewer and per kind of card: Wrapped slides
+// that rank people start hidden, everything else starts shown.
+const SHARE_REDACT_KEY = "gca.shareRedact";
+function shareRedactPref(kind, fallback) {
+  try {
+    const v = JSON.parse(localStorage.getItem(SHARE_REDACT_KEY) || "{}");
+    if (v && typeof v[kind] === "boolean") return v[kind];
+  } catch (e) { /* blocked or corrupt storage → the default */ }
+  return fallback;
+}
+function saveShareRedactPref(kind, on) {
+  try {
+    let v = {};
+    try { v = JSON.parse(localStorage.getItem(SHARE_REDACT_KEY) || "{}") || {}; } catch (e) { v = {}; }
+    if (!isPlainObj(v)) v = {};
+    v[kind] = !!on;
+    localStorage.setItem(SHARE_REDACT_KEY, JSON.stringify(v));
+  } catch (e) { /* storage blocked: the choice lasts for this dialog only */ }
+}
+
+// Canvas can't read CSS custom properties or color-mix(): every colour is
+// resolved through a probe element in the live theme, then handed to the
+// canvas as rgb()/rgba().
+let shareProbe = null;
+function canvasColor(expr) {
+  if (!shareProbe) { shareProbe = el("span"); shareProbe.setAttribute("aria-hidden", "true"); shareProbe.style.cssText = "position:absolute;width:0;height:0;overflow:hidden;pointer-events:none"; }
+  if (!shareProbe.isConnected) document.body.appendChild(shareProbe);
+  shareProbe.style.color = "";
+  shareProbe.style.color = expr;
+  const c = getComputedStyle(shareProbe).color;
+  const m = /^color\(srgb ([\d.e-]+) ([\d.e-]+) ([\d.e-]+)(?: \/ ([\d.e-]+))?\)$/.exec(c);
+  if (m) return "rgba(" + [m[1], m[2], m[3]].map((v) => Math.round(Math.min(1, Math.max(0, +v)) * 255)).join(", ") + ", " + (m[4] != null ? +m[4] : 1) + ")";
+  return c;
+}
+function shareTheme() {
+  const v = (n) => canvasColor("var(" + n + ")");
+  return {
+    page: v("--bg-page"), card: v("--bg-card"), text: v("--text"), dim: v("--text-dim"), faint: v("--text-faint"),
+    accent: v("--accent"), accentText: v("--accent-text"), border: v("--border"),
+    tint: canvasColor("color-mix(in srgb, var(--accent) 14%, var(--bg-page))"),
+    glow: canvasColor("color-mix(in srgb, var(--accent) 40%, transparent)"),
+    clear: canvasColor("color-mix(in srgb, var(--accent) 0%, transparent)"),
+    track: canvasColor("color-mix(in srgb, var(--text) 12%, transparent)"),
+    neutral: canvasColor("color-mix(in srgb, var(--text) 26%, var(--bg-card))"),
+    font: getComputedStyle(document.documentElement).getPropertyValue("--font").trim() || "system-ui, sans-serif",
+  };
+}
+// Everyone a shared text could name: this chat's members plus anyone named in
+// settings or local.js (a message can mention someone from another chat).
+function shareRedactor() {
+  const ids = new Set(PARTS.map((p) => p.id));
+  Object.keys(settings.names || {}).forEach((id) => ids.add(id));
+  Object.keys(LOCAL_NAMES).forEach((id) => ids.add(id));
+  return createRedactor([...ids].map((id) => ({ id, names: personNames(id) })));
+}
+// A person on a card: name, name colour and avatar. Redacted → "Person A"
+// in the text colour on a plain neutral disc (no photo, no initials).
+function sharePerson(id, R, T) {
+  if (R) return { name: R.label(id), color: T.text, av: { fill: T.neutral } };
+  const pc = personColor(id), name = nameOf(id);
+  const photo = sanitizePhoto(PFPS[id]);
+  // only an uploaded data: URL photo — a file path would taint the canvas
+  // under file:// and break toBlob()
+  return { name, color: canvasColor(pc.p), av: { fill: canvasColor(pc.f), initials: initials(name), photo: photo.startsWith("data:") ? photo : null } };
+}
+// A message's text as it reads on screen (t.co links by their display URL),
+// line breaks kept.
+function shareText(m) {
+  let x = m.x || "";
+  if (Array.isArray(m.u)) for (const u of m.u) if (u && u.s && (u.d || u.e)) x = x.split(u.s).join(u.d || u.e);
+  return x.trim();
+}
+function shareBrand(R) {
+  const b = R ? "" : ((document.getElementById("brand-title") || {}).textContent || "").trim();
+  return b || "Group Chat Archive";
+}
+const shareFileId = (s) => String(s).replace(/[^\w-]+/g, "").slice(0, 40) || "card";
+
+// Card model for a message (Hall of Fame: with its rank).
+function shareModelMessage(i, R, T, hof) {
   const m = MSGS[i];
-  const text = (m.x || "").trim();
-  if (!text) { toast("Nothing to quote"); return; }
-  const cs = getComputedStyle(document.documentElement);
-  const cv = (n, fb) => (cs.getPropertyValue(n).trim() || fb);
-  const bg = cv("--bg-1", "#0a0e17");
-  const accent = settings.accent || "#3b82f6";
-  const txtCol = cv("--text", "#e8edf7"), dim = cv("--text-faint", "#5d6a8c");
-  const pc = personColor(m.s);
-  const pColor = cssColor(pc.p, accent), pFill = cssColor(pc.f, pColor);
-
-  const W = 720, PAD = 48, AV = 64, contentX = PAD + AV + 22, contentW = W - contentX - PAD;
-  const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  const FONT = '"Chirp", "TwitterChirp", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-
-  // Word-wrap the body text at 26px
-  ctx.font = '400 26px ' + FONT;
-  const words = text.replace(/\s+/g, " ").split(" ");
-  const lines = [];
-  let cur = "";
-  for (const w of words) {
-    const test = cur ? cur + " " + w : w;
-    if (ctx.measureText(test).width > contentW && cur) { lines.push(cur); cur = w; }
-    else cur = test;
+  const blocks = [];
+  if (hof) blocks.push({ t: "eyebrow", text: "#" + hof.rank + " · Hall of Fame" + (hof.year && hof.year !== "all" ? " " + hof.year : "") });
+  const text = shareText(m);
+  blocks.push({ t: "message", who: sharePerson(m.s, R, T), meta: DT.format(m.t), text: R ? R.text(text) : text });
+  const rc = m.r ? m.r.length : 0;
+  if (rc) blocks.push({ t: "meta", text: "🔥 " + plural(rc, "reaction") });
+  return { align: "left", blocks, footer: shareBrand(R), file: (hof ? "hall-of-fame-" : "message-") + shareFileId(m.i) };
+}
+// Card model for Wrapped slide k (the same facts the slide shows).
+function shareModelWrapped(s, w, k, R, T) {
+  const tx = (x) => (R ? R.text(String(x)) : String(x));
+  const B = [];
+  if (s.kind === "intro") {
+    B.push({ t: "eyebrow", text: "A year in the group chat" }, { t: "big", text: String(w.year) }, { t: "label", text: "Wrapped" });
+  } else if (s.kind === "outro") {
+    B.push({ t: "eyebrow", text: "Wrapped" }, { t: "label", text: tx(s.label) });
+  } else if (s.kind === "person") {
+    const rows = s.podium.map(([id, c]) => ({ who: sharePerson(id, R, T), value: c }));   // ranks first: Person A is #1
+    const top = rows[0].who.name;
+    B.push({ t: "eyebrow", text: "Your loudest voices" }, { t: "big", text: String(s.big) },
+      { t: "label", text: "messages from " + top }, { t: "sub", text: top + " was the most active this year" }, { t: "rank", rows });
+  } else if (s.kind === "words") {
+    B.push({ t: "eyebrow", text: tx(s.label) }, { t: "big", text: tx(s.big) }, { t: "sub", text: tx(s.sub) },
+      { t: "chips", items: s.list.map(([word, c]) => tx(word) + "  " + fmtNum(c)) });
+  } else if (s.kind === "star") {
+    const m = MSGS[s.i], text = shareText(m);
+    B.push({ t: "eyebrow", text: "Most-reacted message of " + w.year }, { t: "sub", text: plural(s.rc, "reaction") },
+      { t: "message", who: sharePerson(m.s, R, T), meta: DT.format(m.t), text: R ? R.text(text) : text });
+  } else {
+    if (s.emoji && s.big === s.emoji) B.push({ t: "emoji", text: s.emoji });
+    else B.push({ t: "big", text: String(s.big) });
+    B.push({ t: "label", text: tx(s.label) }, { t: "sub", text: tx(s.sub) });
   }
-  if (cur) lines.push(cur);
-  const shown = lines.slice(0, 12);
-  if (lines.length > 12) shown[11] = shown[11].replace(/.{0,2}$/, "…");
+  return { align: "center", minH: 900, blocks: B, footer: shareBrand(R) + " · " + w.year + " Wrapped", file: "wrapped-" + w.year + "-" + (k + 1) };
+}
 
-  const lineH = 38, headY = PAD + 6;
-  const bodyTop = headY + 64;
-  const H = Math.max(bodyTop + shown.length * lineH + 64, PAD + AV + 96);
-
-  // Draw the whole card and save it. `pfpImg` is a decoded <img> holding the
-  // person's data: URL profile photo, or null for the initials-disc fallback.
-  const draw = (pfpImg) => {
-    canvas.width = W * dpr; canvas.height = H * dpr; ctx.scale(dpr, dpr);
-
-    // Card background + accent edge
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    ctx.fillStyle = accent; ctx.fillRect(0, 0, 6, H);
-
-    // Avatar: profile photo clipped to the circle, else color disc + initials
-    const ax = PAD + AV / 2, ay = headY + AV / 2;
-    ctx.beginPath(); ctx.arc(ax, ay, AV / 2, 0, Math.PI * 2);
-    if (pfpImg) {
-      ctx.save(); ctx.clip();
-      ctx.drawImage(pfpImg, ax - AV / 2, ay - AV / 2, AV, AV);
-      ctx.restore();
-    } else {
-      ctx.fillStyle = pFill; ctx.fill();
-      ctx.fillStyle = "#fff"; ctx.font = '700 26px ' + FONT; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.fillText(initials(nameOf(m.s)), ax, ay + 1);
+// Decode the (data: URL) photos a model needs, then draw. Resolves the model.
+function renderShareCard(canvas, model, T) {
+  const avs = [];
+  model.blocks.forEach((b) => { if (b.who) avs.push(b.who.av); if (b.rows) b.rows.forEach((r) => avs.push(r.who.av)); });
+  return Promise.all(avs.filter((a) => a.photo).map((a) => new Promise((res) => {
+    const img = new Image();
+    img.onload = () => { a.img = img; res(); };
+    img.onerror = () => res();     // a broken photo falls back to the disc
+    img.src = a.photo;
+  }))).then(() => { drawShareCard(canvas, model, T); return model; });
+}
+// The one drawing pipeline: measure every block (text wrapped by
+// GCAShared.wrapText between graphemes), size the canvas, paint the
+// background, then each block top to bottom. Every string goes through txt().
+function drawShareCard(canvas, model, T) {
+  const W = SHARE_W, PAD = SHARE_PAD, IN = W - 2 * PAD;
+  const center = model.align === "center";
+  const ctx = canvas.getContext("2d");
+  const F = (wt, px) => wt + " " + px + "px " + T.font;
+  const width = (s, f) => { ctx.font = f; return ctx.measureText(s).width; };
+  const wrap = (s, f, w, max) => wrapText(s, w, (x) => width(x, f), { maxLines: max }).lines;
+  const one = (s, f, w) => wrap(String(s).replace(/\s+/g, " "), f, w, 1)[0] || "";
+  const txt = (s, x, y, f, color, align) => {
+    if (!s) return;
+    ctx.font = f; ctx.fillStyle = color; ctx.textAlign = align || "left"; ctx.textBaseline = "alphabetic";
+    ctx.fillText(s, x, y);
+  };
+  const rrect = (x, y, w, h, r) => { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
+  const disc = (av, cx, cy, r) => {
+    ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    if (av.img) { ctx.clip(); ctx.drawImage(av.img, cx - r, cy - r, r * 2, r * 2); }
+    else {
+      ctx.fillStyle = av.fill; ctx.fill();
+      if (av.initials) { ctx.font = F(700, Math.round(r * 0.8)); ctx.fillStyle = "#ffffff"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(av.initials, cx, cy + 1); }
     }
+    ctx.restore();
+  };
+  const ax = center ? W / 2 : PAD, al = center ? "center" : "left";
 
-    // Name + timestamp
-    ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    ctx.fillStyle = pColor; ctx.font = '700 27px ' + FONT;
-    ctx.fillText(nameOf(m.s), contentX, headY + 26);
-    ctx.fillStyle = dim; ctx.font = '400 17px ' + FONT;
-    ctx.fillText(DT.format(m.t), contentX, headY + 50);
-
-    // Body. VC-26: text whose first letter is RTL (Hebrew, Arabic, …) is
-    // drawn right-to-left from the right edge, as dir="auto" does in the page.
-    ctx.fillStyle = txtCol; ctx.font = '400 26px ' + FONT;
-    const rtl = RE_RTL_FIRST.test(text);
-    if (rtl) { ctx.direction = "rtl"; ctx.textAlign = "right"; }
-    shown.forEach((ln, k) => ctx.fillText(ln, rtl ? contentX + contentW : contentX, bodyTop + 26 + k * lineH));
-    ctx.direction = "ltr"; ctx.textAlign = "left";
-
-    // Footer watermark
-    ctx.fillStyle = dim; ctx.font = '500 15px ' + FONT;
-    const brand = (document.getElementById("brand-title") || {}).textContent || "Group Chat Archive";
-    ctx.fillText("— " + brand, contentX, H - 26);
-
-    canvas.toBlob((blob) => {
-      if (!blob) { toast("Could not render image"); return; }
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = "quote-" + m.i + ".png"; a.click();
-      URL.revokeObjectURL(url); toast("Saved quote image");
-    }, "image/png");
+  const layout = (b) => {
+    if (b.t === "eyebrow") {
+      const f = F(700, 15), lines = wrap(b.text.toUpperCase(), f, IN, 2);
+      return { h: lines.length * 22 + 12, draw: (y) => lines.forEach((ln, k) => txt(ln, ax, y + 16 + k * 22, f, T.dim, al)) };
+    }
+    if (b.t === "big") {
+      let px = 120;
+      while (px > 44 && width(b.text, F(800, px)) > IN) px -= 4;
+      const f = F(800, px), text = width(b.text, f) > IN ? one(b.text, f, IN) : b.text;
+      return { h: Math.round(px * 1.12) + 6, draw: (y) => {
+        const g = ctx.createLinearGradient(0, y, 0, y + px);
+        g.addColorStop(0, T.text); g.addColorStop(1, T.accentText);
+        txt(text, ax, y + px * 0.94, f, g, al);
+      } };
+    }
+    if (b.t === "emoji") { const f = F(400, 112); return { h: 136, draw: (y) => txt(b.text, ax, y + 112, f, T.text, al) }; }
+    if (b.t === "label" || b.t === "sub" || b.t === "meta") {
+      const st = { label: [800, 30, 38, 3, T.text], sub: [400, 20, 28, 3, T.dim], meta: [700, 18, 26, 1, T.accentText] }[b.t];
+      const f = F(st[0], st[1]), lines = wrap(b.text, f, IN, st[3]);
+      return { h: lines.length * st[2] + 10, draw: (y) => lines.forEach((ln, k) => txt(ln, ax, y + st[1] + k * st[2], f, st[4], al)) };
+    }
+    if (b.t === "message") {
+      // left cards: avatar, name + time, body indented under the name (as
+      // before); Wrapped: the same on a panel, the body full width
+      const AV = 64, inset = center ? 24 : 0, x0 = PAD + inset, inner = IN - 2 * inset;
+      const tx = x0 + AV + 20, tw = inner - AV - 20;
+      const bf = F(400, 26), bodyX = center ? x0 : tx, bodyW = center ? inner : tw;
+      const lines = b.text ? wrap(b.text, bf, bodyW, center ? 8 : 12) : [];
+      const rtl = RE_RTL_FIRST.test(b.text || "");
+      const h = inset * 2 + AV + (lines.length ? 18 + lines.length * 38 : 0) + 8;
+      return { h: h + 12, draw: (y) => {
+        if (center) { rrect(PAD, y, IN, h, 18); ctx.fillStyle = T.card; ctx.fill(); ctx.strokeStyle = T.border; ctx.lineWidth = 1; ctx.stroke(); }
+        const y0 = y + inset;
+        disc(b.who.av, x0 + AV / 2, y0 + AV / 2, AV / 2);
+        txt(one(b.who.name, F(700, 27), tw), tx, y0 + 28, F(700, 27), b.who.color);
+        txt(b.meta, tx, y0 + 54, F(400, 17), T.faint);
+        // VC-26: text whose first letter is RTL is drawn right-to-left from
+        // the right edge, as dir="auto" does in the page
+        if (rtl) ctx.direction = "rtl";
+        lines.forEach((ln, k) => txt(ln, rtl ? bodyX + bodyW : bodyX, y0 + AV + 18 + 28 + k * 38, bf, T.text, rtl ? "right" : "left"));
+        ctx.direction = "ltr";
+      } };
+    }
+    if (b.t === "rank") {
+      const RW = Math.min(IN, 540), x0 = (W - RW) / 2, max = Math.max(1, ...b.rows.map((r) => r.value));
+      return { h: b.rows.length * 72 + 14, draw: (y) => b.rows.forEach((r, k) => {
+        const ry = y + 14 + k * 72, nx = x0 + 44 + 46 + 16, vw = 96, tw = RW - (nx - x0) - vw;
+        txt("0" + (k + 1), x0, ry + 30, F(700, 18), T.dim);
+        disc(r.who.av, x0 + 44 + 23, ry + 23, 23);
+        txt(one(r.who.name, F(700, 22), tw), nx, ry + 20, F(700, 22), r.who.color);
+        rrect(nx, ry + 32, tw, 12, 6); ctx.fillStyle = T.track; ctx.fill();
+        rrect(nx, ry + 32, Math.max(12, tw * r.value / max), 12, 6); ctx.fillStyle = r.who.av.img ? T.accent : (r.who.av.initials ? r.who.av.fill : T.accent); ctx.fill();
+        txt(fmtNum(r.value), x0 + RW, ry + 30, F(800, 22), T.text, "right");
+      }) };
+    }
+    if (b.t === "chips") {
+      const f = F(600, 18), padX = 16, ch = 42, gap = 10, rows = [[]];
+      let rw = 0;
+      b.items.forEach((s, k) => {
+        const w = Math.min(IN, width(s, f) + padX * 2);
+        if (rows[rows.length - 1].length && rw + gap + w > IN) { rows.push([]); rw = 0; }
+        rows[rows.length - 1].push({ s, w, k }); rw += (rw ? gap : 0) + w;
+      });
+      return { h: rows.length * (ch + gap) + 10, draw: (y) => rows.forEach((row, ri) => {
+        let x = (W - row.reduce((a, c) => a + c.w, 0) - gap * (row.length - 1)) / 2;
+        const cy = y + 10 + ri * (ch + gap);
+        row.forEach((c) => {
+          rrect(x, cy, c.w, ch, ch / 2); ctx.fillStyle = T.card; ctx.fill();
+          ctx.strokeStyle = c.k === 0 ? T.accent : T.border; ctx.lineWidth = c.k === 0 ? 2 : 1; ctx.stroke();
+          txt(one(c.s, f, c.w - padX * 2), x + c.w / 2, cy + 27, f, T.text, "center");
+          x += c.w + gap;
+        });
+      }) };
+    }
+    return { h: 0, draw: () => {} };
   };
 
-  // P2-9: use the person's real profile photo when it's an uploaded data: URL.
-  // File-path pfps (personal_data/, sample_media/) are skipped on purpose —
-  // under file:// they would taint the canvas and break toBlob(). Image decode
-  // is async; a failed load falls back to the initials disc instead of hanging.
-  const photo = sanitizePhoto(PFPS[m.s]);
-  if (photo.startsWith("data:")) {
-    const img = new Image();
-    img.onload = () => draw(img);
-    img.onerror = () => draw(null);
-    img.src = photo;
+  const parts = model.blocks.map(layout);
+  const content = parts.reduce((a, p) => a + p.h, 0), FOOT = 54;
+  const H = Math.ceil(center ? Math.max(model.minH || 0, PAD + content + FOOT + PAD) : PAD + content + FOOT);
+  canvas.width = W * SHARE_DPR; canvas.height = H * SHARE_DPR;
+  ctx.setTransform(SHARE_DPR, 0, 0, SHARE_DPR, 0, 0);
+  if (center) {
+    ctx.fillStyle = T.page; ctx.fillRect(0, 0, W, H);
+    const lg = ctx.createLinearGradient(0, 0, W * 0.45, H);
+    lg.addColorStop(0, T.tint); lg.addColorStop(0.74, T.page);
+    ctx.fillStyle = lg; ctx.fillRect(0, 0, W, H);
+    const rg = ctx.createRadialGradient(W * 0.78, H * 0.05, 0, W * 0.78, H * 0.05, W * 0.8);
+    rg.addColorStop(0, T.glow); rg.addColorStop(1, T.clear);
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
   } else {
-    draw(null);
+    ctx.fillStyle = T.card; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = T.accent; ctx.fillRect(0, 0, 6, H);
   }
+  let y = center ? Math.max(PAD, (H - FOOT - content) / 2) : PAD;
+  parts.forEach((p) => { p.draw(y); y += p.h; });
+  txt("— " + model.footer, ax, H - 26, F(500, 15), T.faint, al);
+}
+
+// The Share dialog (a modal-stack layer): live preview, "Hide names", Copy
+// image (where the browser can put a PNG on the clipboard) and Download PNG.
+// build(redact, theme) → card model. opts: { kind, defaultRedact, onClose }.
+function openShareDialog(build, opts) {
+  opts = opts || {};
+  document.querySelectorAll(".share-modal").forEach((m) => { if (m._close) m._close(); else m.remove(); });
+  const modal = el("div", "share-modal");
+  const card = el("div", "share-card");
+  card.innerHTML = `<div class="ctx-head"><div class="ctx-title">Share image</div></div>
+    <div class="share-body"><canvas class="share-preview" role="img" aria-label="Preview of the image"></canvas></div>
+    <div class="share-foot">
+      <label class="share-redact"><input type="checkbox" class="share-redact-cb"><span>Hide names &amp; photos</span></label>
+      <div class="share-acts">
+        <button type="button" class="btn share-copy">Copy image</button>
+        <button type="button" class="btn primary share-dl">Download PNG</button>
+      </div>
+    </div>`;
+  const close = btnEl("kb-close", "✕", "Close");
+  card.querySelector(".ctx-head").appendChild(close);
+  modal.appendChild(card);
+  const cv = card.querySelector("canvas"), cb = card.querySelector(".share-redact-cb");
+  const kind = opts.kind || "card";
+  cb.checked = shareRedactPref(kind, !!opts.defaultRedact);
+  let ready = null;
+  const paint = () => {
+    const T = shareTheme();
+    const model = build(cb.checked, T, cb.checked ? shareRedactor() : null);
+    ready = renderShareCard(cv, model, T);
+    return ready;
+  };
+  const toBlob = () => ready.then((model) => new Promise((res) => cv.toBlob((blob) => res({ blob, model }), "image/png")));
+  modal._close = () => {
+    modal.remove();
+    if (opts.onClose) opts.onClose();
+    restoreFocus(modal);
+  };
+  close.onclick = modal._close;
+  modal.addEventListener("click", (e) => { if (e.target === modal) modal._close(); });
+  cb.onchange = () => { saveShareRedactPref(kind, cb.checked); paint(); };
+  card.querySelector(".share-dl").onclick = () => toBlob().then(({ blob, model }) => {
+    if (!blob) { toast("Could not render image"); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = model.file + ".png"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast("Saved image");
+  });
+  const copyBtn = card.querySelector(".share-copy");
+  const canCopy = typeof ClipboardItem === "function" && navigator.clipboard && typeof navigator.clipboard.write === "function";
+  copyBtn.hidden = !canCopy;
+  copyBtn.onclick = () => {
+    const item = new ClipboardItem({ "image/png": toBlob().then(({ blob }) => blob) });
+    navigator.clipboard.write([item]).then(() => toast("Copied image")).catch(() => toast("Couldn't copy the image — use Download PNG"));
+  };
+  document.body.appendChild(modal);
+  applyDialog(modal, "Share image", { initial: ".share-dl", opener: opts.opener });
+  paint();
+  return modal;
+}
+function shareMessage(i, hof, opener) {
+  const m = MSGS[i];
+  if (!m || !(m.x || "").trim()) { toast("Nothing to share"); return; }
+  openShareDialog((redact, T, R) => shareModelMessage(i, R, T, hof), { kind: hof ? "hof" : "message", defaultRedact: false, opener: opener && opener.tabIndex >= 0 ? opener : undefined });
+}
+function shareWrappedSlide() {
+  const w = computeWrapped(wrappedYear), slides = wrappedSlides(w), k = wrappedSlide, s = slides[k];
+  if (!s) return;
+  wrHold("share", true);
+  // a slide that ranks people starts with names hidden
+  openShareDialog((redact, T, R) => shareModelWrapped(s, w, k, R, T),
+    { kind: s.kind === "person" ? "wrapped-ranking" : "wrapped", defaultRedact: s.kind === "person", onClose: () => wrHold("share", false) });
 }
 
 /* ===========================================================================

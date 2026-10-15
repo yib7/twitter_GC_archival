@@ -30,21 +30,21 @@ test("VC-26: bookmark cards from another conversation and People samples use dir
   await expect(page.locator(".sample", { hasText: "שלום" }).first()).toHaveAttribute("dir", "auto");
 });
 
-test("VC-26: a quote card draws RTL text right-to-left from the right edge", async ({ page }) => {
+test("VC-26: a share card draws RTL text right-to-left from the right edge", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
-  // Record how each body line is drawn; swallow the PNG download.
+  // Record how each body line is drawn (the Share dialog's preview draws the
+  // card; x is in CSS px under the DPR transform, so scale it to canvas px).
   await page.evaluate(() => {
     window.__drawn = [];
     const orig = CanvasRenderingContext2D.prototype.fillText;
     CanvasRenderingContext2D.prototype.fillText = function (t, x, y) {
-      window.__drawn.push({ t: String(t), x, dir: this.direction, align: this.textAlign, w: this.canvas.width });
+      window.__drawn.push({ t: String(t), x: x * this.getTransform().a, dir: this.direction, align: this.textAlign, w: this.canvas.width });
       return orig.apply(this, arguments);
     };
-    HTMLAnchorElement.prototype.click = function () {};
   });
   const row = page.locator('#view-timeline .msg[data-idx="0"]');
   await row.hover();
-  await row.locator("button", { hasText: /^Quote$/ }).click();
+  await row.locator("button", { hasText: /^Share$/ }).click();
   await expect.poll(() => page.evaluate(() => window.__drawn.some((d) => d.t.includes("שלום")))).toBe(true);
   const line = await page.evaluate(() => window.__drawn.find((d) => d.t.includes("שלום")));
   expect(line.dir).toBe("rtl");

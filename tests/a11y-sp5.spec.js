@@ -654,7 +654,7 @@ test.describe("M-6: message actions are delegated", () => {
     const shape = await page.evaluate(() => [...document.querySelectorAll("#tl-list .msg-acts button, #tl-list .msg-more")].map((b) => (b.dataset.act || "-") + (b.onclick ? ":handler" : "")));
     expect(shape.length).toBeGreaterThan(0);
     expect(shape.filter((x) => x === "-" || x.endsWith(":handler")), "buttons without data-act or with their own onclick").toEqual([]);
-    expect(new Set(shape)).toEqual(new Set(["pin", "copy", "context", "quote", "jump", "link", "more"]));   // SP8 adds "link" (Copy link to message)
+    expect(new Set(shape)).toEqual(new Set(["pin", "copy", "context", "share", "jump", "link", "more"]));   // SP8 adds "link" (Copy link to message); SP10 renames quote → share
     // the delegated handler runs them: Bookmark toggles, Context opens the peek
     const msg = page.locator("#tl-list .msg").nth(2);
     await msg.hover();
@@ -884,6 +884,44 @@ test.describe("SP9: All chats results and palette message hits", () => {
       await page.locator(".cmdk-input").fill("volley");
       await expect(page.locator(".cmdk-list .cmdk-msg").first()).toBeVisible();
       for (const f of await contrastFailures(page, ".cmdk")) bad.push("palette: " + f);
+      expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
+    });
+  }
+});
+
+// SP10: the Share dialog and the Wrapped story controls are held to the same
+// audits — rendered-text contrast, a ring on every keyboard stop, named
+// controls and nothing click-only, in every theme.
+test.describe("SP10: Share dialog and Wrapped story controls", () => {
+  for (const th of THEMES) {
+    test("contrast, focus rings, names · " + th, async ({ page }) => {
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      await bootViewer(page, CONTRAST_DATA, { ls: { "gca.theme": th } });
+      await installHelpers(page);
+      const bad = [];
+      await go(page, "timeline");
+      const msg = page.locator("#tl-list .msg").first();
+      await msg.hover();
+      await msg.getByRole("button", { name: "Share" }).click();
+      await expect(page.locator(".share-modal canvas")).toBeVisible();
+      for (const f of await contrastFailures(page, ".share-modal")) bad.push("share dialog: " + f);
+      for (const d of await unnamed(page, ".share-modal")) bad.push("unnamed: " + d);
+      for (const d of await clickOnly(page, ".share-modal")) bad.push("click-only: " + d);
+      const { missing, seen } = await tabWalk(page, 6);
+      expect(seen.length, "the walk visits the dialog's controls").toBeGreaterThanOrEqual(3);
+      expect(await page.evaluate(() => !!document.activeElement.closest(".share-modal")), "Tab stays in the dialog: " + seen.join(" ")).toBe(true);
+      for (const m of missing) bad.push("share ring: " + m);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".share-modal")).toHaveCount(0);
+      // Wrapped: the story stage and its Back / Share / Next controls
+      await go(page, "wrapped");
+      await page.locator("#wr-stage").focus();
+      await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");   // a keyboard focus (:focus-visible)
+      if (!(await page.evaluate(() => window.__ring(document.activeElement).ok))) bad.push("ring: the Wrapped stage");
+      const walk = await tabWalk(page, 4);
+      expect(walk.seen.some((d) => d.indexOf("wr-share") >= 0), "the walk reaches Share slide: " + walk.seen.join(" ")).toBe(true);
+      for (const m of walk.missing) bad.push("wrapped ring: " + m);
+      for (const d of await unnamed(page, "#view-wrapped")) bad.push("wrapped unnamed: " + d);
       expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
     });
   }

@@ -157,16 +157,18 @@ test("pins export flattens multi-line bodies to one line per record", async ({ p
   expect(errors).toEqual([]);
 });
 
-/* ---- P2-9: quote card exports a PNG with and without a data: pfp --------- */
+/* ---- P2-9: the share card (was: quote card) exports a PNG with and without a data: pfp --------- */
 
 async function exportQuote(page) {
   await page.locator('.nav-item[data-view="timeline"]').click();
   const msg = page.locator("#view-timeline .msg", { hasText: "quote me please" }).first();
   await msg.hover();
+  // SP10: Quote became Share — it opens the Share dialog; Download PNG saves
+  await msg.getByRole("button", { name: "Share" }).click();
   const dlPromise = page.waitForEvent("download");
-  await msg.getByRole("button", { name: "Quote" }).click();
+  await page.locator(".share-modal").getByRole("button", { name: "Download PNG" }).click();
   const dl = await dlPromise;
-  expect(dl.suggestedFilename()).toMatch(/\.png$/);
+  expect(dl.suggestedFilename()).toMatch(/^message-[\w-]+\.png$/);
   const stat = fs.statSync(await dl.path());
   expect(stat.size).toBeGreaterThan(0);
 }
