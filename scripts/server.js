@@ -27,6 +27,7 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
+const { pipeline } = require("stream");
 const { idPartition, createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, replaceFile, TMP_RE } = require("./fs-io.js");
 const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath } = require("./server-core.js");
@@ -1424,7 +1425,7 @@ function serveStatic(req, res) {
         "Content-Range": `bytes ${start}-${end}/${st.size}`, "Content-Length": end - start + 1,
       });
       if (req.method === "HEAD") return res.end();
-      fs.createReadStream(file, { start, end }).pipe(res);
+      sendFile(fs.createReadStream(file, { start, end }), res);
     } else if (isHtmlFile) {
       // Read HTML, inject server URL config, send modified version
       fs.readFile(file, "utf8", (err, data) => {
@@ -1467,8 +1468,16 @@ function serveStatic(req, res) {
     } else {
       res.writeHead(200, { ...frameGuard, "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
       if (req.method === "HEAD") return res.end();
-      fs.createReadStream(file).pipe(res);
+      sendFile(fs.createReadStream(file), res);
     }
+  });
+}
+// Stream a file to the reply. pipeline() closes the file when the browser
+// hangs up early (a video seek) and catches a read error (a file stat saw
+// but that can't be opened) instead of letting it end the server.
+function sendFile(stream, res) {
+  pipeline(stream, res, (err) => {
+    if (err && !res.headersSent) { res.writeHead(500); res.end(); }
   });
 }
 

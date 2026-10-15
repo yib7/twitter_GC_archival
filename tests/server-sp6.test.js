@@ -738,3 +738,46 @@ describe("putting files back when a backup folder or file is held by another pro
     });
   });
 });
+
+// Media is streamed from disk. A file that stat sees but can't be read must
+// not take the server down, and a video request the browser abandons (a seek,
+// a lazy image scrolled away) must not keep its file open for good.
+describe("streaming media files", () => {
+  const PRELOAD = path.join(__dirname, "fixtures", "stream-watch-preload.js");
+  const http = require("node:http");
+  let S;
+  before(async () => {
+    S = await startServer({ GCA_TEST_UNREADABLE: "unreadable" }, { nodeArgs: ["--require", PRELOAD] });
+    const media = path.join(S.personal, "media");
+    fs.mkdirSync(media, { recursive: true });
+    fs.writeFileSync(path.join(media, "9001-Big.mp4"), Buffer.alloc(8 * 1048576, 1));
+    fs.writeFileSync(path.join(media, "9002-unreadable.jpg"), "a picture");
+  });
+  after(() => S.stop());
+  const openStreams = async () => (await (await S.get("/__test/open-streams")).json()).open;
+  // read the first chunk of the reply, then hang up
+  const abandon = (p, headers) => new Promise((resolve, reject) => {
+    const req = http.get(S.url(p), { headers }, (res) => { res.once("data", () => { req.destroy(); resolve(res.statusCode); }); });
+    req.on("error", (e) => (e.code === "ECONNRESET" ? resolve(0) : reject(e)));
+  });
+
+  test("a file that can't be opened fails that one request; the server keeps running", async () => {
+    for (const range of [null, "bytes=0-"]) {
+      let failed;
+      try {
+        const r = await S.get("/personal_data/media/9002-unreadable.jpg", range ? { Range: range } : {});
+        await r.arrayBuffer();
+        failed = r.status >= 500;
+      } catch (e) { failed = true; }   // headers were already sent: the connection is cut
+      assert.ok(failed, "the request fails (" + (range || "full") + ")");
+    }
+    assert.equal((await S.get("/api/ping")).status, 200, "still running: " + S.stderr());
+  });
+
+  test("abandoned video requests don't leave their files open", async () => {
+    for (let i = 0; i < 20; i++) await abandon("/personal_data/media/9001-Big.mp4", i % 2 ? { Range: "bytes=0-" } : {});
+    let n = -1;
+    for (let t = 0; t < 40 && n !== 0; t++) { n = await openStreams(); if (n) await new Promise((r) => setTimeout(r, 50)); }
+    assert.equal(n, 0, "every file stream is closed");
+  });
+});
