@@ -191,14 +191,15 @@ function decodeDataUrl(url, whose) {
 // `unmatched`, so a mis-picked folder can never drag other private files
 // (1:1 DMs, account.js, other media) into the servable personal_data/media/.
 // X's group media folder is flat, so there are no same-name clashes to resolve.
-// `skipExisting` (SP-14 restore) copies only files destDir doesn't have yet.
 // `journal` (fix round 1, #9) records each copy so a failed build can undo it.
-// SP7: `skipSame` leaves a file destDir already has at the same size (X names
-// media by message id + media id, so it is the same picture) — adding a newer
-// export doesn't copy the whole media folder again; those are counted `same`.
+// SP7 fix round 1 (#3): a file destDir already has is never replaced — X names
+// media by message id + media id, so the same name is the same picture, and a
+// newer download's copy may be the damaged one. An EMPTY file there counts as
+// missing. `keepExisting` (a build) counts those kept as `same`;
+// `skipExisting` (SP-14 restore) just leaves them.
 function planMediaCopy(srcDir, destDir, opts) {
   const skipExisting = !!(opts && opts.skipExisting);
-  const skipSame = !!(opts && opts.skipSame);
+  const keepExisting = !!(opts && opts.keepExisting);
   const skip = (opts && opts.skip) || null;   // names not to copy (e.g. still quarantined)
   const ids = (opts && opts.ids) || null;     // only media of these message ids (fix round 1, #7)
   const todo = [];
@@ -207,18 +208,52 @@ function planMediaCopy(srcDir, destDir, opts) {
     if (e.isFile() && MEDIA_FILE_RE.test(e.name) && (!ids || ids.has(e.name.split("-")[0]))) {
       const dest = path.join(destDir, e.name);
       if (skip && skip.has(e.name)) continue;
-      if (skipExisting && fs.existsSync(dest)) continue;
-      let size = 0;
-      try { size = fs.statSync(path.join(srcDir, e.name)).size; } catch (err) { /* the copy reports it */ }
-      if (skipSame) {
+      if (skipExisting || keepExisting) {
         let have = null;
         try { have = fs.statSync(dest); } catch (err) { /* not there yet */ }
-        if (have && have.isFile() && have.size === size) { same++; continue; }
+        if (have && (!have.isFile() || have.size > 0)) { if (keepExisting) same++; continue; }
       }
+      let size = 0;
+      try { size = fs.statSync(path.join(srcDir, e.name)).size; } catch (err) { /* the copy reports it */ }
       todo.push({ name: e.name, size });
     } else unmatched++;
   }
   return { todo, unmatched, same };
+}
+// SP7 fix round 1 (#3): copy to "<dest>.<pid>.<hex>.tmp" and rename it into
+// place, so a file under its real name is always complete — a crash mid-copy
+// leaves only a temp file, which the next build that commits clears
+// (clearCopyTemps). GCA_TEST_COPY_CRASH=<name> (tests only) stops the server
+// half-way through copying that file, as a crash would.
+const COPY_CRASH = process.env.GCA_TEST_COPY_CRASH || "";
+const copyTmpOf = (dest) => dest + "." + process.pid + "." + crypto.randomBytes(4).toString("hex") + ".tmp";
+function crashMidCopy(src, tmp, dest) {
+  if (!COPY_CRASH || path.basename(dest) !== COPY_CRASH) return;
+  const b = fs.readFileSync(src);
+  fs.writeFileSync(tmp, b.subarray(0, Math.max(1, b.length >> 1)));
+  process.exit(70);
+}
+function copyIntoPlace(src, dest) {
+  const tmp = copyTmpOf(dest);
+  try { crashMidCopy(src, tmp, dest); fs.copyFileSync(src, tmp); fs.renameSync(tmp, dest); }
+  catch (e) { try { fs.rmSync(tmp, { force: true }); } catch (e2) { /* gone */ } throw e; }
+}
+async function copyIntoPlaceAsync(src, dest) {
+  const tmp = copyTmpOf(dest);
+  try { crashMidCopy(src, tmp, dest); await fsp.copyFile(src, tmp); await fsp.rename(tmp, dest); }
+  catch (e) { try { fs.rmSync(tmp, { force: true }); } catch (e2) { /* gone */ } throw e; }
+}
+// The temp files a crash mid-copy left in these folders (their names match
+// fs-io's TMP_RE); called once a build has committed.
+function clearCopyTemps(dirs) {
+  for (const d of dirs) {
+    let names;
+    try { names = fs.readdirSync(d); } catch (e) { continue; }
+    for (const n of names) {
+      const p = path.join(d, n);
+      if (TMP_RE.test(n) && isInsidePersonal(p, PERSONAL)) { try { fs.rmSync(p, { force: true }); } catch (e) { console.error("Couldn't remove " + n + ": " + (e && e.message)); } }
+    }
+  }
 }
 function copyMediaFlat(srcDir, destDir, opts) {
   const journal = (opts && opts.journal) || null;
@@ -227,7 +262,7 @@ function copyMediaFlat(srcDir, destDir, opts) {
   for (const f of plan.todo) {
     const dest = path.join(destDir, f.name);
     if (journal) journal.copy(path.join(srcDir, f.name), dest);
-    else fs.copyFileSync(path.join(srcDir, f.name), dest);
+    else copyIntoPlace(path.join(srcDir, f.name), dest);
   }
   return { copied: plan.todo.length, unmatched: plan.unmatched, same: plan.same };
 }
@@ -244,7 +279,7 @@ async function copyMediaFlatAsync(srcDir, destDir, opts, progress) {
   for (const f of plan.todo) {
     const dest = path.join(destDir, f.name);
     if (journal) await journal.copyAsync(path.join(srcDir, f.name), dest);
-    else await fsp.copyFile(path.join(srcDir, f.name), dest);
+    else await copyIntoPlaceAsync(path.join(srcDir, f.name), dest);
     progress.files++;
     progress.bytes += f.size;
     if (COPY_DELAY_MS) await new Promise((r) => setTimeout(r, COPY_DELAY_MS));
@@ -269,8 +304,8 @@ function copyJournal(backupDir) {
     } else created.push(dest);
   };
   return {
-    copy(src, dest) { note(dest); fs.copyFileSync(src, dest); },
-    async copyAsync(src, dest) { note(dest); await fsp.copyFile(src, dest); },
+    copy(src, dest) { note(dest); copyIntoPlace(src, dest); },
+    async copyAsync(src, dest) { note(dest); await copyIntoPlaceAsync(src, dest); },
     rollback() {
       const problems = [];
       for (const f of created) { try { fs.rmSync(f, { force: true }); } catch (e) { problems.push(f); } }
@@ -631,7 +666,7 @@ async function sourceAndBuild(body, res, progress) {
     // copied again (adding a newer export).
     progress.phase = "copy";
     media = mediaAbs
-      ? await copyMediaFlatAsync(mediaAbs, mediaDestDir, { ids: keepIds || new Set(), journal: mediaJournal, skipSame: true }, progress)
+      ? await copyMediaFlatAsync(mediaAbs, mediaDestDir, { ids: keepIds || new Set(), journal: mediaJournal, keepExisting: true }, progress)
       : { copied: 0, unmatched: 0, same: 0 };
     fs.mkdirSync(mediaDestDir, { recursive: true });
     cfg.mediaDir = mediaDestDir;
@@ -656,6 +691,7 @@ async function sourceAndBuild(body, res, progress) {
   }
   srcJournal.commit(); mediaJournal.commit();
   clearStaleBackups();
+  clearCopyTemps([srcDir, mediaDestDir]);
   pruneSource(cfg.sourceJs.concat(asList(cfg.headersJs)));
   const buildLog = built.log;
 
@@ -1086,7 +1122,7 @@ function apiIdentity(body, res) {
       // un-removing brings it back even if the original export folder is gone.
       const keep = after[0].result();
       for (const e of fs.readdirSync(mediaDir, { withFileTypes: true })) {
-        if (!e.isFile() || keep.has(e.name)) continue;
+        if (!e.isFile() || keep.has(e.name) || TMP_RE.test(e.name)) continue;   // a copy cut short: the next build clears it
         const o = owners.get(e.name.split("-")[0]) || quarantine.get(e.name) || { kind: "other", id: "unreferenced" };
         if (moveFile(path.join(mediaDir, e.name), path.join(REMOVED, o.kind, safeSegment(o.id), e.name))) removed++;
       }

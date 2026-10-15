@@ -436,6 +436,7 @@ function indexMediaFiles(names, relDir) {
   const idx = {};
   const prefix = relDir ? String(relDir).replace(/\/+$/, "") + "/" : "";
   for (const f of [...names].map(String).sort()) {
+    if (/\.\d+\.[0-9a-f]{8}\.tmp$/.test(f)) continue;   // SP7 fix round 1 (#3): a copy cut short
     const dash = f.indexOf("-");
     if (dash <= 0) continue;
     const id = f.slice(0, dash);
