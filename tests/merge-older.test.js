@@ -111,3 +111,35 @@ describe("SP7 fix 2: merging export A into an archive built from the newer B", (
     assert.deepEqual(ids, ["9001", "9002", "9003", "9004", "9005", "9006", "9007", "9008"]);
   });
 });
+
+// SP7 fix round 2 (#4): after an older export is merged, config's message
+// files are the older export's, but the media source folder is still the
+// newer one's. Un-removing restored media from that folder only for message
+// ids in the older export's files, so the newer export's removed media
+// (9008, only in B) never came back. The ids come from the archive and the
+// quarantine now.
+describe("SP7 fix round 2: un-removing after an older merge restores the newer export's media", () => {
+  let S, B;
+  before(async () => { S = await startServer(); B = X.writeExportB(scratch()); });
+  after(() => S.stop());
+  const identity = (ignoredUsers) => S.post("/api/identity", { names: {}, pfps: {}, gc: {}, ignoredUsers, ignoredGroups: [] });
+  const M = (n) => path.join(S.personal, "media", n);
+
+  test("333 removed before B is built: B's 9008 media is never copied", async () => {
+    assert.equal((await identity(["333"])).status, 200);
+    const r = await S.post("/api/source", { archiveRoot: B.root });
+    assert.equal(r.status, 200, JSON.stringify(await r.clone().json()));
+    assert.ok(!fs.existsSync(M("9008-Removed.png")));
+  });
+
+  test("merge the older A, then un-remove 333: 9008's media comes back from B's folder", async () => {
+    const r = await S.post("/api/source", { archiveRoot: X.writeExport(scratch(), { manifest: true }).root });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.older, true);
+    const u = await identity([]);
+    assert.equal(u.status, 200, JSON.stringify(await u.clone().json()));
+    assert.ok(readData(S.personal).conversations.some((c) => c.msgs.some((m) => String(m.i) === "9008")), "9008 is back in the archive");
+    assert.equal(fs.existsSync(M("9008-Removed.png")) && fs.readFileSync(M("9008-Removed.png"), "utf8"), "png-removed");
+  });
+});

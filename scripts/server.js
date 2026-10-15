@@ -752,6 +752,22 @@ async function sourceAndBuild(body, res, progress) {
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
   sendJSON(res, 200, { ok: true, merged: !!before, older, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
+// SP7 fix round 2 (#4): the ids of messages in the built archive and the
+// quarantine whose group chat and sender aren't removed (streamed).
+function archiveKeptIds(ignoredGroups, ignoredUsers) {
+  const G = new Set(asList(ignoredGroups)), U = new Set(asList(ignoredUsers));
+  const ids = new Set();
+  const make = () => [{
+    message: (c, m) => { if (m && m.i != null && !G.has(String(c.id)) && !U.has(String(m.s))) ids.add(String(m.i)); },
+    conversation: () => {},
+    result: () => ids,
+  }];
+  foldBuilt(make);
+  if (fs.existsSync(REMOVED_MSGS)) {
+    try { foldArchive(REMOVED_MSGS, make()); } catch (e) { console.error("Couldn't read the removed messages: " + (e && e.message)); }
+  }
+  return ids;
+}
 // SP7 fix round 2 (#1): true when the built archive has removed people or
 // group chats but no quarantine (built before it existed) and the export
 // copies it was built from are all still there to rebuild from. Without those
@@ -1177,10 +1193,17 @@ function apiIdentity(body, res) {
       }
       if (cfg.mediaSourceDir && fs.existsSync(cfg.mediaSourceDir)) {
         // SP7 (SP6 review #5): the same message-id filter as the first copy —
-        // only media of this export's messages that are no longer removed.
+        // only media of messages that are no longer removed. Fix round 2 (#4):
+        // those ids come from the archive and the quarantine (after an older
+        // export is merged, config's message files are the older export's but
+        // the media folder is the newer one's), plus config's own files (an
+        // archive built before the quarantine has its removed messages only there).
         try {
           duringBlocking(() => {
-            const { keep } = exportMessageIds(asList(cfg.sourceJs).map((p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))), ignoredGroups, ignoredUsers);
+            const keep = archiveKeptIds(ignoredGroups, ignoredUsers);
+            try {
+              for (const id of exportMessageIds(asList(cfg.sourceJs).map((p) => (path.isAbsolute(p) ? p : path.join(ROOT, p))), ignoredGroups, ignoredUsers).keep) keep.add(id);
+            } catch (e) { /* those copies are gone or unreadable: the archive's ids still count */ }
             copyMediaFlat(cfg.mediaSourceDir, mediaDir, { skipExisting: true, skip: new Set(quarantine.keys()), ids: keep });
           });
         } catch (e) { console.error("Couldn't restore media from " + cfg.mediaSourceDir + ": " + (e && e.message)); }
