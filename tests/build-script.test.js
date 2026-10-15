@@ -219,3 +219,38 @@ for (const leftover of ["data.js.bak", "data.js.4242.0a1b2c3d.tmp", "data.js.bak
     assert.ok(!fs.existsSync(path.join(personal, "data.js")), "no data.js is written");
   });
 }
+
+// The older layout kept the archive at the project root (data.js), with no
+// personal_data/data.js. The setup server counts that file as the archive
+// (its merge preview and reply), so the build must merge into it too, or the
+// first wizard build would hide that history behind a new data.js holding
+// only the export. A synthetic project root (a copy of the build's scripts)
+// stands in for the checkout; nothing real is read.
+function synthRootWith(dataJs) {
+  const root = scratch("gca-build-root-");
+  const here = path.join(__dirname, "..");
+  for (const f of ["scripts/build.js", "scripts/build-core.js", "scripts/fs-io.js", "src/shared-core.js"]) {
+    fs.mkdirSync(path.dirname(path.join(root, f)), { recursive: true });
+    fs.copyFileSync(path.join(here, f), path.join(root, f));
+  }
+  fs.writeFileSync(path.join(root, "data.js"), dataJs);
+  return root;
+}
+const ROOT_ARCHIVE = "window.CHAT_DATA = " + JSON.stringify({ generatedAt: "2020-01-01T00:00:00.000Z", conversations: [
+  { id: "1000000001", type: "group", title: "Synthetic Crew", participants: ["111"], count: 1, msgs: [{ i: "7001", s: "111", t: X.T0 - 86400e3, x: "older history, only in the root data.js" }], events: [] },
+] }) + ";\n";
+for (const [label, extraEnv, keeps] of [["merges the root data.js when personal_data has none", {}, true], ["leaves it alone with GCA_NO_ROOT_FALLBACK=1", { GCA_NO_ROOT_FALLBACK: "1" }, false]]) {
+  test("a build " + label, () => {
+    const root = synthRootWith(ROOT_ARCHIVE);
+    const { personal, files } = setup();
+    fs.writeFileSync(path.join(personal, "config.json"), JSON.stringify({ sourceJs: [files.group, files.part1], headersJs: files.headers }));
+    const env = Object.assign({}, process.env, { GCA_PERSONAL: personal }, extraEnv);
+    if (!extraEnv.GCA_NO_ROOT_FALLBACK) delete env.GCA_NO_ROOT_FALLBACK;
+    const r = spawnSync(process.execPath, [path.join(root, "scripts", "build.js")], { cwd: root, env, encoding: "utf8" });
+    assert.equal(r.status, 0, r.stderr);
+    const ids = readData(personal).conversations.find((c) => c.id === "1000000001").msgs.map((m) => String(m.i));
+    assert.equal(ids.includes("7001"), keeps, ids.join(","));
+    assert.ok(ids.includes("9001") && ids.includes("9005"), "the export's own messages are there too");
+    assert.equal(fs.readFileSync(path.join(root, "data.js"), "utf8"), ROOT_ARCHIVE, "the root file itself is never changed");
+  });
+}

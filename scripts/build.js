@@ -113,10 +113,17 @@ function ingest(acc, file, which) {
   return stats;
 }
 
+// The older layout kept the archive at the project root (data.js). With no
+// personal_data/data.js the setup server counts that file as the archive, so
+// it is the baseline here too (read only; the build writes personal_data/).
+// GCA_NO_ROOT_FALLBACK=1 turns it off, as it does for the server.
+const ROOT_PREV = process.env.GCA_NO_ROOT_FALLBACK ? null : path.join(here, "data.js");
+
 // The previous data.js is the baseline (the accumulated history). It is
 // streamed into the accumulator one conversation at a time, so it may be any
 // size (no ~512 MB ceiling). Returns null when there is none.
 function loadPrev(acc) {
+  let prevFile = OUT;
   if (!fs.existsSync(OUT)) {
     // no data.js, but its backup or an unfinished save is right next to
     // it (a crash mid-swap, or data.js deleted by hand): the history is in
@@ -127,10 +134,11 @@ function loadPrev(acc) {
         " is next to where it should be, and may hold your archive's history. The build stopped so that history isn't replaced by this export alone. " +
         "To keep it, make a copy of that file and rename it to data.js, then build again. To start fresh from this export instead, use Start over (it erases the leftovers).");
     }
-    return null;
+    if (!ROOT_PREV || !fs.existsSync(ROOT_PREV)) return null;
+    prevFile = ROOT_PREV;
   }
   try {
-    return scanArchiveFile(OUT, { onConversation: (c) => acc.addPrev({ conversations: [c] }) }, scanOpts());
+    return scanArchiveFile(prevFile, { onConversation: (c) => acc.addPrev({ conversations: [c] }) }, scanOpts());
   } catch (e) {
     // never rebuild over history that couldn't be read. Each cause gets
     // its own sentence; only real damage is called damaged.
