@@ -244,3 +244,27 @@ test("SP-21: a message or event with an unparseable createdAt is skipped and cou
   assert.equal(g.events.length, 0);
   assert.equal(res.warnings.badTime, 3);
 });
+
+// ---- SP-20: every media file of a message is kept --------------------------
+test("SP-20: indexMediaFiles groups ALL files per message id, sorted, ignoring non-matching names", () => {
+  const { indexMediaFiles } = require("../scripts/build-core.js");
+  const idx = indexMediaFiles(["9002-b.jpg", "9002-a.png", "notes.txt", "9101-c.mp4", "-bad.png"], "personal_data/media");
+  assert.deepEqual(idx, {
+    9002: ["personal_data/media/9002-a.png", "personal_data/media/9002-b.jpg"],
+    9101: ["personal_data/media/9101-c.mp4"],
+  });
+});
+
+test("SP-20: a message with several media files keeps the first as m/k and the rest in mx", () => {
+  const res = assemble({
+    exportDatas: [[conv("G1", [msg("m1", "u1", "2020-05-01T10:00:00Z", "two pics"), msg("m2", "u1", "2020-05-01T11:00:00Z", "one")])]],
+    mediaIndex: { m1: ["personal_data/media/m1-a.png", "personal_data/media/m1-b.mp4", "personal_data/media/m1-c.pdf"], m2: ["personal_data/media/m2-x.jpg"] },
+  });
+  const [m1, m2] = onlyGroup(res, "G1").msgs;
+  assert.equal(m1.m, "personal_data/media/m1-a.png");
+  assert.equal(m1.k, "img");
+  assert.deepEqual(m1.mx, [{ m: "personal_data/media/m1-b.mp4", k: "vid" }, { m: "personal_data/media/m1-c.pdf", k: "file" }]);
+  assert.equal(m2.m, "personal_data/media/m2-x.jpg");
+  assert.equal("mx" in m2, false, "a single file adds no mx");
+  assert.equal(res.totalMedia, 2, "media counts messages with media");
+});

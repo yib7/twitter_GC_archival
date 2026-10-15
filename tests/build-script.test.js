@@ -110,3 +110,14 @@ test("SP-1: a failed rebuild leaves the previous data.js untouched", () => {
   assert.notEqual(r.status, 0);
   assert.equal(fs.readFileSync(path.join(personal, "data.js"), "utf8"), before);
 });
+
+test("SP-20: the build attaches both media files of a message, not just the first", () => {
+  const { personal, files } = setup();
+  const r = runBuild(personal, { sourceJs: [files.group], headersJs: files.headers, mediaDir: files.media });
+  assert.equal(r.status, 0, r.stderr);
+  const m = readData(personal).conversations.find((c) => c.id === "1000000001").msgs.find((x) => x.i === "9002");
+  assert.match(m.m, /9002-AbCdEf\.png$/);
+  assert.equal(m.k, "img");
+  assert.equal(m.mx.length, 1);
+  assert.match(m.mx[0].m, /9002-ZzSecond\.jpg$/);
+});

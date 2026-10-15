@@ -1295,7 +1295,38 @@ function renderMedia(m, i) {
   } else {
     d.appendChild(urlChipEl(m.m, "media file"));
   }
+  appendMoreMedia(d, m);
   return d;
+}
+// SP-20: a DM can carry several files. The build keeps the first as m/k (what
+// the lightbox, gallery and stats read) and the rest in m.mx; show those as a
+// row of small thumbnails under the first. Each extra photo is a plain link
+// (keyboard-reachable, opens the full file); videos keep their controls.
+function appendMoreMedia(d, m) {
+  if (!Array.isArray(m.mx) || !m.mx.length) return;
+  const row = el("div", "media-more");
+  const total = m.mx.length + 1;
+  const who = nameOf(m.s) + " · " + DT.format(m.t);
+  m.mx.forEach((x, j) => {
+    if (!x || !x.m) return;
+    let node;
+    if (x.k === "img") {
+      node = el("a", "media-more-item");
+      node.href = x.m; node.target = "_blank"; node.rel = "noopener";
+      node.setAttribute("aria-label", "Open photo " + (j + 2) + " of " + total + " from " + who);
+      const img = el("img"); img.loading = "lazy"; img.src = x.m; img.alt = "";
+      node.appendChild(img);
+    } else if (x.k === "vid") {
+      node = document.createElement("video"); node.className = "media-more-item";
+      node.src = x.m; node.controls = true; node.preload = "none";
+      node.setAttribute("aria-label", "Video " + (j + 2) + " of " + total + " from " + who);
+    } else {
+      node = urlChipEl(x.m, "media file");
+    }
+    node.addEventListener("click", (e) => e.stopPropagation());   // not the card's own click
+    row.appendChild(node);
+  });
+  d.appendChild(row);
 }
 function renderReacts(r) {
   const wrap = el("div", "reacts");
@@ -4814,6 +4845,7 @@ function renderForeignPin(conv, m) {
       a.addEventListener("click", (e) => e.stopPropagation());
       d.appendChild(a);
     }
+    appendMoreMedia(d, m);   // SP-20: the message's other files
     body.appendChild(d);
   }
   if (m.r) body.appendChild(renderReacts(m.r));

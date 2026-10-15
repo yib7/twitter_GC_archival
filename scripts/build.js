@@ -65,15 +65,12 @@ function findMediaDirs(config) {
   return fs.existsSync(d) ? [d] : [];
 }
 function buildMediaIndex(dirs) {
-  const idx = {};   // messageId -> root-relative path
+  const idx = {};   // messageId -> [root-relative paths] (SP-20: all of them)
   for (const d of dirs) {
     const rel = path.relative(here, d).split(path.sep).join("/");
-    for (const f of fs.readdirSync(d)) {
-      const dash = f.indexOf("-");
-      if (dash <= 0) continue;
-      const id = f.slice(0, dash);
-      if (!idx[id]) idx[id] = rel + "/" + f;
-    }
+    const names = fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
+    const part = core.indexMediaFiles(names, rel);
+    for (const id of Object.keys(part)) idx[id] = (idx[id] || []).concat(part[id]);
   }
   return idx;
 }

@@ -156,9 +156,16 @@ function createAccumulator(opts) {
       let withMedia = 0;
       const msgVals = [...c.msgMap.values()].filter((m) => !IGNORED.has(String(m.s)));
       for (const rec of msgVals) {
+        // SP-20: a message can have several files; the first stays m/k (what
+        // every view already reads), the rest go to mx: [{ m, k }, ...].
         const mp = mediaIndex[rec.i];
-        if (mp) { rec.m = mp; rec.k = kindOf(mp); withMedia++; }
-        else if (rec.m) withMedia++;
+        const list = Array.isArray(mp) ? mp : (mp ? [mp] : []);
+        if (list.length) {
+          rec.m = list[0]; rec.k = kindOf(list[0]);
+          if (list.length > 1) rec.mx = list.slice(1).map((p) => ({ m: p, k: kindOf(p) }));
+          else delete rec.mx;
+          withMedia++;
+        } else if (rec.m) withMedia++;
       }
       const msgs = msgVals.sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
       const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
@@ -214,6 +221,26 @@ function assembleConversations(opts) {
     });
   }
   return acc.finish(opts.mediaIndex || {});
+}
+
+/**
+ * Index a media folder's file names by message id. X names group-DM media
+ * "<messageId>-<mediaId>.<ext>"; a message may own several files (SP-20), so
+ * each id maps to ALL of its paths, sorted for a stable order.
+ * @param {string[]} names   file names (no directories) in the media folder.
+ * @param {string}   relDir  the folder's path as the app should load it.
+ * @returns {Object<string, string[]>}
+ */
+function indexMediaFiles(names, relDir) {
+  const idx = {};
+  const prefix = relDir ? String(relDir).replace(/\/+$/, "") + "/" : "";
+  for (const f of [...names].map(String).sort()) {
+    const dash = f.indexOf("-");
+    if (dash <= 0) continue;
+    const id = f.slice(0, dash);
+    (idx[id] || (idx[id] = [])).push(prefix + f);
+  }
+  return idx;
 }
 
 /**
@@ -299,6 +326,7 @@ function collectParticipants(data, groupId) {
         if (!p._seen.has(k)) { p._seen.add(k); p.samples.push(t); }
       }
       if (m.m && p.media.length < 6) p.media.push({ m: m.m, k: m.k || kindOf(m.m) });
+      if (Array.isArray(m.mx)) for (const x of m.mx) { if (x && x.m && p.media.length < 6) p.media.push({ m: x.m, k: x.k || kindOf(x.m) }); }
     }
   }
   return [...map.values()]
@@ -591,6 +619,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, indexMediaFiles, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, ExportScanError, archiveChunks,
 };
