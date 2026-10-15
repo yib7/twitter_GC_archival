@@ -114,3 +114,25 @@ test("pins export includes every conversation's bookmarks, grouped per chat", as
 
   expect(errors).toEqual([]);
 });
+
+// An ignored person's reactions don't count on a pin from another chat,
+// just as they don't in that chat's own view.
+test("a pin from another chat leaves out ignored people's reactions", async ({ page }) => {
+  const { bootViewer } = require("./_viewer-fixture.js");
+  const T = Date.parse("2024-02-01T10:00:00Z");
+  const D = { conversations: [
+    { id: "A", type: "group", title: "Alpha", participants: ["u1"], count: 1, msgs: [{ i: "a1", s: "u1", t: T, x: "alpha one" }], events: [] },
+    { id: "B", type: "group", title: "Beta", participants: ["u2", "u3", "u4"], count: 2, msgs: [
+      { i: "b1", s: "u2", t: T, x: "beta reacted", r: [{ s: "u3", k: "like" }, { s: "u4", k: "like" }, { s: "u3", k: "funny" }] },
+      { i: "b2", s: "u4", t: T + 60000, x: "beta two" },
+    ], events: [] },
+  ] };
+  await bootViewer(page, D, { local: 'window.LOCAL_NAMES = {"u2":"Bo","u3":"Cy","u4":"Di"};',
+    ls: { "gca.conv": "A", "gca.lastView": "pins", "gca.settings": JSON.stringify({ pins: ["b1"], ignoredUsers: ["u3"] }) } });
+  const row = page.locator("#view-pins .msg", { hasText: "beta reacted" });
+  await expect(row).toBeVisible();
+  const reacts = row.locator(".reacts .react");
+  await expect(reacts).toHaveCount(1);
+  await expect(reacts.first().locator(".who")).toHaveText("1");
+  await expect(reacts.first()).toHaveAttribute("title", "like — Di");
+});

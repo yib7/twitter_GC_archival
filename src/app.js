@@ -5686,7 +5686,8 @@ function renderPins() {
   const byConv = new Map();   // convId -> Map(msgId -> msg)
   visibleConvos().forEach((c) => {
     const hits = new Map();
-    (c.msgs || []).forEach((m) => { if (wanted.has(m.i) && !ignored.has(String(m.s))) hits.set(m.i, m); });
+    // without ignored people's reactions, as in that chat's own view
+    (c.msgs || []).forEach((m) => { if (wanted.has(m.i) && !ignored.has(String(m.s))) hits.set(m.i, m.r ? withoutIgnored([m], ignored)[0] : m); });
     if (hits.size) byConv.set(c.id, hits);
   });
 
