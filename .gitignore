@@ -10,6 +10,9 @@ personal_data*/
 
 # Built archive (real messages) — regenerate with `node scripts/build.js`
 data.js
+# The build also writes data.js.bak (the archive before the last merge: real messages)
+# and data.js.<pid>.<hex>.tmp next to data.js; keep those out too if the folder is relocated.
+data.js.*
 
 # Raw Twitter/X exports (full content + headers, 1:1 + group). These two globs already
 # cover direct-messages.js, direct-messages-group.js, direct-message-headers.js, and
@@ -42,6 +45,10 @@ names.local.js
 
 # Raw export staging folder (real export files dropped here before setup)
 exports/
+
+# Key and certificate material: none belongs in this repo
+*.pem
+*.key
 
 # Local environment overrides (the app needs none, but never commit one if added)
 .env
