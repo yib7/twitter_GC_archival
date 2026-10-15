@@ -71,24 +71,14 @@ test.afterAll(async () => {
 
 // Drives the real /api/source build (paths typed directly, no native picker)
 // so /api/parts has a real roster — matching how every other setup-*.spec.js
-// gets past step 1. On a fresh archive the source fields are enabled; on a
-// reopened, already-built archive step 1 is locked (by design — see
-// src/setup.js lockSource) with no in-UI way to re-advance without either
-// rebuilding or "Start over" (which would wipe the very identity this test is
-// checking survives). Since re-submitting the SAME source files is exactly
-// what the lock banner tells the user to do to make changes, and apiSource
-// handles a repeat submission the same way server-side regardless of the
-// client-side disabled attribute, re-enabling the (visually locked) build
-// button is the least invasive way to reach step 3 on the second visit
-// without inventing new app behavior.
+// gets past step 1. On a reopened, already-built archive step 1 is locked;
+// SP7 (QA-6): the second visit now goes through the wizard's own "Add a
+// newer export" (the same export again) instead of re-enabling the locked
+// fields by script — the identity saved on the first visit must survive it.
 async function buildAndGotoPeopleStep(page) {
   await page.goto(BASE + "/setup.html");
   const locked = await page.locator("#src-locked").isVisible();
-  if (locked) {
-    await page.evaluate(() => {
-      ["src-group", "src-headers", "src-media", "btn-build"].forEach((id) => { document.getElementById(id).disabled = false; });
-    });
-  }
+  if (locked) await page.locator("#src-add").click();
   await page.locator("#src-group").fill(path.join(exportDir, "direct-messages-group.js"));
   await page.locator("#src-headers").fill(path.join(exportDir, "direct-message-group-headers.js"));
   await page.locator("#src-media").fill(path.join(exportDir, "media"));

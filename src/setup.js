@@ -306,7 +306,25 @@ function lockSource(locked) {
   ["#src-root", "#root-browse", "#src-group", "#src-headers", "#src-media", "#group-browse", "#headers-browse", "#media-browse", "#btn-build"]
     .forEach((s) => { const el = $(s); if (el) el.disabled = locked; });
   const banner = $("#src-locked"); if (banner) banner.hidden = !locked;
+  if (locked) { merging = false; const m = $("#src-merge"); if (m) m.hidden = true; }
 }
+// SP-5 / QA-6: "Add a newer export" — unlock the fields to pick a newer
+// download; its preview shows what merging adds, and the build merges it into
+// the archive (the existing data.js is the baseline; removals and identity stay).
+let merging = false;
+$("#src-add").onclick = () => {
+  lockSource(false);
+  merging = true;
+  $("#src-merge").hidden = false;
+  $("#src-result").hidden = true;
+  $("#src-root").focus();
+};
+$("#src-add-cancel").onclick = () => {
+  hidePreflight();
+  $("#src-result").hidden = true;
+  lockSource(true);
+  $("#src-add").focus();
+};
 function loadStatus() {
   statusReady = (async () => {
     if (!SERVED) return;
@@ -470,7 +488,7 @@ $("#btn-build").onclick = async () => {
     flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
   } finally {
     building = false;
-    if (!built) $("#btn-build").disabled = false;
+    if (!built || merging) $("#btn-build").disabled = false;
   }
 };
 // Step 1, part 2: the user saw the preview and confirmed — copy + build.
@@ -496,7 +514,9 @@ $("#btn-confirm").onclick = async () => {
     refreshGroupStep();
     const groupList = groups.map((g) => `<li>${escapeHtml(g.title || "Group " + String(g.id).slice(-4))} — ${Number(g.count).toLocaleString()} messages</li>`).join("");
     flash($("#src-result"),
-      `✓ Built <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)` +
+      (j.merged
+        ? `✓ Merged: <b>${Math.max(0, Number(j.added) || 0).toLocaleString()}</b> new messages added — your archive now has <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)`
+        : `✓ Built <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)`) +
       (j.partFiles > 1 ? ` from <b>${Number(j.partFiles)}</b> message part files` : "") +
       (j.mediaCopied ? `, copied <b>${j.mediaCopied.toLocaleString()}</b> media files` : "") +
       `.<ul>${groupList}</ul>` + buildNotesHtml(j) + buildWarningsHtml(j) + buildLogHtml(j.log), "ok");
@@ -507,7 +527,7 @@ $("#btn-confirm").onclick = async () => {
     flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
   } finally {
     building = false;
-    if (!built) { $("#btn-build").disabled = false; $("#btn-confirm").disabled = false; }   // after a success the source stays locked
+    if (!built || merging) { $("#btn-build").disabled = false; $("#btn-confirm").disabled = false; }   // after a success the source stays locked
   }
 };
 

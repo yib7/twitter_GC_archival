@@ -284,6 +284,20 @@ function copyJournal(backupDir) {
     commit() { fs.rmSync(backupDir, { recursive: true, force: true }); },
   };
 }
+// SP7: once a build from a new export has committed, copies of an older
+// export's files in personal_data/source/ that config no longer points at are
+// just stale private data (the archive's history lives in data.js).
+function pruneSource(keep) {
+  const dir = path.join(PERSONAL, "source");
+  const wanted = new Set(keep.map((p) => path.resolve(p)));
+  let names;
+  try { names = fs.readdirSync(dir); } catch (e) { return; }
+  for (const n of names) {
+    const p = path.join(dir, n);
+    if (wanted.has(path.resolve(p)) || !isInsidePersonal(p, PERSONAL)) continue;
+    try { if (fs.statSync(p).isFile()) fs.rmSync(p, { force: true }); } catch (e) { console.error("Couldn't remove source/" + n + ": " + (e && e.message)); }
+  }
+}
 const PREV_DIR_RE = /^(?:source|media)\.prev-\d+-[0-9a-f]+$/;
 const prevDirName = (name) => name + ".prev-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
 // SP7 (SP6 review #3): a server killed mid-build leaves its backup folders
@@ -612,6 +626,10 @@ async function sourceAndBuild(body, res, progress) {
     saveConfig(cfg);
   } catch (e) { undo(); throw e; }   // a copy failed part-way (disk full, unreadable file …)
 
+  // SP-5: building over an existing archive merges into it (build.js streams
+  // the old data.js in as the baseline); say how much this export added.
+  const before = duringBlocking(() => readSummary());
+  const previousMsgs = before ? before.conversations.reduce((s, c) => s + (c.count || 0), 0) : 0;
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
   progress.phase = "build";
   const built = await runBuildAsync();
@@ -623,11 +641,12 @@ async function sourceAndBuild(body, res, progress) {
   }
   srcJournal.commit(); mediaJournal.commit();
   clearStaleBackups();
+  pruneSource(cfg.sourceJs.concat(asList(cfg.headersJs)));
   const buildLog = built.log;
 
   const groups = groupsOf(readSummary());
   const totalMsgs = groups.reduce((s, g) => s + (g.count || 0), 0);
-  sendJSON(res, 200, { ok: true, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
+  sendJSON(res, 200, { ok: true, merged: !!before, previousMsgs, added: totalMsgs - previousMsgs, swapped, mediaCopied: media.copied, mediaSame: media.same || 0, mediaUnmatched: media.unmatched, mediaDescended: src.mediaDescended, via: src.via, notes: src.notes, groups, totalMsgs, partFiles: groupFiles.length, headerPartFiles: headerFiles.length, log: buildLog });
 }
 // The media folder against this export's message ids: files that will be
 // copied (`files`, `bytes`), files of removed people / groups (`removed`)

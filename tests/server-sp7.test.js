@@ -188,3 +188,59 @@ describe("SP7: media copy progress and the busy guard", () => {
     assert.equal(j.mediaSame, 3);
   });
 });
+
+// SP-5 / SP-4: "Add a newer export" is a true merge, and the wizard can see
+// (and so keep) the group names and photos saved earlier.
+describe("SP7: adding a newer export merges into the archive", () => {
+  let S;
+  const PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("/api/status returns the saved group names and photos", async () => {
+    const a = X.writeExport(scratch());
+    assert.equal((await source(S, a)).status, 200);
+    const r = await S.post("/api/identity", { names: { 111: "Ann" }, pfps: {}, me: "111", gc: { 1000000001: { name: "Crew", photo: PNG } }, ignoredUsers: ["333"], ignoredGroups: [] });
+    assert.equal(r.status, 200, JSON.stringify(await r.json()));
+    const st = await (await S.get("/api/status")).json();
+    assert.equal(st.gc["1000000001"].name, "Crew");
+    assert.match(st.gc["1000000001"].photo, /^personal_data\/pfps\/group_crew_pfp\.png$/);
+    assert.deepEqual(st.ignoredUsers, ["333"]);
+  });
+
+  test("a save that sends a group entry without a name keeps the saved name", async () => {
+    const r = await S.post("/api/identity", { names: {}, pfps: {}, gc: { 1000000001: { photo: null } }, ignoredUsers: ["333"], ignoredGroups: [] });
+    assert.equal(r.status, 200);
+    const st = await (await S.get("/api/status")).json();
+    assert.equal(st.gc["1000000001"].name, "Crew");
+    assert.ok(st.gc["1000000001"].photo);
+  });
+
+  test("building a newer, overlapping export unions the messages and says what it added", async () => {
+    const dataBefore = fs.readFileSync(path.join(S.personal, "data.js"));
+    const b = X.writeExportB(scratch());
+    const r = await S.post("/api/source", { archiveRoot: b.root });
+    const j = await r.json();
+    assert.equal(r.status, 200, JSON.stringify(j));
+    assert.equal(j.merged, true);
+    assert.equal(j.previousMsgs, 6, "A without 333's 9004");
+    assert.equal(j.added, 4, "9006, 9007, 9201, 9202 (333's 9008 stays out)");
+    assert.equal(j.totalMsgs, 10);
+    assert.deepEqual(fs.readFileSync(path.join(S.personal, "data.js.bak")), dataBefore, "data.js.bak is the archive as it was before the merge");
+    const { readData } = require("./_sp6-server.js");
+    const data = readData(S.personal);
+    const ids = (cid) => data.conversations.find((c) => String(c.id) === cid).msgs.map((m) => String(m.i)).sort();
+    assert.deepEqual(ids("1000000001"), ["9001", "9002", "9003", "9005", "9006", "9007"]);
+    assert.deepEqual(ids("1000000002"), ["9101", "9102"], "a group only the older export had is kept");
+    assert.deepEqual(ids("1000000003"), ["9201", "9202"]);
+    const cfg = JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+    assert.equal(cfg.me, "111");
+    assert.equal(cfg.names["111"], "Ann");
+    assert.equal(cfg.gc["1000000001"].name, "Crew");
+    assert.deepEqual(cfg.ignoredUsers, ["333"]);
+    // only the newer export's files are left in source/ (A's part1 copy is gone)
+    assert.deepEqual(fs.readdirSync(path.join(S.personal, "source")).sort(), ["direct-message-group-headers.js", "direct-messages-group.js"]);
+    assert.ok(!fs.existsSync(path.join(S.personal, "media", "9008-Removed.png")), "a removed person's media isn't copied in");
+    assert.ok(fs.existsSync(path.join(S.personal, "media", "9201-Group3.png")));
+  });
+});

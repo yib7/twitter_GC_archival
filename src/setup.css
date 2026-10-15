@@ -316,3 +316,10 @@
 .build-progress::-webkit-progress-value { background: linear-gradient(90deg, var(--accent), var(--accent-soft)); border-radius: var(--radius-pill); transition: width 0.3s ease; }
 .build-progress::-moz-progress-bar { background: linear-gradient(90deg, var(--accent), var(--accent-soft)); border-radius: var(--radius-pill); }
 @media (prefers-reduced-motion: reduce) { .build-progress::-webkit-progress-value { transition: none; } }
+
+/* SP7: "Add a newer export" (merge mode) notice under the unlocked fields */
+.setup-merge { margin-top: 12px; padding: 11px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5;
+  background: var(--accent-glow); border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); color: var(--text-dim); }
+.setup-merge b { color: var(--text); }
+.setup-merge code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
+.setup-merge .setup-actions, .setup-locked .setup-actions { margin-top: 10px; }
