@@ -41,6 +41,15 @@ jobs:
         # own "lint" script, so this matches what a contributor runs locally.
         run: npm run lint
 
+      # The committed demo data must be exactly what the generator makes
+      # (fixed seed, fixed "now"): regenerate it and fail on any change or
+      # any new file under sample_media/.
+      - name: Sample data is reproducible
+        run: |
+          node scripts/make_sample.js
+          git diff --exit-code -- data.sample.js sample_media
+          test -z "$(git status --porcelain -- data.sample.js sample_media)"
+
   test:
     strategy:
       fail-fast: false
