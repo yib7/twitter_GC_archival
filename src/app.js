@@ -1763,6 +1763,10 @@ function msgPasses(ctx, m, L) {
   return true;
 }
 function testMsgNoNeedle(i) { return msgPasses(SQ, MSGS[i], LOWER[i]); }
+function hasPhrases(ctx, L) {
+  for (const ph of ctx.phrases) if (L.indexOf(ph) < 0) return false;
+  return true;
+}
 // Any filter or operator in effect (the "Showing all …" line otherwise).
 function ctxFiltered(ctx) {
   return !!(ctx.needles.length || ctx.excludes.length || ctx.people || ctx.from != null || ctx.to != null ||
@@ -1865,7 +1869,10 @@ function runSearch() {
       const lit = out;
       fuzzyPattern = F.needles.join(" ");
       fuzzyRanges = new Map();
-      const fz = fuzzyMatch(fuzzyPattern).filter(testMsgNoNeedle);
+      // VC-11: "quoted phrases" stay exact in Fuzzy mode — a close match must
+      // still hold each one contiguously (same lowercasing as the literal
+      // tier); only the unquoted words are typo-tolerant.
+      const fz = fuzzyMatch(fuzzyPattern).filter((i) => testMsgNoNeedle(i) && hasPhrases(SQ, LOWER[i]));
       if (fuzzyForceQ) {
         // Opted in: literal hits first, then Fuse's close matches. A literal
         // AND-hit Fuse can't score (reordered words, patterns over 32 chars)
