@@ -45,20 +45,23 @@ const NO_ROOT_FALLBACK = !!process.env.GCA_NO_ROOT_FALLBACK;
 
 // When launched via the double-click launcher (`--open`), shut the server down
 // once the browser is closed — so users aren't left with a stray command window.
-// Served pages send a heartbeat (GET /api/ping); when it goes quiet, we exit.
-const AUTO_EXIT = process.argv.includes("--open");
-const IDLE_MS = 6000;
-const live = makeLiveness(IDLE_MS);
+// Served pages ping GET /api/ping?c=<page id> and send a goodbye beacon
+// (POST /api/bye?c=<page id>) when they close; see makeLiveness (SP-6) for why
+// a quiet heartbeat alone is never taken as "closed".
+// GCA_AUTO_EXIT=1 turns the same behaviour on without opening a browser (tests).
+const AUTO_EXIT = process.argv.includes("--open") || process.env.GCA_AUTO_EXIT === "1";
+const live = makeLiveness({ graceMs: 5000, idleMs: 30 * 60 * 1000 });
 let idleWatch = null;
-function notePing() {
-  live.ping();
+const clientIdOf = (qs) => { const m = /(?:^|&)c=([A-Za-z0-9_-]{1,64})(?:&|$)/.exec(qs || ""); return m ? m[1] : "anon"; };
+function notePing(id) {
+  live.ping(id);
   if (AUTO_EXIT && !idleWatch) {   // arm the watchdog once the browser first connects
     idleWatch = setInterval(() => {
       if (live.shouldExit()) {
         console.log("Browser closed — shutting down.");
         process.exit(0);
       }
-    }, 2000);
+    }, 1000);
   }
 }
 // Bracket a synchronous, event-loop-freezing call (a native picker, the build) so
@@ -673,7 +676,7 @@ function serveStatic(req, res) {
 // The two picker GETs are included even though they're GETs: they freeze the
 // event loop with a blocking native dialog, so a cross-origin page spamming
 // them is a DoS + dialog-spoofing vector, not a harmless read.
-const GUARDED = new Set(["/api/reset", "/api/source", "/api/identity", "/api/pick-file", "/api/pick-folder"]);
+const GUARDED = new Set(["/api/reset", "/api/source", "/api/identity", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
 // SP-11: the pickers additionally need this per-process token, which only
 // setup.html receives (injected into its HTML). Random per start, held in
 // memory only: never logged, printed or written to disk.
@@ -697,7 +700,8 @@ const server = http.createServer(async (req, res) => {
     if (PICKERS.has(url) && !isPickerRequestAllowed(req.headers, PICKER_TOKEN, PORT)) {
       return sendJSON(res, 403, { error: "forbidden" });
     }
-    if (req.method === "GET" && url === "/api/ping") { notePing(); return sendJSON(res, 200, { ok: true }); }
+    if (req.method === "GET" && url === "/api/ping") { notePing(clientIdOf(qs)); return sendJSON(res, 200, { ok: true }); }
+    if (req.method === "POST" && url === "/api/bye") { live.bye(clientIdOf(qs)); req.resume(); res.writeHead(204); return res.end(); }
     if (req.method === "GET" && url === "/api/pick-file") { const which = /(?:^|&)for=headers(?:&|$)/.test(qs || "") ? "headers" : "group"; const p = nativePick("file", which); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "GET" && url === "/api/pick-folder") { const p = nativePick("folder"); return sendJSON(res, 200, { path: p == null ? "" : p, supported: p !== null }); }
     if (req.method === "POST" && url === "/api/source") return apiSource(await readBody(req, res), res);

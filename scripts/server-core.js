@@ -241,26 +241,53 @@ function isIdleTimedOut(lastPing, now, idleMs) {
 }
 
 // Liveness tracker for the launcher's auto-exit watchdog (server.js arms it only
-// under --open). Browser heartbeats (GET /api/ping) call ping(). Server-initiated
-// blocking work — the native file/folder pickers and the build — runs via a
-// synchronous execFileSync that FREEZES the event loop, so heartbeats can't arrive
-// while a picker dialog is open; that frozen stretch must never be mistaken for the
-// browser going away. enter()/leave() bracket such work: while busy the watchdog
-// holds off, and leave() refreshes the heartbeat so the idle clock restarts from
-// when the blocking call finished (we were actively serving the user) rather than
-// from the now-stale ping taken before it began. `clock` is injectable for tests.
-function makeLiveness(idleMs, clock) {
+// under --open), so closing the browser also closes the command window.
+//
+// SP-6: silence is NOT a close signal — Chromium throttles timers in hidden
+// tabs to about one a minute, sleeping tabs / Memory Saver / a laptop lid stop
+// them entirely, and the old "6 s without a ping" rule shut the server down
+// under a user who had only switched tabs. Each open page pings with its own
+// client id and says goodbye (sendBeacon /api/bye) on pagehide; the server
+// exits `graceMs` after the LAST open page said goodbye (a reload or a step
+// from the wizard to the archive pings again well inside the grace), or after
+// `idleMs` with no contact at all (a killed browser never says goodbye).
+//
+// Server-initiated blocking work — the native pickers and the build — freezes
+// the event loop, so nothing can arrive meanwhile; enter()/leave() bracket it,
+// the watchdog holds off while busy, and leave() restarts the clocks.
+// `clock` is injectable for tests.
+function makeLiveness(opts, clock) {
+  const o = opts || {};
+  const graceMs = o.graceMs != null ? o.graceMs : 5000;
+  const idleMs = o.idleMs != null ? o.idleMs : 30 * 60 * 1000;
   const now = clock || Date.now;
-  let lastPing = 0;
+  const clients = new Set();
+  let lastContact = 0;   // 0 = no page has ever connected
+  let byeAt = 0;         // when the last open page said goodbye (0 = pages still open)
   let busy = 0;
   return {
-    ping() { lastPing = now(); },
+    ping(id) {
+      clients.add(String(id == null ? "" : id));
+      lastContact = now(); byeAt = 0;
+    },
+    bye(id) {
+      clients.delete(String(id == null ? "" : id));
+      if (lastContact === 0) return;
+      lastContact = now();
+      if (clients.size === 0) byeAt = now();
+    },
     enter() { busy++; },
-    leave() { if (busy > 0) busy--; lastPing = now(); },
+    leave() {
+      if (busy > 0) busy--;
+      if (lastContact !== 0) { lastContact = now(); if (byeAt) byeAt = now(); }
+    },
     isBusy() { return busy > 0; },
-    // Exit only when the browser has genuinely gone quiet: never before the first
-    // heartbeat, and never while a blocking call is still in flight.
-    shouldExit() { return busy === 0 && lastPing !== 0 && isIdleTimedOut(lastPing, now(), idleMs); },
+    openPages() { return clients.size; },
+    shouldExit() {
+      if (busy > 0 || lastContact === 0) return false;
+      if (byeAt && isIdleTimedOut(byeAt, now(), graceMs)) return true;
+      return isIdleTimedOut(lastContact, now(), idleMs);
+    },
   };
 }
 

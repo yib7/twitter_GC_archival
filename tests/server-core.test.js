@@ -98,41 +98,84 @@ test("isIdleTimedOut is true only once the heartbeat gap exceeds the idle window
   assert.equal(isIdleTimedOut(1000, 1000 + 7000, 6000), true);   // 7s gap > 6s window
 });
 
+// SP-6 (deep audit) replaced the old rule "exit after 6 s without a ping":
+// Chromium throttles timers in hidden tabs to about one a minute and sleeping
+// tabs / a laptop lid stop them entirely, so the launcher's server quit under
+// a user who had only switched tabs. The close signal is now the page's own
+// goodbye (sendBeacon /api/bye on pagehide) plus a short grace, with a long
+// idle as the backstop. These tests replace the 6 s ones.
+const GRACE = 5000, IDLE = 30 * 60 * 1000;
+
 test("liveness never exits before the first heartbeat arrives", () => {
   const clock = fakeClock(0);
-  const live = makeLiveness(6000, clock);
-  clock.advance(100000);                       // lots of time, but no ping ever seen
-  assert.equal(live.shouldExit(), false);      // nothing to time out yet
+  const live = makeLiveness({ graceMs: GRACE, idleMs: IDLE }, clock);
+  clock.advance(IDLE * 2);                     // lots of time, but no ping ever seen
+  assert.equal(live.shouldExit(), false);
 });
 
-test("liveness exits once heartbeats stop for longer than the idle window", () => {
+test("liveness tolerates a throttled or frozen hidden tab: minutes of silence are not a close", () => {
   const clock = fakeClock(1000);
-  const live = makeLiveness(6000, clock);
-  live.ping();                                 // browser alive
-  clock.advance(5000);
-  assert.equal(live.shouldExit(), false);      // 5s gap < 6s window
-  clock.advance(2000);                         // 7s since the last heartbeat
-  assert.equal(live.shouldExit(), true);       // browser really went away
+  const live = makeLiveness({ graceMs: GRACE, idleMs: IDLE }, clock);
+  live.ping("tab1");
+  clock.advance(6 * 60 * 1000);                // a background tab pinging once a minute, or not at all
+  assert.equal(live.shouldExit(), false);
+  live.ping("tab1");
+  clock.advance(IDLE - 1000);
+  assert.equal(live.shouldExit(), false);
+});
+
+test("liveness exits a short grace after the last open page says goodbye", () => {
+  const clock = fakeClock(1000);
+  const live = makeLiveness({ graceMs: GRACE, idleMs: IDLE }, clock);
+  live.ping("tab1"); live.ping("tab2");
+  live.bye("tab1");
+  clock.advance(GRACE + 1000);
+  assert.equal(live.shouldExit(), false, "another page is still open");
+  live.bye("tab2");
+  clock.advance(GRACE - 1000);
+  assert.equal(live.shouldExit(), false, "still inside the grace");
+  clock.advance(2000);
+  assert.equal(live.shouldExit(), true, "the browser really went away");
+});
+
+test("a reload or a step to the archive page (bye, then a new page pings) does not exit", () => {
+  const clock = fakeClock(1000);
+  const live = makeLiveness({ graceMs: GRACE, idleMs: IDLE }, clock);
+  live.ping("setup");
+  live.bye("setup");
+  clock.advance(800);
+  live.ping("archive");
+  clock.advance(GRACE * 3);
+  assert.equal(live.shouldExit(), false);
+});
+
+test("liveness still exits after the long idle when no goodbye ever came (browser killed)", () => {
+  const clock = fakeClock(1000);
+  const live = makeLiveness({ graceMs: GRACE, idleMs: IDLE }, clock);
+  live.ping("tab1");
+  clock.advance(IDLE + 1000);
+  assert.equal(live.shouldExit(), true);
 });
 
 // Regression: a native file picker runs execFileSync, which freezes the event
-// loop so heartbeats can't arrive while the dialog is open. The watchdog must not
-// mistake that frozen stretch for a closed browser, and the idle clock must
-// restart when the picker returns (we were actively serving the user) — not keep
-// counting from the stale pre-Browse heartbeat.
+// loop so nothing can arrive while the dialog is open. The watchdog must not
+// exit during it, and the clocks restart when it returns.
 test("liveness does not exit during or right after a long native picker", () => {
   const clock = fakeClock(1000);
-  const live = makeLiveness(6000, clock);
-  live.ping();                                 // last heartbeat just before Browse… clicked
+  const live = makeLiveness({ graceMs: GRACE, idleMs: IDLE }, clock);
+  live.ping("tab1");
   live.enter();                                // picker opens; event loop will freeze
-  clock.advance(20000);                        // user browses for 20s — no pings possible
+  clock.advance(IDLE + 20000);                 // a very long stretch with no pings possible
   assert.equal(live.shouldExit(), false, "must not exit while a picker is open");
   live.leave();                                // picker returns
   assert.equal(live.shouldExit(), false, "must not exit immediately after the picker closes");
-  clock.advance(5000);
-  assert.equal(live.shouldExit(), false, "idle clock restarts from when the picker closed");
-  clock.advance(2000);                         // 7s after the picker closed, still no heartbeat
-  assert.equal(live.shouldExit(), true, "normal idle timeout resumes after the picker");
+  live.bye("tab1");
+  live.enter();
+  clock.advance(GRACE * 2);
+  assert.equal(live.shouldExit(), false, "busy wins over a goodbye too");
+  live.leave();
+  clock.advance(GRACE + 1000);
+  assert.equal(live.shouldExit(), true, "the goodbye counts once the blocking call is done");
 });
 
 // Regression: apiIdentity used to set cfg.names = body.names verbatim, so
