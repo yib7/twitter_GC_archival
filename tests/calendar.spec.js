@@ -84,7 +84,7 @@ test.describe("calendar heatmap", () => {
     await page.keyboard.press("PageUp");
     await page.keyboard.press("PageUp");
     await page.keyboard.press("PageUp");
-    expect(await focused()).toMatch(/^Friday, February 28, 2023|^Tuesday, February 28, 2023/);
+    expect(await focused()).toMatch(/^Tuesday, February 28, 2023/);
     await page.keyboard.press("Home");
     expect(await focused()).toMatch(/^Wednesday, February 1, 2023/);
     await page.keyboard.press("ArrowDown");
