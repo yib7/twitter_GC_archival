@@ -23,7 +23,9 @@ const { archiveScript } = require("./fixtures/synthetic-archive.js");
 //   All chats keystroke (SP9) ...... < 120   (exact tier over BOTH chats,
 //     120k messages, grouped — the same keystroke budget)
 //   All chats switch-on (SP9) ...... < 400   (a deliberate click: builds the
-//     other chat's search index lazily, then runs the query)
+//     other chat's search index lazily, then runs the query — sampled with
+//     the 100k chat active (20k index built) AND with the 20k chat active
+//     (the 100k index built); each case must fit, so the worst is asserted)
 //
 // CI robustness: shared CI runners are slower and noisier than a dev box, so
 // every budget is multiplied by GCA_PERF_MULT (default 1 locally, 2 when
@@ -238,6 +240,13 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
     const k = await keystroke(page, q);
     R.allChatsKey.push(k.ms); R.allChatsMeta.push(k.meta);
   }
+  // …and with the SIDE chat active, so the 100k chat's index is the one built
+  // lazily on switch-on (the worst case).
+  await page.locator('#s-scope [data-scope="this"]').click();
+  await timed(page, pickConv(SIDE));
+  await expect(page.locator("#s-meta")).toContainText("Showing all 20,000");
+  R.allChatsFirst.push(await timed(page, "document.querySelector('#s-scope [data-scope=all]').click()"));
+  await expect(page.locator("#s-meta")).toContainText("in 2 chats");
 
   R.longTasks = await page.evaluate(() => window.__lt.map(Math.round));
   await testInfo.attach("perf-100k.json", { body: JSON.stringify(R, null, 1), contentType: "application/json" });
@@ -262,5 +271,6 @@ test("@perf 100k synthetic archive stays inside the SP3 budgets", async ({ page 
   expect.soft(Math.max(...R.paletteKey), "palette keystroke (worst query)").toBeLessThan(BUDGET.paletteKey * MULT);
   expect(R.allChatsMeta[1], "All chats searched both chats").toMatch(/ in 2 chats/);
   expect.soft(Math.max(...R.allChatsKey), "All chats keystroke (worst query)").toBeLessThan(BUDGET.allChatsKey * MULT);
-  expect.soft(best(R.allChatsFirst), "All chats switch-on (lazy index)").toBeLessThan(BUDGET.allChatsFirst * MULT);
+  expect(R.allChatsFirst, "both switch-on cases sampled").toHaveLength(2);
+  expect.soft(Math.max(...R.allChatsFirst), "All chats switch-on, worst case (lazy index)").toBeLessThan(BUDGET.allChatsFirst * MULT);
 });
