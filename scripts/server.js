@@ -186,8 +186,10 @@ function decodeDataUrl(url, whose) {
 // (1:1 DMs, account.js, other media) into the servable personal_data/media/.
 // X's group media folder is flat, so there are no same-name clashes to resolve.
 // `skipExisting` (SP-14 restore) copies only files destDir doesn't have yet.
+// `journal` (fix round 1, #9) records each copy so a failed build can undo it.
 function copyMediaFlat(srcDir, destDir, opts) {
   const skipExisting = !!(opts && opts.skipExisting);
+  const journal = (opts && opts.journal) || null;
   const skip = (opts && opts.skip) || null;   // names not to copy (e.g. still quarantined)
   const ids = (opts && opts.ids) || null;     // only media of these message ids (fix round 1, #7)
   fs.mkdirSync(destDir, { recursive: true });
@@ -197,11 +199,48 @@ function copyMediaFlat(srcDir, destDir, opts) {
       const dest = path.join(destDir, e.name);
       if (skip && skip.has(e.name)) continue;
       if (skipExisting && fs.existsSync(dest)) continue;
-      fs.copyFileSync(path.join(srcDir, e.name), dest); copied++;
+      if (journal) journal.copy(path.join(srcDir, e.name), dest);
+      else fs.copyFileSync(path.join(srcDir, e.name), dest);
+      copied++;
     } else unmatched++;
   }
   return { copied, unmatched };
 }
+// Fix round 1 (#9): a new source is copied over the previous one (source/ and
+// media/) BEFORE its build runs, so a failed build used to leave the previous
+// copies overwritten. Every copy goes through this journal instead: a file it
+// would replace is first moved into `backupDir` (a rename, so no extra space),
+// and a new file is noted. rollback() deletes the new files and moves the
+// replaced ones back; commit() drops the backups. Media and source names are
+// flat (no folders), so one backup folder per destination never clashes.
+function copyJournal(backupDir) {
+  const created = [], saved = [];
+  return {
+    copy(src, dest) {
+      if (fs.existsSync(dest)) {
+        fs.mkdirSync(backupDir, { recursive: true });
+        const kept = path.join(backupDir, path.basename(dest));
+        fs.renameSync(dest, kept);
+        saved.push([kept, dest]);
+      } else created.push(dest);
+      fs.copyFileSync(src, dest);
+    },
+    rollback() {
+      const problems = [];
+      for (const f of created) { try { fs.rmSync(f, { force: true }); } catch (e) { problems.push(f); } }
+      for (const [kept, dest] of saved) {
+        try { fs.rmSync(dest, { force: true }); fs.renameSync(kept, dest); } catch (e) { problems.push(dest); }
+      }
+      // Anything that couldn't be put back stays in backupDir rather than lost.
+      if (!problems.length) fs.rmSync(backupDir, { recursive: true, force: true });
+      return problems;
+    },
+    commit() { fs.rmSync(backupDir, { recursive: true, force: true }); },
+  };
+}
+const PREV_DIR_RE = /^(?:source|media)\.prev-\d+-[0-9a-f]+$/;
+const prevDirName = (name) => name + ".prev-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
+
 // SP-7: the folder the user picked → the group media folder to copy from.
 // Picking the archive (or its data/ folder) uses its direct_messages_group_media
 // inside; a folder that is clearly something else is refused with a reason.
@@ -396,43 +435,56 @@ function apiSource(body, res) {
   // Copy every source into personal_data/source/ so ALL private data lives under
   // personal_data/ (the export is just as private as the messages).
   const srcDir = path.join(PERSONAL, "source");
-  fs.mkdirSync(srcDir, { recursive: true });
-  // Store absolute destinations (not "personal_data/…"-relative-to-ROOT) so this
-  // works whether PERSONAL is the real ROOT/personal_data or a GCA_PERSONAL
-  // override (tests) — build.js's own path resolution already accepts absolute
-  // paths as-is, so no change needed there.
-  const copyInto = (abs) => {
-    const dest = path.join(srcDir, path.basename(abs));
-    if (path.resolve(abs) !== path.resolve(dest)) fs.copyFileSync(abs, dest);
-    return dest;
-  };
-  cfg.sourceJs = groupFiles.map(copyInto);   // message bodies (build parses these)
-  const headerDests = headerFiles.map(copyInto);
-  cfg.headersJs = headerDests.length === 1 ? headerDests[0] : headerDests;  // metadata only (roster + events)
-
-  // media is required → always copied. Thousands of files can take a while to
-  // copy synchronously, so bracket it in duringBlocking like the build below —
-  // otherwise the auto-exit watchdog could mistake the frozen event loop for
-  // the browser having closed.
   const mediaDestDir = path.join(PERSONAL, "media");
-  const media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids }));
-  cfg.mediaDir = mediaDestDir;
-  // SP-14: remembered so media pruned for a removed group / person can be
-  // restored from the export if they're un-removed later.
-  cfg.mediaSourceDir = mediaAbs;
-  saveConfig(cfg);
+  fs.mkdirSync(srcDir, { recursive: true });
+  // Fix round 1 (#9): every copy is journaled so a failed build puts back the
+  // previous source/ and media/ files, not just config.json.
+  const srcJournal = copyJournal(path.join(PERSONAL, prevDirName("source")));
+  const mediaJournal = copyJournal(path.join(PERSONAL, prevDirName("media")));
+  const undo = () => {
+    const left = srcJournal.rollback().concat(mediaJournal.rollback());
+    try {
+      if (cfgBefore) writeFileAtomic(CONFIG, cfgBefore);
+      else fs.rmSync(CONFIG, { force: true });
+    } catch (err) { left.push(CONFIG); }
+    if (left.length) console.error("[setup] couldn't put back " + left.length + " file(s) after a failed build; the previous copies are in personal_data/*.prev-*");
+  };
+  let media;
+  try {
+    // Store absolute destinations (not "personal_data/…"-relative-to-ROOT) so this
+    // works whether PERSONAL is the real ROOT/personal_data or a GCA_PERSONAL
+    // override (tests) — build.js's own path resolution already accepts absolute
+    // paths as-is, so no change needed there.
+    const copyInto = (abs) => {
+      const dest = path.join(srcDir, path.basename(abs));
+      if (path.resolve(abs) !== path.resolve(dest)) srcJournal.copy(abs, dest);
+      return dest;
+    };
+    cfg.sourceJs = groupFiles.map(copyInto);   // message bodies (build parses these)
+    const headerDests = headerFiles.map(copyInto);
+    cfg.headersJs = headerDests.length === 1 ? headerDests[0] : headerDests;  // metadata only (roster + events)
+
+    // media is required → always copied. Thousands of files can take a while to
+    // copy synchronously, so bracket it in duringBlocking like the build below —
+    // otherwise the auto-exit watchdog could mistake the frozen event loop for
+    // the browser having closed.
+    media = duringBlocking(() => copyMediaFlat(mediaAbs, mediaDestDir, { ids, journal: mediaJournal }));
+    cfg.mediaDir = mediaDestDir;
+    // SP-14: remembered so media pruned for a removed group / person can be
+    // restored from the export if they're un-removed later.
+    cfg.mediaSourceDir = mediaAbs;
+    saveConfig(cfg);
+  } catch (e) { undo(); throw e; }   // a copy failed part-way (disk full, unreadable file …)
 
   // run the build (it reads personal_data/config.json and writes personal_data/data.js)
   const built = runBuild();
   if (!built.ok) {
-    // A failed build wrote no data.js; put config.json back the way it was so
-    // the wizard isn't left pointing at the file that just failed.
-    try {
-      if (cfgBefore) writeFileAtomic(CONFIG, cfgBefore);
-      else fs.rmSync(CONFIG, { force: true });
-    } catch (err) { /* best effort — the next build overwrites it anyway */ }
+    // A failed build wrote no data.js; put config.json, source/ and media/ back
+    // the way they were so the wizard isn't left pointing at the file that just failed.
+    undo();
     return sendJSON(res, 422, { error: built.error, log: built.log });
   }
+  srcJournal.commit(); mediaJournal.commit();
   const buildLog = built.log;
 
   const data = readBuiltData();
@@ -717,6 +769,8 @@ function apiStatus(res) {
 function apiReset(res) {
   const targets = ["config.json", "data.js", "data.js.bak", "local.js", "source", "media", "pfps", ".removed"];
   const removed = [];
+  // fix round 1 (#9): backups of a source change interrupted mid-build
+  if (fs.existsSync(PERSONAL)) for (const f of fs.readdirSync(PERSONAL)) if (PREV_DIR_RE.test(f)) targets.push(f);
   for (const name of targets) {
     const p = path.join(PERSONAL, name);
     if (!isInsidePersonal(p, PERSONAL)) continue;   // hard guard — never outside personal_data/

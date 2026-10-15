@@ -538,3 +538,48 @@ describe("SP-23: not enough disk space is caught before copying", () => {
     assert.ok(!fs.existsSync(path.join(S.personal, "source")), "no export copied");
   });
 });
+
+// Fix round 1 (review #9): when the build after a new /api/source failed,
+// config.json was put back but source/ and media/ had already been
+// overwritten with the new (failing) export. They are now restored too.
+describe("fix round 1: a failed source build leaves the previous copies as they were", () => {
+  let S, f;
+  before(async () => {
+    S = await startServer();
+    f = X.writeExport(scratch());
+    assert.equal((await source(S, f.group, f.headers, f.media)).status, 200);
+  });
+  after(() => S.stop());
+  const snapshot = () => {
+    const out = {};
+    for (const d of ["source", "media"]) {
+      for (const n of fs.readdirSync(path.join(S.personal, d))) out[d + "/" + n] = fs.readFileSync(path.join(S.personal, d, n), "utf8");
+    }
+    for (const n of ["config.json", "data.js"]) out[n] = fs.readFileSync(path.join(S.personal, n), "utf8");
+    return out;
+  };
+
+  test("an export whose build fails changes nothing in personal_data/", async () => {
+    const before = snapshot();
+    // Same file names as the first export, but the messages file is cut off
+    // part-way (a damaged download), so the build refuses it.
+    const bad = scratch(), data = path.join(bad, "data"), media = path.join(data, "direct_messages_group_media");
+    fs.mkdirSync(media, { recursive: true });
+    fs.writeFileSync(path.join(data, "direct-messages-group.js"), X.ytd("direct_messages_group", "part0", [X.conv("1000000001", [X.gmsg(9002, 111, X.T0, "cut off")])]).slice(0, -40));
+    fs.writeFileSync(path.join(data, "direct-message-group-headers.js"), X.ytd("direct_message_group_headers", "part0", []));
+    fs.writeFileSync(path.join(media, "9002-AbCdEf.png"), "a different picture");   // same name as one already copied
+    fs.writeFileSync(path.join(media, "9002-Brandnew.jpg"), "new");
+    const r = await source(S, path.join(data, "direct-messages-group.js"), path.join(data, "direct-message-group-headers.js"), media);
+    const j = await r.json();
+    assert.equal(r.status, 422, JSON.stringify(j));
+    assert.deepEqual(snapshot(), before, "source/, media/, config.json and data.js are exactly as before");
+    assert.deepEqual(fs.readdirSync(S.personal).filter((n) => /\.prev-/.test(n)), [], "no backup folders left behind");
+  });
+
+  test("Start over also removes backup folders an interrupted source change left behind", async () => {
+    fs.mkdirSync(path.join(S.personal, "source.prev-123-0a1b2c3d"));
+    fs.mkdirSync(path.join(S.personal, "media.prev-123-0a1b2c3d"));
+    assert.equal((await S.post("/api/reset", {})).status, 200);
+    assert.deepEqual(fs.readdirSync(S.personal), []);
+  });
+});
