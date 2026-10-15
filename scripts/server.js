@@ -27,7 +27,7 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
-const { createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage } = require("./build-core.js");
+const { createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, TMP_RE } = require("./fs-io.js");
 const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
@@ -613,6 +613,12 @@ async function sourceAndBuild(body, res, progress) {
     const got = duringBlocking(() => exportMessageIds(groupFiles, cfgNow.ignoredGroups, cfgNow.ignoredUsers));
     ids = got.all; keepIds = got.keep; exportNewest = got.newest;
   } catch (e) { /* unreadable: the build below says so plainly */ }
+  // SP7 fix round 1 (#5): merging an export with no group messages would
+  // re-point config at it and prune the previous export's copies for nothing
+  // (the archive's own groups satisfy the build's "any group chats?" check).
+  if (ids && ids.size === 0 && builtArchiveFiles().length) {
+    return sendJSON(res, 422, { error: "This export has no group chat messages, so there is nothing to add to your archive. Check you picked the right Twitter/X archive (the one with your group chats)." });
+  }
   // SP7 fix round 1 (#2): an export older than the archive is merged (its
   // missing messages added; the archive's newer copies kept), but the media
   // source folder stays the newer export's.
@@ -924,6 +930,9 @@ function exportMessageIds(files, ignoredGroups, ignoredUsers) {
       onMessage: (ci, m) => {
         const mc = m && m.messageCreate;
         if (!mc || mc.id == null) return;
+        // fix round 1 (#5): group chat messages only, like the build (a 1:1
+        // message is never imported, and its media isn't group media)
+        if (convOf[ci] != null && !isGroupId(convOf[ci])) return;
         const id = String(mc.id);
         all.add(id);
         if ((convOf[ci] != null && G.has(convOf[ci])) || U.has(String(mc.senderId))) return;

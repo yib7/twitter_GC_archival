@@ -60,3 +60,22 @@ test("a newer export shows no extra confirm", async ({ page }) => {
   await expect(page.locator("#preflight")).toBeVisible();
   await expect(page.locator("#pf-older-ok")).toBeHidden();
 });
+
+// SP7 fix round 1 (#5): an export with no group messages can't be merged —
+// the preview says so and its merge button stays off.
+test("an export with no group messages can't be merged", async ({ page }) => {
+  const rd = fs.mkdtempSync(path.join(os.tmpdir(), "gca-older-d-"));
+  dirs.push(rd);
+  const data = path.join(rd, "data");
+  fs.mkdirSync(path.join(data, "direct_messages_group_media"), { recursive: true });
+  const ev = { conversationNameUpdate: { initiatingUserId: "111", name: "Renamed", createdAt: X.iso(X.T0 + 90 * 86400e3) } };
+  fs.writeFileSync(path.join(data, "direct-messages-group.js"), X.ytd("direct_messages_group", "part0", [X.conv("1000000001", [ev])]));
+  fs.writeFileSync(path.join(data, "direct-message-group-headers.js"), X.ytd("direct_message_group_headers", "part0", [X.conv("1000000001", [ev])]));
+  await page.goto(S.url("/setup.html"));
+  await page.locator("#src-add").click();
+  await page.locator("#src-root").fill(rd);
+  await page.locator("#btn-build").click();
+  await expect(page.locator("#preflight")).toBeVisible();
+  await expect(page.locator('#pf-warnings [data-code="zero-messages"]')).toBeVisible();
+  await expect(page.locator("#btn-confirm")).toBeDisabled();
+});

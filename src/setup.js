@@ -464,7 +464,9 @@ function renderPreflight(j) {
     : `<li class="pf-ok">✓ No problems found.</li>`;
   const confirm = $("#btn-confirm");
   confirm.textContent = merging ? "Merge into archive" : "Build archive";
-  pf.canBuild = t.messages > 0 || merging;
+  // SP7 fix round 1 (#5): no group messages, nothing to build or merge (a
+  // merge whose messages are all removed ones still goes: they are kept aside)
+  pf.canBuild = t.messages > 0 || (merging && w.some((x) => x.code === "removed"));
   pf.older = merging && w.some((x) => x.code === "older-export");
   $("#pf-older").hidden = !pf.older;
   $("#pf-older-ok").checked = false;
