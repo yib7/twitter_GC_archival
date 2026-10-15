@@ -87,3 +87,30 @@ test("boot card only appears when every conversation is empty", async ({ page })
   await expect(page.locator("#boot")).toContainText("node scripts/make_sample.js");
   expect(errors).toEqual([]);
 });
+
+// A conversation with no messages at all (legacy or hand-made data) says so;
+// only a chat whose senders are all ignored blames the ignore.
+test("a conversation with no messages says it has none, not that its senders are ignored", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e));
+  const D = { __sample: true, conversations: [
+    DATA.conversations[1],
+    { id: "E", type: "group", title: "Empty", participants: ["u3"], count: 0, msgs: [], events: [] },
+    DATA.conversations[0],
+  ] };
+  await page.addInitScript(() => { localStorage.setItem("gca.onboarded", "1"); localStorage.removeItem("gca.lastView"); });
+  await page.route("**/data.sample.js", (route) => route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(D) + ";" }));
+  await page.route("**/data.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
+  await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: 'window.LOCAL_IGNORED_USERS = ["u1"];' }));
+  await page.goto("/");
+  await expect(page.locator(".msg").first()).toContainText("hi from beta");
+  for (const [conv, text, not] of [["E", "This group has no messages.", "ignored"], ["A", "every sender is ignored", "has no messages"]]) {
+    await page.locator("#conv-select").selectOption(conv);
+    for (const name of ["timeline", "stats", "gallery"]) {
+      await page.locator(`.nav-item[data-view="${name}"]`).click();
+      await expect(page.locator(`#view-${name} .empty`).first()).toContainText(text);
+      await expect(page.locator(`#view-${name} .empty`).first()).not.toContainText(not);
+    }
+  }
+  expect(errors).toEqual([]);
+});

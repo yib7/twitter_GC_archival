@@ -52,6 +52,12 @@ function hasVisibleMessages(c) {
   return (c.msgs || []).some((m) => !ignored.has(String(m.s)));
 }
 
+// The empty-chat panel: a chat with no messages at all, or one whose every
+// sender is ignored (plain text, no markup).
+function emptyConvText() {
+  return CONV && (CONV.msgs || []).length ? "No messages in this group — every sender is ignored." : "This group has no messages.";
+}
+
 function pickInitialConvId() {
   let saved = null;
   try { saved = localStorage.getItem("gca.conv"); } catch (e) {}
@@ -2768,10 +2774,10 @@ function ensureTimelineShell() {
 function openTimeline(anchor, opts) {
   opts = opts || {};
   ensureTimelineShell();
-  // Every sender ignored: no chunks to build, and renderChunk() would
+  // No messages (none at all, or every sender ignored): no chunks to build, and renderChunk() would
   // dereference MSGS[start]/MSGS[N-1] on an empty array. Show a panel instead.
   if (!N) {
-    tlEls.list.innerHTML = '<div class="empty"><div class="big">≡</div><div>No messages in this group — every sender is ignored.</div></div>';
+    tlEls.list.innerHTML = '<div class="empty"><div class="big">≡</div><div>' + emptyConvText() + '</div></div>';
     return;
   }
   if (numChunks === 0 || numChunks !== Math.ceil(N / CHUNK_SIZE)) {
@@ -3524,8 +3530,8 @@ function renderStats() {
   const seq = ++statsRenderSeq;
   delete v.dataset.ready;
   if (!N) {
-    // Every sender in this conversation is ignored.
-    v.innerHTML = '<div class="page"><div class="empty"><div class="big">' + cmdIco("stats") + '</div><div>No messages in this group — every sender is ignored.</div></div></div>';
+    // No messages: none at all, or every sender is ignored.
+    v.innerHTML = '<div class="page"><div class="empty"><div class="big">' + cmdIco("stats") + '</div><div>' + emptyConvText() + '</div></div></div>';
     v.dataset.ready = "1";
     return;
   }
@@ -4897,10 +4903,10 @@ let galEls = {};
 
 function renderGallery() {
   const v = document.getElementById("view-gallery");
-  // Every sender ignored: nothing to gallery — show a panel, not an
+  // No messages (none, or every sender ignored): nothing to gallery — show a panel, not an
   // empty grid that looks broken.
   if (!N) {
-    v.innerHTML = '<div class="empty"><div class="big">' + cmdIco("gallery") + '</div><div>No messages in this group — every sender is ignored.</div></div>';
+    v.innerHTML = '<div class="empty"><div class="big">' + cmdIco("gallery") + '</div><div>' + emptyConvText() + '</div></div>';
     return;
   }
   if (!v.innerHTML) {
