@@ -883,18 +883,22 @@
     const maxLines = (opts && opts.maxLines) || Infinity;
     const lines = [];
     const fits = (s) => measure(s) <= maxWidth;
-    for (const para of String(text == null ? "" : text).split(/\r\n|\r|\n/)) {
+    // past maxLines nothing more is shown, so stop measuring (one more line
+    // is kept: it tells the ellipsis step there was more)
+    const full = () => lines.length > maxLines;
+    paras: for (const para of String(text == null ? "" : text).split(/\r\n|\r|\n/)) {
+      if (full()) break;
       const words = para.split(/[ \t\f\v\xa0]+/).filter(Boolean);
       if (!words.length) { lines.push(""); continue; }
       let cur = "";
       for (const w of words) {
         const cand = cur ? cur + " " + w : w;
         if (fits(cand)) { cur = cand; continue; }
-        if (cur) { lines.push(cur); cur = ""; }
+        if (cur) { lines.push(cur); cur = ""; if (full()) break paras; }
         if (fits(w)) { cur = w; continue; }
         // an over-long word: fill lines grapheme by grapheme
         for (const g of graphemes(w)) {
-          if (cur && !fits(cur + g)) { lines.push(cur); cur = ""; }
+          if (cur && !fits(cur + g)) { lines.push(cur); cur = ""; if (full()) break paras; }
           cur += g;
         }
       }

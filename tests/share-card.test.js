@@ -149,3 +149,20 @@ test("redaction: a stopword word of a name is redacted only when written like a 
   assert.strictEqual(r.text("WILL DAY"), "Person A");
   assert.strictEqual(r.text("a long day"), "a long Person A");   // over-redaction is the safe side
 });
+
+test("wrapText stops measuring once it is past maxLines (a 100k-char unbroken word)", () => {
+  let calls = 0;
+  const measure = (s) => { calls++; return mono(s); };
+  const t0 = Date.now();
+  const r = wrapText("x".repeat(100000) + " tail", 100, measure, { maxLines: 3 });
+  const ms = Date.now() - t0;
+  assert.strictEqual(r.lines.length, 3);
+  assert.strictEqual(r.truncated, true);
+  assert.ok(r.lines[2].endsWith("…"), r.lines[2]);
+  assert.ok(calls < 200, "measure calls: " + calls);
+  assert.ok(ms < 1000, "took " + ms + " ms");
+  // many short paragraphs stop early too
+  calls = 0;
+  assert.strictEqual(wrapText("a\n".repeat(50000), 100, measure, { maxLines: 2 }).lines.length, 2);
+  assert.ok(calls < 50, "measure calls: " + calls);
+});
