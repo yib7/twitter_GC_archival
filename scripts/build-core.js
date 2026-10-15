@@ -506,12 +506,32 @@ function createExportSink(acc, which) {
  * `count` is the messages the archive will keep (removed people's and
  * groups' messages are counted in removedMsgs instead).
  */
+/**
+ * SP7 fix round 1 (#7): an export's message ids, each held ONCE — the ones
+ * the archive keeps and the ones it leaves out (removed group / person) are
+ * two disjoint Sets, and `all` is a read-only view over both ({ has, size }).
+ *
+ * Memory: the preview and the server's export scan need every id (to match
+ * media files to messages and to count the overlap with the archive), and
+ * they run on the setup server's default heap, not the build's sized one.
+ * That is one short string per message — roughly 50–90 bytes with its Set
+ * entry, so ~60–90 MB for a million messages — and no message text, which is
+ * acceptable for the exports this tool sees (the bodies, which are most of an
+ * export's size, are never kept). Holding the ids twice (all + keep) doubled
+ * that for nothing.
+ */
+function idPartition() {
+  const keep = new Set(), removed = new Set();
+  const all = { has: (id) => keep.has(id) || removed.has(id), get size() { return keep.size + removed.size; } };
+  return { keep, removed, all };
+}
 function createExportSurvey(opts) {
   opts = opts || {};
   const G = new Set((opts.ignoredGroups || []).map(String));
   const U = new Set((opts.ignoredUsers || []).map(String));
   const groups = new Map();
-  const allIds = new Set(), keepIds = new Set();
+  const ids = idPartition();   // each id once (see idPartition)
+  const allIds = ids.all, keepIds = ids.keep, removedIds = ids.removed;
   const dmConvs = new Set();
   const st = { dmMessages: 0, removedMsgs: 0, badTime: 0, orphaned: 0, withText: 0, created: 0 };
   const groupOf = (cid) => {
@@ -534,8 +554,7 @@ function createExportSurvey(opts) {
       if (mc.id == null || mc.id === "") return;
       const id = String(mc.id);
       if (allIds.has(id)) return;
-      allIds.add(id);
-      if (G.has(cid) || U.has(String(mc.senderId))) { st.removedMsgs++; return; }
+      if (G.has(cid) || U.has(String(mc.senderId))) { removedIds.add(id); st.removedMsgs++; return; }
       keepIds.add(id);
       g.count++;
       if (t < g.first) g.first = t;
@@ -584,7 +603,7 @@ function createExportSurvey(opts) {
       withText: st.withText, created: st.created,
     };
   }
-  return { sink, result, allIds, keepIds };
+  return { sink, result, allIds, keepIds, removedIds };
 }
 // SP7: the part numbers missing from a family (0-based), e.g. [0, 1, 3] → [2].
 function missingPartNumbers(nums) {
@@ -1111,6 +1130,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, createAccumulator, mergeQuarantine, createExportSink, createExportSurvey, missingPartNumbers, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, mergeQuarantine, idPartition, createExportSink, createExportSurvey, missingPartNumbers, wrongKindMessage, indexMediaFiles, exportPartFiles, exportFamilies, parseManifest, collectParticipants, createParticipantCollector, foldConversations, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, createArchiveScanner, prevArchiveProblem, ExportScanError, archiveChunks,
 };

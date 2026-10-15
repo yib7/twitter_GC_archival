@@ -190,3 +190,20 @@ describe("POST /api/preflight against a built archive (a newer export)", () => {
     assert.deepEqual(snapshot(S.personal), before, "personal_data is byte-for-byte unchanged");
   });
 });
+
+// SP7 fix round 1 (#7): the survey (and the server's export id scan) held
+// every message id twice — in `allIds` and again in `keepIds`. Each id is
+// now held once: kept ids and removed ids are two disjoint sets, and
+// `allIds` is a view over both.
+test("the survey holds each message id once", () => {
+  const sv = core.createExportSurvey({ ignoredUsers: ["333"] });
+  const s = sv.sink("messages");
+  s.handlers.onConversationId(0, "1000000001");
+  for (const m of [X.gmsg(1, 111, X.T0, "a"), X.gmsg(2, 333, X.T0 + 1, "b"), X.gmsg(3, 222, X.T0 + 2, "c")]) s.handlers.onMessage(0, m);
+  s.finish();
+  assert.ok(!(sv.allIds instanceof Set), "allIds is a view, not a second copy of every id");
+  assert.deepEqual([...sv.keepIds].sort(), ["1", "3"]);
+  assert.deepEqual([...sv.removedIds], ["2"]);
+  assert.equal(sv.allIds.size, 3);
+  assert.ok(sv.allIds.has("1") && sv.allIds.has("2") && !sv.allIds.has("4"));
+});

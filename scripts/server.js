@@ -27,7 +27,7 @@ const path = require("path");
 const os = require("os");
 const crypto = require("crypto");
 const { execFileSync, spawn } = require("child_process");
-const { createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
+const { idPartition, createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, TMP_RE } = require("./fs-io.js");
 const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("./server-core.js");
 
@@ -921,7 +921,8 @@ function freeBytesAt(dir) {
 function exportMessageIds(files, ignoredGroups, ignoredUsers) {
   const G = new Set((Array.isArray(ignoredGroups) ? ignoredGroups : []).map(String));
   const U = new Set((Array.isArray(ignoredUsers) ? ignoredUsers : []).map(String));
-  const all = new Set(), keep = new Set();
+  // fix round 1 (#7): each id held once — see idPartition in build-core.js
+  const { all, keep, removed } = idPartition();
   let newest = null;
   for (const f of files) {
     const convOf = [];
@@ -934,8 +935,8 @@ function exportMessageIds(files, ignoredGroups, ignoredUsers) {
         // message is never imported, and its media isn't group media)
         if (convOf[ci] != null && !isGroupId(convOf[ci])) return;
         const id = String(mc.id);
-        all.add(id);
-        if ((convOf[ci] != null && G.has(convOf[ci])) || U.has(String(mc.senderId))) return;
+        if ((convOf[ci] != null && G.has(convOf[ci])) || U.has(String(mc.senderId))) { if (!keep.has(id)) removed.add(id); return; }
+        removed.delete(id);
         keep.add(id);
         const t = mc.createdAt ? Date.parse(mc.createdAt) : NaN;
         if (Number.isFinite(t) && (newest == null || t > newest)) newest = t;
