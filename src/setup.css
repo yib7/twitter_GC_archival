@@ -177,9 +177,18 @@
    ellipsis below) instead of blowing the card width out past its border. */
 .su-main { min-width: 0; }
 .su-left { display: flex; flex-direction: column; align-items: center; gap: 7px; }
+/* UX-25: the viewer's avatar look — the person's deep --f hue as a gradient
+   under white initials (setup.js sets --p / --f from shared-core hueVars). A
+   photo, set inline, replaces the gradient. */
+.su-av, .fr-av {
+  --p: var(--accent); --f: var(--accent-fill);
+  background-color: var(--f);
+  background-image: linear-gradient(145deg, var(--f), color-mix(in srgb, var(--f) 78%, #000));
+}
 .su-av {
   width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
   font-size: 18px; font-weight: 700; color: #fff; background-size: cover; background-position: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.24), 0 3px 10px -3px color-mix(in srgb, var(--p) 55%, transparent);
 }
 .su-pick { font-size: 11px; padding: 3px 8px; }
 .su-remove { font-size: 11px; padding: 3px 8px; color: var(--danger); }

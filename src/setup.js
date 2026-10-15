@@ -4,11 +4,14 @@
 
 // Avatar color + initials helpers shared with the viewer (src/app.js) and the
 // Node build live in ONE module, loaded as a <script> before this one
-// (setup.html) — see src/shared-core.js. The wizard's colorOf is the plain
-// palette lookup (no settings.colors override, which is viewer-only).
+// (setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule
+// (hueVars) without the settings.colors override, which is viewer-only.
 /* global GCAShared */
-const { initials, paletteColor } = GCAShared;
-const colorOf = paletteColor;
+const { initials, hueVars } = GCAShared;
+// UX-25: a person's avatar here is the same hue the viewer gives them (the
+// --p / --f pair of src/shared-core.js hueVars), not a separate palette.
+function paintHue(el, id) { const h = hueVars(id); el.style.setProperty("--p", h.p); el.style.setProperty("--f", h.f); }
+const hueStyle = (id) => { const h = hueVars(id); return `--p:${h.p};--f:${h.f}`; };
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => [...(r || document).querySelectorAll(s)];
 function fileToDataURL(f) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(f); }); }
@@ -231,7 +234,7 @@ function renderFinishReceipt() {
     const pfp = state.pfps[p.id] || savedPfpPaths[p.id];
     const style = pfp
       ? `background-image:url('${pfp}')`
-      : `background:${colorOf(p.id)}`;
+      : hueStyle(p.id);
     const txt = pfp ? "" : escapeHtml(initials(state.names[p.id] || "User " + String(p.id).slice(-4)));
     return `<span class="fr-av" style="${style}">${txt}</span>`;
   }).join("");
@@ -609,7 +612,7 @@ function personCard(p) {
 
   const left = document.createElement("div"); left.className = "su-left";
   const av = document.createElement("div"); av.className = "su-av";
-  av.style.background = colorOf(p.id);
+  paintHue(av, p.id);
   if (savedPfp) { av.style.backgroundImage = `url('${savedPfp}')`; av.style.backgroundSize = "cover"; av.style.backgroundPosition = "center"; }
   else av.textContent = initials(savedName || "User " + String(p.id).slice(-4));
   const file = document.createElement("input"); file.type = "file"; file.accept = "image/*"; file.style.display = "none";

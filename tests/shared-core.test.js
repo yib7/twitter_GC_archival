@@ -110,6 +110,23 @@ test("initials returns the expected monogram for every name in the battery", () 
   });
 });
 
+/* ---- UX-25: the person hue rule ----------------------------------------- */
+test("personHue / hueVars map an id to one of the 10 --p-/--f- hue pairs by its hash", () => {
+  assert.deepEqual(shared.HUES, ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"]);
+  for (const id of ID_BATTERY) {
+    const h = shared.HUES[shared.hashId(id) % 10];
+    assert.equal(shared.personHue(id), h);
+    assert.deepEqual(shared.hueVars(id), { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" });
+  }
+});
+
+test("the setup wizard paints avatars with the viewer's hue rule, not the old palette", () => {
+  const setup = read("src/setup.js");
+  assert.ok(!/paletteColor/.test(setup), "src/setup.js no longer uses paletteColor");
+  assert.match(setup, /hueVars/);
+  assert.match(read("src/app.js"), /function autoColor\(id\) \{ return hueVars\(id\); \}/);
+});
+
 /* ---- single-source guard ------------------------------------------------- */
 // The whole point of P2-7: no consumer may keep its own copy. If any of these
 // declarations reappears in a consumer, the extraction has regressed.
@@ -132,6 +149,9 @@ const NO_LOCAL_DECL = [
   { file: "src/app.js", name: "cleanMap", re: /^\s*function\s+cleanMap\b/m },
   { file: "src/app.js", name: "idList", re: /^\s*function\s+idList\b/m },
   { file: "src/app.js", name: "cleanSaved", re: /^\s*function\s+cleanSaved\b/m },
+  // UX-25: one person-hue rule for the viewer and the wizard
+  { file: "src/app.js", name: "HUES", re: /^\s*const\s+HUES\s*=/m },
+  { file: "src/setup.js", name: "HUES", re: /^\s*const\s+HUES\s*=/m },
 ];
 
 test("no consumer redeclares a shared constant/helper (single source of truth)", () => {

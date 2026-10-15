@@ -29,6 +29,14 @@
   // Shared kernel of colorOf: the plain palette lookup with no user-override. The
   // viewer wraps this to honor settings.colors first; the wizard uses it directly.
   function paletteColor(id) { return PALETTE[hashId(id) % PALETTE.length]; }
+  // UX-25: the person hue rule — ONE colour per person in the viewer AND the
+  // setup wizard. 10 hue pairs defined per theme in styles.css: --p-<hue> (the
+  // bright name colour) and --f-<hue> (the deep avatar fill under white
+  // initials). A person maps to one hue by id hash.
+  const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
+  function personHue(id) { return HUES[hashId(id) % HUES.length]; }
+  // The CSS values for an element's --p / --f (no user override applied).
+  function hueVars(id) { const h = personHue(id); return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" }; }
   /* ---- Settings validation (VC-5 / VC-6) ---------------------------------- */
   // Pure, DOM-free validators for the settings object. The viewer runs every
   // settings source through validateSettings(): the persisted gca.settings blob
@@ -682,7 +690,7 @@
     return s;
   }
   return {
-    PALETTE, X_LINK, hashId, initials, paletteColor,
+    PALETTE, X_LINK, hashId, initials, paletteColor, HUES, personHue, hueVars,
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
     relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant,

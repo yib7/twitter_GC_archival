@@ -7,7 +7,7 @@
 // Constants/helpers shared with the setup wizard + Node build live in ONE module,
 // loaded as a <script> before this one (index.html) — see src/shared-core.js.
 /* global GCAShared */
-const { PALETTE, X_LINK, hashId, initials } = GCAShared;
+const { PALETTE, X_LINK, initials, hueVars } = GCAShared;
 // UX-31: the platform's modifier — ⌘ on Apple devices, Ctrl elsewhere — shared
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
@@ -589,7 +589,7 @@ function highlightRangesDOM(element, ranges) {
 function hexToRgb(h) { h = String(h).replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); if (h.length === 8) h = h.slice(0, 6); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function hexA(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; const f = Math.abs(p) / 100; r = Math.round((t - r) * f + r); g = Math.round((t - g) * f + g); b = Math.round((t - b) * f + b); return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
-// hashId moved to src/shared-core.js (destructured at the top of this IIFE).
+// hashId moved to src/shared-core.js (used there by hueVars, UX-25).
 // Day bucket for an epoch, in the configured zone ("YYYY-MM-DD"). Callers group
 // by equality; the human-readable busiest-day label formats via zone-aware DAY.
 function dayKey(t) { return zonedParts(t).key; }
@@ -639,13 +639,10 @@ function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id
 // X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
 // A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
 // (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
-const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
 // The automatic (hashed) hue alone, ignoring any override — what the People
-// tab's "A" swatch previews.
-function autoColor(id) {
-  const h = HUES[hashId(id) % HUES.length];
-  return { p: "var(--p-" + h + ")", f: "var(--f-" + h + ")" };
-}
+// tab's "A" swatch previews. UX-25: the rule lives in src/shared-core.js
+// (HUES / personHue / hueVars) so the setup wizard paints the same colour.
+function autoColor(id) { return hueVars(id); }
 function personColor(id) {
   const c = sanitizeColor(settings.colors[id]);
   // the deep fill carries white avatar initials: darken it until it clears 4.5:1
