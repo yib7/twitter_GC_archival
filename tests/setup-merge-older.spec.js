@@ -32,6 +32,7 @@ test("an older export is merged only after ticking the extra confirm", async ({ 
   const confirm = page.locator("#btn-confirm");
   const ok = page.locator("#pf-older-ok");
   await expect(ok).toBeVisible();
+  await expect(page.locator("#pf-older")).toContainText(/This export is older than my archive/);
   await expect(ok).not.toBeChecked();
   await expect(confirm).toBeDisabled();
   // and it looks off, not just ignores clicks
@@ -81,4 +82,22 @@ test("an export with no group messages can't be merged", async ({ page }) => {
   await expect(page.locator("#preflight")).toBeVisible();
   await expect(page.locator('#pf-warnings [data-code="zero-messages"]')).toBeVisible();
   await expect(page.locator("#btn-confirm")).toBeDisabled();
+});
+
+// SP7 fix round 2 (#3): re-adding an export the archive already has isn't
+// "older" — the confirm says what will actually happen.
+test("re-adding the same export asks to re-add anyway, not to merge an older one", async ({ page }) => {
+  await page.goto(S.url("/setup.html"));
+  await page.locator("#src-add").click();
+  await page.locator("#src-root").fill(B.root);
+  await page.locator("#btn-build").click();
+  await expect(page.locator("#preflight")).toBeVisible();
+  await expect(page.locator('#pf-warnings [data-code="older-export"]')).toContainText(/already in your archive/);
+  const label = page.locator("#pf-older");
+  await expect(label).toBeVisible();
+  await expect(label).toContainText("Re-add anyway (nothing new will be added)");
+  await expect(label).not.toContainText(/older/);
+  await expect(page.locator("#btn-confirm")).toBeDisabled();
+  await page.locator("#pf-older-ok").check();
+  await expect(page.locator("#btn-confirm")).toBeEnabled();
 });

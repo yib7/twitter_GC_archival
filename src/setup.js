@@ -469,6 +469,11 @@ function renderPreflight(j) {
   pf.canBuild = t.messages > 0 || (merging && w.some((x) => x.code === "removed"));
   pf.older = merging && w.some((x) => x.code === "older-export");
   $("#pf-older").hidden = !pf.older;
+  // SP7 fix round 2 (#3): an export the archive already has is re-added, not "older"
+  const olderThan = m && Number.isFinite(m.exportNewest) && Number.isFinite(m.archiveNewest) && m.exportNewest < m.archiveNewest;
+  $("#pf-older-text").textContent = olderThan
+    ? "This export is older than my archive — merge it anyway (my archive keeps its newer messages)"
+    : "Re-add anyway (nothing new will be added)";
   $("#pf-older-ok").checked = false;
   updateConfirm();
   $("#preflight").hidden = false;
