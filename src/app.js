@@ -81,7 +81,7 @@ function resetDerived() {
   TIDX = null;   // the zoned time index is per conversation (UX-4 / AN-13)
   searchBuilt = false; sEls = {};
   if (resPageObs) { try { resPageObs.disconnect(); } catch (e) {} resPageObs = null; }   // VC-29
-  invalidateTimeline(); tlResume = null;   // a new conversation starts at the top
+  invalidateTimeline(); tlResume = null;   // a new conversation opens at its saved reading position, else the newest message (SP8)
   galleryState = { items: [], page: 0 }; galEls = {};
   if (galleryObserver) { try { galleryObserver.disconnect(); } catch (e) {} galleryObserver = null; }
   // P1-1: renderGallery() only rebuilds when the view is empty — clear it here
