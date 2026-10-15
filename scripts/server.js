@@ -240,6 +240,19 @@ function copyJournal(backupDir) {
 }
 const PREV_DIR_RE = /^(?:source|media)\.prev-\d+-[0-9a-f]+$/;
 const prevDirName = (name) => name + ".prev-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
+// SP7 (SP6 review #3): a server killed mid-build leaves its backup folders
+// behind. Once a later build has committed, source/ and media/ are consistent
+// again and those old copies are just stale private data — remove them.
+function clearStaleBackups() {
+  let names;
+  try { names = fs.readdirSync(PERSONAL); } catch (e) { return; }
+  for (const n of names) {
+    if (!PREV_DIR_RE.test(n)) continue;
+    const p = path.join(PERSONAL, n);
+    if (!isInsidePersonal(p, PERSONAL)) continue;
+    try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { console.error("Couldn't remove " + n + ": " + (e && e.message)); }
+  }
+}
 
 // SP-7: the folder the user picked → the group media folder to copy from.
 // Picking the archive (or its data/ folder) uses its direct_messages_group_media
@@ -496,6 +509,7 @@ function apiSource(body, res) {
     return sendJSON(res, 422, { error: built.error, log: built.log });
   }
   srcJournal.commit(); mediaJournal.commit();
+  clearStaleBackups();
   const buildLog = built.log;
 
   const groups = groupsOf(readSummary());
