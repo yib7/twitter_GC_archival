@@ -190,24 +190,24 @@ describe("QA-13: destructive & security-sensitive route coverage", () => {
   });
 
   test("Range requests against a served media file: full 206, suffix 206, and out-of-range 416", async () => {
-    const svgPath = path.join(__dirname, "..", "sample_media", "clip-1.svg");
+    const svgPath = path.join(__dirname, "..", "sample_media", "photo-1.svg");
     const full = fs.readFileSync(svgPath);
     const base = "http://127.0.0.1:" + qPort;
 
-    const partial = await fetch(base + "/sample_media/clip-1.svg", { headers: { Range: "bytes=0-9" } });
+    const partial = await fetch(base + "/sample_media/photo-1.svg", { headers: { Range: "bytes=0-9" } });
     assert.equal(partial.status, 206);
     assert.equal(partial.headers.get("content-range"), `bytes 0-9/${full.length}`);
     const partialBody = Buffer.from(await partial.arrayBuffer());
     assert.deepEqual(partialBody, full.subarray(0, 10));
 
     const suffixLen = 5;
-    const suffix = await fetch(base + "/sample_media/clip-1.svg", { headers: { Range: `bytes=-${suffixLen}` } });
+    const suffix = await fetch(base + "/sample_media/photo-1.svg", { headers: { Range: `bytes=-${suffixLen}` } });
     assert.equal(suffix.status, 206);
     assert.equal(suffix.headers.get("content-range"), `bytes ${full.length - suffixLen}-${full.length - 1}/${full.length}`);
     const suffixBody = Buffer.from(await suffix.arrayBuffer());
     assert.deepEqual(suffixBody, full.subarray(full.length - suffixLen));
 
-    const outOfRange = await fetch(base + "/sample_media/clip-1.svg", { headers: { Range: `bytes=${full.length + 100}-` } });
+    const outOfRange = await fetch(base + "/sample_media/photo-1.svg", { headers: { Range: `bytes=${full.length + 100}-` } });
     assert.equal(outOfRange.status, 416);
   });
 

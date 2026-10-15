@@ -131,11 +131,12 @@ test("profile modal cold-open (avatar click before ever visiting Stats) renders 
   await expect(page.locator(".profile-modal")).toBeVisible();
 
   // Content must end up equivalent to the old synchronous render.
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["18", "6.2", "76"]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["68", "4.7", "125"]);
   await expect(page.locator(".profile-modal .profile-stat-lbl")).toHaveText(
     ["Messages", "Words/Msg", "Vocab Size"], { ignoreCase: true });
   await expect(page.locator(".profile-modal .profile-badge")).toHaveText([
-    "⭐\nReaction Magnet", "📷\nMedia Hog", "🔚\nThread Killer",
+    "🦉\nLate Night Owl", "😂\nEmoji Enthusiast", "🪨\nThe Caveman", "🤣\nThe LMAO User",
+    "🚀\nThread Starter", "🐌\nThe Ghoster", "🕳️\nThe Laughing Void",
   ]);
 
   await page.locator(".profile-card-close").click();
@@ -146,7 +147,7 @@ test("profile modal cold-open (avatar click before ever visiting Stats) renders 
   await page.locator('.nav-item[data-view="stats"]').click();
   const section = page.locator(".section", { hasText: "Superlatives & Fun Stats" });
   await expect(section).toBeVisible();
-  await expect(section.locator(".card .s-title")).toHaveCount(11);   // SP4: rate awards need 20+ msgs (see stats-superlatives-guard)
+  await expect(section.locator(".card .s-title")).toHaveCount(31);   // every award with a clear winner (see stats-superlatives-guard)
 
   expect(errors).toEqual([]);
 });

@@ -22,12 +22,16 @@ test.use({ timezoneId: "UTC" });
 // King", matching the fixed render order in src/app.js.
 
 // Every card the sample data renders in the Superlatives grid, in DOM order.
-// SP4 (AN-3 / AN-7): rate / average awards need 20+ messages per person (the
-// 64-message sample has none), all-tie cards are hidden, so the sample grid is
-// down to the count-based awards until SP11 regenerates a bigger demo.
+// Rate / average awards need 20+ messages per person and all-tie cards are
+// hidden; the ~18-month demo sample has enough messages for every award that
+// has a clear winner.
 const EXPECTED_CARD_TITLES = [
-  "Reaction Magnet", "Media Hog", "The Giver", "Thread Starter", "Thread Killer",
-  "The Ghost", "The Ghoster", "The Flash", "The Novelist", "The Laugh Track", "The Hater",
+  "Late Night Owl", "Reaction Magnet", "Emoji Enthusiast", "Media Hog", "The Yapper", "The Caveman",
+  "The Inquisitor", "The Narcissist", "The LMAO User", "The Giver", "The Link Spammer", "Thread Starter",
+  "Thread Killer", "The Double Texter", "Weekend Warrior", "The Work Slacker", "The Ghost", "The Ghoster",
+  "The Flash", "The Scholar", "The Deserter", "The Monologuer", "Crowd Pleaser", "The Ignored",
+  "The Laugh Track", "The Hater", "Gratitude King", "The Laughing Void", "The Exclaimer", "The Optimist",
+  "The Zoomer",
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -73,21 +77,25 @@ test("profile modal keeps its badges and stat lines on sample data", async ({ pa
     await expect(page.locator(".profile-modal")).toHaveCount(0);
   };
 
-  // AN-3: badges are exactly the grid cards 1005 wins (ties included). It used
-  // to also get "The Sailor" (0 swear messages), "Late Night Owl" etc. from a
-  // badge path that only checked the winner id, never the value.
+  // Badges are exactly the grid cards 1005 wins, ties included ("Emoji
+  // Enthusiast" is a shared win). A badge path that only checked the winner
+  // id, never the value, once also handed out cards like "The Sailor" for 0
+  // swear messages.
   await openProfile("1005");
   await expect(page.locator(".profile-modal .profile-badge")).toHaveText([
-    "⭐\nReaction Magnet", "📷\nMedia Hog", "🔚\nThread Killer",
+    "🦉\nLate Night Owl", "😂\nEmoji Enthusiast", "🪨\nThe Caveman", "🤣\nThe LMAO User",
+    "🚀\nThread Starter", "🐌\nThe Ghoster", "🕳️\nThe Laughing Void",
   ]);
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["18", "6.2", "76"]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["68", "4.7", "125"]);
   await expect(page.locator(".profile-modal .profile-stat-lbl")).toHaveText(["Messages", "Words/Msg", "Vocab Size"], { ignoreCase: true });
   await closeProfile();
 
   // 1002 — a second, independent winner path.
   await openProfile("1002");
-  await expect(page.locator(".profile-modal .profile-badge")).toHaveText(["⚡\nThe Flash", "📜\nThe Novelist"]);
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["17", "9.1", "75"]);
+  await expect(page.locator(".profile-modal .profile-badge")).toHaveText([
+    "🗣️\nThe Yapper", "🪞\nThe Narcissist", "💼\nThe Work Slacker", "👻\nThe Ghost", "⚡\nThe Flash", "🎤\nThe Monologuer",
+  ]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["66", "6.2", "139"]);
   await closeProfile();
 
   expect(errors).toEqual([]);

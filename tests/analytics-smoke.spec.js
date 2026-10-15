@@ -9,8 +9,8 @@ test.use({ timezoneId: "UTC" });
 // Each test asserts (1) no pageerror while the view loads and (2) the view
 // renders non-trivial content. Cheap and stable on purpose — not golden masters.
 //
-// data.sample.js only spans a single year (2024) and has no bursts dense
-// enough to reliably feed every analytic, so a richer synthetic fixture is
+// data.sample.js is generated pseudo-randomly and doesn't promise bursts dense
+// enough to feed every analytic, so a purpose-built synthetic fixture is
 // injected via the same route pattern the other specs use. It deterministically
 // produces:
 //   - two years (2023/2024) with different totals  → Wrapped year navigation

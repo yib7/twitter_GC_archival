@@ -1,6 +1,6 @@
 const { test, expect } = require("@playwright/test");
 
-// QA-3: the jump-to-date step here used to target 2024-01-01, which is before
+// The jump-to-date step here once targeted 2024-01-01, which is before
 // the sample's first message (2024-01-06) — indexForDate resolves that to
 // index 0, exactly where the timeline already sits, so this step proved
 // nothing about the jump itself (only the surrounding CSP checks). UTC keeps
@@ -80,17 +80,17 @@ test.describe("served-mode CSP (index.html + setup.html)", () => {
     await expect(page.locator("#tl-list .msg").first()).toBeVisible();
 
     // Command palette (Ctrl/Cmd-K) — jump-to-date flow from smoke.spec.js.
-    // 2024-01-07 is inside the sample's 2024-01-06..2024-01-08 range, so a
+    // 2024-01-20 lands on the first message of Jan 24 (index 10), so a
     // broken jump (always landing on index 0) would be caught here too.
     await page.keyboard.press("Control+K");
-    await page.locator(".cmdk-input").fill("2024-01-07");
-    await page.getByText("Jump to Jan 7, 2024").click();   // SP8 UX-9: the row names the parsed day
+    await page.locator(".cmdk-input").fill("2024-01-20");
+    await page.getByText("Jump to Jan 20, 2024").click();   // SP8 UX-9: the row names the parsed day
     // See smoke.spec.js's identical jump assertion for why this checks
     // viewport position rather than the transient .flash class (which races
     // its own 1700ms removal timer in src/app.js).
-    const jumpTarget = page.locator('#tl-list [data-idx="11"]');
+    const jumpTarget = page.locator('#tl-list [data-idx="10"]');
     await expect(jumpTarget).toBeInViewport();
-    await expect(jumpTarget).toContainText("who's hyped for the game");
+    await expect(jumpTarget).toContainText("yo did everyone see that");
 
     // Stats — Chart.js must construct + paint real <canvas> charts under this
     // script-src (no 'unsafe-eval' needed for Chart.js 4.x).
