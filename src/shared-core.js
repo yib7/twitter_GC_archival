@@ -195,6 +195,74 @@
     return { zone: tz, mode, offset, stats: () => ({ exact: exactCalls, days: perDay.size }) };
   }
 
+  /* ---- Jump dates (UX-9 / VC-28, SP8) -----------------------------------------
+     zonedDayStart(y, mo, d, clock) -> epoch ms of wall-clock 00:00 on that day
+     in clock's zone (no clock = UTC). Day overflow is fine (d + 1 on the last
+     of the month is the 1st of the next). Two-pass solve: from a UTC-equals-
+     wall guess, measure the wall clock the zone shows there and shift by the
+     difference; the second pass corrects a DST change straddling the guess.
+     A midnight that doesn't exist (spring-forward at 00:00) resolves to the
+     post-transition instant, like the viewer always has.
+
+     parseJumpDate(input, clock) — the ONE parser behind jump-to-date (command
+     palette, calendar input) and the Search before:/after: operators:
+       "2024-01-07" "2024/1/7" "1/7/2024" (M/D/YYYY) "Jan 7 2024" "Jan 7, 2024"
+       "January 7th 2024" "7 Jan 2024"                         -> unit "day"
+       "2021-06" "June 2021" "Jun 2021"                        -> unit "month"
+       "2021"                                                  -> unit "year"
+     -> { unit, y, mo (0-11), d, key ("YYYY-MM-DD" | "YYYY-MM" | "YYYY"),
+          label ("Jan 7, 2024" | "June 2021" | "2021"), start, end }
+        start/end: the period as [start, end) epoch ms at midnight in the zone;
+     -> { error: "invalid" } when it has a date's shape but the date doesn't
+        exist (2023-02-30, month 13, a year before 1000) — never rolled over;
+     -> null when it isn't a date at all. Pure; tests/jump-date.test.js. */
+  const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  function zonedDayStart(y, mo, d, clock) {
+    const target = Date.UTC(y, mo, d);
+    if (!clock) return target;
+    let guess = target;
+    for (let pass = 0; pass < 2; pass++) {
+      const delta = target - (guess + clock.offset(guess));
+      if (delta === 0) break;
+      guess += delta;
+    }
+    return guess;
+  }
+  // "jan", "Jan.", "sept", "January" -> 0-11; -1 if not a month name (3+ letters).
+  function monthIndex(word) {
+    const w = String(word).toLowerCase().replace(/\.$/, "");
+    if (w.length < 3) return -1;
+    if (w === "sept") return 8;
+    for (let k = 0; k < 12; k++) if (MONTH_NAMES[k].toLowerCase().indexOf(w) === 0) return k;
+    return -1;
+  }
+  function parseJumpDate(input, clock) {
+    if (typeof input !== "string") return null;
+    const s = input.trim().replace(/,/g, " ").replace(/\s+/g, " ");
+    if (!s) return null;
+    let m, y, mo = 0, d = 1, unit;
+    if ((m = /^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/.exec(s))) { y = +m[1]; mo = +m[2] - 1; d = +m[3]; unit = "day"; }
+    else if ((m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s))) { y = +m[3]; mo = +m[1] - 1; d = +m[2]; unit = "day"; }
+    else if ((m = /^(\d{4})[-/.](\d{1,2})$/.exec(s))) { y = +m[1]; mo = +m[2] - 1; unit = "month"; }
+    else if ((m = /^(\d{4})$/.exec(s))) { y = +m[1]; unit = "year"; }
+    else if ((m = /^([a-z]+\.?) (\d{1,2})(?:st|nd|rd|th)? (\d{4})$/i.exec(s))) {
+      mo = monthIndex(m[1]); if (mo < 0) return null; d = +m[2]; y = +m[3]; unit = "day";
+    } else if ((m = /^(\d{1,2})(?:st|nd|rd|th)? ([a-z]+\.?) (\d{4})$/i.exec(s))) {
+      mo = monthIndex(m[2]); if (mo < 0) return null; d = +m[1]; y = +m[3]; unit = "day";
+    } else if ((m = /^([a-z]+\.?) (\d{4})$/i.exec(s))) {
+      mo = monthIndex(m[1]); if (mo < 0) return null; y = +m[2]; unit = "month";
+    } else return null;
+    if (y < 1000 || mo < 0 || mo > 11) return { error: "invalid" };
+    const dim = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    if (d < 1 || d > dim) return { error: "invalid" };
+    const p2 = (n) => String(n).padStart(2, "0");
+    let key, label, endY = y, endMo = mo, endD = d;
+    if (unit === "day") { key = y + "-" + p2(mo + 1) + "-" + p2(d); label = MONTH_NAMES[mo].slice(0, 3) + " " + d + ", " + y; endD = d + 1; }
+    else if (unit === "month") { key = y + "-" + p2(mo + 1); label = MONTH_NAMES[mo] + " " + y; endMo = mo + 1; }
+    else { key = String(y); label = String(y); endY = y + 1; }
+    return { unit, y, mo, d, key, label, start: zonedDayStart(y, mo, d, clock), end: zonedDayStart(endY, endMo, endD, clock) };
+  }
+
   /* ---- Time index (UX-4 / AN-13) ---------------------------------------------
      buildTimeIndex(msgs, clock) -> TI: zoned calendar fields for every message,
      as typed arrays parallel to msgs (index i = msgs[i]), in clock's zone:
@@ -693,7 +761,7 @@
     PALETTE, X_LINK, hashId, initials, paletteColor, HUES, personHue, hueVars,
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
     relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
-    TI_T_LO, TI_T_HI, clampInstant,
+    TI_T_LO, TI_T_HI, clampInstant, zonedDayStart, parseJumpDate, MONTH_NAMES,
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, STOPWORDS, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, urlHost, linkPlatform, plural,
