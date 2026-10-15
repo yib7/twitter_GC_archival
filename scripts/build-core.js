@@ -63,24 +63,17 @@ function makeConvo(id) {
 }
 
 /**
- * Fold parsed inputs into the final conversation index.
+ * Incremental form of assembleConversations (SP-10): the streaming build folds
+ * one message at a time as the scanner emits it, so no whole export array is
+ * ever held. assembleConversations() below is the same thing for already-parsed
+ * arrays (and what the unit tests drive).
  *
  * @param {object}   opts
- * @param {object|null} opts.prev        previously built CHAT_DATA (new multi-conv
- *                                       shape or legacy single-conv), or null.
- * @param {Array[]}  opts.exportDatas    parsed arrays from direct-messages-group.js files.
- * @param {Array[]}  opts.headerDatas    parsed arrays from -headers.js files (metadata only).
- * @param {object}   opts.mediaIndex     { messageId -> root-relative media path }.
  * @param {string[]} opts.ignoredUsers   user ids to drop from messages + roster.
  * @param {string[]} opts.ignoredGroups  conversation ids to drop entirely.
- * @returns {{conversations: object[], totalMsgs: number, totalMedia: number, prevCount: number}}
  */
-function assembleConversations(opts) {
+function createAccumulator(opts) {
   opts = opts || {};
-  const prev = opts.prev || null;
-  const exportDatas = opts.exportDatas || [];
-  const headerDatas = opts.headerDatas || [];
-  const mediaIndex = opts.mediaIndex || {};
   const IGNORED = new Set((Array.isArray(opts.ignoredUsers) ? opts.ignoredUsers : []).map(String));
   // whole group chats the user removed in the wizard — excluded entirely (their
   // messages aren't assembled and their media is never referenced in the output)
@@ -92,10 +85,11 @@ function assembleConversations(opts) {
     if (!c) { c = makeConvo(id); convos.set(id, c); }
     return c;
   };
+  let prevCount = 0;
 
   // 1) baseline = previously built data (so history is never lost)
-  let prevCount = 0;
-  if (prev) {
+  function addPrev(prev) {
+    if (!prev) return;
     const prevConvos = Array.isArray(prev.conversations)
       ? prev.conversations
       : (prev.conversationId ? [{ id: prev.conversationId, type: isGroupId(prev.conversationId) ? "group" : "dm", msgs: prev.msgs || [], events: prev.events || [] }] : []);
@@ -108,72 +102,156 @@ function assembleConversations(opts) {
     });
   }
 
-  // 2) fold every export (full message bodies)
-  for (const data of exportDatas) {
-    (data || []).forEach((d) => {
-      const conv = d.dmConversation; if (!conv || !conv.conversationId) return;
-      const c = getConvo(conv.conversationId);
-      (conv.messages || []).forEach((m) => {
-        if (m.messageCreate) { const r = rawToRec(m.messageCreate); if (r.i) c.msgMap.set(r.i, r); }
-        else { const e = toEvent(m); if (e) c.eventMap.set(eventKey(e), e); }
-      });
-    });
+  // 2) one entry of an export's messages[] (full message bodies)
+  function addMessage(convId, m) {
+    if (!m || typeof m !== "object") return;
+    const c = getConvo(convId);
+    if (m.messageCreate) { const r = rawToRec(m.messageCreate); if (r.i) c.msgMap.set(r.i, r); }
+    else { const e = toEvent(m); if (e) c.eventMap.set(eventKey(e), e); }
   }
 
-  // 2c) fold the group headers (metadata-only): no message bodies, so they never
-  // add messages — only complete the participant roster + join/leave/name events.
-  for (const data of headerDatas) {
-    (data || []).forEach((d) => {
-      const conv = d.dmConversation; if (!conv || !conv.conversationId) return;
-      const c = getConvo(conv.conversationId);
-      (conv.messages || []).forEach((m) => {
-        if (m.messageCreate) {
-          const mc = m.messageCreate;
-          if (mc.senderId) c.headerParts.add(mc.senderId);
-          if (mc.recipientId) c.headerParts.add(mc.recipientId);
-        } else {
-          const e = toEvent(m);
-          if (e) {
-            c.eventMap.set(eventKey(e), e);
-            if (e.s) c.headerParts.add(e.s);
-            (e.ids || []).forEach((id) => c.headerParts.add(id));
-          }
-        }
-      });
-    });
+  // 2c) one entry of the group headers (metadata-only): no message bodies, so it
+  // never adds messages — only completes the participant roster + join/leave/name events.
+  function addHeader(convId, m) {
+    if (!m || typeof m !== "object") return;
+    const c = getConvo(convId);
+    if (m.messageCreate) {
+      const mc = m.messageCreate;
+      if (mc.senderId) c.headerParts.add(mc.senderId);
+      if (mc.recipientId) c.headerParts.add(mc.recipientId);
+    } else {
+      const e = toEvent(m);
+      if (e) {
+        c.eventMap.set(eventKey(e), e);
+        if (e.s) c.headerParts.add(e.s);
+        (e.ids || []).forEach((id) => c.headerParts.add(id));
+      }
+    }
   }
 
   // 3) resolve local media + assemble final conversation index
-  const conversations = [];
-  let totalMsgs = 0, totalMedia = 0;
-  for (const c of convos.values()) {
-    if (IGNORED_GROUPS.has(String(c.id))) continue;   // removed group chat — skip wholesale
-    let withMedia = 0;
-    const msgVals = [...c.msgMap.values()].filter((m) => !IGNORED.has(String(m.s)));
-    for (const rec of msgVals) {
-      const mp = mediaIndex[rec.i];
-      if (mp) { rec.m = mp; rec.k = kindOf(mp); withMedia++; }
-      else if (rec.m) withMedia++;
+  function finish(mediaIndex) {
+    mediaIndex = mediaIndex || {};
+    const conversations = [];
+    let totalMsgs = 0, totalMedia = 0, groupsSeen = 0;
+    for (const c of convos.values()) {
+      if (c.type === "group" && c.msgMap.size) groupsSeen++;
+      if (IGNORED_GROUPS.has(String(c.id))) continue;   // removed group chat — skip wholesale
+      let withMedia = 0;
+      const msgVals = [...c.msgMap.values()].filter((m) => !IGNORED.has(String(m.s)));
+      for (const rec of msgVals) {
+        const mp = mediaIndex[rec.i];
+        if (mp) { rec.m = mp; rec.k = kindOf(mp); withMedia++; }
+        else if (rec.m) withMedia++;
+      }
+      const msgs = msgVals.sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
+      const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
+      if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
+
+      const headerParts = [...(c.headerParts || [])].filter((id) => !IGNORED.has(String(id)));
+      const participants = [...new Set([...msgs.map((m) => m.s), ...headerParts])];
+      const nameEv = events.filter((e) => e.type === "name");
+      const title = nameEv.length ? nameEv[nameEv.length - 1].name
+        : (c.type === "group" ? "Group " + String(c.id).slice(-4) : null);
+
+      conversations.push({ id: c.id, type: c.type, title, participants, count: msgs.length, msgs, events });
+      totalMsgs += msgs.length;
+      totalMedia += withMedia;
     }
-    const msgs = msgVals.sort((a, b) => a.t - b.t || (a.i < b.i ? -1 : 1));
-    const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
-    if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
 
-    const headerParts = [...(c.headerParts || [])].filter((id) => !IGNORED.has(String(id)));
-    const participants = [...new Set([...msgs.map((m) => m.s), ...headerParts])];
-    const nameEv = events.filter((e) => e.type === "name");
-    const title = nameEv.length ? nameEv[nameEv.length - 1].name
-      : (c.type === "group" ? "Group " + String(c.id).slice(-4) : null);
+    // biggest conversation first, so the UI opens on the most active chat
+    conversations.sort((a, b) => b.count - a.count);
 
-    conversations.push({ id: c.id, type: c.type, title, participants, count: msgs.length, msgs, events });
-    totalMsgs += msgs.length;
-    totalMedia += withMedia;
+    return { conversations, totalMsgs, totalMedia, prevCount, groupsSeen };
   }
 
-  // biggest conversation first, so the UI opens on the most active chat
-  conversations.sort((a, b) => b.count - a.count);
+  return { addPrev, addMessage, addHeader, finish };
+}
 
-  return { conversations, totalMsgs, totalMedia, prevCount };
+/**
+ * Fold parsed inputs into the final conversation index.
+ *
+ * @param {object}   opts
+ * @param {object|null} opts.prev        previously built CHAT_DATA (new multi-conv
+ *                                       shape or legacy single-conv), or null.
+ * @param {Array[]}  opts.exportDatas    parsed arrays from direct-messages-group.js files.
+ * @param {Array[]}  opts.headerDatas    parsed arrays from -headers.js files (metadata only).
+ * @param {object}   opts.mediaIndex     { messageId -> root-relative media path }.
+ * @param {string[]} opts.ignoredUsers   user ids to drop from messages + roster.
+ * @param {string[]} opts.ignoredGroups  conversation ids to drop entirely.
+ * @returns {{conversations: object[], totalMsgs: number, totalMedia: number, prevCount: number, groupsSeen: number}}
+ */
+function assembleConversations(opts) {
+  opts = opts || {};
+  const acc = createAccumulator(opts);
+  acc.addPrev(opts.prev || null);
+  for (const data of (opts.exportDatas || [])) {
+    (data || []).forEach((d) => {
+      const conv = d && d.dmConversation; if (!conv || !conv.conversationId) return;
+      (conv.messages || []).forEach((m) => acc.addMessage(conv.conversationId, m));
+    });
+  }
+  for (const data of (opts.headerDatas || [])) {
+    (data || []).forEach((d) => {
+      const conv = d && d.dmConversation; if (!conv || !conv.conversationId) return;
+      (conv.messages || []).forEach((m) => acc.addHeader(conv.conversationId, m));
+    });
+  }
+  return acc.finish(opts.mediaIndex || {});
+}
+
+/**
+ * Glue between createExportScanner and an accumulator for ONE file: routes each
+ * streamed message to its conversation (holding any that arrive before their
+ * conversationId) and counts what the file held, for the build's sanity checks.
+ * @param {object} acc     createAccumulator() result.
+ * @param {"messages"|"headers"} which
+ */
+function createExportSink(acc, which) {
+  const add = which === "headers" ? acc.addHeader : acc.addMessage;
+  const ids = [];
+  const pending = new Map();
+  const stats = { conversations: 0, groupConversations: 0, dmConversations: 0, messages: 0, withText: 0, events: 0, orphaned: 0 };
+  function onConversationId(ci, id) {
+    if (id == null || id === "") return;
+    const cid = String(id);
+    ids[ci] = cid;
+    stats.conversations++;
+    if (isGroupId(cid)) stats.groupConversations++; else stats.dmConversations++;
+    const p = pending.get(ci);
+    if (p) { pending.delete(ci); p.forEach((m) => add(cid, m)); }
+  }
+  function onMessage(ci, m) {
+    if (m && m.messageCreate) {
+      stats.messages++;
+      if (Object.prototype.hasOwnProperty.call(m.messageCreate, "text")) stats.withText++;
+    } else stats.events++;
+    const cid = ids[ci];
+    if (cid != null) add(cid, m);
+    else { let p = pending.get(ci); if (!p) { p = []; pending.set(ci, p); } p.push(m); }
+  }
+  function finish() {
+    for (const p of pending.values()) stats.orphaned += p.length;   // a conversation with no id
+    pending.clear();
+    return stats;
+  }
+  return { handlers: { onConversationId, onMessage }, stats, finish };
+}
+
+// What to tell the user when a file's window.YTD global says it's the wrong
+// file for the slot it was picked for. `expected` is "messages" or "headers";
+// returns null when the file is (or may be) the right kind.
+function wrongKindMessage(info, expected, label) {
+  const k = info && info.kind;
+  const name = "\u201c" + label + "\u201d";
+  if (!k || k === expected || k === "unknown") return null;
+  if (k === "empty") return name + " is empty (0 bytes). Re-extract it from your Twitter/X archive and try again.";
+  if (k === "dm") return name + " is your 1:1 direct messages file (direct-messages.js), not your group chats. Pick direct-messages-group.js instead.";
+  if (k === "dm-headers") return name + " is the 1:1 direct message headers file (direct-message-headers.js), not a group chat file. Pick direct-messages-group.js and direct-message-group-headers.js.";
+  if (k === "headers") return name + " is the group headers file (direct-message-group-headers.js), not the messages file. Pick direct-messages-group.js as the messages file.";
+  if (k === "messages") return name + " is the group messages file (direct-messages-group.js), not the headers file. Pick direct-message-group-headers.js as the headers file.";
+  return name + " is the \u201c" + info.global + "\u201d part of your archive (like account.js), not a group chat file. Pick " +
+    (expected === "headers" ? "direct-message-group-headers.js." : "direct-messages-group.js.");
 }
 
 /* ---- wizard participant roster ------------------------------------------- */
@@ -497,6 +575,6 @@ function* archiveChunks(meta, conversations, batch) {
 }
 
 module.exports = {
-  assembleConversations, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
+  assembleConversations, createAccumulator, createExportSink, wrongKindMessage, collectParticipants, rawToRec, toEvent, eventKey, isGroupId, kindOf,
   identifyExport, createExportScanner, ExportScanError, archiveChunks,
 };

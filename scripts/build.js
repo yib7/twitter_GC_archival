@@ -2,9 +2,10 @@
  * build.js — builds personal_data/data.js from the setup wizard's config.
  *
  * Wizard-driven only: it reads personal_data/config.json (written by setup.html
- * / scripts/server.js) for the exact source file(s) + media folder, parses the
- * group export (direct-messages-group.js), folds EVERY group dmConversation into
- * a per-conversation index, and writes personal_data/data.js.
+ * / scripts/server.js) for the exact source file(s) + media folder, streams the
+ * group export (direct-messages-group.js and any -partN files), folds EVERY
+ * group dmConversation into a per-conversation index, and writes
+ * personal_data/data.js.
  *
  *  - When config.headersJs is set, the group `-headers` file
  *    (direct-message-group-headers.js) is folded in too: it has no message
@@ -15,54 +16,47 @@
  *  - Dedupes messages by id, re-sorts chronologically, resolves local media by
  *    the {messageId}-… filename convention. Group chats only — 1:1 DMs are skipped.
  *
- * All transformation lives in build-core.js (pure, unit-tested); this file is the
- * filesystem shell around it. Set GCA_PERSONAL to point at a different
- * personal_data/ folder (used by tests to avoid touching real data).
+ * Fails loudly (SP-1): a missing, empty, truncated, unparseable or wrong file,
+ * or an export with no group chats, prints ONE plain-language line
+ *   BUILD ERROR: <what went wrong and what to do>
+ * on stderr and exits non-zero without touching data.js. The setup server shows
+ * that line to the user; nothing else (no stack traces) is meant for them.
+ *
+ * All transformation lives in build-core.js (pure, unit-tested); the streaming
+ * file reader is fs-io.js; this file is the filesystem shell around them. Set
+ * GCA_PERSONAL to point at a different personal_data/ folder (used by tests to
+ * avoid touching real data).
  *
  * Not meant to be run by hand — use the setup wizard (setup.html).
  */
 
 const fs = require("fs");
 const path = require("path");
-const { assembleConversations } = require("./build-core.js");
+const core = require("./build-core.js");
+const { scanExportFile, readExportHead } = require("./fs-io.js");
 
 const here = path.join(__dirname, "..");   // project root (this script lives in scripts/)
 const PERSONAL = process.env.GCA_PERSONAL ? path.resolve(process.env.GCA_PERSONAL) : path.join(here, "personal_data");
 const CONFIG = path.join(PERSONAL, "config.json");
+const OUT = path.join(PERSONAL, "data.js");
+const log = (...a) => console.log(...a);
+
+// A user-facing failure: its message is the whole story, shown as-is.
+class BuildError extends Error {}
+function fail(msg) { throw new BuildError(msg); }
 
 // The build is driven entirely by personal_data/config.json (written by the
 // setup wizard). No config → nothing to build; point the user at the wizard.
 function loadConfig() {
-  if (!fs.existsSync(CONFIG)) return null;
-  try { return JSON.parse(fs.readFileSync(CONFIG, "utf8")); }
-  catch (e) { return null; }
+  if (!fs.existsSync(CONFIG)) fail("No setup found (personal_data/config.json is missing). Run the setup wizard first: node scripts/server.js, then open http://localhost:8765/setup.html");
+  try { return JSON.parse(fs.readFileSync(CONFIG, "utf8").replace(/^\uFEFF/, "")); }
+  catch (e) { fail("The setup file personal_data/config.json is damaged. Use Start over in the setup wizard."); }
 }
-const config = loadConfig();
-if (!config) {
-  console.error("No personal_data/config.json found — run the setup wizard first:");
-  console.error("  node scripts/server.js   then open   http://localhost:8765/setup.html");
-  process.exit(1);
-}
-const OUT = path.join(PERSONAL, "data.js");
 const resolveHere = (p) => (path.isAbsolute(p) ? p : path.join(here, p));
-const log = (...a) => console.log(...a);
-const ignoredUsers = (Array.isArray(config.ignoredUsers) ? config.ignoredUsers : []).map(String);
-const ignoredGroups = (Array.isArray(config.ignoredGroups) ? config.ignoredGroups : []).map(String);
+const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(Boolean);
 
 /* ---- config-driven sources ----------------------------------------------- */
-function findExports() {
-  // exactly the source file(s) the wizard pointed us at
-  return (Array.isArray(config.sourceJs) ? config.sourceJs : [])
-    .map(resolveHere).filter((f) => fs.existsSync(f));
-}
-function findHeaders() {
-  if (config.headersJs) {
-    const f = resolveHere(config.headersJs);
-    return fs.existsSync(f) ? [f] : [];
-  }
-  return [];
-}
-function findMediaDirs() {
+function findMediaDirs(config) {
   // the wizard copies media into personal_data/media/ and stores that path.
   // Media paths are emitted relative to the project root, so the app (served
   // from the root) resolves them regardless of where data.js lives.
@@ -84,58 +78,113 @@ function buildMediaIndex(dirs) {
   return idx;
 }
 
-// parse a YTD export file (window.YTD.<part> = [...]) into its JSON array
-function parseExport(file) {
-  try {
-    const raw = fs.readFileSync(file, "utf8").replace(/^window\.YTD\.[^=]*=\s*/, "").replace(/;\s*$/, "");
-    return JSON.parse(raw);
-  } catch (e) { log("  ! parse error, skipped:", path.relative(here, file)); return null; }
+// Stream one export file into the accumulator, after checking it is the kind
+// of file this slot expects ("messages" or "headers").
+function ingest(acc, file, which) {
+  const label = path.basename(file);
+  const role = which === "headers" ? "headers file" : "messages file";
+  if (!fs.existsSync(file)) fail("The " + role + " \u201c" + label + "\u201d is missing (" + file + "). Run the setup wizard again and pick your export files.");
+  if (!fs.statSync(file).isFile()) fail("The " + role + " \u201c" + label + "\u201d is a folder, not a file. Pick the .js file itself.");
+  const wrong = core.wrongKindMessage(core.identifyExport(readExportHead(file)), which, label);
+  if (wrong) fail(wrong);
+  const sink = core.createExportSink(acc, which);
+  try { scanExportFile(file, sink.handlers); }
+  catch (e) {
+    if (e instanceof core.ExportScanError) fail("\u201c" + label + "\u201d: " + e.message + ".");
+    throw e;
+  }
+  const stats = sink.finish();
+  // SP-8: a headers file picked as the messages file parses fine but every
+  // messageCreate lacks `text` — the build would "succeed" with blank messages.
+  if (which !== "headers" && stats.messages > 0 && stats.withText === 0) {
+    fail("\u201c" + label + "\u201d looks like the group headers file: its messages have no text. Pick direct-messages-group.js as the messages file and direct-message-group-headers.js as the headers file.");
+  }
+  return stats;
 }
+
 function loadPrev() {
   if (!fs.existsSync(OUT)) return null;
   try {
-    const s = fs.readFileSync(OUT, "utf8").replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, "");
+    const s = fs.readFileSync(OUT, "utf8").replace(/^\uFEFF/, "").replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, "");
     return JSON.parse(s);
   } catch (e) { log("(existing data.js unreadable — rebuilding from source only)"); return null; }
 }
 
+function writeArchive(meta, conversations) {
+  fs.mkdirSync(path.dirname(OUT), { recursive: true });
+  const fd = fs.openSync(OUT, "w");
+  try { for (const chunk of core.archiveChunks(meta, conversations)) fs.writeSync(fd, chunk); }
+  finally { fs.closeSync(fd); }
+}
+
 /* ========================================================================= */
-log("Building archive (merge mode, multi-conversation)…");
+function main() {
+  const config = loadConfig();
+  const ignoredUsers = (Array.isArray(config.ignoredUsers) ? config.ignoredUsers : []).map(String);
+  const ignoredGroups = (Array.isArray(config.ignoredGroups) ? config.ignoredGroups : []).map(String);
 
-const prev = loadPrev();
+  log("Building archive (merge mode, multi-conversation)…");
+  const exportFiles = asList(config.sourceJs).map(resolveHere);
+  const headerFiles = asList(config.headersJs).map(resolveHere);
+  if (!exportFiles.length) fail("No messages file is set up. Run the setup wizard and pick direct-messages-group.js.");
 
-const exportFiles = findExports();
-log("Export files found:", exportFiles.length, exportFiles.map((f) => path.relative(here, f)).join(", ") || "(none)");
-const exportDatas = exportFiles.map(parseExport).filter(Boolean);
+  const acc = core.createAccumulator({ ignoredUsers, ignoredGroups });
+  const prev = loadPrev();
+  acc.addPrev(prev);
 
-const headerFiles = findHeaders();
-log("Header files found:", headerFiles.length, headerFiles.map((f) => path.relative(here, f)).join(", ") || "(none)");
-const headerDatas = headerFiles.map(parseExport).filter(Boolean);
+  log("Export files:", exportFiles.length, exportFiles.map((f) => path.basename(f)).join(", "));
+  const seen = { dm: 0 };
+  for (const f of exportFiles) {
+    const st = ingest(acc, f, "messages");
+    seen.dm += st.dmConversations;
+    log("  ·", path.basename(f) + ":", st.messages, "messages in", st.conversations, "conversation(s)");
+  }
+  log("Header files:", headerFiles.length, headerFiles.map((f) => path.basename(f)).join(", ") || "(none)");
+  for (const f of headerFiles) ingest(acc, f, "headers");
 
-const mediaDirs = findMediaDirs();
-log("Media folders:", mediaDirs.map((d) => path.relative(here, d)).join(", ") || "(none)");
-const mediaIndex = buildMediaIndex(mediaDirs);
+  const mediaDirs = findMediaDirs(config);
+  log("Media folders:", mediaDirs.map((d) => path.relative(here, d)).join(", ") || "(none)");
+  const mediaIndex = buildMediaIndex(mediaDirs);
 
-const { conversations, totalMsgs, totalMedia, prevCount } =
-  assembleConversations({ prev, exportDatas, headerDatas, mediaIndex, ignoredUsers, ignoredGroups });
+  const { conversations, totalMsgs, totalMedia, prevCount, groupsSeen } = acc.finish(mediaIndex);
+  if (!groupsSeen) {
+    const names = exportFiles.map((f) => "\u201c" + path.basename(f) + "\u201d").join(", ");
+    fail("No group chats were found in " + names + (seen.dm ? " — it only has 1:1 conversations" : "") +
+      ". Make sure you picked direct-messages-group.js from the data folder of your Twitter/X archive.");
+  }
+  if (prev) log("Baseline from data.js:", prevCount, "messages.");
 
-if (prev) log("Baseline from data.js:", prevCount, "messages.");
+  writeArchive({ generatedAt: new Date().toISOString(), ignoredUsers, ignoredGroups }, conversations);
 
-// write
-fs.mkdirSync(path.dirname(OUT), { recursive: true });
-fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({
-  generatedAt: new Date().toISOString(),
-  ignoredUsers,
-  ignoredGroups,
-  conversations,
-}) + ";\n");
-
-const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);
-log("---");
-log("Group conversations:", conversations.length);
-log("Total messages:", totalMsgs, prev ? "(" + (totalMsgs - prevCount >= 0 ? "+" : "") + (totalMsgs - prevCount) + " since last build)" : "");
-log("With media:", totalMedia);
-conversations.slice(0, 12).forEach((c) =>
-  log("  ·", String(c.id).slice(-8).padStart(8), fmtN(c.count).padStart(8), c.title || "(group)"));
-log("Wrote data.js (" + mb + " MB). Open index.html to view.");
+  const mb = (fs.statSync(OUT).size / 1048576).toFixed(1);
+  log("---");
+  log("Group conversations:", conversations.length);
+  log("Total messages:", totalMsgs, prev ? "(" + (totalMsgs - prevCount >= 0 ? "+" : "") + (totalMsgs - prevCount) + " since last build)" : "");
+  log("With media:", totalMedia);
+  conversations.slice(0, 12).forEach((c) =>
+    log("  ·", String(c.id).slice(-8).padStart(8), fmtN(c.count).padStart(8), c.title || "(group)"));
+  log("Wrote data.js (" + mb + " MB). Open index.html to view.");
+}
 function fmtN(n) { return n.toLocaleString("en-US"); }
+
+// Plain-language text for the failures a user can actually hit; anything else
+// is reported as unexpected, still without a stack trace (GCA_DEBUG=1 adds it).
+function describeFailure(e) {
+  if (e instanceof BuildError) return e.message;
+  const code = e && e.code;
+  if (code === "ERR_STRING_TOO_LONG") return "A file is too large to read in one piece. Please report this — the build should stream it.";
+  if (code === "ENOSPC") return "The disk is full. Free up some space and try again.";
+  if (code === "EACCES" || code === "EPERM") return "Permission denied while reading or writing " + (e.path ? "\u201c" + e.path + "\u201d" : "a file") + ". Close any program using it (or move the archive out of a protected folder) and try again.";
+  if (code === "EBUSY") return "A file is locked by another program (antivirus or a sync app?). Wait a moment and try again.";
+  if (e instanceof RangeError && /memory|allocation/i.test(e.message)) return "The build ran out of memory. Close other programs and try again.";
+  return "The build failed unexpectedly: " + String(e && e.message || e);
+}
+
+if (require.main === module) {
+  try { main(); }
+  catch (e) {
+    console.error("BUILD ERROR: " + describeFailure(e));
+    if (process.env.GCA_DEBUG && !(e instanceof BuildError)) console.error(e && e.stack);
+    process.exit(2);
+  }
+}

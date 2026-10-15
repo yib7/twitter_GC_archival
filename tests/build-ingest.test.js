@@ -52,7 +52,7 @@ test("scanner: emits every conversation id and message, identical to a whole-fil
 
 test("scanner: strips a UTF-8 BOM and accepts a trailing semicolon", () => {
   const ex = X.defaultExport();
-  const text = "﻿" + X.ytd("direct_messages_group", "part0", ex.part0) + ";\n";
+  const text = "\uFEFF" + X.ytd("direct_messages_group", "part0", ex.part0) + ";\n";
   const got = scanText(text, 5);
   assert.deepEqual(got.msgs, expected(ex.part0).msgs);
 });
@@ -82,7 +82,7 @@ test("scanner: empty, truncated, non-export and broken input throw a readable Ex
   const bad = {
     "": /empty/i,
     "   \n": /empty/i,
-    "﻿": /empty/i,
+    "\uFEFF": /empty/i,
     "window.YTD.direct_messages_group.part0 = [{\"dmConversation\":{\"conversationId\":\"1\",\"messages\":[{\"a\":1}": /ends early|truncated/i,
     "hello world, not an export": /isn't a Twitter\/X export/i,
     "window.YTD.direct_messages_group.part0 = [{\"dmConversation\":{\"conversationId\":\"1\",\"messages\":[{\"a\":tru}]}}]": /couldn't be read/i,
@@ -97,7 +97,7 @@ test("scanner: empty, truncated, non-export and broken input throw a readable Ex
 test("identifyExport names each X file kind from its window.YTD global (BOM-tolerant)", () => {
   const k = (s) => core.identifyExport(s).kind;
   assert.equal(k("window.YTD.direct_messages_group.part0 = ["), "messages");
-  assert.equal(k("﻿window.YTD.direct_messages_group.part3 = ["), "messages");
+  assert.equal(k("\uFEFFwindow.YTD.direct_messages_group.part3 = ["), "messages");
   assert.equal(k("window.YTD.direct_message_group_headers.part0 = ["), "headers");
   assert.equal(k("window.YTD.direct_messages_group_headers.part0 = ["), "headers");
   assert.equal(k("window.YTD.direct_messages.part0 = ["), "dm");
@@ -105,7 +105,7 @@ test("identifyExport names each X file kind from its window.YTD global (BOM-tole
   assert.equal(k("window.YTD.account.part0 = ["), "other");
   assert.equal(k("[{\"dmConversation\":"), "unknown");
   assert.equal(k(""), "empty");
-  assert.equal(k("﻿  \n"), "empty");
+  assert.equal(k("\uFEFF  \n"), "empty");
   assert.equal(core.identifyExport("window.YTD.direct_messages_group.part2 = [").part, 2);
 });
 
@@ -127,7 +127,7 @@ test("scanExportFile reads a file in tiny byte chunks with identical results (st
   const dir = scratch("gca-ingest-");
   const ex = X.defaultExport();
   const file = path.join(dir, "direct-messages-group.js");
-  fs.writeFileSync(file, "﻿" + X.ytd("direct_messages_group", "part0", ex.part0));
+  fs.writeFileSync(file, "\uFEFF" + X.ytd("direct_messages_group", "part0", ex.part0));
   const want = expected(ex.part0);
   for (const chunkSize of [1, 3, 5, 17, 1 << 20]) {
     const convIds = [], msgs = [];
@@ -146,7 +146,7 @@ test("scanExportFile reads a file in tiny byte chunks with identical results (st
 test("readExportHead returns the leading text of a file for identification", () => {
   const dir = scratch("gca-head-");
   const f = path.join(dir, "a.js");
-  fs.writeFileSync(f, "﻿window.YTD.account.part0 = [" + "x".repeat(5000));
+  fs.writeFileSync(f, "\uFEFFwindow.YTD.account.part0 = [" + "x".repeat(5000));
   const head = fsio.readExportHead(f);
   assert.equal(core.identifyExport(head).kind, "other");
   assert.ok(head.length <= 1024);

@@ -76,7 +76,7 @@ function writeExport(root, opts) {
   const data = path.join(root, "data");
   const media = path.join(data, "direct_messages_group_media");
   fs.mkdirSync(media, { recursive: true });
-  const bom = opts.bom ? "﻿" : "";
+  const bom = opts.bom ? "\uFEFF" : "";
   const files = {
     data, media,
     group: path.join(data, "direct-messages-group.js"),
