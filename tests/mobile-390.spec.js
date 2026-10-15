@@ -223,3 +223,51 @@ test.describe("UX-19: mobile search header is compact and doesn't grab the keybo
     await expect(filters).toBeHidden();
   });
 });
+
+// Interactive targets smaller than 44×44 CSS px on a coarse pointer. Inline
+// links inside message text are exempt (WCAG 2.5.8 inline exception), as are
+// controls inside a larger <label>/role=button target and aria-hidden parts.
+async function smallTargets(page, root) {
+  return page.evaluate((sel) => {
+    const out = [];
+    const r0 = document.querySelector(sel);
+    if (!r0) return out;
+    for (const e of r0.querySelectorAll("button, a[href], input:not([type=hidden]), select, textarea, summary, [role=button], [role=option], label.pill, .pop-item")) {
+      if (e.closest("[aria-hidden=true], .bubble, .otd-q")) continue;
+      const cs = getComputedStyle(e);
+      if (cs.visibility === "hidden") continue;
+      const r = e.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      // a control that sits inside a bigger tap target (a label pill, a card) is covered by it
+      const host = e.parentElement && e.parentElement.closest("label, .pop-item, [role=button], [role=option]");
+      if (host && host !== e) { const h = host.getBoundingClientRect(); if (h.width >= 44 && h.height >= 44) continue; }
+      if (r.width < 43.5 || r.height < 43.5) out.push(e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className).trim().split(/\s+/).slice(0, 2).join(".") + " " + Math.round(r.width) + "×" + Math.round(r.height));
+    }
+    return out;
+  }, root);
+}
+
+test.describe("UX-18: 44px touch targets on a coarse pointer", () => {
+  test("every view, the filter sheet and the More sheet", async ({ page }) => {
+    await bootViewer(page, RICH_DATA);
+    const bad = [];
+    const add = async (label, root) => { for (const d of await smallTargets(page, root)) bad.push(label + ": " + d); };
+    await add("chrome", ".mobile-topbar");
+    await add("tabbar", ".tabbar");
+    await add("search", "#view-search");
+    await page.locator("#f-toggle").tap();
+    await add("filters", "#s-filters");
+    await page.locator("#f-people").tap();
+    await add("people-popover", "#s-filters .popover");
+    await page.locator("#f-done").tap();
+    await page.locator("#tab-more").tap();
+    await add("more-sheet", "#more-sheet");
+    await page.keyboard.press("Escape");
+    for (const v of VIEWS.slice(1)) {
+      await page.evaluate((name) => document.querySelector('.nav-item[data-view="' + name + '"]').click(), v);
+      await page.waitForTimeout(v === "stats" ? 700 : 80);
+      await add(v, "#view-" + v);
+    }
+    expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
+  });
+});

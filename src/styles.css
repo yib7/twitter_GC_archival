@@ -1518,6 +1518,31 @@ html[data-theme="light"] .wr-slide::after {
 .switch input:focus-visible + .track { box-shadow: var(--focus-ring); }
 
 /* ===========================================================================
+   UX-18: touch targets. On a coarse pointer every tap target is at least
+   44×44 CSS px; the visual style stays the same, only the box grows.
+   ======================================================================== */
+@media (pointer: coarse) {
+  .pill, .btn, .seg button, .f-toggle, .pop-item, .me-toggle, .bar-clickable,
+  select, input[type="text"], input[type="search"], input[type="range"] { min-height: 44px; }
+  .pill, .btn, .seg button, .cloud-word { min-width: 44px; }
+  .pill select, .pill input { min-height: 0; }        /* the 44px label pill is the target */
+  .pill, .btn, .seg button, .popwrap { -webkit-tap-highlight-color: transparent; }   /* they have their own pressed states */
+  .seg { align-items: stretch; }
+  .cloud-word { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
+  .mobile-topbar .mic { width: 44px; height: 44px; }
+  input[type="color"] { width: 44px; height: 44px; }
+  .preset, .swatch { width: 44px; height: 44px; }
+  .swatch-auto { line-height: 40px; font-size: 13px; }
+  /* Wrapped dots: a 44px hit box per dot, overlapped so the row keeps its
+     rhythm; the visible dot is drawn inside it. */
+  .wr-dots { gap: 0; }
+  .wr-dot, .wr-dot.on { position: relative; width: 44px; height: 44px; margin: 0 -14px; background: none; border-radius: 0; }
+  .wr-dot::after { content: ""; position: absolute; left: 50%; top: 50%; width: 7px; height: 7px; transform: translate(-50%, -50%); border-radius: 50%; background: var(--border-lift); transition: width 0.2s, background 0.2s; }
+  .wr-dot.on::after { width: 22px; border-radius: 4px; background: var(--accent); }
+  .wr-dot.on { z-index: 1; }
+}
+
+/* ===========================================================================
    Reduced motion — honor users who ask the OS to minimize animation.
    Collapses transitions and animations (Wrapped slides, fades, skeleton
    shimmer, etc.) to near-instant and disables smooth scrolling.
