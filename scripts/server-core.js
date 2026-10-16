@@ -323,7 +323,12 @@ function friendlyError(e) {
     case "ENOTDIR": return "Expected a folder but found a file" + where + ".";
     case "EMFILE":
     case "ENFILE": return "Too many files are open at once. Close some programs and try again.";
-    default: return "Something went wrong: " + String(e.message || e).split(/\r?\n/)[0];
+    // Any other system error: its message spells out the full path(s) it
+    // touched (the user's home folder, their name), so give the code and the
+    // file's own name instead.
+    default:
+      if (e.code && (e.syscall || e.path)) return "Something went wrong" + where + " (" + String(e.code) + "). Try again.";
+      return "Something went wrong: " + String(e.message || e).split(/\r?\n/)[0];
   }
 }
 
@@ -395,6 +400,44 @@ function isForeignFetchSite(headers) {
 function isPrivateServedPath(urlPath) {
   const p = String(urlPath == null ? "" : urlPath);
   return p === "/data.js" || p === "/names.local.js" || p === "/personal_data" || p.startsWith("/personal_data/");
+}
+
+/* ---- what a request body may hold ------------------------------------ */
+const isPlainObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+// A photo the wizard sends: a picked image as a base64 data URL. A group photo
+// may instead name the file an earlier save wrote (personal_data/pfps/<name>,
+// the names pfpFileName makes); nothing else, so no value that reaches the
+// viewer's url('…') can climb out of pfps/ or out of the quotes.
+const PHOTO_DATA_RE = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const SAVED_PFP_RE = /^personal_data\/pfps\/[A-Za-z0-9_-][A-Za-z0-9._-]*$/;
+const idOk = (v) => typeof v === "string" || (typeof v === "number" && Number.isFinite(v));
+// the values under each key but "__proto__", which every reader skips anyway
+const valuesOf = (o) => Object.keys(o).filter((k) => k !== "__proto__").map((k) => o[k]);
+// Why a POST /api/identity body can't be saved, or null when it can. Each
+// field may be left out (it then keeps what was saved); when present it must
+// have the shape the wizard sends.
+function identityBodyProblem(body) {
+  const b = isPlainObject(body) ? body : {};
+  const photoOk = (v, savedPathOk) => v == null || v === "" || (typeof v === "string" && (PHOTO_DATA_RE.test(v) || (savedPathOk && SAVED_PFP_RE.test(v))));
+  if (b.names != null && (!isPlainObject(b.names) || !valuesOf(b.names).every((v) => typeof v === "string"))) {
+    return "Names must be text.";
+  }
+  if (b.pfps != null && (!isPlainObject(b.pfps) || !valuesOf(b.pfps).every((v) => typeof v === "string" && photoOk(v, false)))) {
+    return "Each photo must be a picture (PNG, JPEG, GIF or WebP).";
+  }
+  if (b.gc != null) {
+    if (!isPlainObject(b.gc)) return "Group names and photos weren't sent in the expected form.";
+    for (const e of valuesOf(b.gc)) {
+      if (!isPlainObject(e)) return "Group names and photos weren't sent in the expected form.";
+      if (e.name != null && typeof e.name !== "string") return "Group names must be text.";
+      if (!photoOk(e.photo, true)) return "Each group photo must be a picture (PNG, JPEG, GIF or WebP).";
+    }
+  }
+  if (b.me != null && !idOk(b.me)) return "“This is you” must name one person.";
+  for (const k of ["ignoredUsers", "ignoredGroups"]) {
+    if (b[k] != null && (!Array.isArray(b[k]) || !b[k].every(idOk))) return "The removed people and group chats weren't sent as a list.";
+  }
+  return null;
 }
 
 /* ---- paths as people actually paste them -------------------------- */
@@ -573,4 +616,4 @@ function preflightWarnings(p) {
   return out;
 }
 
-module.exports = { isForeignFetchSite, isPrivateServedPath, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+module.exports = { identityBodyProblem, isPlainObject, isForeignFetchSite, isPrivateServedPath, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

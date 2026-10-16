@@ -30,7 +30,7 @@ const { execFileSync, spawn } = require("child_process");
 const { pipeline } = require("stream");
 const { idPartition, createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, replaceFile, TMP_RE } = require("./fs-io.js");
-const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath } = require("./server-core.js");
+const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath, isPlainObject, identityBodyProblem } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -155,8 +155,13 @@ function readBody(req, res) {
     });
     req.on("end", () => {
       if (tooLarge) return;   // already rejected; nothing left to parse
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
-      catch (e) { reject(httpError(400, "Invalid JSON request body.")); }
+      let body;
+      try { body = JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}"); }
+      catch (e) { reject(httpError(400, "Invalid JSON request body.")); return; }
+      // every route reads named fields off the body: null, a list or a bare
+      // value is refused here rather than half-handled (or crashing) there
+      if (!isPlainObject(body)) { reject(httpError(400, "The request body must be a JSON object.")); return; }
+      resolve(body);
     });
     req.on("error", reject);
   });
@@ -1146,6 +1151,9 @@ function apiIdentity(body, res) {
   // then save its older copy of config.json over this one. Check again now
   // that the body is in (nothing below awaits, so no merge can start after).
   if (job) return sendJSON(res, 409, { error: BUSY });
+  // each field the shape the wizard sends, before anything is written
+  const bad = identityBodyProblem(body);
+  if (bad) return sendJSON(res, 400, { error: bad });
   fs.mkdirSync(path.join(PERSONAL, "pfps"), { recursive: true });
   const cfg = loadConfig();
   // What the archive was actually BUILT without comes from
@@ -1571,6 +1579,12 @@ const PICKER_TOKEN = crypto.randomBytes(32).toString("hex");
 
 const server = http.createServer(async (req, res) => {
   const [url, qs] = req.url.split("?");
+  // On every reply: no content sniffing (the JSON replies too), and no page
+  // here sends its address to another site when a link in a message is
+  // clicked. "same-origin", not "no-referrer": under no-referrer a browser
+  // sends `Origin: null` on the wizard's own POSTs, which the check below refuses.
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "same-origin");
   try {
     // Loopback Host allowlist — every request, before any routing. Blocks DNS
     // rebinding (an attacker domain resolving to 127.0.0.1 still sends its own
@@ -1589,6 +1603,15 @@ const server = http.createServer(async (req, res) => {
     // cross-site or same-site, i.e. another localhost port), refuse too, as
     // the pickers always did; a missing header (curl) is left to the above.
     if (GUARDED.has(url) && (!isAllowedOrigin(req.headers.origin, req.headers.referer, PORT) || isForeignFetchSite(req.headers))) {
+      return sendJSON(res, 403, { error: "forbidden origin" });
+    }
+    // The read-only routes too: a page on another site can't read their
+    // replies, but it could still make the server run them (/api/status and
+    // /api/parts stream the whole archive; /api/ping keeps a launcher-started
+    // server from shutting down). The wizard and the app only call them from
+    // this origin.
+    if (url.startsWith("/api/") && isForeignFetchSite(req.headers)) {
+      req.resume();
       return sendJSON(res, 403, { error: "forbidden origin" });
     }
     if (PICKERS.has(url) && !isPickerRequestAllowed(req.headers, PICKER_TOKEN, PORT)) {

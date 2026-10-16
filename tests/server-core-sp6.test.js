@@ -42,6 +42,20 @@ test("friendlyError turns common Node fs errors into plain sentences without sta
   assert.doesNotMatch(core.friendlyError(odd), /at somewhere/);
 });
 
+test("friendlyError never repeats a full path from an fs error it has no sentence for", () => {
+  const sys = (code, p, syscall) => Object.assign(new Error(code + ": something odd, " + syscall + " '" + p + "'"), { code, path: p, syscall, errno: -1 });
+  // POSIX paths, so path.basename splits them the same on every platform
+  for (const [code, p, base] of [["ELOOP", "/home/jane/Downloads/export/data", "data"], ["ENAMETOOLONG", "/home/jane/Downloads/export/data/x.js", "x.js"], ["EINVAL", "/Users/jane/x/y.mp4", "y.mp4"], ["EIO", "/media/jane/Archive/media/1-a.png", "1-a.png"]]) {
+    const msg = core.friendlyError(sys(code, p, "open"));
+    assert.doesNotMatch(msg, /\/home\/jane|\/Users\/jane|\/media\/jane/, msg);
+    assert.match(msg, new RegExp(code), "the code stays, for the person helping: " + msg);
+    assert.ok(msg.includes("“" + base + "”"), "the file's own name stays: " + msg);
+  }
+  // no path on the error at all: still no message text with a path in it
+  const bare = Object.assign(new Error("EXDEV: cross-device link not permitted, rename '/home/jane/a' -> '/mnt/b'"), { code: "EXDEV", syscall: "rename" });
+  assert.doesNotMatch(core.friendlyError(bare), /\/home\/jane|\/mnt\/b/);
+});
+
 // ---- only the group media folder, only message media ---------------
 test("MEDIA_FILE_RE matches X message media names only", () => {
   for (const ok of ["9002-AbCdEf.png", "123-x.JPG", "1-a.jpeg", "77-clip.mp4", "8-a.webm", "9-b.mov", "10-c.m4v", "11-d.gif", "12-e.webp"]) assert.match(ok, core.MEDIA_FILE_RE, ok);
