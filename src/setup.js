@@ -7,7 +7,7 @@
 // (setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule
 // (hueVars) without the settings.colors override, which is viewer-only.
 /* global GCAShared */
-const { initials, hueVars } = GCAShared;
+const { initials, hueVars, sanitizePhoto } = GCAShared;
 // a person's avatar here is the same hue the viewer gives them (the
 // --p / --f pair of src/shared-core.js hueVars), not a separate palette.
 function paintHue(el, id) { const h = hueVars(id); el.style.setProperty("--p", h.p); el.style.setProperty("--f", h.f); }
@@ -226,12 +226,15 @@ function renderFinishReceipt() {
   const g = groups.find((x) => String(x.id) === state.group) || groups[0];
   const e = state.gc[String(g.id)] || {};
   const nm = e.name || g.title || "Group " + String(g.id).slice(-4);
-  const gcPhoto = e.photo || savedGcPhotos[String(g.id)];
+  // These go into an HTML style="" attribute: only a photo the wizard itself
+  // makes (an image data URL or a personal_data/ path) — a hand-edited
+  // config.json's value could otherwise close the url('') and the attribute.
+  const gcPhoto = sanitizePhoto(e.photo || savedGcPhotos[String(g.id)]);
   const markStyle = gcPhoto ? ` style="background-image:url('${gcPhoto}')"` : "";
 
   const keptParts = PARTS.filter((p) => !state.ignored[p.id]);
   const stack = keptParts.slice(0, 6).map((p) => {
-    const pfp = state.pfps[p.id] || savedPfpPaths[p.id];
+    const pfp = sanitizePhoto(state.pfps[p.id] || savedPfpPaths[p.id]);
     const style = pfp
       ? `background-image:url('${pfp}')`
       : hueStyle(p.id);

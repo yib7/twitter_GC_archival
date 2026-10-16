@@ -620,7 +620,9 @@ function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; c
 // Day bucket for an epoch, in the configured zone ("YYYY-MM-DD"). Callers group
 // by equality; the human-readable busiest-day label formats via zone-aware DAY.
 function dayKey(t) { return zonedParts(t).key; }
-function fmtNum(n) { return n.toLocaleString("en-US"); }
+// Number(): a count from a hand-edited data.js can be a string of markup, and
+// toLocaleString on a string hands it back unchanged into innerHTML.
+function fmtNum(n) { return (Number(n) || 0).toLocaleString("en-US"); }
 
 /* Count-up stat numbers (mock-stats animate()): finds [data-count] (integers,
    fmtNum separators) and [data-decimal] (toFixed(1)) descendants of rootEl and
@@ -1127,12 +1129,24 @@ function renderDaySep(t, cont) {
 // bold domain line + dim ellipsized label. Domain via new URL() in a try/catch;
 // non-URL hrefs (local media paths) fall back to the path's basename.
 const CHIP_LINK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 15l6-6M9.5 8.5l1.4-1.4a3.5 3.5 0 015 5l-1.4 1.4M14.5 15.5l-1.4 1.4a3.5 3.5 0 01-5-5l1.4-1.4"/></svg>';
+// Media paths come from data.js. The build writes relative paths, but a
+// hand-edited or shared archive could put any URL there: only one that opens
+// as a page or a file (http, https, file) becomes a link. javascript:, data:
+// and the rest are left without an href. The URL parser decides, so a tab
+// inside "java	script:" or a leading space can't slip one past.
+function safeHref(p) {
+  if (typeof p !== "string" || !p) return "";
+  try { return /^(?:https?|file):$/.test(new URL(p, location.href).protocol) ? p : ""; }
+  catch (err) { return ""; }
+}
 function urlChipEl(href, lbl) {
   let dom;
   try { dom = new URL(href).hostname.replace(/^www\./, ""); }
   catch (err) { dom = String(href).split(/[?#]/)[0].split("/").pop() || String(href); }
   const a = el("a", "urlchip");
-  a.href = href; a.target = "_blank";
+  const safe = safeHref(href);
+  if (safe) a.href = safe;
+  a.target = "_blank";
   a.innerHTML = '<span class="g">' + CHIP_LINK_ICON + '</span>' +
     '<span class="lt"><span class="dom">' + esc(dom) + '</span><span class="lbl">' + esc(lbl) + "</span></span>";
   return a;
@@ -1371,7 +1385,9 @@ function appendMoreMedia(d, m, name) {
     let node;
     if (x.k === "img") {
       node = el("a", "media-more-item");
-      node.href = x.m; node.target = "_blank"; node.rel = "noopener";
+      const safe = safeHref(x.m);
+      if (safe) node.href = safe;
+      node.target = "_blank"; node.rel = "noopener";
       node.setAttribute("aria-label", "Open photo " + (j + 2) + " of " + total + " from " + who);
       const img = el("img"); img.loading = "lazy"; img.src = x.m; img.alt = "";
       node.appendChild(img);
@@ -1474,8 +1490,9 @@ function renderLightbox() {
   bar.appendChild(lbPin);
 
   const dl = el("a", "lb-dl", "↓ Download");
-  dl.href = m.m;
-  dl.download = m.m.split('/').pop() || "media";
+  const safeDl = safeHref(m.m);
+  if (safeDl) dl.href = safeDl;
+  dl.download = String(m.m || "").split('/').pop() || "media";
   dl.onclick = (e) => e.stopPropagation();
   bar.appendChild(dl);
 
