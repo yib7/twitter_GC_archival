@@ -3,8 +3,10 @@
 #  Double-click (macOS) or run to set up the Group Chat Archive.
 #  Starts the local server and opens the setup wizard in your browser.
 #  Needs Node.js 22.13 or newer installed (https://nodejs.org); Node 23 is
-#  not supported. Ctrl+C to stop.
-#  First time on macOS/Linux: run `chmod +x start-setup.command` once.
+#  not supported. The server stops by itself shortly after you close the
+#  browser tab.
+#  If double-clicking it doesn't work, run `sh start-setup.command` in a
+#  terminal from this folder.
 # ============================================================================
 cd "$(dirname "$0")" || exit 1
 

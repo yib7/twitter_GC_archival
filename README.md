@@ -183,9 +183,11 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
 
 ```bash
 git clone https://github.com/yib7/twitter_GC_archival.git
+cd twitter_GC_archival
 ```
 
-(No git? On the GitHub page click **Code → Download ZIP** and extract it.)
+(No git? On the GitHub page click **Code → Download ZIP** and extract it. If
+you'll run any commands below, open a terminal in the extracted folder.)
 
 **Step 2.** Open `index.html` from the project folder in your browser
 (double-click it).
@@ -218,7 +220,13 @@ group chats only):
 | Linux | Run `sh start-setup.command` in a terminal |
 
 The launcher checks your Node.js version, starts the local server and opens
-the wizard in your browser. The server stops by itself about 20 seconds after you close the last archive tab.
+the wizard in your browser. The server stops by itself about 20 seconds after
+you close the last tab it opened (the wizard or the archive).
+
+The first time you open a launcher from a downloaded ZIP, your system may stop
+it. macOS may refuse the double-click: open System Settings → Privacy &
+Security and click **Open Anyway**, or run `sh start-setup.command` in
+Terminal. Windows may ask you to confirm running `start-setup.cmd`.
 
 **Step 3.** On the wizard's first step, click **Browse…** next to **Archive
 folder** and pick any file in your unzipped archive (for example
@@ -229,15 +237,14 @@ click **Build archive**. A progress bar shows the media copy.
 
 **Step 4** *(optional: click **Next** twice to skip it; you can name people
 later in the viewer's People tab)*. After the build the wizard moves on to the
-group: set its name and photo and click **Next**. Then name each person (their
-cards show sample messages and media to tell them apart), mark which one is
-you, and click **Next**.
+group: set its name and photo and click **Next** (with several group chats, pick
+each one from **Which group chat**). Then name each person (their cards show
+sample messages and media to tell them apart), mark which one is you, and click
+**Next**.
 
 **Step 5.** Click **Save & finish**, then **Open your archive →**. From now on,
 double-click `index.html` whenever you want to read it; the server is only
-needed to run the wizard again. If your browser won't play the videos from
-`file://`, run `npm start` and read the archive at `http://localhost:8765`
-instead.
+needed to run the wizard again.
 
 Everything the wizard writes lands in one git-ignored folder, `personal_data/`
 (`config.json`, the built `data.js`, `local.js`, the copied raw export under
@@ -263,6 +270,10 @@ with a newer export that no longer has them). Start over erases all of it.
 Prefer a terminal to the launcher? `npm start` runs the same server (no
 `npm install` needed), but it doesn't open the browser or stop by itself: open
 `http://localhost:8765/setup.html` and press Ctrl+C when you're done.
+
+> **Videos won't play from `index.html`** *(only if that happens)*. Some
+> browsers block video over `file://`. Run `npm start` and read the archive at
+> `http://localhost:8765` instead.
 
 ### Environment variables
 
@@ -298,8 +309,9 @@ hand-edit `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` /
 ## Development
 
 Only needed to run the tests or change the code; the app itself installs
-nothing. It needs the same Node.js 22.13 or newer (`.nvmrc` pins 24, the
-version CI runs on every OS).
+nothing. Run the steps in the project folder (see Quick start, Step 1). It
+needs the same Node.js 22.13 or newer (`.nvmrc` pins 24, the version CI runs on
+every OS).
 
 **Step 1.** Install the dev tools at the exact versions in `package-lock.json`:
 

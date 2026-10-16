@@ -170,3 +170,27 @@ test("the README's Requirements and the launchers name the same Node floor, and 
     if (f !== "README.md") assert.match(text, /Node\.js 22\.13 or newer/, f);
   }
 });
+
+// The docs lead users to the launchers and `npm start`. The runtime messages
+// (wizard errors, the "server has stopped" banner, the build script) must do
+// the same instead of sending them to the bare `node scripts/server.js` route.
+test("no runtime message sends the user to node scripts/server.js", () => {
+  for (const f of ["src/setup.js", "src/keepalive.js", "scripts/build.js"]) {
+    const text = fs.readFileSync(path.join(ROOT, f), "utf8");
+    assert.doesNotMatch(text, /node scripts\/server\.js/, f);
+  }
+});
+
+test("the .command launcher's header matches how it behaves", () => {
+  const head = fs.readFileSync(path.join(ROOT, "start-setup.command"), "utf8").split("\n").slice(0, 10).join("\n");
+  // it exits by itself when the browser closes (server.js --open), so no "Ctrl+C to stop"
+  assert.doesNotMatch(head, /Ctrl\+C/);
+  // it ships executable, so the header doesn't tell everyone to chmod it first
+  assert.doesNotMatch(head, /chmod \+x/);
+});
+
+test("the README tells a cloner to cd into the project and warns about the first-launch prompt", () => {
+  const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
+  assert.match(readme, /git clone [^\n]*\ncd twitter_GC_archival\n/);
+  assert.match(readme, /Open Anyway/);
+});

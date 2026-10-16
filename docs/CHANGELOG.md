@@ -6,11 +6,11 @@ All notable changes to this project are recorded here.
 
 ### Requirements
 
-- The setup wizard and its server now need Node.js 22.13 or newer (Node 23
-  is not supported), the versions CI tests. v1.4.0 asked for Node 18, which
-  like Node 20 is end-of-life and was never tested. The double-click
-  launchers check the version and say what to install. Browsing an archive
-  still needs only a browser.
+- The double-click launchers now accept only Node.js 22.13 or newer (Node 23
+  is not supported), the versions CI tests, and say what to install
+  otherwise. v1.4.0 asked for Node 18, which like Node 20 is end-of-life and
+  was never tested. `npm start` does not check the version. Browsing an
+  archive still needs only a browser.
 
 ### Fixes
 
@@ -144,8 +144,7 @@ All notable changes to this project are recorded here.
 - One supported Node.js range everywhere: `package.json` `engines` is now
   `^22.13.0 || >=24` (what ESLint 10, Playwright and `node --test` with a
   glob need), CI runs the suite on Node 22.13.0 as well as Node 24, and the
-  launchers and the README ask for the same versions. Node 18 and 20, which
-  are end-of-life and were never tested, are no longer accepted.
+  launchers and the README ask for the same versions (see Requirements).
 - The 100k-message performance test runs after the rest of the suite, on one
   worker, so its timings don't compete with other tests.
 - CI fails when the demo data in `sample/` differs from what the
@@ -157,7 +156,7 @@ All notable changes to this project are recorded here.
   Opened from disk, that page (or an old `setup.html` left in the folder by
   unzipping this version over an older one) shows only how to start the setup
   server, and so does the viewer's "Open setup wizard" button when the viewer
-  itself is opened from disk. The demo's welcome card names the same ways to
+  itself is opened from disk. The welcome card names the same ways to
   start it (the double-click launchers, or `npm start`) instead of
   `node scripts/server.js`, and once served it just gives the wizard's address.
   `.env.example` is gone: nothing reads a `.env` file, and the optional
