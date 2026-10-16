@@ -29,3 +29,20 @@ for (const f of files) {
     assert.ok(!/\bstatic\s*\{/.test(fs.readFileSync(path.join(SRC, f), "utf8")));
   });
 }
+
+// An invisible character (U+FE0F, the keycap mark, ZWJ / ZWNJ, zero-width
+// space, word joiner, BOM) typed literally into a regex or string can't be
+// seen in review and an editor may strip it, so the code writes them as \u
+// escapes. One inside a visible emoji (a comment's or a label's) is fine.
+const { extractEmojis } = require("../src/shared-core.js");
+for (const f of files) {
+  test(f + " writes invisible characters as escapes", () => {
+    const hits = [];
+    fs.readFileSync(path.join(SRC, f), "utf8").split("\n").forEach((l, i) => {
+      let rest = l;
+      for (const e of extractEmojis(l)) rest = rest.split(e).join("");
+      if (/[\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/.test(rest)) hits.push((i + 1) + ": " + JSON.stringify(l.trim()));
+    });
+    assert.deepStrictEqual(hits, []);
+  });
+}

@@ -119,6 +119,17 @@ test("typing a spelling of a word already added says so and adds no row", async 
   await expect(page.locator("#view-battles .battle-added")).toHaveCount(1);
 });
 
+// A word of only invisible characters (a lone zero-width joiner, pasted from
+// an emoji) has nothing to count: say so, instead of adding a row that counts
+// every joined emoji or doing nothing at all.
+test("adding a word of only invisible characters says there is nothing to count", async ({ page }) => {
+  await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles" } });
+  await page.locator("#battle-word").fill("\u200D");
+  await page.locator("#battle-go").click();
+  await expect(page.locator(".toast")).toContainText("nothing to count");
+  await expect(page.locator("#view-battles .battle-added")).toHaveCount(0);
+});
+
 // An added emoji (or anything with no letters or digits) is counted where it
 // appears, each time it appears; it used to show 0 : 0 whatever the chat said.
 const EMOJI = { conversations: [conv("A", "Duo", [

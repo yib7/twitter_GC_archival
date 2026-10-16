@@ -1189,15 +1189,6 @@
     const p = sanitizePhoto(e.photo); if (p) out.photo = p;
     return out;
   };
-  // The ONE gate every settings object passes through. Copies over only fields
-  // whose type/shape is valid, field by field; a field that is absent or invalid
-  // keeps its FALLBACK instead of throwing, so a malformed file can never brick
-  // boot or inject markup. The fallback is `rules.base` when given — Import passes
-  // the user's current settings, so a file only replaces what it actually carries
-  // (a file with no `pfps` keeps the photos; an invalid zone keeps the current
-  // zone) — and otherwise `rules.defaults` (boot). Never literals, so changing a
-  // default (e.g. the timezone) changes every fallback with it.
-  //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
   // The key a Word Battles word counts under: its whole-word tokens, apostrophes
   // and case folded, so "Lol", "lol!" and the built-in "lol" are one word and
   // "don't" and "dont" are one; a phrase keeps all its tokens. A word is keyed
@@ -1208,8 +1199,9 @@
   // words "3" and "d", and "¿qué" keeps its "¿". Punctuation after the last
   // word is not part of it, so "lol!" is still lol.
   const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
-  const RE_SYMBOL_IN_WORD = /[^\p{L}\p{N}\p{M}\p{Cf}\s'‘’ʼ＇][\s\S]*[\p{L}\p{N}]/u;
+  const RE_SYMBOL_IN_WORD = /[^\p{L}\p{N}\p{M}\p{Cf}\s'\u2018\u2019\u02BC\uFF07][\s\S]*[\p{L}\p{N}]/u;
   const battleText = (s) => s.replace(RE_EMOJI_TAIL, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const RE_INVISIBLE = /[\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/g;
   function battleKey(word) { return wordQuery(word).key; }
   // A word ready to count over many messages: its key, its whole-word keys,
   // whether it is counted by its text, and a probe for queryMayMatch. A text
@@ -1218,7 +1210,8 @@
   function wordQuery(word) {
     const keys = RE_PICTO.test(word) || RE_SYMBOL_IN_WORD.test(word) ? [] : wordKeys(word);
     if (keys.length) return { key: keys.join(" "), keys, byText: false, probe: keys.reduce((a, b) => (b.length > a.length ? b : a)) };
-    const key = battleText(word);
+    let key = battleText(word);
+    if (!key.replace(RE_INVISIBLE, "")) key = "";   // nothing visible to count
     const pic = key.match(RE_PICTO);
     const probe = pic ? String.fromCodePoint(pic[0].codePointAt(0)) : key.split(" ").reduce((a, b) => (b.length > a.length ? b : a));
     return { key, keys, byText: true, probe };
@@ -1232,8 +1225,8 @@
     return RE_HAS_EMOJI_TAIL.test(lowerText) && lowerText.replace(RE_EMOJI_TAIL, "").indexOf(q.probe) !== -1;
   }
   // How often a message uses the word: whole words, or its text (see below).
-  function countQuery(text, q) { return q.byText ? countBattleText(text, q.key) : countKeys(text, q.keys); }
-  // How often a text-keyed battle word (its battleKey) appears in a message,
+  function countQuery(text, q) { return q.byText ? countTextKey(text, q.key) : countKeys(text, q.keys); }
+  // How often a word keyed by its text (its battleKey) appears in a message,
   // links and @mentions left out as for every other word count. A hit counts
   // only when it starts and ends between two graphemes (a whole emoji: the US
   // flag is not found across Australia + Sweden, a thumbs up not inside a
@@ -1250,7 +1243,7 @@
   const RE_GLUED_START = /^[\p{L}\p{N}\p{M}\u200C\u200D]/u, RE_GLUED_END = /[\p{L}\p{N}\p{M}\u200C\u200D]$/u;
   const RE_JOINS_BEFORE = /^[\p{M}\p{Cf}\p{Emoji_Modifier}\u0E33\u0EB3\uFF9E\uFF9F]/u, RE_JOINS_AFTER = /(?:\p{Cf}|\u0D4E|[\u{11000}-\u{11FFF}])$/u;
   const RE_CLEAN_BEFORE = /(?:[\x20-\x7E]|\p{Extended_Pictographic})$/u, RE_CLEAN_AFTER = /^(?:[\x20-\x7E]|\p{Extended_Pictographic})/u;
-  function countBattleText(text, key) {
+  function countTextKey(text, key) {
     if (!text || !key) return 0;
     const s = battleText(plainText(text));
     const edgeL = RE_WORD_START.test(key), edgeR = RE_WORD_END.test(key);
@@ -1283,13 +1276,22 @@
     for (const w of Array.isArray(a) ? a : []) {
       if (typeof w !== "string") continue;
       const t = w.trim();
-      const key = t && battleKey(t);   // "" for a word of only U+FE0F
+      const key = t && battleKey(t);   // "" for a word of only invisible characters
       if (!key || t.length > BATTLE_WORD_MAX || seen.has(key)) continue;
       seen.add(key); out.push(t);
       if (out.length >= BATTLE_WORDS_MAX) break;
     }
     return out;
   }
+  // The ONE gate every settings object passes through. Copies over only fields
+  // whose type/shape is valid, field by field; a field that is absent or invalid
+  // keeps its FALLBACK instead of throwing, so a malformed file can never brick
+  // boot or inject markup. The fallback is `rules.base` when given — Import passes
+  // the user's current settings, so a file only replaces what it actually carries
+  // (a file with no `pfps` keeps the photos; an invalid zone keeps the current
+  // zone) — and otherwise `rules.defaults` (boot). Never literals, so changing a
+  // default (e.g. the timezone) changes every fallback with it.
+  //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
   function validateSettings(raw, rules) {
     const D = rules.defaults;
     const B = isPlainObj(rules.base) ? rules.base : D;
@@ -1366,7 +1368,7 @@
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, linkPlatform, plural,
     graphemes, graphemesNoSegmenter, wrapText, createRedactor, createUserNumbering, userLabels,
-    isPlainObj, cleanMap, idList, cleanSaved, battleKey, wordQuery, queryMayMatch, countQuery, countBattleText, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
+    isPlainObj, cleanMap, idList, cleanSaved, battleKey, wordQuery, queryMayMatch, countQuery, countTextKey, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
     safeMediaUrl,
   };
 });

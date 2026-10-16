@@ -101,6 +101,20 @@ test("the keyword trend counts whole-word uses, not substrings", async ({ page }
   await expect.poll(total).toBe(3);
 });
 
+// An emoji keyword is counted where it appears, whole, the way Word Battles
+// counts it: it used to chart a flat zero, as an emoji has no word in it.
+test("the keyword trend counts an emoji keyword", async ({ page }) => {
+  await bootViewer(page, DATA);
+  await openStats(page);
+  await page.locator("#trend-input").fill("\u{1F44D}\u{1F3FD}");
+  await page.locator("#trend-input").press("Enter");
+  const total = () => page.evaluate(() => {
+    const c = window.Chart.getChart(document.getElementById("chart-trends"));
+    return c && c.data.datasets[0].label === "\"\u{1F44D}\u{1F3FD}\" frequency" ? c.data.datasets[0].data.reduce((a, b) => a + b, 0) : null;
+  });
+  await expect.poll(total).toBe(6);
+});
+
 // Review fix 7: the word cloud and the Wrapped word of the year count a word
 // once across its spellings (y'all / y’all / yall), shown in the commonest one.
 test("word cloud and word of the year merge apostrophe spellings", async ({ page }) => {

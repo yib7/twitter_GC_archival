@@ -15,7 +15,7 @@ const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "C
 const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, battleKey, wordQuery, queryMayMatch, countQuery, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
 // the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with.
-const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
+const { extractEmojis, tokenize, wordKey, topCloudWords, KEYWORDS, countMatches,
   countLaughs, isLaughOnly, isProfane, isKeysmashPlain, plainText, linkPlatform, plural } = GCAShared;
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
@@ -3608,20 +3608,20 @@ function refreshChartTheme() {
     try { paintChart(c.config.type, c.data, c.options, th); c.update("none"); } catch (e) { /* detached canvas */ }
   });
 }
-// Whole-word uses of `word` (or phrase) per zoned month — the same token
-// definition as the word cloud and Word Battles, never a substring.
+// Whole-word uses of `word` (or phrase) per zoned month — counted exactly as
+// Word Battles counts it (wordQuery): never a substring, and an emoji or an
+// emoticon where its text appears, whole.
 function computeKeywordTrend(word) {
-  const keys = wordKeys(word);
+  const q = wordQuery(word);
   const monthCounts = {};
   timeAgg().monthArr.forEach(m => monthCounts[m[0]] = 0);
-  if (!keys.length) return Object.entries(monthCounts);
-  // Prefilter on the longest key: most messages can't contain it at all.
-  const probe = keys.reduce((a, b) => (b.length > a.length ? b : a));
+  if (!q.key) return Object.entries(monthCounts);
   // Same zoned "YYYY-MM" keys as timeAgg().monthArr so the trend chart aligns.
   const TI = timeIndex(), hits = new Map();
   for (let i = 0; i < N; i++) {
-    if (!mayContainKey(LOWER[i], probe)) continue;
-    const c = countKeys(MSGS[i].x, keys);
+    // prefilter: most messages can't contain the word at all
+    if (!MSGS[i].x || !queryMayMatch(LOWER[i], q)) continue;
+    const c = countQuery(MSGS[i].x, q);
     if (c) hits.set(TI.monthKey[i], (hits.get(TI.monthKey[i]) || 0) + c);
   }
   for (const [mk, c] of hits) {
@@ -7242,6 +7242,7 @@ function addBattleWord(word) {
   const t = word.trim();
   // say why nothing happened — and keep the text so it can be shortened
   if (t.length > BATTLE_WORD_MAX) { toast("Battle words can be up to " + BATTLE_WORD_MAX + " characters"); return; }
+  if (!battleKey(t)) { if (inp) inp.value = ""; toast("That word is only invisible characters: nothing to count"); return; }
   if (settings.battleWords.some((w) => battleKey(w) === battleKey(t))) { if (inp) inp.value = ""; toast("“" + t + "” is already in the battle"); return; }
   const next = cleanBattleWords([t].concat(settings.battleWords));
   const dropped = settings.battleWords.filter((w) => next.indexOf(w) === -1);

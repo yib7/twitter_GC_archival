@@ -233,8 +233,8 @@ test("battleKey keys words by tokens and emoji or symbols by their text", () => 
     ["\u2764\uFE0F", "\u263A\uFE0F", "Lol \u{1F602}"]);
 });
 
-test("countBattleText counts a text-keyed word where it appears, outside links", () => {
-  const c = (text, word) => shared.countBattleText(text, shared.battleKey(word));
+test("countTextKey counts a text-keyed word where it appears, outside links", () => {
+  const c = (text, word) => shared.countTextKey(text, shared.battleKey(word));
   assert.equal(c("I \u2764\uFE0F you \u2764", "\u2764\uFE0F"), 2);
   assert.equal(c("\u263A\uFE0F", "\u2764\uFE0F"), 0);
   assert.equal(c("LOL \u{1F602} and lol \u{1F602}", "lol \u{1F602}"), 2);
@@ -268,8 +268,8 @@ test("a keycap or a variation selector after a letter is not part of the word", 
 // A text-keyed word that starts or ends with a letter or digit counts only
 // as whole words there: "ok <thumbs up>" is not inside "book <thumbs up>",
 // as "man" is never inside "many".
-test("countBattleText keeps word boundaries at a letter or digit end", () => {
-  const c = (text, word) => shared.countBattleText(text, shared.battleKey(word));
+test("countTextKey keeps word boundaries at a letter or digit end", () => {
+  const c = (text, word) => shared.countTextKey(text, shared.battleKey(word));
   const UP = "\u{1F44D}", JOY = "\u{1F602}";
   assert.equal(c("book " + UP + " tiktok " + UP, "ok " + UP), 0);
   assert.equal(c("ok " + UP + " and OK " + UP, "ok " + UP), 2);
@@ -284,8 +284,8 @@ test("countBattleText keeps word boundaries at a letter or digit end", () => {
 // across Australia + Sweden (A U | S E), and an emoji counts only whole: a
 // thumbs up is not inside a skin-toned thumbs up, nor a heart inside the
 // heart on fire.
-test("countBattleText matches whole emoji, never across or inside one", () => {
-  const c = (text, word) => shared.countBattleText(text, shared.battleKey(word));
+test("countTextKey matches whole emoji, never across or inside one", () => {
+  const c = (text, word) => shared.countTextKey(text, shared.battleKey(word));
   const ri = (a, b) => String.fromCodePoint(0x1F1E6 + a.charCodeAt(0) - 65, 0x1F1E6 + b.charCodeAt(0) - 65);
   const US = ri("U", "S"), AU = ri("A", "U"), SE = ri("S", "E");
   assert.equal(c(AU + SE, US), 0);
@@ -310,7 +310,7 @@ test("battleKey keeps an emoticon or a word led by a symbol as its text", () => 
   assert.equal(k("USA \u{1F1FA}\u{1F1F8}"), "usa \u{1F1FA}\u{1F1F8}");   // a flag is an emoji too
   for (const [w, key] of [["lol!", "lol"], ["wtf?!", "wtf"], ["don't", "dont"], ["Don\u2019t", "dont"], ["so  Literally", "so literally"]]) assert.equal(k(w), key, w);
   assert.deepStrictEqual(shared.cleanBattleWords(["<3", "3", ":D", "d"]), ["<3", "3", ":D", "d"]);
-  const c = (text, word) => shared.countBattleText(text, k(word));
+  const c = (text, word) => shared.countTextKey(text, k(word));
   assert.equal(c("i <3 u, 3 cats, <33", "<3"), 1);
   assert.equal(c("xD :D :Dd", ":D"), 1);
 });
@@ -342,9 +342,9 @@ test("wordQuery probes with the emoji or the longest run, and never skips a matc
   assert.equal(shared.countQuery(KC("1") + KC("2"), q("12")), 1);
 });
 
-// countBattleText only segments a message into graphemes when the characters
+// countTextKey only segments a message into graphemes when the characters
 // beside a hit do not settle it; it must agree with always segmenting.
-test("countBattleText agrees with a full grapheme split on mixed text", () => {
+test("countTextKey agrees with a full grapheme split on mixed text", () => {
   const POOL = ["a", "b", "1", " ", "!", "<", "3", ":", "d", "\u0301", "\u093F", "\u0915", "\u094D", "\u200D", "\u200C",
     "\u{1F602}", "\u{1F44D}", "\u{1F3FD}", "\u2764", "\uFE0F", "\u{1F525}", "\u{1F1FA}", "\u{1F1F8}", "\u{1F1E6}",
     "\u1100", "\u1161", "\uAC00", "\u0600", "\u0E33", "\u0E01", "\uFF76", "\uFF9E", "\u{E0067}", "\u20E3", "#"];
@@ -370,6 +370,16 @@ test("countBattleText agrees with a full grapheme split on mixed text", () => {
   for (let i = 0; i < 4000; i++) {
     let t = "";
     for (let k = 0, len = 1 + rnd(12); k < len; k++) t += POOL[rnd(POOL.length)];
-    for (const key of KEYS) assert.equal(shared.countBattleText(t, key), ref(t, key), JSON.stringify([t, key]));
+    for (const key of KEYS) assert.equal(shared.countTextKey(t, key), ref(t, key), JSON.stringify([t, key]));
   }
+});
+
+// A word of only invisible characters has nothing to count: a lone ZWJ used to
+// be kept and counted inside every ZWJ emoji, a lone U+FE0F dropped silently.
+test("a word of only invisible characters has an empty key and is dropped", () => {
+  for (const w of ["\u200D", "\u200C", "\uFE0F", "\u20E3", "\u200B\u2060\uFEFF", " \u200D\uFE0F "]) {
+    assert.equal(shared.battleKey(w), "", JSON.stringify(w));
+    assert.equal(shared.wordQuery(w).key, "", JSON.stringify(w));
+  }
+  assert.deepStrictEqual(shared.cleanBattleWords(["\u200D", "\uFE0F", "\u200B\u2060", "ok", "\u2764\u200D\u{1F525}"]), ["ok", "\u2764\u200D\u{1F525}"]);
 });
