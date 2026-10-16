@@ -76,3 +76,17 @@ test("at 768px a typed query keeps the scope switch inside the window", async ({
   const clear = await page.locator("#s-clear").boundingBox(), box = await page.locator(".search-box").boundingBox();
   expect(clear.x + clear.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
 });
+
+// A touch tablet just above the phone breakpoint: the sidebar leaves Settings
+// a phone-sized column, and the 44px accent swatches ran off the card while
+// the label was crushed to one word per line.
+test("at 768px (touch) the Settings accent row fits its card", async ({ page }) => {
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "settings" } });
+  await page.setViewportSize({ width: 768, height: 1024 });
+  const group = await page.locator(".set-group").first().boundingBox();
+  const right = group.x + group.width;
+  const boxes = await page.locator("#set-accents .preset, #set-accent-custom, #set-shuffle").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right));
+  for (const r of boxes) expect(r).toBeLessThanOrEqual(right + 0.5);
+  const label = await page.locator(".set-row").first().locator(".set-label").boundingBox();
+  expect(label.width).toBeGreaterThan(100);
+});
