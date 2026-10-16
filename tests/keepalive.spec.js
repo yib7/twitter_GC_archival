@@ -140,3 +140,14 @@ test("a page served by another web server (ping is 404 from the start) shows no 
     return page.locator("#gca-server-down").isVisible();
   }).toBe(true);
 });
+
+// A refused ping can't come from another web server (that server just served
+// the page), so it means this server stopped, even before any ping answered:
+// one that died between serving the page and the first ping, or a tab restored
+// after the server stopped.
+test("a server that stops before the first ping answers still shows the banner", async ({ page }) => {
+  await page.route("**/api/ping*", (route) => route.abort("connectionrefused"));
+  await page.goto("/index.html");
+  await expect(page.locator("#app")).toBeVisible();
+  await expect(page.locator("#gca-server-down")).toBeVisible();
+});
