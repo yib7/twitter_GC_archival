@@ -490,6 +490,18 @@ function ignoredUserIds() {
     .concat(Array.isArray(settings.ignoredUsers) ? settings.ignoredUsers : []);
   return new Set(ids.map(String));
 }
+// The ignored set plus a stable key for caches built over it (genericFor,
+// scopeData). Rebuilt only when one of the three lists changes, so a caller
+// that runs once per message (an All chats export) stays cheap.
+let ignoredMemo = { raw: null, set: null, key: "" };
+function ignoredKeyed() {
+  const raw = [DATA.ignoredUsers, LOCAL_IGNORED_USERS, settings.ignoredUsers].map((a) => (Array.isArray(a) ? a.join(",") : "")).join("|");
+  if (raw !== ignoredMemo.raw) {
+    const set = ignoredUserIds();
+    ignoredMemo = { raw, set, key: [...set].sort().join(",") };
+  }
+  return ignoredMemo;
+}
 
 // Whole group chats the user removed (wizard build, LOCAL override, or in-app).
 function ignoredGroupIds() {
@@ -660,7 +672,7 @@ function nameIn(conv, id) { return settings.names[id] || LOCAL_NAMES[id] || (con
 const genericCache = new Map();
 function genericFor(conv) {
   if (CONV && conv.id === CONV.id) return GENERIC;
-  const ignored = ignoredUserIds(), key = [...ignored].sort().join(",");
+  const { set: ignored, key } = ignoredKeyed();
   let g = genericCache.get(conv.id);
   if (!g || g.key !== key || g.src !== conv.msgs) {
     const counts = new Map();
@@ -1616,7 +1628,7 @@ function syncScopeUi() {
 // The chats an All chats run covers — the active one first, then picker order —
 // each with its (lazily built) search data.
 function scopeData() {
-  const ignored = ignoredUserIds(), key = [...ignored].sort().join(",");
+  const { set: ignored, key } = ignoredKeyed();
   const vis = visibleConvos();
   const isCur = (c) => !!CONV && c.id === CONV.id;
   return vis.filter(isCur).concat(vis.filter((c) => !isCur(c))).map((c) => {
