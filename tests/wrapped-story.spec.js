@@ -359,6 +359,51 @@ test.describe("story mechanics", () => {
     await expect(stage).toHaveClass(/\bwr-paused\b/);
   });
 
+  // A dialog that replaces one of its own kind takes over the first one's
+  // opener, and with it the first one's keyboard-focus pause: by then the
+  // story has lost focus to the first dialog, so it can't be read again.
+  test("a profile replaced by a second profile still hands the keyboard-focus pause back", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    const stage = page.locator("#wr-stage"), btn = page.locator("#wr-play");
+    await btn.click();                          // paused while we walk to a ranking slide
+    for (let k = 0; k < 6 && !(await page.locator("#wr-slide .pl-row .av-clickable").count()); k++) await page.locator("#wr-next").click();
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(/Pause/);
+    await stage.focus();
+    await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+    await expect(stage).toBeFocused();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+    // a script click opens the profile without moving focus first
+    const openAv = (n) => page.evaluate((k) => document.querySelectorAll("#wr-slide .pl-row .av-clickable")[k].click(), n);
+    await openAv(0);
+    await expect(page.locator(".profile-modal")).toHaveCount(1);
+    const first = await page.locator(".profile-modal").getAttribute("aria-label");
+    await openAv(1);                            // a second profile replaces the first
+    await expect(page.locator(".profile-modal")).toHaveCount(1);
+    await expect(page.locator(".profile-modal")).not.toHaveAttribute("aria-label", first);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".profile-modal")).toHaveCount(0);
+    await expect(stage).toBeFocused();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+  });
+
+  test("a command palette reopened over itself still hands the keyboard-focus pause back", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    const stage = page.locator("#wr-stage");
+    await stage.focus();
+    await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+    await expect(stage).toBeFocused();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+    await page.keyboard.press("Control+k");
+    await expect(page.locator(".cmdk")).toHaveCount(1);
+    await page.keyboard.press("Control+k");    // replaces the open palette
+    await expect(page.locator(".cmdk")).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".cmdk")).toHaveCount(0);
+    await expect(stage).toBeFocused();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+  });
+
   // Reads the current segment fill's own clock, so nothing here depends on how
   // long the steps between dialogs take.
   test("autoplay waits behind keyboard help and the command palette", async ({ page }) => {

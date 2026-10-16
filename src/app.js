@@ -775,7 +775,10 @@ function trapTab(e) {
 function applyDialog(box, label, opts) {
   opts = opts || {};
   box._opener = opts.opener !== undefined ? opts.opener : document.activeElement;   // remember who opened it
-  box._wrFocusHeld = wrHolds.has("focus");   // was the story paused by keyboard focus?
+  // was the story paused by keyboard focus? A dialog replacing one of its own
+  // kind passes the first one's answer along with its opener: the story lost
+  // focus to the first dialog, so asking again would always say no.
+  box._wrFocusHeld = opts.focusHeld !== undefined ? !!opts.focusHeld : wrHolds.has("focus");
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-modal", "true");
   if (label) box.setAttribute("aria-label", label);
@@ -5654,6 +5657,7 @@ document.addEventListener("click", (e) => {
 function openProfileModal(id) {
   const existing = document.querySelector(".profile-modal");
   const inherit = existing ? existing._opener : undefined;   // replacing: keep the original opener
+  const inheritHeld = existing ? existing._wrFocusHeld : undefined;   // ...and its keyboard-focus pause
   if (existing) existing.remove();
 
   const p = PARTS.find(x => x.id === id);
@@ -5697,7 +5701,7 @@ function openProfileModal(id) {
   if (avInner) { avInner.classList.remove("av-clickable"); avInner.style.cursor = "default"; }
 
   document.body.appendChild(modal);
-  applyDialog(modal, "Profile — " + nameOf(id), { initial: ".profile-card-close", opener: inherit });
+  applyDialog(modal, "Profile — " + nameOf(id), { initial: ".profile-card-close", opener: inherit, focusHeld: inheritHeld });
 
   // the stats-derived fields (words/msg, vocab, badges). On a cold STATS
   // cache computeStats() sweeps every message — synchronously that freezes the
@@ -5870,6 +5874,7 @@ function renderForeignPin(conv, m, needles) {
 function openContextPeek(center) {
   const prevCtx = document.querySelector(".ctx-modal");
   const inherit = prevCtx ? prevCtx._opener : undefined;   // replacing: keep the original opener
+  const inheritHeld = prevCtx ? prevCtx._wrFocusHeld : undefined;   // ...and its keyboard-focus pause
   document.querySelectorAll(".ctx-modal").forEach((m) => m.remove());
   const RADIUS = 5;
   const lo = Math.max(0, center - RADIUS), hi = Math.min(N - 1, center + RADIUS);
@@ -5904,7 +5909,7 @@ function openContextPeek(center) {
   modal.appendChild(card);
   modal.addEventListener("click", (e) => { if (e.target === modal) closeCtx(); });
   document.body.appendChild(modal);
-  applyDialog(modal, "Conversation context", { initial: ".kb-close", opener: inherit });
+  applyDialog(modal, "Conversation context", { initial: ".kb-close", opener: inherit, focusHeld: inheritHeld });
   const c = bodyEl.querySelector(".ctx-center");
   if (c) c.scrollIntoView({ block: "center" });
 }
@@ -6653,6 +6658,7 @@ const PALETTE_DEB = 150;
 function openCommandPalette() {
   const prevCmdk = document.querySelector(".cmdk");
   const inherit = prevCmdk ? prevCmdk._opener : undefined;   // replacing: keep the original opener
+  const inheritHeld = prevCmdk ? prevCmdk._wrFocusHeld : undefined;   // ...and its keyboard-focus pause
   document.querySelectorAll(".cmdk").forEach((m) => m.remove());
   const all = buildCommands();
   const modal = el("div", "cmdk");
@@ -6821,7 +6827,7 @@ function openCommandPalette() {
   document.body.appendChild(modal);
   refresh();
   // applyDialog captures the opener (for focus restore) before focusing the input.
-  applyDialog(modal, "Command palette", { initial: ".cmdk-input", opener: inherit });
+  applyDialog(modal, "Command palette", { initial: ".cmdk-input", opener: inherit, focusHeld: inheritHeld });
 }
 
 // NOTE: boot happens at the very end of this IIFE (see bottom of file), after
