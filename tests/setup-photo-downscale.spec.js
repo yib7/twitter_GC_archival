@@ -99,3 +99,18 @@ test("a file that isn't an image still gets the 'not a valid image' message", as
   await expect(page.locator(".su-modal-msg")).toHaveText(/isn't a valid image/);
   await expect(page.getByRole("button", { name: /use this photo/i })).toBeDisabled();
 });
+
+// A small picture whose extension the system doesn't map to an image type
+// (a renamed .jfif, a .webp without the codec registered) reads as
+// data:application/octet-stream. The browser still shows it, so it was
+// confirmed and sent as picked, and the server refused the save ("Each photo
+// must be a picture"). It is redrawn as a PNG once it has loaded.
+test("a small photo of unknown type is sent as an image (PNG), at its own size", async ({ page }) => {
+  const buf = await bigImage(page, 64, 48, "image/png");
+  await pickPersonPhoto(page, { name: "avatar.jfif", mimeType: "application/octet-stream", buffer: buf });
+  await page.getByRole("button", { name: /use this photo/i }).click();
+  await saveAll(page);
+  const url = saved.pfps["1111"];
+  expect(url).toMatch(/^data:image\/png;base64,/);
+  expect(await dims(page, url)).toEqual([64, 48]);
+});

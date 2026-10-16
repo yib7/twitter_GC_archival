@@ -18,22 +18,28 @@ function fileToDataURL(f) { return new Promise((res, rej) => { const r = new Fil
 // a phone photo is 3-12 MB, an avatar needs a few hundred pixels. Shrink
 // every picked photo to at most 512 px on its long side (PNG stays PNG so
 // transparency survives, anything else becomes JPEG) before it is previewed,
-// kept or uploaded. Small images are kept exactly as picked; a file that isn't
-// an image is passed through so the preview can say so.
+// kept or uploaded. Small images are kept exactly as picked (unless they came
+// without an image type, see below); a file that isn't an image is passed
+// through so the preview can say so.
 const AVATAR_MAX = 512;
 function shrinkImage(dataURL, type) {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
       const w = img.naturalWidth, h = img.naturalHeight;
-      if (!w || !h || Math.max(w, h) <= AVATAR_MAX) { resolve(dataURL); return; }
-      const k = AVATAR_MAX / Math.max(w, h);
+      if (!w || !h) { resolve(dataURL); return; }
+      // A small picture the system gave no image type (a renamed .jfif:
+      // data:application/octet-stream) still loads here, but the server only
+      // takes image data URLs: redraw it as a PNG at its own size.
+      const small = Math.max(w, h) <= AVATAR_MAX;
+      if (small && /^data:image\//i.test(dataURL)) { resolve(dataURL); return; }
+      const k = small ? 1 : AVATAR_MAX / Math.max(w, h);
       const c = document.createElement("canvas");
       c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
       const g = c.getContext("2d");
       g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
       g.drawImage(img, 0, 0, c.width, c.height);
-      const out = /^image\/(png|gif)$/i.test(type || "") ? "image/png" : "image/jpeg";
+      const out = small || /^image\/(png|gif)$/i.test(type || "") ? "image/png" : "image/jpeg";
       try { resolve(c.toDataURL(out, 0.9)); } catch (e) { resolve(dataURL); }
     };
     img.onerror = () => resolve(dataURL);
