@@ -1657,9 +1657,10 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 .battle-count.battle-winner { color: var(--accent-text); font-size: 16px; }
 .battle-word { text-align: center; font-weight: 700; font-size: 13px; color: var(--text); text-transform: lowercase; }
 .battle-bar-left { height: 14px; border-radius: 0 7px 7px 0; overflow: hidden; direction: rtl; background: var(--bg-card); }
-.battle-fill-left { height: 100%; border-radius: 0 7px 7px 0; background: linear-gradient(270deg, var(--accent), var(--accent-deep)); transition: width 0.5s ease; }
+/* the fills are the two people's colours (set on #battle-results) */
+.battle-fill-left { height: 100%; border-radius: 0 7px 7px 0; background: var(--battle-left, var(--accent)); transition: width 0.5s ease; }
 .battle-bar-right { height: 14px; border-radius: 7px 0 0 7px; overflow: hidden; background: var(--bg-card); }
-.battle-fill-right { height: 100%; border-radius: 7px 0 0 7px; background: linear-gradient(90deg, var(--accent-2-deep), var(--accent-2)); transition: width 0.5s ease; }
+.battle-fill-right { height: 100%; border-radius: 7px 0 0 7px; background: var(--battle-right, var(--accent-2)); transition: width 0.5s ease; }
 .battle-summary {
   display: flex; align-items: center; justify-content: center; gap: 16px;
   margin-top: 20px; font-size: 16px; padding: 14px;

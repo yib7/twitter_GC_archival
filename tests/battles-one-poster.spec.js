@@ -73,3 +73,27 @@ test("words added to the battle count toward the wins", async ({ page }) => {
   await expect(sum).toContainText("User 2: 2 wins");
 });
 
+// Each side's bars wear that person's colour (the one on their name in the
+// summary), not the theme accent / pink, and stay visible on their track.
+for (const th of ["lightsout", "dim", "light"]) {
+  test(`each side's bars are that person's colour (${th})`, async ({ page }) => {
+    await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.theme": th, "gca.settings": JSON.stringify({ colors: { u2: "#eab308" } }) } });
+    const r = await page.evaluate(() => {
+      const css = (sel, p) => getComputedStyle(document.querySelector(sel))[p];
+      const spans = document.querySelectorAll("#view-battles .battle-summary > span");
+      return {
+        left: css(".battle-fill-left", "backgroundColor"), leftImg: css(".battle-fill-left", "backgroundImage"),
+        right: css(".battle-fill-right", "backgroundColor"), rightImg: css(".battle-fill-right", "backgroundImage"),
+        p1: getComputedStyle(spans[0]).color, p2: getComputedStyle(spans[2]).color,
+        track: css(".battle-bar-left", "backgroundColor"), page: getComputedStyle(document.body).backgroundColor,
+      };
+    });
+    expect([r.leftImg, r.rightImg]).toEqual(["none", "none"]);
+    expect(r.left).toBe(r.p1);
+    expect(r.right).toBe(r.p2);
+    expect(r.left).not.toBe(r.right);
+    const lum = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, k) => s + v * [0.2126, 0.7152, 0.0722][k], 0);
+    const cr = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    for (const fill of [r.left, r.right]) for (const bg of [r.track, r.page]) expect(cr(fill, bg), fill + " on " + bg).toBeGreaterThanOrEqual(3);
+  });
+}

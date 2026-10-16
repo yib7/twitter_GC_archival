@@ -7216,6 +7216,10 @@ function drawBattleResults() {
   </div>`;
 
   container.innerHTML = html;
+  // each side's bars wear that person's name colour (as the summary does),
+  // which reaches 4.5:1 on the page and card in every theme
+  container.style.setProperty("--battle-left", personColor(battleP1).p);
+  container.style.setProperty("--battle-right", personColor(battleP2).p);
   container.querySelectorAll(".battle-remove").forEach((b) => {
     b.onclick = () => {
       settings.battleWords = settings.battleWords.filter((w) => w !== b.dataset.word);
