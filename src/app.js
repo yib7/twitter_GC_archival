@@ -5359,6 +5359,9 @@ function renderWrapped() {
 // Tap zones (left / right third), swipe, press-and-hold to pause, and the end
 // of the current segment's fill (autoplay). A press that starts on something
 // interactive inside the slide (an avatar, the star message) is left to it.
+// A press becomes a hold after 280 ms only if the pointer stays within 10 px;
+// a finger-speed swipe often takes longer than that, so moving cancels the
+// timer, and the release is judged by displacement first.
 const WR_TAP_SKIP = CARD_CHILD_SEL + ", .msg, [role=button]";
 function wireWrappedStage(stage) {
   let down = null;
@@ -5366,17 +5369,23 @@ function wireWrappedStage(stage) {
   stage.addEventListener("pointerdown", (e) => {
     if (e.button !== 0 || (e.target.closest && e.target.closest(WR_TAP_SKIP))) return;
     end();
-    down = { x: e.clientX, y: e.clientY, id: e.pointerId, held: false };
-    down.timer = setTimeout(() => { if (down) { down.held = true; wrHold("hold", true); } }, 280);
+    down = { x: e.clientX, y: e.clientY, id: e.pointerId, held: false, moved: false };
+    down.timer = setTimeout(() => { if (down) { down.timer = null; down.held = true; wrHold("hold", true); } }, 280);
     try { stage.setPointerCapture(e.pointerId); } catch (err) { /* synthetic pointer */ }
+  });
+  stage.addEventListener("pointermove", (e) => {
+    if (!down || e.pointerId !== down.id || down.moved) return;
+    if (Math.hypot(e.clientX - down.x, e.clientY - down.y) <= 10) return;
+    down.moved = true;
+    if (down.timer) { clearTimeout(down.timer); down.timer = null; }
   });
   stage.addEventListener("pointerup", (e) => {
     if (!down || e.pointerId !== down.id) return;
-    const dx = e.clientX - down.x, dy = e.clientY - down.y, held = down.held;
+    const dx = e.clientX - down.x, dy = e.clientY - down.y, held = down.held, moved = down.moved;
     end();
-    if (held) return;                                   // a hold only pauses
     if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.5) { wrappedGo(dx < 0 ? 1 : -1, true); return; }
-    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) return; // a scroll / stray drag
+    if (held) return;                                   // a still hold only pauses
+    if (moved || Math.abs(dx) > 10 || Math.abs(dy) > 10) return; // a scroll / stray drag
     const r = stage.getBoundingClientRect(), f = (e.clientX - r.left) / r.width;
     if (f > 2 / 3) wrappedGo(1, true);
     else if (f < 1 / 3) wrappedGo(-1, true);

@@ -183,6 +183,54 @@ test.describe("story mechanics", () => {
     expect(await slideNo(page)).toBe(2);
   });
 
+  // A finger-speed swipe takes longer than the hold delay. Moving cancels the
+  // hold, and a swipe that started as a hold still navigates.
+  test("a slow swipe still flips the slide, whether the finger moves at once or rests first", async ({ page }) => {
+    await openWrapped(page);
+    const b = await stageBox(page);
+    const y = b.y + b.height * 0.5;
+    // moving the whole time, 450 ms from press to release
+    await page.mouse.move(b.x + b.width * 0.5, y);
+    await page.mouse.down();
+    for (let k = 1; k <= 9; k++) { await page.mouse.move(b.x + b.width * (0.5 - 0.035 * k), y); await page.waitForTimeout(50); }
+    await page.mouse.up();
+    expect(await slideNo(page)).toBe(2);
+    // resting 400 ms (past the hold delay) before the drag starts
+    await page.mouse.move(b.x + b.width * 0.5, y);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+    await page.mouse.move(b.x + b.width * 0.15, y, { steps: 8 });
+    await page.mouse.up();
+    expect(await slideNo(page)).toBe(3);
+    // the same, back the other way
+    await page.mouse.move(b.x + b.width * 0.3, y);
+    await page.mouse.down();
+    await page.waitForTimeout(400);
+    await page.mouse.move(b.x + b.width * 0.75, y, { steps: 8 });
+    await page.mouse.up();
+    expect(await slideNo(page)).toBe(2);
+  });
+
+  test("a still press longer than the hold delay is neither a tap nor a swipe", async ({ page }) => {
+    await openWrapped(page);
+    const b = await stageBox(page);
+    await page.mouse.move(b.x + b.width * 0.85, b.y + b.height * 0.6);
+    await page.mouse.down();
+    await page.waitForTimeout(600);
+    await page.mouse.up();
+    expect(await slideNo(page)).toBe(1);
+    // a slow tremble under the 10 px slop is still a still press
+    await page.mouse.down();
+    await page.waitForTimeout(200);
+    await page.mouse.move(b.x + b.width * 0.85 + 4, b.y + b.height * 0.6 + 3);
+    await page.waitForTimeout(300);
+    await page.mouse.up();
+    expect(await slideNo(page)).toBe(1);
+    // and a quick tap in the same spot still advances
+    await page.mouse.click(b.x + b.width * 0.85, b.y + b.height * 0.6);
+    expect(await slideNo(page)).toBe(2);
+  });
+
   test("autoplay advances on its own; hold pauses it, release resumes, and a hold is not a tap", async ({ page }) => {
     await openWrapped(page, { motion: true });
     await page.addStyleTag({ content: ".wr-stage { --wr-dur: 1200ms !important; }" });
@@ -206,6 +254,22 @@ test.describe("story mechanics", () => {
     expect(await slideNo(page)).toBe(held);
     await expect(page.locator("#wr-stage")).not.toHaveClass(/\bwr-paused\b/);
     await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(held + 1);
+  });
+
+  test("autoplay: a drag that moves cancels the hold, so the swipe navigates and autoplay keeps running", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    await page.locator("#wr-play").click();    // user-paused: only the swipe can move the story
+    const b = await stageBox(page);
+    const y = b.y + b.height * 0.5;
+    await page.mouse.move(b.x + b.width * 0.5, y);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width * 0.4, y, { steps: 3 });
+    await page.waitForTimeout(400);            // past the hold delay, already moving
+    await page.mouse.move(b.x + b.width * 0.15, y, { steps: 4 });
+    await page.mouse.up();
+    expect(await slideNo(page)).toBe(2);
+    await page.locator("#wr-play").click();
+    await expect(page.locator("#wr-stage")).not.toHaveClass(/\bwr-paused\b/);
   });
 
   test("the Pause button stops autoplay and says so; Play resumes", async ({ page }) => {
