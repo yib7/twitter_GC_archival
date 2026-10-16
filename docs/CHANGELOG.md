@@ -30,16 +30,16 @@ All notable changes to this project are recorded here.
   gets "The Sailor" for zero swear words.
 - Members who never posted (on the roster, reacting or in join/leave events
   only) are counted as people; an ignored member's reactions are dropped too.
-- One display name and one colour per person: the People placeholder, Word
+- One display name and one color per person: the People placeholder, Word
   Battles, pinned messages and the quote card match the avatar.
 - Word Battles counts a word you add once however you type it ("Lol", "lol!",
-  "lol" in quotes or brackets), in a saved or imported list too, counts an
+  "lol" in quotes or brackets), in a saved or imported list too. It counts an
   added emoji, keycap, emoticon (a symbol with one-letter words, such as "<3"
   or ":D") or a phrase with one where it appears whole, next to Japanese,
   Chinese or Thai text too, instead of showing 0 : 0 (the keyword trend counts
-  one the same way), tallies the wins over every row shown, and
-  colours each side's bars and winning count with that person, telling the
-  two apart if they share a colour.
+  one the same way). It tallies the wins over every row shown, and colors each
+  side's bars and winning count with that person, telling the two apart if
+  they share a color.
 - Word counts (words per message, distinct words, the word cloud) no longer
   count the invisible character after some emoji, such as the one in ❤️, as a
   word, count a keycap emoji as the digit it shows, and keep a word written
@@ -48,7 +48,7 @@ All notable changes to this project are recorded here.
 - Month charts and sparklines show silent months as zero instead of joining
   January to September.
 - Stats charts follow theme and accent changes live; the keyword trend, the
-  hero sparkline dot and the platform bars use theme colours, and every chart
+  hero sparkline dot and the platform bars use theme colors, and every chart
   has a text summary for screen readers.
 - "On This Day" picks from every past year, not just the first 20 matches.
 - Copy: "1 thread shown", "3 days" chat age (not "0.0 yrs"), "Msgs / active
@@ -58,7 +58,7 @@ All notable changes to this project are recorded here.
 #### Accessibility
 
 - Every keyboard stop shows a visible focus ring, and every clickable card,
-  chip, swatch, cloud word, chart bar and message photo is a real button or
+  chip, swatch, cloud word, chart bar and message photo is a button or
   link (Enter and Space work). Avatars stay a mouse/touch shortcut to the
   profile, which the keyboard reaches from People.
 - Timeline messages are keyboard stops. Their Reply / Bookmark / Copy toolbar
@@ -68,16 +68,16 @@ All notable changes to this project are recorded here.
 - Toasts are announced through a polite live region.
 - The command palette is a proper combobox/listbox: arrow keys move the
   active option for screen readers, and "No matches" is announced.
-- The mobile More sheet and onboarding are real modal dialogs: focus moves in,
+- The mobile More sheet and onboarding are modal dialogs: focus moves in,
   Tab is trapped, Escape closes them and focus returns to what opened them.
 - Person names, text tokens and on-accent text reach WCAG AA in Light, Dim
-  and Lights-out. A new rendered-text audit checks every view in every theme,
+  and Lights out. A new rendered-text audit checks every view in every theme,
   which also fixed faded word-cloud words, superlative definitions, green
-  "received" counts in Light, the automatic-colour "A" swatch, avatar
+  "received" counts in Light, the automatic-color "A" swatch, avatar
   initials (deeper avatar fills), link chips in your own messages, the
   secondary text on the Stats hero and on every Wrapped slide, and message
   photos' focus ring (now drawn inside the picture).
-- Drop-downs, date and colour pickers, text fields and scrollbars follow the
+- Drop-downs, date and color pickers, text fields and scrollbars follow the
   theme in the viewer and the wizard, so their pop-ups no longer open light on
   the dark themes.
 - The theme switch lives in the sidebar and the More sheet instead of
@@ -126,7 +126,7 @@ All notable changes to this project are recorded here.
   ZIP, instead of showing a raw error.
 - A reopened wizard shows the saved group name and photo, and saving no
   longer blanks a group name saved earlier.
-- A person has the same avatar colour in the wizard as in the archive.
+- A person has the same avatar color in the wizard as in the archive.
 - The wizard fits a 390px phone without sideways scrolling, and preview
   warnings are readable on the Light theme.
 - The server reads the built archive as a stream for the wizard's status,
@@ -144,7 +144,7 @@ All notable changes to this project are recorded here.
 
 #### Viewer and demo
 
-- The Stats hero's secondary text is really dimmed in all three themes; its
+- The Stats hero's secondary text is dimmed in all three themes; its
   contrast tweak used to refer to itself and was silently dropped.
 - The optional data-file probes in `index.html` no longer carry `onerror`
   handlers the Content-Security-Policy blocked anyway; a missing optional
@@ -153,7 +153,7 @@ All notable changes to this project are recorded here.
   three group chats, with renames, joins and a leave, reactions, links,
   several photos on one message and right-to-left and emoji text. It is
   generated the same way on every run, and its placeholder media are all
-  labelled as photos (one used to be an image file tagged as a video).
+  labeled as photos (one used to be an image file tagged as a video).
 
 #### Tooling
 
@@ -262,8 +262,9 @@ All notable changes to this project are recorded here.
 - Jumping to a date accepts natural forms ("June 2021", "Jan 7 2024", "2021"),
   rejects dates that don't exist ("No such date: 2023-02-30") instead of
   rolling them over, reads slashed dates month first (a day-first 13/01/2024
-  says to use 2024-01-13 or Jan 13 2024 instead), and says honestly where it landed when the date is
-  before the first message, after the last, or on a day with no messages.
+  says to use 2024-01-13 or Jan 13 2024 instead), and says where it landed
+  when the date is before the first message, after the last, or on a day
+  with no messages.
 - The Timeline no longer opens at the oldest message (it opens at your last
   reading position, else the newest). "Reset customization" keeps the saved
   reading positions.
@@ -290,10 +291,10 @@ All notable changes to this project are recorded here.
   choice is remembered on this device. A name that is also a common word
   (a lowercase "will") may stay in the message text, so check the preview.
   A possessive name hides its stem too: "Dad's Phone" also hides "Dad".
-- Wrapped backdrops and highlights are mixed from your accent colour in all
+- Wrapped backdrops and highlights are mixed from your accent color in all
   three themes instead of fixed violet/amber washes.
 - The softer text tweaks made for contrast now apply only to Light and Dim;
-  Lights-out keeps its original colours. The Wrapped secondary text was
+  Lights out keeps its original colors. The Wrapped secondary text was
   silently ignoring its contrast tweak (a CSS variable referring to itself)
   and now reads at full contrast.
 
@@ -412,16 +413,17 @@ All notable changes to this project are recorded here.
 
 ### Docs
 
-- ARCHITECTURE lists every setup-server endpoint, the real `config.json` and
-  `local.js` shapes, the script load order, the CSP and a Testing section;
-  README describes the Node versions, project layout and data schema as they
-  are, with new screenshots and a new walkthrough recorded from the demo data.
+- ARCHITECTURE lists every setup-server endpoint, the `config.json` and
+  `local.js` shapes the code uses, the script load order, the CSP and a
+  Testing section; README describes the Node versions, project layout and
+  data schema as they are, with new screenshots and a new walkthrough
+  recorded from the demo data.
 - README's Environment variables section lists only the variables a user may
   set (`GCA_PORT`, `GCA_PERSONAL`, `GCA_DEBUG`); the test switches are
   documented in ARCHITECTURE.
 - The vendored Fuse.js and Chart.js ship with their license texts, and
   docs/CREDITS.md records where they come from and their SHA-256 hashes. It now
-  also credits @kurkle/color, which Chart.js bundles, with its license text.
+  also credits `@kurkle/color`, which Chart.js bundles, with its license text.
 - docs/SECURITY.md lists 1.5.x as the supported version and says what to do
   when GitHub's private vulnerability reporting isn't available.
 
@@ -631,10 +633,3 @@ First public release.
   photo, and walks you through naming everyone.
 - Synthetic demo data (`data.sample.js`) so the repository runs with no real
   data committed.
-
-[v1.3.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.3.0
-[v1.2.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.2.0
-[v1.1.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.1.0
-[v1.0.2]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.2
-[v1.0.1]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.1
-[v1.0.0]: https://github.com/yib7/twitter_GC_archival/releases/tag/v1.0.0
