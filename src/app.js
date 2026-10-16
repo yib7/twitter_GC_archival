@@ -2406,6 +2406,9 @@ const CHIP_ICO = { from: "people", after: "calendar", before: "calendar", has: "
 function renderChips() {
   const host = sEls.chips;
   if (!host) return;
+  // a run can land while a chip has focus (a debounced keystroke, a scope
+  // change): rebuilding must not drop that focus to <body>
+  const had = host.contains(document.activeElement) ? document.activeElement : null;
   host.replaceChildren();
   SQ.chips.forEach((op, k) => {
     const lbl = chipLabel(op);
@@ -2413,10 +2416,16 @@ function renderChips() {
       '<span class="s-chip-ic">' + cmdIco(op.key === "has" && op.value === "link" ? "link" : CHIP_ICO[op.key]) + "</span>" +
       '<span class="s-chip-tx">' + esc(lbl) + '</span><span class="s-chip-x" aria-hidden="true">✕</span>', "Remove filter: " + lbl);
     b.dataset.k = k;
+    b.dataset.raw = op.raw;
     b.title = "Remove " + op.raw;
     host.appendChild(b);
   });
   host.hidden = !SQ.chips.length;
+  if (had) {
+    const now = [...host.children];
+    const same = now.find((c) => c.dataset.raw === had.dataset.raw) || now[+had.dataset.k] || now[now.length - 1];
+    if (same) same.focus(); else sEls.input.focus({ preventScroll: true });
+  }
 }
 // Replace the box's whole text as ONE undoable edit, so Ctrl/Cmd+Z in the box
 // brings back what a chip removal took out: select all + execCommand

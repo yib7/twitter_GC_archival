@@ -54,7 +54,9 @@ test("keys typed in the search box, a chip or the autocomplete are left alone", 
   await boot(page);
   await search(page, "pizza from:a");
   await page.locator("#s-input").press("End");
-  await page.keyboard.type(" jk");
+  // let the debounced run for " jk" finish, or it can land after the next
+  // search's snapshot and rebuild the chips under the focus below
+  await afterSearchRun(page, () => page.keyboard.type(" jk"));
   await expect(page.locator("#s-input")).toHaveValue("pizza from:a jk");
   expect(await active(page)).toBeNull();
   await search(page, "pizza from:ann");
@@ -62,6 +64,23 @@ test("keys typed in the search box, a chip or the autocomplete are left alone", 
   await page.keyboard.press("j");
   await expect(page.locator("#s-chips .s-chip").first()).toBeFocused();
   expect(await active(page)).toBeNull();
+});
+
+// a run rebuilds the chips; one that had focus keeps it (a debounced run can
+// land just after Shift+Tab reaches a chip)
+test("a search run while a chip has focus leaves focus on that chip", async ({ page }) => {
+  await boot(page);
+  await search(page, "pizza from:ann has:media from:bo");
+  const chips = page.locator("#s-chips .s-chip");
+  await expect(chips).toHaveCount(3);
+  const rerun = () => afterSearchRun(page, () => page.evaluate(() => document.getElementById("s-input").dispatchEvent(new Event("input"))));
+  await chips.nth(1).focus();
+  await rerun();
+  await expect(chips.nth(1)).toBeFocused();
+  await expect(page.locator("#s-chips .s-chip:focus")).toHaveAccessibleName(/Has media/);
+  await chips.nth(2).focus();
+  await rerun();
+  await expect(page.locator("#s-chips .s-chip:focus")).toHaveAccessibleName(/From Bo/);
 });
 
 test("Enter opens the result, c its context, b bookmarks it", async ({ page }) => {
