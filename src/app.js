@@ -1624,7 +1624,21 @@ function syncScopeUi() {
     b.setAttribute("aria-pressed", on ? "true" : "false");
   });
   sEls.matchtoggle.hidden = all; sEls.viewtoggle.hidden = all; sEls.matchhint.hidden = all;
-  sEls.input.placeholder = all ? "Search all chats…  (exact words; use \"quotes\" for phrases)" : sEls.input.dataset.ph;
+  sEls.input.placeholder = searchPlaceholder(all);
+}
+// The longest placeholder that fits the box: on a phone or a narrow window
+// the hint after the count is dropped rather than cut off mid-word.
+let phCtx = null;
+function searchPlaceholder(all) {
+  const el = sEls.input;
+  const tiers = all ? ["Search all chats…  (exact words; use \"quotes\" for phrases)", "Search all chats…"]
+    : [el.dataset.ph, el.dataset.phShort, "Search messages…"];
+  const room = el.clientWidth;
+  if (!room) return tiers[0];   // hidden: re-measured when it gets a size
+  if (!phCtx) phCtx = document.createElement("canvas").getContext("2d");
+  const cs = getComputedStyle(el);
+  phCtx.font = cs.fontWeight + " " + cs.fontSize + " " + cs.fontFamily;
+  return tiers.find((t) => phCtx.measureText(t).width <= room) || tiers[tiers.length - 1];
 }
 // The chats an All chats run covers — the active one first, then picker order —
 // each with its (lazily built) search data.
@@ -1743,6 +1757,11 @@ function ensureSearch() {
     chips: v.querySelector("#s-chips"), ac: v.querySelector("#s-ac"), scope: v.querySelector("#s-scope"),
   };
   sEls.input.dataset.ph = sEls.input.placeholder;
+  sEls.input.dataset.phShort = "Search " + fmtNum(N) + " messages…";
+  if (window.ResizeObserver) {
+    const input = sEls.input;
+    new ResizeObserver(() => { if (sEls.input === input) input.placeholder = searchPlaceholder(allScope()); }).observe(input);
+  }
   sEls.scope.querySelectorAll("button").forEach((b) => { b.onclick = () => setSearchScope(b.dataset.scope); });
   // on a phone the filter bar is a bottom sheet behind "Filters (n)".
   sEls.ftoggle.onclick = (e) => { e.stopPropagation(); if (sEls.filters.classList.contains("open")) closeFilterSheet(); else openFilterSheet(); };

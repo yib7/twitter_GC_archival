@@ -227,7 +227,7 @@ button, input, select, textarea { font-family: inherit; }
 .search-box .ico { color: var(--text-dim); font-size: 20px; display: inline-flex; }
 .search-box .ico svg { width: 20px; height: 20px; }
 .search-box input {
-  flex: 1; background: transparent; border: 0; outline: 0; color: var(--text);
+  flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: var(--text);
   font-size: 18px; padding: 16px 0; font-family: var(--font);
 }
 .search-box input::placeholder { color: var(--text-faint); }
@@ -238,7 +238,8 @@ button, input, select, textarea { font-family: inherit; }
 .s-scope button { padding: 0 14px; white-space: nowrap; }
 @media (max-width: 760px) {
   .search-row { flex-wrap: wrap; }
-  .search-row .search-box { flex: 1 1 0; min-width: 0; }   /* box + Filters share line 1 */
+  .search-row .search-box { flex: 1 1 0; min-width: 0; padding: 0 4px 0 14px; gap: 8px; }   /* box + Filters share line 1 */
+  .search-box input { font-size: 16px; }   /* 16px: still no iOS focus zoom */
   .s-scope { order: 3; flex-basis: 100%; }
   .s-scope button { flex: 1; min-height: 40px; }
 }
@@ -1724,6 +1725,7 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
   .mobile-topbar .mic { width: 44px; height: 44px; }
   input[type="color"] { width: 44px; height: 44px; }
   .preset, .swatch { width: 44px; height: 44px; }
+  .search-clear { min-width: 44px; min-height: 44px; flex: none; }
   .swatch-auto { line-height: 40px; font-size: 13px; }
 }
 
