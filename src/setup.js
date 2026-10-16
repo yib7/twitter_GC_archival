@@ -883,7 +883,7 @@ function applyAccentTokens(t) {
     document.documentElement.setAttribute("data-theme", t);
     applyAccentTokens(t);
     try { localStorage.setItem(KEY, t); } catch (e) { /* ignore */ }
-    $$(".theme-switch button").forEach((b) => b.classList.toggle("on", b.dataset.set === t));
+    $$(".theme-switch button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === t)));
   }
   set(get());
   $$(".theme-switch button").forEach((b) => b.addEventListener("click", () => set(b.dataset.set)));

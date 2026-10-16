@@ -154,3 +154,28 @@ async function dialogUnnamedFields(page, sel) {
     return !name.trim();
   }).map((e) => e.id || e.className));
 }
+
+// The floating theme switch says which theme is on (aria-pressed, not only a
+// class), and the selected icon sits on the accent fill pair in its derived
+// text colour, as the viewer's toggle does (white on raw X blue was 3:1).
+test("the theme switch exposes the pressed theme and its icon is readable", async ({ page }) => {
+  await routes(page);
+  await page.goto("/setup.html");
+  await expect(page.locator('body[data-ready="1"]')).toBeAttached();
+  for (const th of ["light", "dim", "lightsout"]) {
+    await page.locator('.theme-switch button[data-set="' + th + '"]').click();
+    await page.mouse.move(0, 0);   // off the button (its hover fill), then let the .15s transition end
+    await page.waitForTimeout(300);
+    const r =await page.locator(".theme-switch button").evaluateAll((bs) => bs.map((b) => {
+      const cs = getComputedStyle(b);
+      return { set: b.dataset.set, pressed: b.getAttribute("aria-pressed"), color: cs.color, bg: cs.backgroundColor };
+    }));
+    expect(r.map((b) => b.pressed), th).toEqual(r.map((b) => String(b.set === th)));
+    const on = r.find((b) => b.set === th);
+    const ratio = await page.evaluate(([a, b]) => {
+      const lum = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }).reduce((s, v, k) => s + v * [0.2126, 0.7152, 0.0722][k], 0);
+      const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    }, [on.color, on.bg]);
+    expect(ratio, th + " selected icon " + on.color + " on " + on.bg).toBeGreaterThanOrEqual(4.5);
+  }
+});

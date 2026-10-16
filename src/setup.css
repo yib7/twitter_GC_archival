@@ -305,7 +305,7 @@
 .theme-switch{position:fixed;left:16px;bottom:16px;z-index:200;display:flex;gap:2px;padding:4px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-pill);box-shadow:var(--el2)}
 .theme-switch button{width:34px;height:34px;border:0;background:none;border-radius:var(--radius-pill);display:grid;place-items:center;color:var(--text-dim);cursor:pointer;transition:background .15s,color .15s}
 .theme-switch button:hover{background:var(--hover);color:var(--text)}
-.theme-switch button.on{background:var(--accent);color:#fff}
+.theme-switch button[aria-pressed="true"]{background:var(--accent-fill);color:var(--on-accent)}
 .theme-switch svg{width:17px;height:17px;stroke-width:1.9}
 
 /* one-line hint under a source field */
