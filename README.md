@@ -157,7 +157,7 @@ a year (`2021`), or a quoted natural date (`after:"June 2021"`).
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TD
   L["Launcher<br/>or npm start"] -->|starts| S
   X["Your X<br/>export"] -->|"read-only<br/>preview"| S
   W["Setup<br/>wizard"] <-->|"JSON API"| S["Setup server<br/>127.0.0.1 only"]
@@ -184,10 +184,9 @@ More detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
   install and no internet connection. The browser tests run in Chromium only
   (Playwright); Firefox and Safari are not tested.
 - **To import your own export:** [Node.js](https://nodejs.org) 22.13 or newer
-  for the setup wizard. CI tests Node 22.13.0 and Node 24; Node 23 and anything
-  older than 22.13 are not supported, and the double-click launchers say so
-  instead of starting. The wizard uses only Node's built-in modules, so there
-  is nothing to `npm install`.
+  for the setup wizard. CI tests Node 22.13.0 and 24.
+  - Node 23 and versions before 22.13 are not supported; the launchers say so.
+  - Built-in Node modules only: nothing to `npm install`.
 - **Operating system:** Windows, macOS or Linux. The wizard's Browse buttons
   open native file dialogs on Windows only; on macOS and Linux you paste the
   folder path instead.
@@ -260,7 +259,7 @@ sample messages and media to tell them apart), mark which one is you, and click
 
 **Step 5.** Click **Save & finish**, then **Open your archive →**. From now on,
 double-click `index.html` whenever you want to read it; the server is only
-needed to run the wizard again.
+needed to run the wizard again (or for video, see the note below).
 
 Everything the wizard writes lands in one git-ignored folder, `personal_data/`
 (`config.json`, the built `data.js`, `local.js`, the copied raw export under
@@ -456,8 +455,8 @@ The repository is built to be published with no private data. Real messages,
 media, photos, names and packaged archives are git-ignored
 ([`.gitignore`](.gitignore)). The only committed data is the synthetic sample.
 
-- **Strict CSP.** Both pages set `script-src 'self'` with no inline scripts,
-  enforced over `file://` too.
+- **Strict CSP.** Both pages set `script-src 'self'`, enforced over `file://`
+  too. When served, the server adds one nonce'd script holding its own address.
 - **Loopback only.** The setup server listens on `127.0.0.1` and checks `Host`
   on every request, which stops DNS rebinding.
 - **No cross-site reads.** Every reply carries
@@ -470,5 +469,6 @@ media, photos, names and packaged archives are git-ignored
   that only the setup page receives.
 - **No framing.** Pages are sent with `X-Frame-Options: DENY`.
 
-Full rules in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The server is not
-needed for daily use: the built archive runs from `file://`.
+Full rules in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Day to day the
+archive runs from `file://`; the server is only for setup, or for video if your
+browser blocks it there.
