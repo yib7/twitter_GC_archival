@@ -160,21 +160,6 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
   (Search / Timeline / Gallery / Stats / More), and a bottom sheet for the
   remaining views.
 
-Everything runs from `file://`, so you can just double-click `index.html`. The
-included `scripts/server.js` is needed only for the first-run setup wizard
-(`/setup.html`) or if your browser blocks local video over `file://`. Opening
-from `file://` prints a few harmless not-found lines in the browser console as
-it probes for optional local data files; `npm start` serves the app and avoids
-them.
-
-Run smoke checks after installing dev dependencies:
-
-```bash
-npm install
-npx playwright install chromium   # one-time: the smoke tests drive a headless browser
-npm run test:smoke
-```
-
 ---
 
 ## Requirements
@@ -194,88 +179,88 @@ npm run test:smoke
 
 ## Quick start (demo, zero real data)
 
+**Step 1.** Get the code:
+
 ```bash
 git clone https://github.com/yib7/twitter_GC_archival.git
-cd twitter_GC_archival
-# open the demo straight away:
-#   double-click index.html
-# or, if your browser blocks local media over file://:
-node scripts/server.js      # -> http://localhost:8765
 ```
 
-You'll get a synthetic demo: three group chats, 660 messages over about 18
-months. Regenerate the demo data anytime (the output is identical on every run):
+(No git? On the GitHub page click **Code → Download ZIP** and extract it.)
 
-```bash
-node scripts/make-sample.js     # writes sample/ (data.sample.js + photos)
-```
+**Step 2.** Open `index.html` from the project folder in your browser
+(double-click it).
+
+You'll see the synthetic demo: three group chats, 660 messages over about 18
+months. The demo needs no Node and no server. Over `file://` the browser
+console shows a few not-found lines: the page looking for your own archive
+files, which the demo doesn't have. They are harmless.
 
 ---
 
 ## Using your own export
 
-Request your archive from X (Settings -> Your account -> Download an archive of
-your data) and unzip it. The group chat archive needs all three of these:
+**Step 1.** Request your archive from X (Settings → Your account → Download an
+archive of your data). When X says it's ready, download and unzip it. The wizard
+reads these three from it and ignores the rest (1:1 DMs included; this tool is
+group chats only):
 
 - `direct-messages-group.js`: group chat conversations (full message content)
 - `direct-message-group-headers.js`: group metadata that completes the
   participant roster and join/leave/name events
 - `direct_messages_group_media/`: group chat media (photos and videos)
 
-*(1:1 DM files are ignored. This tool is group-chats only.)*
+**Step 2.** Start the setup wizard from the project folder:
 
-### Setup wizard
+| OS | Do this |
+| --- | --- |
+| Windows | Double-click `start-setup.cmd` |
+| macOS | Double-click `start-setup.command` |
+| Linux | Run `sh start-setup.command` in a terminal |
 
-The wizard writes config, copies your files and media, runs the build, restores
-the group photo, and walks you through naming everyone, all from the browser. It
-needs the local server (writing files needs Node).
+The launcher checks your Node.js version, starts the local server and opens
+the wizard in your browser. The server stops by itself about 20 seconds after you close the last archive tab.
 
-The quickest way to start it: double-click `start-setup.cmd` on Windows (or
-`start-setup.command` on macOS). It launches the server and opens the wizard, and
-closes itself when you close the browser tab. To start it by hand instead:
+**Step 3.** On the wizard's first step, click **Browse…** next to **Archive
+folder** and pick any file in your unzipped archive (for example
+`Your archive.html`); on macOS and Linux, paste the folder's path instead.
+Click **Check export**, read the preview (group chats, message counts, dates,
+people, photos and videos, and any warnings such as missing part files), then
+click **Build archive**. A progress bar shows the media copy.
 
-```bash
-node scripts/server.js                 # -> http://localhost:8765
-# then open  http://localhost:8765/setup.html
-```
+**Step 4** *(optional: you can rename people later in the viewer's People tab)*.
+Click **Continue to the group & people**, set the group's name and photo, name
+each person (their cards show sample messages and media to tell them apart),
+mark which one is you, then click **Save & finish**.
 
-1. Source: click Browse next to **Archive folder** and open any file in your
-   unzipped archive (for example `Your archive.html`). The wizard reads the
-   archive's `data/manifest.js` to find the group messages (every `-partN`
-   file), the headers and the media folder, and falls back to looking for them
-   by name. You can still pick the three files yourself instead (native file
-   dialogs on Windows; paste paths elsewhere). Click **Check export** to see a
-   preview — group chats, message counts, dates, people, photos & videos and
-   any warnings (missing part files, swapped files, 1:1 DMs left out, ...) —
-   before anything is written, then **Build archive**. A progress bar shows the
-   media copy.
-2. Group *(optional)*: set the group name and photo (becomes the sidebar mark).
-3. People *(optional)*: each participant card shows sample messages and a few
-   pieces of media they shared (Twitter/X links excluded, since they don't help
-   you tell people apart). Name them, add a photo, and mark which one is you.
-4. Finish: saves everything and links to the archive.
+**Step 5.** Click **Open your archive**. From now on, double-click `index.html`
+whenever you want to read it; the server is only needed to run the wizard
+again. If your browser won't play the videos from `file://`, run `npm start`
+and read the archive at `http://localhost:8765` instead.
 
 Everything the wizard writes lands in one git-ignored folder, `personal_data/`
 (`config.json`, the built `data.js`, `local.js`, the copied raw export under
-`source/`, copied `media/`, and `pfps/`). After setup, daily use is just
-double-clicking `index.html`. Each build keeps the previous archive as
-`data.js.bak`. Removing a group chat or a person (the wizard asks first, with
+`source/`, copied `media/`, and `pfps/`). Each build keeps the previous archive
+as `data.js.bak`. Removing a group chat or a person (the wizard asks first, with
 counts) rebuilds the archive without their messages, keeps those messages in
 `personal_data/.removed/messages.js` and moves their media to
 `personal_data/.removed/`, so un-removing brings them back (even after a merge
 with a newer export that no longer has them). Start over erases all of it.
 
-> Adding a newer export later? Open the wizard again and click **Add a newer
-> export** on step 1, pick the new archive, and check the preview (what your
-> archive already has, what the export adds). **Merge into archive** keeps your
-> current archive as the baseline and adds the new messages (deduplicated by
-> message id), so messages only in the older export stay. Names, photos, group
-> names, "me" and removed people are kept, and `data.js.bak` is the archive as
-> it was before the merge. Media already in the archive is never replaced. An
-> export with no group messages can't be merged, and one older than your
-> archive (or one it already has) needs an extra tick: the archive keeps its newer
-> copies of messages it already has (reactions from both are kept). To just
-> edit names, use **Continue**.
+> **Adding a newer export later** *(optional)*. Run the launcher again (Step 2),
+> click **Add a newer export** on the wizard's first step, pick the new archive,
+> and check the preview (what your archive already has, what the export adds).
+> **Merge into archive** keeps your current archive as the baseline and adds the
+> new messages (deduplicated by message id), so messages only in the older
+> export stay. Names, photos, group names, "me" and removed people are kept, and
+> `data.js.bak` is the archive as it was before the merge. Media already in the
+> archive is never replaced. An export with no group messages can't be merged,
+> and one older than your archive (or one it already has) needs an extra tick:
+> the archive keeps its newer copies of messages it already has (reactions from
+> both are kept). To just edit names, use **Continue**.
+
+Prefer a terminal to the launcher? `npm start` runs the same server (no
+`npm install` needed), but it doesn't open the browser or stop by itself: open
+`http://localhost:8765/setup.html` and press Ctrl+C when you're done.
 
 ### Environment variables
 
@@ -289,8 +274,8 @@ Set them in the shell that starts the server; nothing reads a `.env` file.
 | `GCA_DEBUG` | unset | `1` prints the stack trace when a build fails unexpectedly, for bug reports. |
 
 ```bash
-GCA_PORT=9000 node scripts/server.js           # macOS / Linux
-$env:GCA_PORT=9000; node scripts/server.js     # Windows PowerShell
+GCA_PORT=9000 npm start           # macOS / Linux
+$env:GCA_PORT=9000; npm start     # Windows PowerShell
 ```
 
 The switches the test suite uses are listed under Testing in
@@ -305,6 +290,37 @@ upload a profile picture, and mark "This is me", all saved to `localStorage`
 (works from `file://`, no server). For a permanent local mapping you can also
 hand-edit `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` /
 `LOCAL_ME` / `LOCAL_GC`).
+
+---
+
+## Development
+
+Only needed to run the tests or change the code; the app itself installs
+nothing. It needs the same Node.js 22.13 or newer (`.nvmrc` pins 24, the
+version CI runs on every OS).
+
+**Step 1.** Install the dev tools at the exact versions in `package-lock.json`:
+
+```bash
+npm ci
+```
+
+**Step 2.** Download the headless Chromium the browser tests drive (one time):
+
+```bash
+npx playwright install chromium
+```
+
+**Step 3.** Run the unit tests, the smoke test and the linter:
+
+```bash
+npm test
+npm run lint
+```
+
+`npm run test:e2e` runs the full browser suite (several minutes).
+`node scripts/make-sample.js` regenerates the demo in `sample/`; the output is
+identical on every run, and CI fails if the committed copy differs.
 
 ---
 
