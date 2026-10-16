@@ -132,6 +132,14 @@ test("an added emoji counts every time each person used it", async ({ page }) =>
   await expect(rows.nth(0).locator(".battle-count")).toHaveText(["3", "1"]);
   await expect(rows.nth(1).locator(".battle-count")).toHaveText(["0", "1"]);
 });
+// ❤️ is a heart, not the invisible U+FE0F after it: ☺️ is not a heart.
+test("an added heart counts hearts only", async ({ page }) => {
+  const HEARTS = { conversations: [conv("A", "Duo", [
+    { i: "h1", s: "u1", t: T, x: "I ❤️ it" }, { i: "h2", s: "u2", t: T + 60000, x: "☺️ ✔️" },
+  ])] };
+  await bootViewer(page, HEARTS, { ls: { "gca.lastView": "battles", "gca.settings": JSON.stringify({ battleWords: ["❤️"] }) } });
+  await expect(page.locator("#view-battles .battle-added .battle-count")).toHaveText(["1", "0"]);
+});
 
 // The winning count wears the winner's colour (it was the theme accent on both
 // sides), and stays readable as text on what is behind it (tests/_contrast.js

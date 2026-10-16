@@ -86,7 +86,7 @@ test("profile modal keeps its badges and stat lines on sample data", async ({ pa
     "🦉\nLate Night Owl", "😂\nEmoji Enthusiast", "🪨\nThe Caveman", "🤣\nThe LMAO User",
     "🚀\nThread Starter", "🐌\nThe Ghoster", "🕳️\nThe Laughing Void",
   ]);
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["68", "4.7", "125"]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["68", "4.6", "124"]);
   await expect(page.locator(".profile-modal .profile-stat-lbl")).toHaveText(["Messages", "Words/Msg", "Vocab Size"], { ignoreCase: true });
   await closeProfile();
 
@@ -95,7 +95,7 @@ test("profile modal keeps its badges and stat lines on sample data", async ({ pa
   await expect(page.locator(".profile-modal .profile-badge")).toHaveText([
     "🗣️\nThe Yapper", "🪞\nThe Narcissist", "💼\nThe Work Slacker", "👻\nThe Ghost", "⚡\nThe Flash", "🎤\nThe Monologuer",
   ]);
-  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["66", "6.2", "139"]);
+  await expect(page.locator(".profile-modal .profile-stat-val")).toHaveText(["66", "6.1", "138"]);
   await closeProfile();
 
   expect(errors).toEqual([]);

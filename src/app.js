@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, initials, hueVars, HUES, personHue, userLabels } = GCAS
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, battleKey, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, battleKey, countBattleText, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
 // the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with.
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -7239,10 +7239,10 @@ function drawBattleResults() {
 // Add a word to the battle (newest first; a word already there stays put).
 function addBattleWord(word) {
   const inp = document.getElementById("battle-word");
-  const t = word.trim(), k = t.toLowerCase();
+  const t = word.trim();
   // say why nothing happened — and keep the text so it can be shortened
   if (t.length > BATTLE_WORD_MAX) { toast("Battle words can be up to " + BATTLE_WORD_MAX + " characters"); return; }
-  if (settings.battleWords.some((w) => w.toLowerCase() === k || battleKey(w) === battleKey(t))) { if (inp) inp.value = ""; toast("“" + t + "” is already in the battle"); return; }
+  if (settings.battleWords.some((w) => battleKey(w) === battleKey(t))) { if (inp) inp.value = ""; toast("“" + t + "” is already in the battle"); return; }
   const next = cleanBattleWords([t].concat(settings.battleWords));
   const dropped = settings.battleWords.filter((w) => next.indexOf(w) === -1);
   settings.battleWords = next;
@@ -7270,17 +7270,20 @@ function battleColors(a, b) {
 }
 
 // An added word's counts, with the same whole-word keys as everything else.
-// A word with no letters or digits (an emoji, "?!") has no keys; it is
-// counted each time its text appears instead.
+// A word keyed by its text (an emoji in it, or no letters or digits: see
+// battleKey) is counted each time that text appears instead.
 function battleCounts(word) {
-  const keys = wordKeys(word);
-  if (!keys.length) return battleTextCounts(word.trim().toLowerCase());
-  const probe = keys.reduce((a, b) => (b.length > a.length ? b : a));
+  const keys = wordKeys(word), key = battleKey(word);
+  if (!key) return { c1: 0, c2: 0 };
+  const byText = key !== keys.join(" ");
+  // cheap prefilter: the longest token, or the text's first character
+  const probe = byText ? String.fromCodePoint(key.codePointAt(0)) : keys.reduce((a, b) => (b.length > a.length ? b : a));
   let c1 = 0, c2 = 0;
   for (let i = 0; i < N; i++) {
     const s = MSGS[i].s;
-    if ((s !== battleP1 && s !== battleP2) || !mayContainKey(LOWER[i], probe)) continue;
-    const c = countKeys(MSGS[i].x, keys);
+    if ((s !== battleP1 && s !== battleP2) || !MSGS[i].x) continue;
+    if (byText ? LOWER[i].indexOf(probe) === -1 : !mayContainKey(LOWER[i], probe)) continue;
+    const c = byText ? countBattleText(MSGS[i].x, key) : countKeys(MSGS[i].x, keys);
     if (s === battleP1) c1 += c;
     if (s === battleP2) c2 += c;
   }
@@ -7289,18 +7292,6 @@ function battleCounts(word) {
 
 // One row: both counts and bars, the word between them; an added word can be
 // removed.
-function battleTextCounts(needle) {
-  let c1 = 0, c2 = 0;
-  for (let i = 0; i < N; i++) {
-    const m = MSGS[i];
-    if (!m.x || (m.s !== battleP1 && m.s !== battleP2)) continue;
-    const c = m.x.toLowerCase().split(needle).length - 1;
-    if (m.s === battleP1) c1 += c;
-    if (m.s === battleP2) c2 += c;
-  }
-  return { c1, c2 };
-}
-
 function battleRowHtml({ word, added, c1, c2 }) {
   const max = Math.max(c1, c2, 1);
   const w1 = (c1 / max * 100).toFixed(0);

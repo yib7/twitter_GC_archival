@@ -702,7 +702,9 @@
     if (s.indexOf("@") !== -1) s = s.replace(RE_MENTION, "$1 ");
     return s;
   }
-  const RE_TOKEN = /[\p{L}\p{N}\p{M}]+(?:'[\p{L}\p{N}\p{M}]+)*/gu;
+  // A token starts with a letter or digit; marks only continue one, so the
+  // variation selector after an emoji (❤️) is never a token by itself.
+  const RE_TOKEN = /[\p{L}\p{N}][\p{L}\p{N}\p{M}]*(?:'[\p{L}\p{N}\p{M}]+)*/gu;
   const RE_NOSPACE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
   // No-Segmenter fallback: one no-space-script grapheme cluster at a time — a
   // base character plus its combining marks (Thai vowel signs / tone marks
@@ -1186,9 +1188,24 @@
   //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
   // The key a Word Battles word counts under: its whole-word tokens, apostrophes
   // and case folded, so "Lol", "lol!" and the built-in "lol" are one word and
-  // "don't" and "dont" are one. A phrase keeps all its tokens; a word with no
-  // letters or digits (an emoji) is its own lowercased text.
-  function battleKey(word) { return wordKeys(word).join(" ") || word.trim().toLowerCase(); }
+  // "don't" and "dont" are one; a phrase keeps all its tokens. A word with an
+  // emoji in it, or with no letters or digits ("?!"), is keyed by its text
+  // instead: lowercased, spaces collapsed, U+FE0F dropped (❤️ and ❤ are one).
+  const RE_PICTO = /\p{Extended_Pictographic}/u;
+  const battleText = (s) => s.replace(/️/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  function battleKey(word) {
+    const keys = RE_PICTO.test(word) ? [] : wordKeys(word);
+    return keys.length ? keys.join(" ") : battleText(word);
+  }
+  // How often a text-keyed battle word (its battleKey) appears in a message,
+  // links and @mentions left out as for every other word count.
+  function countBattleText(text, key) {
+    if (!text || !key) return 0;
+    const s = battleText(plainText(text));
+    let n = 0;
+    for (let at = s.indexOf(key); at !== -1; at = s.indexOf(key, at + key.length)) n++;
+    return n;
+  }
   // custom Word Battles words — strings only, trimmed, ≤40 chars,
   // de-duplicated by battleKey (first spelling wins), at most 30.
   const BATTLE_WORD_MAX = 40, BATTLE_WORDS_MAX = 30;   // per word / per list
@@ -1197,8 +1214,9 @@
     for (const w of Array.isArray(a) ? a : []) {
       if (typeof w !== "string") continue;
       const t = w.trim();
-      if (!t || t.length > BATTLE_WORD_MAX || seen.has(battleKey(t))) continue;
-      seen.add(battleKey(t)); out.push(t);
+      const key = t && battleKey(t);   // "" for a word of only U+FE0F
+      if (!key || t.length > BATTLE_WORD_MAX || seen.has(key)) continue;
+      seen.add(key); out.push(t);
       if (out.length >= BATTLE_WORDS_MAX) break;
     }
     return out;
@@ -1279,7 +1297,7 @@
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, linkPlatform, plural,
     graphemes, graphemesNoSegmenter, wrapText, createRedactor, createUserNumbering, userLabels,
-    isPlainObj, cleanMap, idList, cleanSaved, battleKey, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
+    isPlainObj, cleanMap, idList, cleanSaved, battleKey, countBattleText, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
     safeMediaUrl,
   };
 });

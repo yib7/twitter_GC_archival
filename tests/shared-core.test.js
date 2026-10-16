@@ -206,3 +206,39 @@ test("createUserNumbering streamed message by message gives the same labels", ()
   assert.deepStrictEqual(n.result(), shared.userLabels(conv));
   assert.deepStrictEqual(n.result(), { 1: "User 1", 2: "User 2", 4: "User 3", 3: "User 4" });
 });
+
+/* ---- Word Battles keys and text counts ------------------------------------ */
+
+// A variation selector (U+FE0F, the invisible tail of ❤️ ☺️ ✔️) is not a
+// word: it used to come out of tokenize as a token of its own, so every red
+// heart in a chat was counted as one shared invisible "word".
+test("tokenize never yields a token made only of combining marks", () => {
+  assert.deepStrictEqual(shared.tokenize("I \u2764\uFE0F you"), ["i", "you"]);
+  assert.deepStrictEqual(shared.tokenize("\u263A\uFE0F ok"), ["ok"]);
+  assert.deepStrictEqual(shared.tokenize("caf\u0065\u0301 na\u00EFve"), ["caf\u0065\u0301", "na\u00EFve"]);
+});
+
+// Words are keyed by their whole-word tokens; anything with an emoji in it, or
+// with no letters or digits at all, is keyed by its text (lowercased, U+FE0F
+// dropped) so ❤️ and ❤ are one word and ❤️ and ☺️ are two.
+test("battleKey keys words by tokens and emoji or symbols by their text", () => {
+  const k = shared.battleKey;
+  assert.equal(k("LOL!"), "lol");
+  assert.equal(k("so  Literally"), "so literally");
+  assert.equal(k("\u2764\uFE0F"), k("\u2764"));
+  assert.notEqual(k("\u2764\uFE0F"), k("\u263A\uFE0F"));
+  assert.equal(k("LOL \u{1F602}"), "lol \u{1F602}");
+  assert.equal(k(" ?! "), "?!");
+  assert.deepStrictEqual(shared.cleanBattleWords(["\u2764\uFE0F", "\u2764", "\u263A\uFE0F", "Lol \u{1F602}", "lol \u{1F602}"]),
+    ["\u2764\uFE0F", "\u263A\uFE0F", "Lol \u{1F602}"]);
+});
+
+test("countBattleText counts a text-keyed word where it appears, outside links", () => {
+  const c = (text, word) => shared.countBattleText(text, shared.battleKey(word));
+  assert.equal(c("I \u2764\uFE0F you \u2764", "\u2764\uFE0F"), 2);
+  assert.equal(c("\u263A\uFE0F", "\u2764\uFE0F"), 0);
+  assert.equal(c("LOL \u{1F602} and lol \u{1F602}", "lol \u{1F602}"), 2);
+  assert.equal(c("lol", "lol \u{1F602}"), 0);
+  assert.equal(c("see https://x.com/s?a=1 ok?", "?"), 1);
+  assert.equal(c("", "?"), 0);
+});
