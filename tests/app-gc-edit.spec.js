@@ -82,3 +82,44 @@ test("a custom group name shows in both pickers and the Pinned headers", async (
   await expect(opts("#conv-select")).toHaveText(["Wizard Alpha · 1", "Cousins · 1"]);
   await expect(opts("#mobile-conv")).toHaveText(["Wizard Alpha · 1", "Cousins · 1"]);
 });
+
+// A legacy single group name (settings.gcName, or a flat LOCAL_GC from an older
+// wizard) dates from one-chat archives. With several chats it still names the
+// sidebar brand, as it always did, but must not rename every chat in the
+// pickers and headers. With one chat it is that chat's name everywhere.
+for (const [label, ls, local] of [
+  ["settings.gcName", { "gca.settings": JSON.stringify({ gcName: "Family", pins: ["m1", "m2"] }) }, ""],
+  ["a flat LOCAL_GC", { "gca.settings": JSON.stringify({ pins: ["m1", "m2"] }) }, 'window.LOCAL_GC = {"name":"Family","photo":""};'],
+]) {
+  test(`a legacy group name from ${label} leaves the chats apart in the pickers`, async ({ page }) => {
+    await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: local }));
+    await page.addInitScript((seed) => {
+      if (sessionStorage.getItem("seeded")) return;
+      sessionStorage.setItem("seeded", "1");
+      for (const k in seed) localStorage.setItem(k, seed[k]);
+    }, ls);
+    await page.goto("/");
+    await expect(page.locator("#brand-title")).toHaveText("Family");
+    const opts = (sel) => page.locator(sel + " option");
+    await expect(opts("#conv-select")).toHaveText(["Alpha · 1", "Beta · 1"]);
+    await expect(opts("#mobile-conv")).toHaveText(["Alpha · 1", "Beta · 1"]);
+    await page.locator('.nav-item[data-view="pins"]').click();
+    await expect(page.locator("#view-pins .pins-conv-head")).toHaveText([/^Alpha/, /^Beta/]);
+  });
+}
+
+test("a legacy group name names the only chat everywhere", async ({ page }) => {
+  const ONE = { __sample: true, conversations: [DATA.conversations[0]] };
+  await page.route("**/data.sample.js", (route) =>
+    route.fulfill({ contentType: "text/javascript", body: "window.CHAT_DATA = " + JSON.stringify(ONE) + ";" }));
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem("seeded")) return;
+    sessionStorage.setItem("seeded", "1");
+    localStorage.setItem("gca.settings", JSON.stringify({ gcName: "Family", pins: ["m1"] }));
+  });
+  await page.goto("/");
+  await expect(page.locator("#brand-title")).toHaveText("Family");
+  await expect(page.locator("#mobile-conv option")).toHaveText(["Family · 1"]);
+  await page.locator('.nav-item[data-view="pins"]').click();
+  await expect(page.locator("#view-pins .pins-conv-head")).toHaveText([/^Family/]);
+});

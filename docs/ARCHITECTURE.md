@@ -230,7 +230,9 @@ uploads (People tab) are stored as data URLs in `settings.pfps` so editing works
 from `file://` with no server. Each group chat's photo + name come from
 `settings.gc[convId]`, else `window.LOCAL_GC[convId]` (the wizard's
 per-group map; a legacy flat `LOCAL_GC` / `settings.gcName` / `gcPhoto` is still
-honoured) (`updateBrand()`), and the wizard's "this is you" marker is
+honoured: with one chat it names that chat everywhere, with several only the
+sidebar brand, so the pickers keep the chats apart) (`displayConvName()`,
+`updateBrand()`), and the wizard's "this is you" marker is
 `window.LOCAL_ME` (a default for `settings.me`).
 
 ### First-run onboarding

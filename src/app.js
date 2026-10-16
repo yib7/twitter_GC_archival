@@ -4309,7 +4309,7 @@ function renderSettings() {
   const gcl = v.querySelector("#set-gcs");
   visibleConvos().forEach((c) => {
     const entry = (settings.gc && settings.gc[c.id]) || {};
-    const lgc = LOCAL_GC ? (LOCAL_GC[c.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
+    const lgc = localGcFor(c);
     const effPhoto = sanitizePhoto(entry.photo || (lgc && lgc.photo) || settings.gcPhoto || "");
     const row = el("div", "gc-item");
     const av = el("div", "gc-av");
@@ -4756,24 +4756,33 @@ function convLabel(c) {
 }
 // LOCAL_GC is per-conversation { convId: { name, photo } }; older builds wrote a
 // single flat { name, photo } that applied to every group — support both.
+function flatLocalGc() {
+  return LOCAL_GC && ("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null;
+}
 function localGcFor(c) {
-  return LOCAL_GC ? (LOCAL_GC[c && c.id] || (("name" in LOCAL_GC || "photo" in LOCAL_GC) ? LOCAL_GC : null)) : null;
+  return LOCAL_GC ? (LOCAL_GC[c && c.id] || flatLocalGc()) : null;
 }
 // The name a chat goes by everywhere (brand, pickers, Pinned and All chats
 // headers, exports): the in-app per-group override (Settings → Group chats)
-// wins over the wizard's LOCAL_GC, which wins over the legacy flat gcName,
+// wins over the wizard's LOCAL_GC, which wins over the legacy flat name,
 // then the chat's own title, its last rename, "Group 1234".
-function displayConvName(c) {
+// The legacy flat name (a flat LOCAL_GC, settings.gcName) is one name from
+// when an archive held one chat. It names that chat everywhere when it is the
+// only one; with several it names only the sidebar brand (brand = true), as it
+// always has, so the pickers and headers still tell the chats apart.
+function displayConvName(c, brand) {
   if (!c) return convLabel(c);
-  const sgc = settings.gc ? settings.gc[c.id] : null, lgc = localGcFor(c);
+  const sgc = settings.gc ? settings.gc[c.id] : null, lgc = LOCAL_GC ? LOCAL_GC[c.id] : null;
+  const flat = flatLocalGc();
+  const legacy = (brand || visibleConvos().length <= 1) ? ((flat && flat.name) || settings.gcName) : "";
   const nameEv = (c.events || []).filter((e) => e.type === "name");
-  return (sgc && sgc.name) || (lgc && lgc.name) || settings.gcName || c.title || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(c));
+  return (sgc && sgc.name) || (lgc && lgc.name) || legacy || c.title || (nameEv.length ? nameEv[nameEv.length - 1].name : convLabel(c));
 }
 
 function updateBrand() {
   const lgc = localGcFor(CONV);
   const sgc = (settings.gc && CONV) ? settings.gc[CONV.id] : null;
-  const title = displayConvName(CONV);
+  const title = displayConvName(CONV, true);
   // Restore the real group photo on the sidebar brand mark when present.
   const mark = document.querySelector(".brand-mark");
   const gcPhoto = sanitizePhoto((sgc && sgc.photo) || (lgc && lgc.photo) || settings.gcPhoto);
