@@ -7339,7 +7339,7 @@ function renderChains() {
 /* ---- Boot (all module state is declared by now) -------------------------- */
 activateConversation(pickInitialConvId(), false);
 if (!N) {
-  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">Run <code>npm start</code> to set up your export (or <code>node scripts/build.js</code> / <code>node scripts/make-sample.js</code> for the demo)</div></div>';
+  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">To build your archive from an export, double-click <code>start-setup.cmd</code> (Windows) or <code>start-setup.command</code> (macOS/Linux), or run <code>npm start</code>. To restore the demo data, run <code>node scripts/make-sample.js</code>.</div></div>';
 } else if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
 } else {
