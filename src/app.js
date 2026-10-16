@@ -3747,10 +3747,12 @@ function renderStats() {
   if (a.monthArr.length >= 2) {
     const counts = a.monthArr.map((m) => m[1]);
     const max = Math.max(...counts);
-    const SW = 280, SH = 96;
-    const stepX = SW / (counts.length - 1);
+    // the line is inset by the end dot's radius plus its stroke on every side,
+    // so the dot (the last point) isn't cut in half by the SVG's edge
+    const SW = 280, SH = 96, R = 4.5;
+    const stepX = (SW - 2 * R) / (counts.length - 1);
     const pts = counts.map((c, i) =>
-      (i * stepX).toFixed(1) + " " + (SH - (max > 0 ? (c / max) * 88 : 0) - 4).toFixed(1));
+      (R + i * stepX).toFixed(1) + " " + (SH - R - (max > 0 ? (c / max) * (SH - 2 * R) : 0)).toFixed(1));
     const lineD = pts.map((p, i) => (i ? "L" : "M") + p).join(" ");
     const [lx, ly] = pts[pts.length - 1].split(" ");
     sparkHtml = `<div class="spark">
@@ -3761,7 +3763,7 @@ function renderStats() {
                 <stop offset="1" stop-color="var(--accent)" stop-opacity="0"/>
               </linearGradient>
             </defs>
-            <path d="${lineD} L${SW} ${SH} L0 ${SH} Z" fill="url(#hero-spark-grad)"/>
+            <path d="${lineD} L${SW - R} ${SH} L${R} ${SH} Z" fill="url(#hero-spark-grad)"/>
             <path d="${lineD}" stroke="var(--accent-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="${lx}" cy="${ly}" r="3.5" fill="var(--accent)" stroke="var(--bg-card)" stroke-width="1.5"/>
           </svg>

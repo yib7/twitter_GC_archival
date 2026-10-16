@@ -155,3 +155,33 @@ for (const sz of SIZES) {
     }
   });
 }
+
+// The sweeps above skip anything inside [aria-hidden=true], and the sparklines'
+// SVGs are decorative, so a dot half cut by its own SVG's edge went unseen.
+// Every circle in every SVG on screen, aria-hidden ones included, lies inside
+// its SVG (stroke included): the sidebar sparkline and the Stats hero's.
+for (const w of [1280, 768, 375]) {
+  test("no dot is cut by its SVG's edge at " + w + "px", async ({ page }) => {
+    await page.setViewportSize({ width: w, height: w > 760 ? 900 : 812 });
+    await bootViewer(page, DATA);
+    await go(page, "stats");
+    await viewReady(page, "stats");
+    const r = await page.evaluate(() => {
+      const out = [], seen = [];
+      for (const svg of document.querySelectorAll("#app svg")) {
+        const b = svg.getBoundingClientRect();
+        if (!b.width || !b.height) continue;
+        for (const c of svg.querySelectorAll("circle, ellipse")) {
+          const x = c.getBoundingClientRect(), half = (parseFloat(getComputedStyle(c).strokeWidth) || 0) / 2;
+          const name = (svg.parentElement.className || "svg") + " " + (c.getAttribute("cx") || "");
+          seen.push(name);
+          const cut = Math.max(b.left - (x.left - half), (x.right + half) - b.right, b.top - (x.top - half), (x.bottom + half) - b.bottom);
+          if (cut > 0.5) out.push(name + " sticks out by " + cut.toFixed(1) + "px");
+        }
+      }
+      return { out, seen };
+    });
+    expect(r.seen.length, "the sparkline dots were found: " + r.seen.join(", ")).toBeGreaterThanOrEqual(w > 760 ? 2 : 1);
+    expect(r.out, r.out.join("\n")).toEqual([]);
+  });
+}
