@@ -20,6 +20,7 @@
   /* Semantic — X repost green / premium yellow / error red */
   --success:#00ba7c; --warning:#ffd400; --danger:#f4212e; --danger-deep:#c81a24;
   --success-text:#00ba7c; /* green as text; Light darkens it to clear 4.5:1 on white */
+  --danger-text:#f86f77;  /* red as text: >= 4.5:1 on the dark pages, cards and a danger tint (raw --danger is 3.4-4.3:1) */
   --success-bg:rgba(0,186,124,.12); --warning-bg:rgba(255,212,0,.14); --danger-bg:rgba(244,33,46,.12);
   /* Medals */
   --medal-gold:#e9b949; --medal-silver:#c2ccdc; --medal-bronze:#cd8b5e;
@@ -64,7 +65,7 @@ html[data-theme="light"]{
   --bg-page:#ffffff; --bg-panel:#ffffff; --bg-card:#f7f9f9; --bg-hover:#f7f9f9; --bg-inset:#f7f9f9;
   --border:#eff3f4; --border-lift:#cfd9de; --border-accent:#1d9bf0;
   --text:#0f1419; --text-dim:#536471; --text-faint:#66737d; --hover:rgba(15,20,25,.03);
-  --success-text:#007a52;
+  --success-text:#007a52; --danger-text:#b21822;
   --el1:0 0 0 1px #eff3f4; --el2:0 4px 16px -6px rgba(101,119,134,.3);
   --el3:0 0 0 1px #eff3f4,0 24px 50px -16px rgba(101,119,134,.4); --glow-accent:0 0 22px -10px var(--accent-glow);
   /* the bright name hues above are dark-theme colours (1.8–3.0:1 on
@@ -890,10 +891,10 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* ---- Clear all filters pill ---------------------------------------------- */
 .pill.danger {
-  background: var(--danger-bg); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger);
+  background: var(--danger-bg); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger-text);
 }
 .pill.danger:hover {
-  background: color-mix(in srgb, var(--danger) 22%, transparent); border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 22%, transparent); border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger-text);
 }
 
 /* ---- Clickable stat bars ------------------------------------------------- */
