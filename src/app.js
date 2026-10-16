@@ -5027,8 +5027,9 @@ function maybeShowOnboarding() {
              participants and mark which one is you.`}
       </div>
       <div class="onboard-note">${location.protocol === "file:"
-        ? `The wizard needs the local server: double-click <code>start-setup.cmd</code>
-           (Windows) or <code>start-setup.command</code> (macOS/Linux) in the project folder,
+        ? `The wizard needs the setup server: double-click <code>start-setup.cmd</code>
+           (Windows) or <code>start-setup.command</code> (macOS), or run
+           <code>sh start-setup.command</code> (Linux), in the project folder,
            or run <code>npm start</code> and open
            <code><span id="setup-url-note">localhost:8765/setup.html</span></code>.`
         : `The wizard runs on this server, at
@@ -7405,7 +7406,7 @@ function renderChains() {
 /* ---- Boot (all module state is declared by now) -------------------------- */
 activateConversation(pickInitialConvId(), false);
 if (!N) {
-  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">To build your archive from an export, double-click <code>start-setup.cmd</code> (Windows) or <code>start-setup.command</code> (macOS/Linux), or run <code>npm start</code>. To restore the demo data, run <code>node scripts/make-sample.js</code>.</div></div>';
+  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">To build your archive from an export, double-click <code>start-setup.cmd</code> (Windows) or <code>start-setup.command</code> (macOS), run <code>sh start-setup.command</code> (Linux), or run <code>npm start</code>. To restore the demo data, run <code>node scripts/make-sample.js</code>.</div></div>';
 } else if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
 } else {

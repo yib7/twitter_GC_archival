@@ -41,8 +41,9 @@ test("from file:// the onboarding button opens the start-the-server note", async
   const note = page.locator(".onboard-note");
   await expect(note).toContainText("start-setup.cmd");
   await expect(note).toContainText("start-setup.command");
-  // the .command launcher runs on macOS and Linux, and the card says so
-  await expect(note).toContainText("(macOS/Linux)");
+  // macOS double-clicks the .command launcher; Linux runs it with sh, and the card says so
+  await expect(note).toContainText("(macOS)");
+  await expect(note).toContainText("sh start-setup.command");
   await expect(note).toContainText("npm start");
   await expect(note).not.toContainText("node scripts/server.js");
   const btn = page.locator(".onboard a.btn.primary");
@@ -51,6 +52,6 @@ test("from file:// the onboarding button opens the start-the-server note", async
   await btn.click();
   await expect(page).toHaveURL(target);
   await expect(page.locator(".su-unserved")).toBeVisible();
-  await expect(page.locator(".su-unserved")).toContainText("(macOS/Linux)");
+  await expect(page.locator(".su-unserved")).toContainText("sh start-setup.command");
   await expect(page.locator(".setup-shell")).toBeHidden();
 });
