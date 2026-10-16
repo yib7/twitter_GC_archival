@@ -2632,7 +2632,10 @@ function downloadText(name, lines) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = name;
-  a.click(); URL.revokeObjectURL(url);
+  a.click();
+  // Not revoked right away: a browser may read the blob after the click task
+  // (Firefox), and an early revoke cancels the download. Share waits the same way.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function exportResults() {
   const day = new Date().toISOString().slice(0, 10);
