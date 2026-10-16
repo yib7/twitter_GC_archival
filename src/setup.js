@@ -300,7 +300,7 @@ async function pick(kind, fill, which) {
     fill(j.path);
     $("#src-result").hidden = true;
   } catch (e) {
-    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? Run start-setup again (or npm start).", "err");
   }
 }
 $("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value = p; hidePreflight(); }, "group");
@@ -513,7 +513,7 @@ $("#btn-build").onclick = async () => {
     pendingSource = body;
     $("#btn-confirm").focus();
   } catch (e) {
-    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? Run start-setup again (or npm start).", "err");
   } finally {
     building = false;
     if (!built || merging) $("#btn-build").disabled = false;
@@ -551,7 +551,7 @@ $("#btn-confirm").onclick = async () => {
     lockSource(true);
     go(2);
   } catch (e) {
-    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? (node scripts/server.js)", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? Run start-setup again (or npm start).", "err");
   } finally {
     building = false;
     if (!built || merging) { $("#btn-build").disabled = false; updateConfirm(); }   // after a success the source stays locked

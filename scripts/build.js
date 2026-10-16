@@ -66,7 +66,7 @@ function fail(msg) { throw new BuildError(msg); }
 // The build is driven entirely by personal_data/config.json (written by the
 // setup wizard). No config → nothing to build; point the user at the wizard.
 function loadConfig() {
-  if (!fs.existsSync(CONFIG)) fail("No setup found (personal_data/config.json is missing). Run the setup wizard first: node scripts/server.js, then open http://localhost:8765/setup.html");
+  if (!fs.existsSync(CONFIG)) fail("No setup found (personal_data/config.json is missing). Run the setup wizard first: double-click start-setup.cmd (Windows) or start-setup.command (macOS/Linux), or run npm start and open http://localhost:8765/setup.html");
   try { return JSON.parse(fs.readFileSync(CONFIG, "utf8").replace(/^\uFEFF/, "")); }
   catch (e) { fail("The setup file personal_data/config.json is damaged. Use Start over in the setup wizard."); }
 }

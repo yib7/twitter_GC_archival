@@ -4986,7 +4986,7 @@ function maybeShowOnboarding() {
       </div>
       <div class="onboard-note">${location.protocol === "file:"
         ? `The wizard needs the local server: double-click <code>start-setup.cmd</code>
-           (Windows) or <code>start-setup.command</code> (macOS) in the project folder,
+           (Windows) or <code>start-setup.command</code> (macOS/Linux) in the project folder,
            or run <code>npm start</code> and open
            <code><span id="setup-url-note">localhost:8765/setup.html</span></code>.`
         : `The wizard runs on this server, at

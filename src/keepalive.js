@@ -30,7 +30,7 @@
       banner.className = "gca-server-down";
       banner.setAttribute("role", "alert");
       banner.textContent = "The local server has stopped, so changes can't be saved and media may not load. " +
-        "Run start-setup again (or node scripts/server.js), then reload this page.";
+        "Run start-setup again (or npm start), then reload this page.";
       (document.body || document.documentElement).appendChild(banner);
     }
     banner.hidden = false;

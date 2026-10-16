@@ -13,6 +13,7 @@ test("the onboarding card names the server's real setup address", async ({ page 
   expect(await page.evaluate(() => window.GCA_SERVER_URL)).toBe(origin);
   await expect(page.locator("#setup-url-note")).toHaveText(origin + "/setup.html");
   // served, the server is already running: no "start the server" instructions
+  await expect(page.locator(".onboard-note")).toContainText("runs on this server");
   await expect(page.locator(".onboard-note")).not.toContainText("node scripts/server.js");
   await expect(page.locator(".onboard-note")).not.toContainText("npm start");
   await expect(page.locator(".onboard-note")).not.toContainText("start-setup");
@@ -40,6 +41,8 @@ test("from file:// the onboarding button opens the start-the-server note", async
   const note = page.locator(".onboard-note");
   await expect(note).toContainText("start-setup.cmd");
   await expect(note).toContainText("start-setup.command");
+  // the .command launcher runs on macOS and Linux, and the card says so
+  await expect(note).toContainText("(macOS/Linux)");
   await expect(note).toContainText("npm start");
   await expect(note).not.toContainText("node scripts/server.js");
   const btn = page.locator(".onboard a.btn.primary");
@@ -48,5 +51,6 @@ test("from file:// the onboarding button opens the start-the-server note", async
   await btn.click();
   await expect(page).toHaveURL(target);
   await expect(page.locator(".su-unserved")).toBeVisible();
+  await expect(page.locator(".su-unserved")).toContainText("(macOS/Linux)");
   await expect(page.locator(".setup-shell")).toBeHidden();
 });
