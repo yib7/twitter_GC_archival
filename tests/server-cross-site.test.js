@@ -21,7 +21,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 
 const FAKE_DATA = 'window.CHAT_DATA = {"__fake":true,"conversations":[]};\n';
 const FAKE_LOCAL = 'window.LOCAL_NAMES = {"1":"Fake"}; window.LOCAL_ME = "1";\n';

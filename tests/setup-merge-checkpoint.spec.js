@@ -5,7 +5,7 @@ const os = require("os");
 const path = require("path");
 const crypto = require("crypto");
 const X = require("./fixtures/x-export.js");
-const { startServer, readData } = require("./_sp6-server.js");
+const { startServer, readData } = require("./_spawn-server.js");
 
 // Merge checkpoint, end to end through the wizard over a real server
 // (GCA_PORT=0, a mkdtemp GCA_PERSONAL, root fallbacks and native pickers off)

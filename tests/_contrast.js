@@ -1,4 +1,4 @@
-// Rendered-text contrast audit shared by a11y-sp5.spec and mobile-390.spec.
+// Rendered-text contrast audit shared by a11y-keyboard.spec and mobile-390.spec.
 // Every visible text run is checked against the colour actually behind it:
 // ancestor backgrounds are composited and element opacity is applied. A
 // gradient background is checked against EACH of its colour stops (the worst

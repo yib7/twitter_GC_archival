@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const fs = require("fs");
 
-// Cycle-5 audit batch — four small src/app.js fixes:
+// Regression tests for four small viewer (src/app.js) fixes:
 //  - the Stats "busiest day" header showed the raw "YYYY-MM-DD" bucket
 //    key instead of the zone-aware formatted date Milestones already uses.
 //  - plain-text exports (search results + pinned messages) emitted a

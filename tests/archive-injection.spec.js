@@ -4,7 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const X = require("./fixtures/x-export.js");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 
 // Values from a hand-edited or shared data.js / config.json that reached the

@@ -5,7 +5,7 @@ const { spawn } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { waitForBootLine } = require("./wait-for-boot-line.js");
+const { waitForBootLine } = require("./_wait-for-boot-line.js");
 
 // Checkpoint test for the e2e real-data isolation: GCA_NO_ROOT_FALLBACK is the
 // switch playwright.config.js sets on the shared webServer so a spawned test

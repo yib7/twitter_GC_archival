@@ -4,7 +4,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { waitForBootLine } = require("./wait-for-boot-line.js");
+const { waitForBootLine } = require("./_wait-for-boot-line.js");
 const X = require("./fixtures/x-export.js");
 const { checkAndBuild } = require("./_setup-helpers.js");
 

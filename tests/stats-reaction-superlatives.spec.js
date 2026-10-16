@@ -3,7 +3,7 @@ const { test, expect } = require("@playwright/test");
 // "The Laugh Track" and "The Hater" superlative cards never rendered
 // because computeStats compared a reaction's *key* (e.g. "funny", "disagree")
 // against emoji *glyphs* (e.g. "😂", "👎") that reaction records never carry
-// (see scripts/build-core.js rawToRec and scripts/make_sample.js, both of
+// (see scripts/build-core.js rawToRec and scripts/make-sample.js, both of
 // which write `{k: reactionKey, s: senderId}`). The counters stayed at 0
 // forever, so the render filter (`x.win.val > 0`) always dropped both cards.
 // u2 gives the only "funny" reaction (to u1's message) and u1 gives the only

@@ -6,7 +6,7 @@ const fs = require("fs");
 // ACTIVE conversation — so bookmarks made in other group chats silently
 // vanished from the Pinned view (and its export). Message ids are globally
 // unique (real builds keep the original X message id — scripts/build-core.js
-// rawToRec; the sample generator shares one counter — scripts/make_sample.js),
+// rawToRec; the sample generator shares one counter — scripts/make-sample.js),
 // so the view must show EVERY conversation's bookmarks, grouped per chat with
 // the active chat first, and clicking another chat's pin must switch to that
 // conversation and jump to the message.

@@ -3,7 +3,7 @@
  * anything is written. The survey streams the export one message at a time;
  * the server endpoint is read-only (personal_data/ is byte-for-byte the same
  * afterwards). Synthetic exports only (tests/fixtures/x-export.js); every
- * server on GCA_PORT=0 with a mkdtemp GCA_PERSONAL (tests/_sp6-server.js).
+ * server on GCA_PORT=0 with a mkdtemp GCA_PERSONAL (tests/_spawn-server.js).
  */
 require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
@@ -16,7 +16,7 @@ const core = require("../scripts/build-core.js");
 const { preflightWarnings } = require("../scripts/server-core.js");
 const { scanExportFile } = require("../scripts/fs-io.js");
 const X = require("./fixtures/x-export.js");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 
 const tmpDirs = [];
 function scratch(prefix) { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix || "gca-preflight-")); tmpDirs.push(d); return d; }

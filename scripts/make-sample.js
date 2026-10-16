@@ -1,16 +1,16 @@
 /*
- * make_sample.js — generates a fully synthetic, publishable demo dataset.
+ * make-sample.js — generates a fully synthetic, publishable demo dataset.
  *
  * Emits, into sample/:
  *   - sample/data.sample.js   (same schema build.js produces, multi-conversation)
  *   - sample/photo-*.svg      (placeholder photos the messages point at)
  *
- * Run:  node scripts/make_sample.js              (writes the project's sample/)
- *       node scripts/make_sample.js --out <dir>  (writes <dir>/sample/ instead)
+ * Run:  node scripts/make-sample.js              (writes the project's sample/)
+ *       node scripts/make-sample.js --out <dir>  (writes <dir>/sample/ instead)
  *
  * Deterministic: a fixed seed and a fixed "generated at" instant, no wall clock
  * and no Math.random(), so running it twice gives byte-identical files and CI
- * can check `node scripts/make_sample.js && git diff --exit-code sample`.
+ * can check `node scripts/make-sample.js && git diff --exit-code sample`.
  *
  * Everything here is invented — no real messages, names, ids, or media.
  * The repo is runnable/demoable with ZERO real data present.
@@ -21,7 +21,7 @@ const path = require("path");
 
 const argv = process.argv.slice(2);
 const outAt = argv.indexOf("--out");
-if (outAt >= 0 && !argv[outAt + 1]) { console.error("Usage: node scripts/make_sample.js [--out <dir>]"); process.exit(2); }
+if (outAt >= 0 && !argv[outAt + 1]) { console.error("Usage: node scripts/make-sample.js [--out <dir>]"); process.exit(2); }
 const here = outAt >= 0 ? path.resolve(argv[outAt + 1]) : path.join(__dirname, "..");   // project root by default
 // The demo data and its photos share one folder; the photo paths in the data
 // ("sample/photo-1.svg") are relative to index.html at the project root.

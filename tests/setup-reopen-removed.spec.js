@@ -4,7 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const X = require("./fixtures/x-export.js");
-const { startServer, readData } = require("./_sp6-server.js");
+const { startServer, readData } = require("./_spawn-server.js");
 
 // /api/status didn't return ignoredUsers, so a
 // reopened wizard started with nobody removed and its next save un-removed

@@ -5,7 +5,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — see that file
+const { waitForBootLine } = require("./_wait-for-boot-line.js");   // dedup — see that file
 
 // the host-guard/prefill test harness used to pick a RANDOM port from a
 // range that includes ports a real user (or Playwright's own webServer) might

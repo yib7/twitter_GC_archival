@@ -12,14 +12,14 @@ flowchart LR
   B["build.js<br/>parse · merge · resolve media · dedupe"]
   D["personal_data/data.js<br/>window.CHAT_DATA"]
   V["the viewer<br/>index.html · src/app.js · src/styles.css"]
-  MS["make_sample.js<br/>synthetic demo · no real data"]
+  MS["make-sample.js<br/>synthetic demo · no real data"]
   S["sample/data.sample.js<br/>+ sample/*.svg"]
 
   X --> B --> D --> V
   MS --> S --> V
 ```
 
-For a public/demo run with no real data, `make_sample.js` substitutes for the
+For a public/demo run with no real data, `make-sample.js` substitutes for the
 raw export: it synthesizes `sample/data.sample.js` + placeholder photos in `sample/`, in the same schema
 that the viewer reads.
 
@@ -117,7 +117,7 @@ served mode; nothing frames a `file://` page.
 |------|------|
 | `scripts/build.js` | Node script and the filesystem shell around `build-core.js`. Wizard-driven (requires `personal_data/config.json`; exits otherwise): reads the export file(s), calls `assembleConversations()`, and writes `personal_data/data.js`. Merge-aware: re-reads the previous build as a baseline so history accumulates; with no `personal_data/data.js`, the older layout's `data.js` in the project folder is the baseline (read only; `GCA_NO_ROOT_FALLBACK=1` turns that off, as for the server). Group-chats only, 1:1 DMs (id shape `a-b`) are skipped. Exit codes: `0` built, `2` failed with nothing written, `3` failed after the new `data.js` was in place (the server then keeps the copied media, `source/` and `config.json` and replies with a note instead of rolling back). A build killed outright can't exit with `3`, so the server also treats a `data.js` that exists and changed (inode, mtime, size) since the build started as written. On FAT/exFAT a renamed file can get a new file ID, so a failed build whose `replaceFile` swap fallback put the old `data.js` back can also count as written; that is benign, because the server then only keeps the copied `source/`, `media/` and `config.json` beside an intact old `data.js`, and the next build merges them. |
 | `scripts/build-core.js` | The pure archive-assembly logic (no filesystem I/O), so it can be unit-tested in isolation (`tests/build-core.test.js`). Folds **every** group `dmConversation` into a per-conversation accumulator, dedupes messages by id, resolves local media by the `{messageId}-…` filename convention, and, when the headers file is supplied, folds `direct-message-group-headers.js` (metadata only: it adds no messages but completes each conversation's participant roster and join/leave/name events). Also owns `collectParticipants` (used by the server's `/api/parts`) and `require()`s the shared `X_LINK` regex from `src/shared-core.js`. |
-| `scripts/make_sample.js` | Node script. Deterministic synthetic-data generator → `sample/data.sample.js` (3 group chats, 660 messages over ~18 months, tagged `__sample`, with renames, joins and a leave, reactions, links, multi-photo messages and RTL / emoji text) plus the placeholder SVG photos beside it. A fixed seed and a fixed `generatedAt` make the output byte-identical on every run (`tests/make-sample.test.js`; CI regenerates it and fails on any diff). `--out <dir>` writes somewhere else. Zero real data. |
+| `scripts/make-sample.js` | Node script. Deterministic synthetic-data generator → `sample/data.sample.js` (3 group chats, 660 messages over ~18 months, tagged `__sample`, with renames, joins and a leave, reactions, links, multi-photo messages and RTL / emoji text) plus the placeholder SVG photos beside it. A fixed seed and a fixed `generatedAt` make the output byte-identical on every run (`tests/make-sample.test.js`; CI regenerates it and fails on any diff). `--out <dir>` writes somewhere else. Zero real data. |
 | `src/setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard. Served only, at `/setup.html` (`servedFileFor` in `scripts/server-core.js`), so its relative asset paths resolve from the project root; opened from disk it shows just a note saying to start the server. Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Script load order: `src/theme-boot.js` (in `<head>`), `src/keepalive.js`, `sample/data.sample.js`, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `src/vendor/` (Fuse.js, Chart.js), then `src/shared-core.js`, then `src/app.js`. The four optional files are plain `<script src … data-optional>` tags with no `onerror` handler: when served, a missing one comes back as an empty `200`; over `file://` the browser just logs a not-found line. |
 | `src/app.js` | The entire UI. See "Runtime model" below. |

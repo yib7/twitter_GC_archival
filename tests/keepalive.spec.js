@@ -4,7 +4,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { waitForBootLine } = require("./wait-for-boot-line.js");
+const { waitForBootLine } = require("./_wait-for-boot-line.js");
 
 // the launcher's server must not quit under a tab that is merely hidden
 // (Chromium throttles hidden-tab timers to ~1/min; sleeping tabs stop them).

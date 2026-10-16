@@ -1,7 +1,7 @@
 /*
  * Import upgrade — the setup server end to end over synthetic exports
  * only (tests/fixtures/x-export.js); every server on GCA_PORT=0 with a mkdtemp
- * GCA_PERSONAL, the root fallbacks off and no native pickers (_sp6-server.js).
+ * GCA_PERSONAL, the root fallbacks off and no native pickers (_spawn-server.js).
  */
 require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
@@ -10,10 +10,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const X = require("./fixtures/x-export.js");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 
 const tmpDirs = [];
-function scratch(prefix) { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix || "gca-sp7-export-")); tmpDirs.push(d); return d; }
+function scratch(prefix) { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix || "gca-test-export-")); tmpDirs.push(d); return d; }
 after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true }); });
 const source = (S, f) => S.post("/api/source", { groupJs: f.group, headersJs: f.headers, mediaDir: f.media });
 
@@ -233,7 +233,7 @@ describe("adding a newer export merges into the archive", () => {
     assert.equal(j.added, 4, "9006, 9007, 9201, 9202 (333's 9008 stays out)");
     assert.equal(j.totalMsgs, 10);
     assert.deepEqual(fs.readFileSync(path.join(S.personal, "data.js.bak")), dataBefore, "data.js.bak is the archive as it was before the merge");
-    const { readData } = require("./_sp6-server.js");
+    const { readData } = require("./_spawn-server.js");
     const data = readData(S.personal);
     const ids = (cid) => data.conversations.find((c) => String(c.id) === cid).msgs.map((m) => String(m.i)).sort();
     assert.deepEqual(ids("1000000001"), ["9001", "9002", "9003", "9005", "9006", "9007"]);

@@ -14,7 +14,7 @@ const os = require("node:os");
 const path = require("node:path");
 const core = require("../scripts/build-core.js");
 const X = require("./fixtures/x-export.js");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 
 const tmpDirs = [];
 const scratch = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "gca-parity-")); tmpDirs.push(d); return d; };

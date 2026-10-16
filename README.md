@@ -208,7 +208,7 @@ You'll get a synthetic demo: three group chats, 660 messages over about 18
 months. Regenerate the demo data anytime (the output is identical on every run):
 
 ```bash
-node scripts/make_sample.js     # writes sample/ (data.sample.js + photos)
+node scripts/make-sample.js     # writes sample/ (data.sample.js + photos)
 ```
 
 ---
@@ -366,7 +366,7 @@ src/setup.css       setup-wizard styles
 src/vendor/         Fuse.js (Apache-2.0) + Chart.js (MIT), vendored, with licenses
 scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
 scripts/build-core.js    pure archive-assembly logic used by build.js
-scripts/make_sample.js   synthetic demo generator -> sample/
+scripts/make-sample.js   synthetic demo generator -> sample/
 scripts/server.js   static server + setup-wizard API (range requests for video)
 scripts/server-core.js   pure server helpers (path allowlist, Host/Origin/Sec-Fetch guards)
 scripts/fs-io.js    streaming export readers + atomic writes

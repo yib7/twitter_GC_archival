@@ -4,7 +4,7 @@
  * (losing edits and reactions the newer archive had), the preview didn't say
  * the export was older, and the media source folder was re-pointed at the
  * older export's folder. Synthetic exports only; real server on GCA_PORT=0
- * with a mkdtemp GCA_PERSONAL (tests/_sp6-server.js).
+ * with a mkdtemp GCA_PERSONAL (tests/_spawn-server.js).
  */
 require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
@@ -15,7 +15,7 @@ const path = require("node:path");
 const core = require("../scripts/build-core.js");
 const { preflightWarnings } = require("../scripts/server-core.js");
 const X = require("./fixtures/x-export.js");
-const { startServer, readData } = require("./_sp6-server.js");
+const { startServer, readData } = require("./_spawn-server.js");
 
 const tmpDirs = [];
 const scratch = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "gca-older-")); tmpDirs.push(d); return d; };

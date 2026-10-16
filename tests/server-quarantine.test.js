@@ -16,10 +16,10 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const X = require("./fixtures/x-export.js");
-const { startServer, readData } = require("./_sp6-server.js");
+const { startServer, readData } = require("./_spawn-server.js");
 
 const tmpDirs = [];
-const scratch = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp7-quar-")); tmpDirs.push(d); return d; };
+const scratch = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), "gca-test-quar-")); tmpDirs.push(d); return d; };
 after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true }); });
 
 const source = (S, f) => S.post("/api/source", { groupJs: f.group, headersJs: f.headers, mediaDir: f.media });
@@ -180,7 +180,7 @@ describe("a legacy archive (removals but no quarantine) keeps older-only removed
 // failed build wrote before it stopped.
 describe("a failed merge build leaves the quarantine as it was", () => {
   let personal;
-  before(() => { personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp7-quar-undo-")); tmpDirs.push(personal); });
+  before(() => { personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-test-quar-undo-")); tmpDirs.push(personal); });
 
   test("the build stops after writing the quarantine: the merge fails and the quarantine is unchanged", async () => {
     const S1 = await startServer({}, { personal });
@@ -236,7 +236,7 @@ describe("a legacy archive whose export copies are gone says its removed message
 for (const [how, crash] of [["fails", "after-archive"], ["is killed", "kill-after-archive"]]) describe("a build that " + how + " after data.js is written keeps what it wrote", () => {
   let personal, S;
   before(async () => {
-    personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp7-post-archive-")); tmpDirs.push(personal);
+    personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-test-post-archive-")); tmpDirs.push(personal);
     const S1 = await startServer({}, { personal });
     try {
       assert.equal((await source(S1, X.writeExport(scratch()))).status, 200);

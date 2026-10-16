@@ -1,8 +1,8 @@
 /*
- * scripts/make_sample.js — the synthetic demo generator. Run as a child process
+ * scripts/make-sample.js — the synthetic demo generator. Run as a child process
  * into scratch directories (never the repo root), then checked for:
  *   - determinism: two runs produce byte-identical files (so CI can run
- *     `node scripts/make_sample.js && git diff --exit-code sample`);
+ *     `node scripts/make-sample.js && git diff --exit-code sample`);
  *   - a span long enough (~18 months) for Stats / Wrapped to have something to show;
  *   - honest media kinds: nothing tagged "vid" points at an image/SVG, and nothing
  *     tagged "img" points at a video file;
@@ -15,7 +15,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const GEN = path.join(__dirname, "..", "scripts", "make_sample.js");
+const GEN = path.join(__dirname, "..", "scripts", "make-sample.js");
 const tmpDirs = [];
 function scratch() { const d = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sample-")); tmpDirs.push(d); return d; }
 after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true }); });

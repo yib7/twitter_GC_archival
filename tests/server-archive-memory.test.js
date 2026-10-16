@@ -17,14 +17,14 @@ const os = require("node:os");
 const path = require("node:path");
 const core = require("../scripts/build-core.js");
 const X = require("./fixtures/x-export.js");
-const { startServer, readData } = require("./_sp6-server.js");
+const { startServer, readData } = require("./_spawn-server.js");
 
 const BIG = "1000000099";
 const N = 250000;
 let S, exportRoot;
 
 before(async () => {
-  const personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp6-personal-"));
+  const personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-test-personal-"));
   exportRoot = fs.mkdtempSync(path.join(os.tmpdir(), "gca-mem-export-"));
   const f = X.writeExport(exportRoot);
   // A big baseline archive: one group, N messages of ~200 characters from 50 people.

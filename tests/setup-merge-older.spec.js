@@ -4,7 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const X = require("./fixtures/x-export.js");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 
 // adding an export OLDER than the archive needs an
 // explicit extra confirm in the wizard. Real server (GCA_PORT=0, mkdtemp

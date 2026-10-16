@@ -13,7 +13,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 const X = require("./fixtures/x-export.js");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 
 // /api/identity checked the busy flag before reading its body. A save whose
 // body was still arriving could lose a race to a merge: the merge started,

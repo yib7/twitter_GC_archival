@@ -5,7 +5,7 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — see that file
+const { waitForBootLine } = require("./_wait-for-boot-line.js");   // dedup — see that file
 
 // Regression coverage: apiIdentity used to overwrite cfg.names/local.js
 // verbatim from the POST body, so reopening the wizard and saving again (with

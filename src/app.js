@@ -5763,7 +5763,7 @@ function renderPins() {
 
   // settings.pins is ONE global list, and message ids are globally unique
   // (real builds keep the original X message id — scripts/build-core.js
-  // rawToRec; the sample generator shares one counter — scripts/make_sample.js),
+  // rawToRec; the sample generator shares one counter — scripts/make-sample.js),
   // so resolve pins across ALL visible conversations, not only through the
   // active conversation's ID2IDX (other chats' bookmarks used to be
   // silently dropped from this view and its export).
@@ -7306,7 +7306,7 @@ function renderChains() {
 /* ---- Boot (all module state is declared by now) -------------------------- */
 activateConversation(pickInitialConvId(), false);
 if (!N) {
-  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">Run <code>npm start</code> to set up your export (or <code>node scripts/build.js</code> / <code>node scripts/make_sample.js</code> for the demo)</div></div>';
+  document.getElementById("boot").innerHTML = '<div class="boot-card"><div class="boot-title">No messages found</div><div class="boot-sub">Run <code>npm start</code> to set up your export (or <code>node scripts/build.js</code> / <code>node scripts/make-sample.js</code> for the demo)</div></div>';
 } else if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", init);
 } else {

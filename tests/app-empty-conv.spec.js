@@ -84,7 +84,7 @@ test("boot card only appears when every conversation is empty", async ({ page })
   // wizard, not the stale root-level "node build.js" / "node make_sample.js".
   await expect(page.locator("#boot")).toContainText("npm start");
   await expect(page.locator("#boot")).toContainText("node scripts/build.js");
-  await expect(page.locator("#boot")).toContainText("node scripts/make_sample.js");
+  await expect(page.locator("#boot")).toContainText("node scripts/make-sample.js");
   expect(errors).toEqual([]);
 });
 

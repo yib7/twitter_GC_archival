@@ -46,7 +46,7 @@ jobs:
       # any new file under sample/.
       - name: Sample data is reproducible
         run: |
-          node scripts/make_sample.js
+          node scripts/make-sample.js
           git diff --exit-code -- sample
           test -z "$(git status --porcelain -- sample)"
 

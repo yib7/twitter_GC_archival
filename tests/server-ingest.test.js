@@ -1,7 +1,7 @@
 /*
  * Ingestion robustness — the setup server end to end, over synthetic
  * exports only (tests/fixtures/x-export.js), each server on its own GCA_PORT=0
- * + mkdtemp GCA_PERSONAL (see tests/_sp6-server.js).
+ * + mkdtemp GCA_PERSONAL (see tests/_spawn-server.js).
  */
 require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, describe, before, after } = require("node:test");
@@ -11,10 +11,10 @@ const os = require("node:os");
 const path = require("node:path");
 const X = require("./fixtures/x-export.js");
 
-const { startServer, readData } = require("./_sp6-server.js");
+const { startServer, readData } = require("./_spawn-server.js");
 
 const tmpDirs = [];
-function scratch(prefix) { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix || "gca-sp6-export-")); tmpDirs.push(d); return d; }
+function scratch(prefix) { const d = fs.mkdtempSync(path.join(os.tmpdir(), prefix || "gca-test-export-")); tmpDirs.push(d); return d; }
 after(() => { for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true }); });
 // POST /api/source with the three wizard fields
 const source = (S, groupJs, headersJs, mediaDir) => S.post("/api/source", { groupJs, headersJs, mediaDir });
@@ -342,7 +342,7 @@ describe("/api/parts labels people as the viewer numbers them", () => {
 describe("paths are accepted the way people paste them", () => {
   let S, home;
   before(async () => {
-    home = scratch("gca-sp6-home-");
+    home = scratch("gca-test-home-");
     S = await startServer({ HOME: home, USERPROFILE: home });   // os.homedir() for this server only
   });
   after(() => S.stop());
@@ -663,7 +663,7 @@ describe("config.json that isn't plain JSON", () => {
 // archive already has is kept, not copied again, so it needs no new space.
 describe("adding a newer export whose media the archive mostly has", () => {
   let personal;
-  before(() => { personal = scratch("gca-sp6-space-"); });
+  before(() => { personal = scratch("gca-test-space-"); });
 
   test("is not refused for space the copy won't use", async () => {
     const big = Buffer.alloc(8 * 1048576, 7);   // a big video both exports have
@@ -743,7 +743,7 @@ describe("putting files back when a backup folder or file is held by another pro
   describe("a previous media file can't be moved back", () => {
     let personal, S;
     before(async () => {
-      personal = scratch("gca-sp6-busy-");
+      personal = scratch("gca-test-busy-");
       const f = X.writeExport(scratch());
       const S1 = await startServer({}, { personal });
       try { assert.equal((await source(S1, f.group, f.headers, f.media)).status, 200); }
@@ -792,7 +792,7 @@ describe("a media copy fails and a previous file can't be moved back", () => {
   const PRELOAD = path.join(__dirname, "fixtures", "fs-busy-preload.js");
   let personal, S;
   before(async () => {
-    personal = scratch("gca-sp6-copyfail-");
+    personal = scratch("gca-test-copyfail-");
     const f = X.writeExport(scratch());
     const S1 = await startServer({}, { personal });
     try { assert.equal((await source(S1, f.group, f.headers, f.media)).status, 200); }
@@ -826,7 +826,7 @@ describe("a backup folder holding the only copy of a file is kept even when it c
   const BACKUP_RE = /^media\.prev-\d+-[0-9a-f]+$/;
   // a built archive whose picture is emptied, so the next copy backs it up
   const prepared = async () => {
-    const personal = scratch("gca-sp6-mark-");
+    const personal = scratch("gca-test-mark-");
     const f = X.writeExport(scratch());
     const S1 = await startServer({}, { personal });
     try { assert.equal((await source(S1, f.group, f.headers, f.media)).status, 200); }

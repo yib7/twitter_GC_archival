@@ -34,7 +34,7 @@ const path = require("node:path");
 // runs can ever collide. server.js prints the port it actually bound; parse
 // that line rather than guessing one up front. See server-port-zero.test.js
 // for the focused regression on the print-and-parse contract itself.
-const { waitForBootLine } = require("./wait-for-boot-line.js");   // dedup — see that file
+const { waitForBootLine } = require("./_wait-for-boot-line.js");   // dedup — see that file
 
 let PORT;
 let tmpDir;

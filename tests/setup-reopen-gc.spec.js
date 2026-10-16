@@ -4,7 +4,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const X = require("./fixtures/x-export.js");
-const { startServer } = require("./_sp6-server.js");
+const { startServer } = require("./_spawn-server.js");
 
 // /api/status didn't return the saved group names and photos, and the
 // wizard's empty { name: "" } entry wiped a saved group name on the next
