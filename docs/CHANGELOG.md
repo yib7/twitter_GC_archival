@@ -2,7 +2,7 @@
 
 All notable changes to this project are recorded here.
 
-## Unreleased
+## v1.5.0 (2026-10-16)
 
 ### Requirements
 
@@ -161,6 +161,8 @@ All notable changes to this project are recorded here.
   `^22.13.0 || >=24` (what ESLint 10, Playwright and `node --test` with a
   glob need), CI runs the suite on Node 22.13.0 as well as Node 24, and the
   launchers and the README ask for the same versions (see Requirements).
+- `package.json` and `package-lock.json` now say 1.5.0 (v1.4.0 still said
+  1.3.0), and `package.json` names the MIT license and the repository.
 - The 100k-message performance test runs after the rest of the suite, on one
   worker, so its timings don't compete with other tests.
 - CI fails when the demo data in `sample/` differs from what the
@@ -418,7 +420,10 @@ All notable changes to this project are recorded here.
   set (`GCA_PORT`, `GCA_PERSONAL`, `GCA_DEBUG`); the test switches are
   documented in ARCHITECTURE.
 - The vendored Fuse.js and Chart.js ship with their license texts, and
-  docs/CREDITS.md records where they come from and their SHA-256 hashes.
+  docs/CREDITS.md records where they come from and their SHA-256 hashes. It now
+  also credits @kurkle/color, which Chart.js bundles, with its license text.
+- docs/SECURITY.md lists 1.5.x as the supported version and says what to do
+  when GitHub's private vulnerability reporting isn't available.
 
 ## v1.4.0 (2026-08-25)
 
