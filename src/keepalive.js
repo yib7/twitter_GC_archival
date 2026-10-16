@@ -6,8 +6,8 @@
  * about one a minute after 5 minutes) or frozen (sleeping tabs, a closed
  * laptop), so silence can't mean "closed". Instead each page:
  *   - pings GET /api/ping?c=<its own id> now and every 15 s while it can;
- *   - says goodbye with a beacon (POST /api/bye?c=<id>) when it is closed or
- *     navigated away from. The server exits about 20 s after the LAST
+ *   - says goodbye with navigator.sendBeacon (POST /api/bye?c=<id>) when it
+ *     is closed or navigated away from. The server exits about 20 s after the LAST
  *     open page said goodbye (a reload pings again well within that; this
  *     script loads first, before the archive data, for the same reason);
  *   - re-pings as soon as it is shown again, and if the server is gone shows

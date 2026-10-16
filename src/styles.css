@@ -870,7 +870,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .lightbox .lb-nav:hover { color: #fff; }
 .lightbox .lb-prev { left: 10px; }
 .lightbox .lb-next { right: 10px; }
-/* the scrim is dark in every theme, so the caption is a fixed light grey (Light's --text-dim is 2.7:1 on it) */
+/* the scrim is dark in every theme, so the caption is a fixed light gray (Light's --text-dim is 2.7:1 on it) */
 .lightbox .lb-cap { position: absolute; bottom: 18px; left: 0; right: 0; text-align: center; color: #b9c0c6; font-size: 13px; z-index: 110; background: linear-gradient(0deg, rgba(0,0,0,0.8), transparent); padding-top: 30px; pointer-events: none; }
 .lightbox .lb-cap a { pointer-events: auto; color: var(--accent-on-scrim); }
 

@@ -130,7 +130,7 @@ test("Flash / Ghoster medians, Deserter silence, Scholar at a common N", async (
 });
 
 // Keyword / keysmash / question checks read the message WITHOUT
-// its links — a t.co slug ("xkcdbzqwrt") is not a keysmash and a "?" in a query
+// its links: a t.co slug ("xkcdbzqwrt") is not a keysmash and a "?" in a query
 // string is not a question.
 test("links never count as keysmashes or questions", async ({ page }) => {
   const out = [];
@@ -163,7 +163,7 @@ test("Thread Killer credits the final day", async ({ page }) => {
   await expect(card(page, "Thread Killer").locator(".s-tie")).toHaveCount(0);
 });
 
-// Tied Deserters with different silences — the card must not
+// Tied Deserters with different silences: the card must not
 // quote the first winner's duration as if it were everyone's.
 test("a tied Deserter card only quotes a duration the winners share", async ({ page }) => {
   const out = [];

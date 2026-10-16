@@ -1322,7 +1322,7 @@ function cardActivation(wrap, go) {
 // the one helper for a click target that has to stay a <div> because it
 // holds structured content (gallery cells, thread / chain / Hall-of-Fame cards,
 // stats bars): role=button, a Tab stop, Enter/Space, children keep their own
-// clicks. Plain labelled targets (chips, swatches, dots) are real <button>s.
+// clicks. Plain labeled targets (chips, swatches, dots) are real <button>s.
 function asButton(node, go, label) {
   node.setAttribute("role", "button");
   if (label) node.setAttribute("aria-label", label);
@@ -2164,7 +2164,7 @@ function resetResultList(cls) {
   sEls.list.className = cls;
   if (resPageObs) resPageObs.disconnect();
   sEls.list.innerHTML = "";
-  // a new result set starts at the top — keeping the previous offset would hide the
+  // a new result set starts at the top. Keeping the previous offset would hide the
   // best results above the fold and let the sentinel pull in page 2 at once.
   sEls.scroll.scrollTop = 0;
   if (resObserver) resObserver.disconnect();
@@ -3575,7 +3575,7 @@ function chartTheme() {
 function chartAxes() {
   return { x: { ticks: {}, grid: {}, border: {} }, y: { beginAtZero: true, ticks: {}, grid: {}, border: {} } };
 }
-// Color one chart (a live Chart or its config — both carry data + options):
+// Color one chart (a live Chart or its config; both carry data + options):
 // bars are solid accent, lines an accent stroke over a soft accent fill.
 function paintChart(type, data, options, th) {
   const sc = options.scales || {};
@@ -4223,7 +4223,7 @@ function personCard(p) {
     main.appendChild(sw);
   }
 
-  // A few media this person shared — extra memory jogs for naming them.
+  // A few media this person shared, as extra memory jogs for naming them.
   if (p.media && p.media.length) {
     const mw = el("div", "person-media");
     p.media.forEach((it) => {
@@ -4383,7 +4383,7 @@ function renderSettings() {
   fillTzOptions(tzSel, "");
   tzFilter.oninput = () => fillTzOptions(tzSel, tzFilter.value);
   tzSel.onchange = (e) => {
-    // Any pick — UTC included — is an explicit choice.
+    // Any pick, UTC included, is an explicit choice.
     settings.timezone = e.target.value; settings.tzExplicit = true; saveSettings(); initDateFormatters();
     // Every zone-dependent derived cache must be dropped: stats, word/keyword
     // months, milestones, Hall of Fame years, threads, and each Wrapped year.
@@ -5073,7 +5073,7 @@ function renderCapsule() {
   const body = v.querySelector("#capsule-body");
   
   // "Today" and each message are compared in the configured zone, so "on this
-  // day" means the same calendar day the timestamps are labelled with.
+  // day" means the same calendar day the timestamps are labeled with.
   const todayZ = zonedParts(Date.now());
   const tMonth = todayZ.mo;
   const tDate = todayZ.d;
@@ -6957,7 +6957,7 @@ function showOnThisDayToast() {
   const m = MSGS[pick];
   const ago = tYear - yr;
   const snippet = (m.x || "").trim().slice(0, 60) || "[media]";
-  // Mock .toast structure: header (clock icon + "On This Day" + "N years ago"),
+  // Toast structure: header (clock icon + "On This Day" + "N years ago"),
   // body (avatar + hue-colored name · quoted snippet), uppercase CTA row, and a
   // ✕ that dismisses without navigating. Click anywhere else → Time Capsule.
   const hue = personColor(m.s);

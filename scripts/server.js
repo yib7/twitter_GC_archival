@@ -52,8 +52,8 @@ const NO_ROOT_FALLBACK = !!process.env.GCA_NO_ROOT_FALLBACK;
 
 // When launched via the double-click launcher (`--open`), shut the server down
 // once the browser is closed, so users aren't left with a stray command window.
-// Served pages ping GET /api/ping?c=<page id> and send a goodbye beacon
-// (POST /api/bye?c=<page id>) when they close; see makeLiveness for why
+// Served pages ping GET /api/ping?c=<page id> and say goodbye with
+// navigator.sendBeacon (POST /api/bye?c=<page id>) when they close; see makeLiveness for why
 // a quiet heartbeat alone is never taken as "closed".
 // GCA_AUTO_EXIT=1 turns the same behavior on without opening a browser (tests).
 const AUTO_EXIT = process.argv.includes("--open") || process.env.GCA_AUTO_EXIT === "1";

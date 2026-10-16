@@ -19,7 +19,7 @@ function isInsidePersonal(target, root) {
   return rel !== "" && !rel.startsWith("..") && !path.isAbsolute(rel);
 }
 
-// Build a native Windows OpenFileDialog filter string for the wizard pickers.
+// Build a native Windows OpenFileDialog filter string for the wizard pickers;
 // `which` is "headers" or "group" (anything else → group). The headers glob is
 // spelling-agnostic ("*group-headers*.js") because X names that file with the
 // singular "message" (direct-message-group-headers.js) while exports/tools

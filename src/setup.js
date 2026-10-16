@@ -296,7 +296,7 @@ async function pick(kind, fill, which) {
     const j = await r.json();
     if (j.error) { flash($("#src-result"), "✗ " + escapeHtml(j.error) + " Paste the full path into the box instead.", "err"); return; }
     if (!j.supported) { flash($("#src-result"), "The native file browser is only available on Windows. Paste the path instead.", "err"); return; }
-    if (!j.path) { $("#src-result").hidden = true; return; }   // cancelled
+    if (!j.path) { $("#src-result").hidden = true; return; }   // canceled
     fill(j.path);
     $("#src-result").hidden = true;
   } catch (e) {

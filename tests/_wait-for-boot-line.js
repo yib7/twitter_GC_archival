@@ -1,9 +1,9 @@
 require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 
 // Shared by every test file that spawns its own scripts/server.js with
-// GCA_PORT=0: the OS hands back a genuinely free ephemeral port, so
+// GCA_PORT=0: the OS hands back a free ephemeral port, so
 // server.js prints the port it actually bound on stdout instead of the
-// caller guessing/polling one — parse that line rather than assuming.
+// caller guessing/polling one. Parse that line rather than assuming.
 //
 // Shared by server-host-guard.test.js, server-port-zero.test.js, and
 // setup-prefill.spec.js, so the boot-line parsing lives in one place.
