@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, initials, hueVars, HUES, personHue, userLabels } = GCAS
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, battleKey, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
 // the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with.
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -7252,10 +7252,6 @@ function addBattleWord(word) {
   if (inp) inp.value = "";
 }
 
-// The key a battle word counts under: its whole-word tokens, apostrophes and
-// case folded, so "Lol", "lol!" and the built-in "lol" are one word and
-// "don't" and "dont" are one. A phrase keeps all its tokens.
-function battleKey(word) { return wordKeys(word).join(" ") || word.trim().toLowerCase(); }
 
 // The two sides' colours: each person's own, but when both come out the same
 // (one in ten automatic pairs, or one colour picked for both) the right-hand
@@ -7274,9 +7270,12 @@ function battleColors(a, b) {
 }
 
 // An added word's counts, with the same whole-word keys as everything else.
+// A word with no letters or digits (an emoji, "?!") has no keys; it is
+// counted each time its text appears instead.
 function battleCounts(word) {
   const keys = wordKeys(word);
-  const probe = keys.length ? keys.reduce((a, b) => (b.length > a.length ? b : a)) : "";
+  if (!keys.length) return battleTextCounts(word.trim().toLowerCase());
+  const probe = keys.reduce((a, b) => (b.length > a.length ? b : a));
   let c1 = 0, c2 = 0;
   for (let i = 0; i < N; i++) {
     const s = MSGS[i].s;
@@ -7290,6 +7289,18 @@ function battleCounts(word) {
 
 // One row: both counts and bars, the word between them; an added word can be
 // removed.
+function battleTextCounts(needle) {
+  let c1 = 0, c2 = 0;
+  for (let i = 0; i < N; i++) {
+    const m = MSGS[i];
+    if (!m.x || (m.s !== battleP1 && m.s !== battleP2)) continue;
+    const c = m.x.toLowerCase().split(needle).length - 1;
+    if (m.s === battleP1) c1 += c;
+    if (m.s === battleP2) c2 += c;
+  }
+  return { c1, c2 };
+}
+
 function battleRowHtml({ word, added, c1, c2 }) {
   const max = Math.max(c1, c2, 1);
   const w1 = (c1 / max * 100).toFixed(0);

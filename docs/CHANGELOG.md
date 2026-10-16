@@ -33,8 +33,10 @@ All notable changes to this project are recorded here.
 - One display name and one colour per person: the People placeholder, Word
   Battles, pinned messages and the quote card match the avatar.
 - Word Battles counts a word you add once however you type it ("Lol", "lol!"),
-  tallies the wins over every row shown, and colours each side's bars and
-  winning count with that person, telling the two apart if they share a colour.
+  in a saved or imported list too, counts an added emoji instead of showing
+  0 : 0, tallies the wins over every row shown, and colours each side's bars
+  and winning count with that person, telling the two apart if they share a
+  colour.
 - Month charts and sparklines show silent months as zero instead of joining
   January to September.
 - Stats charts follow theme and accent changes live; the keyword trend, the

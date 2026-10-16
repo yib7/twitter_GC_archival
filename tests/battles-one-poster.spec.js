@@ -119,6 +119,20 @@ test("typing a spelling of a word already added says so and adds no row", async 
   await expect(page.locator("#view-battles .battle-added")).toHaveCount(1);
 });
 
+// An added emoji (or anything with no letters or digits) is counted where it
+// appears, each time it appears; it used to show 0 : 0 whatever the chat said.
+const EMOJI = { conversations: [conv("A", "Duo", [
+  { i: "e1", s: "u1", t: T, x: "\u{1F602}\u{1F602} ha" }, { i: "e2", s: "u1", t: T + 60000, x: "\u{1F602}" },
+  { i: "e3", s: "u2", t: T + 120000, x: "lol \u{1F602}" }, { i: "e4", s: "u2", t: T + 180000, x: "?!" },
+])] };
+test("an added emoji counts every time each person used it", async ({ page }) => {
+  await bootViewer(page, EMOJI, { ls: { "gca.lastView": "battles", "gca.settings": JSON.stringify({ battleWords: ["\u{1F602}", "?!"] }) } });
+  const rows = page.locator("#view-battles .battle-added");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).locator(".battle-count")).toHaveText(["3", "1"]);
+  await expect(rows.nth(1).locator(".battle-count")).toHaveText(["0", "1"]);
+});
+
 // The winning count wears the winner's colour (it was the theme accent on both
 // sides), and stays readable as text on what is behind it (tests/_contrast.js
 // measures every text run in the view at 4.5:1, the winner's count included).
