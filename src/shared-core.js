@@ -1196,21 +1196,22 @@
   // The key a Word Battles word counts under: its whole-word tokens, apostrophes
   // and case folded, so "Lol", "lol!" and the built-in "lol" are one word and
   // "don't" and "dont" are one; a phrase keeps all its tokens. A word is keyed
-  // by its text instead (lowercased, spaces collapsed, U+FE0F and the keycap
-  // mark dropped, so a heart with or without U+FE0F is one word) when it has
-  // an emoji or flag in it, no letters or digits ("?!"), or a symbol before
+  // by its text instead (lowercased, spaces collapsed, U+FE0F and U+FE0E
+  // dropped, so a heart with or without U+FE0F is one word) when it has an
+  // emoji, flag or keycap in it, no letters or digits ("?!"), or a symbol before
   // its first word or between two words: "<3" and ":D" are emoticons, not the
   // words "3" and "d", and "¿qué" keeps its "¿". Punctuation after the last
   // word is not part of it, so "lol!" is still lol.
-  const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
+  const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20E3]/u;
   const RE_SYMBOL_IN_WORD = /[^\p{L}\p{N}\p{M}\p{Cf}\s'\u2018\u2019\u02BC\uFF07][\s\S]*[\p{L}\p{N}]/u;
-  const battleText = (s) => s.replace(RE_EMOJI_TAIL, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const RE_VS = /[\uFE0E\uFE0F]/g, RE_HAS_VS = /[\uFE0E\uFE0F]/;
+  const battleText = (s) => s.replace(RE_VS, "").toLowerCase().replace(/\s+/g, " ").trim();
   const RE_INVISIBLE = /[\uFE0E\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/g;
   function battleKey(word) { return wordQuery(word).key; }
   // A word ready to count over many messages: its key, its whole-word keys,
   // whether it is counted by its text, and a probe for queryMayMatch. A text
   // probe is the key's first emoji, or else its longest run without a space:
-  // neither can span a space or a U+FE0F that battleText removed.
+  // neither can span a space or a selector that battleText removed.
   function wordQuery(word) {
     const keys = RE_PICTO.test(word) || RE_SYMBOL_IN_WORD.test(word) ? [] : wordKeys(word);
     if (keys.length) return { key: keys.join(" "), keys, byText: false, probe: keys.reduce((a, b) => (b.length > a.length ? b : a)) };
@@ -1226,7 +1227,7 @@
     if (!lowerText || !q.key) return false;
     if (!q.byText) return mayContainKey(lowerText, q.probe);
     if (lowerText.indexOf(q.probe) !== -1) return true;
-    return RE_HAS_EMOJI_TAIL.test(lowerText) && lowerText.replace(RE_EMOJI_TAIL, "").indexOf(q.probe) !== -1;
+    return RE_HAS_VS.test(lowerText) && lowerText.replace(RE_VS, "").indexOf(q.probe) !== -1;
   }
   // How often a message uses the word: whole words, or its text (see below).
   function countQuery(text, q) { return q.byText ? countTextKey(text, q.key) : countKeys(text, q.keys); }
@@ -1244,7 +1245,7 @@
   // tone, a spacing vowel) or end with one that may join what is after it
   // (a Prepend: a format character or one of a few Brahmic letters).
   const RE_WORD_START = /^[\p{L}\p{N}]/u, RE_WORD_END = /[\p{L}\p{N}]$/u;
-  const RE_GLUED_START = /^[\p{L}\p{N}\p{M}\u200C\u200D]/u, RE_GLUED_END = /[\p{L}\p{N}\p{M}\u200C\u200D]$/u;
+  const RE_GLUED_START = /^[\p{L}\p{N}\p{M}\u200C\u200D]/u, RE_GLUED_END = /(?!\u20E3)[\p{L}\p{N}\p{M}\u200C\u200D]$/u;
   const RE_JOINS_BEFORE = /^[\p{M}\p{Cf}\p{Emoji_Modifier}\u0E33\u0EB3\uFF9E\uFF9F]/u, RE_JOINS_AFTER = /(?:\p{Cf}|\u0D4E|[\u{11000}-\u{11FFF}])$/u;
   const RE_CLEAN_BEFORE = /(?:[\x20-\x7E]|\p{Extended_Pictographic})$/u, RE_CLEAN_AFTER = /^(?:[\x20-\x7E]|\p{Extended_Pictographic})/u;
   function countTextKey(text, key) {

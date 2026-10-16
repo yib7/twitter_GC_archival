@@ -265,6 +265,22 @@ test("a keycap or a variation selector after a letter is not part of the word", 
   assert.equal(shared.mayContainKey(two.toLowerCase(), "12"), true);
 });
 
+// An added keycap is that keycap, with or without U+FE0F: it used to be keyed
+// as its bare digit or symbol, so the keycap # counted every # and hashtag,
+// and the keycap 1 every standalone 1.
+test("an added keycap counts keycaps only", () => {
+  const c = (text, word) => shared.countQuery(text, shared.wordQuery(word));
+  const HASH = "#️⃣", ONE = "1️⃣", TWO = "2️⃣", STAR = "*️⃣";
+  assert.equal(c("# #tbt " + HASH + " #⃣", HASH), 2);
+  assert.equal(c("1 sec, 1st " + ONE + " 1⃣", ONE), 2);
+  assert.equal(c(STAR + " *fixed", STAR), 1);
+  assert.equal(c(ONE + TWO, TWO), 1);
+  assert.equal(shared.wordQuery(ONE).byText, true);
+  assert.equal(shared.battleKey(ONE), shared.battleKey("1⃣"));
+  assert.notEqual(shared.battleKey(ONE), shared.battleKey("1"));
+  assert.deepStrictEqual(shared.cleanBattleWords([ONE, "1⃣", "1"]), [ONE, "1"]);
+});
+
 // A text-keyed word that starts or ends with a letter or digit counts only
 // as whole words there: "ok <thumbs up>" is not inside "book <thumbs up>",
 // as "man" is never inside "many".
@@ -338,7 +354,7 @@ test("wordQuery probes with the emoji or the longest run, and never skips a matc
     const wq = q(w);
     if (shared.countQuery(t, wq) > 0) assert.ok(shared.queryMayMatch(t.toLowerCase(), wq), JSON.stringify([w, t]));
   }
-  assert.equal(shared.countQuery("#\uFE0F\u20E3x", q("#x")), 1);
+  assert.equal(shared.countQuery("#\uFE0F\u20E3x #x", q("#x")), 1);   // a keycap # is not a #
   assert.equal(shared.countQuery(KC("1") + KC("2"), q("12")), 1);
 });
 
@@ -351,10 +367,10 @@ test("countTextKey agrees with a full grapheme split on mixed text", () => {
   const KEYS = ["\u{1F602}", "a \u{1F602}", "\u{1F602} a", "\u{1F44D}", "\u{1F44D}\u{1F3FD}", "\u{1F1FA}\u{1F1F8}", "<3", ":d",
     "\u2764", "\u2764\u200D\u{1F525}", "!", "\u0915", "\u0600", "\u0301", "\u200D", "\uAC00", "\u1161", "#"];
   const ref = (text, key) => {
-    const s = shared.plainText(text).replace(/[\uFE0F\u20E3]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const s = shared.plainText(text).replace(/[\uFE0E\uFE0F]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
     const b = new Set([0]); let p = 0;
     for (const g of shared.graphemes(s)) b.add(p += g.length);
-    const L = /^[\p{L}\p{N}]/u.test(key), R = /[\p{L}\p{N}]$/u.test(key), W = /[\p{L}\p{N}\p{M}\u200C\u200D]/u;
+    const L = /^[\p{L}\p{N}]/u.test(key), R = /[\p{L}\p{N}]$/u.test(key), W = /(?!\u20E3)[\p{L}\p{N}\p{M}\u200C\u200D]/u;
     let n = 0;
     for (let at = s.indexOf(key); at !== -1;) {
       const end = at + key.length;
