@@ -162,7 +162,7 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
 
 Everything runs from `file://`, so you can just double-click `index.html`. The
 included `scripts/server.js` is needed only for the first-run setup wizard
-(`setup.html`) or if your browser blocks local video over `file://`. Opening
+(`/setup.html`) or if your browser blocks local video over `file://`. Opening
 from `file://` prints a few harmless not-found lines in the browser console as
 it probes for optional local data files; `npm start` serves the app and avoids
 them.
@@ -334,7 +334,6 @@ local override.
 
 ```
 index.html          app shell + script loading
-setup.html          first-run setup wizard (served)
 start-setup.cmd     double-click launchers for the wizard (Windows / macOS)
 start-setup.command
 src/app.js          all UI logic (vanilla JS, no framework)
@@ -342,6 +341,7 @@ src/shared-core.js  helpers shared by the viewer, the wizard and the build
 src/theme-boot.js   applies the saved theme before first paint
 src/keepalive.js    lets the launcher's server exit once its pages close
 src/styles.css      theme tokens + app styles (Light / Dim / Lights out)
+src/setup.html      first-run setup wizard page (the server serves it at /setup.html)
 src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
 src/vendor/         Fuse.js (Apache-2.0) + Chart.js (MIT), vendored, with licenses

@@ -1,7 +1,7 @@
 /* global module */
 // src/shared-core.js — single source for constants/helpers shared by the viewer
 // (src/app.js), the setup wizard (src/setup.js), and the Node build (scripts/build-core.js).
-// No bundler: loaded as a plain <script> in index.html/setup.html (sets a global) and require()d in Node.
+// No bundler: loaded as a plain <script> in index.html/src/setup.html (sets a global) and require()d in Node.
 (function (root, factory) {
   const api = factory();
   if (typeof module !== "undefined" && module.exports) module.exports = api;   // Node

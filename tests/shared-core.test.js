@@ -167,7 +167,7 @@ test("every consumer wires up src/shared-core.js", () => {
   assert.ok(/require\(["']\.\.\/src\/shared-core\.js["']\)/.test(read("scripts/build-core.js")),
     "scripts/build-core.js must require ../src/shared-core.js");
   assert.ok(/src\/shared-core\.js/.test(read("index.html")), "index.html must load src/shared-core.js");
-  assert.ok(/src\/shared-core\.js/.test(read("setup.html")), "setup.html must load src/shared-core.js");
+  assert.ok(/src\/shared-core\.js/.test(read("src/setup.html")), "src/setup.html must load src/shared-core.js");
 });
 
 /* ---- "User N" labels (viewer and wizard share one rule) ---------------- */

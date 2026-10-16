@@ -3,7 +3,7 @@ const { test } = require("node:test");
 const assert = require("node:assert");
 const path = require("node:path");
 const fs = require("node:fs");
-const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("../scripts/server-core.js");
+const { dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, servedFileFor, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin } = require("../scripts/server-core.js");
 
 // A controllable clock so elapsed time can be simulated deterministically.
 function fakeClock(start) {
@@ -293,6 +293,15 @@ test("isServablePath allows exactly personal_data/data.js and personal_data/loca
 // docs/ARCHITECTURE.md documents both as supported. They must be allowed so a
 // user upgrading from v1.0.1 who kept root overrides doesn't silently lose
 // them over the server.
+// The wizard page lives in src/ but is served at /setup.html, where its
+// relative asset paths resolve and the picker token is injected.
+test("servedFileFor reads /setup.html from src/setup.html and every other path from itself", () => {
+  assert.equal(servedFileFor("/setup.html"), "/src/setup.html");
+  assert.ok(fs.existsSync(path.join(__dirname, "..", "src", "setup.html")), "src/setup.html exists");
+  assert.ok(!fs.existsSync(path.join(__dirname, "..", "setup.html")), "no second copy at the root");
+  for (const p of ["/", "/index.html", "/src/app.js", "/sample/photo-1.svg", "/personal_data/local.js"]) assert.equal(servedFileFor(p), p);
+});
+
 test("isServablePath allows the legacy root overrides data.js and names.local.js", () => {
   assert.equal(isServablePath("/data.js"), true);
   assert.equal(isServablePath("/names.local.js"), true);

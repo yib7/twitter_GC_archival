@@ -2,6 +2,9 @@
 <html lang="en" data-theme="lightsout">
 <head>
   <meta charset="UTF-8" />
+  <!-- The setup wizard. scripts/server.js serves this file at /setup.html (it
+       needs the server's /api), so the asset paths below are relative to that
+       URL, the project root: "src/styles.css" is this folder's styles.css. -->
   <!-- Served-mode defense-in-depth: see index.html for the full rationale.
        Strict script-src 'self'; the theme-boot is a same-origin file (shared
        with the app), so no inline-script hash to keep in sync. -->
@@ -29,6 +32,13 @@
   <script src="src/keepalive.js"></script>
 </head>
 <body class="setup-body">
+  <!-- Opened straight from disk, none of the styles or scripts load, so this
+       plain note is all that shows; setup.css hides it when served. -->
+  <p class="su-unserved">This is the setup wizard, and it runs through the local
+    server. Double-click <b>start-setup.cmd</b> (Windows) or
+    <b>start-setup.command</b> (macOS) in the project folder, or run
+    <code>node scripts/server.js</code> and open
+    <code>http://localhost:8765/setup.html</code>.</p>
   <div class="setup-shell">
     <header class="setup-head">
       <div class="brand-mark setup-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg></div>

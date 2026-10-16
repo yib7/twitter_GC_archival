@@ -118,6 +118,15 @@ function mergeNames(prev, posted) {
 // defense in depth.
 const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico", "/data.js", "/names.local.js", "/personal_data/data.js", "/personal_data/local.js"]);
 const SERVABLE_PREFIXES = ["/src/", "/sample/", "/personal_data/media/", "/personal_data/pfps/"];
+// A page served at a URL other than its file's own path. The setup wizard lives
+// beside its code in src/ but is served at /setup.html, the URL its relative
+// asset and photo paths resolve against and the only one that gets the picker
+// token. (Fetched at /src/setup.html it gets no token and none of its styles or
+// scripts resolve, so it shows only its plain "open /setup.html" note.)
+const SERVED_FILE_FOR = new Map([["/setup.html", "/src/setup.html"]]);
+// The repo-relative file a servable URL path reads: the path itself, or the
+// file an alias above names.
+function servedFileFor(urlPath) { return SERVED_FILE_FOR.get(urlPath) || urlPath; }
 // The real-data overrides index.html probes with `<script src=... onerror>`. They
 // are gitignored, so on a clean clone / before setup they are absent and a plain
 // 404 prints a console error on every served load. Serving an empty 200 for a
@@ -371,7 +380,7 @@ function buildNodeArgs(buildJs, totalBytes) {
 // The picker GETs freeze the server behind a blocking dialog, so they need
 // more than the Origin/Referer check: an <img referrerpolicy="no-referrer">
 // on any web page sends neither header. They also need the per-process token
-// the server writes into setup.html (a custom header, so a cross-origin page
+// the server writes into the /setup.html page (a custom header, so a cross-origin page
 // would need a CORS preflight the server never grants), and — when the
 // browser says where the request came from — it must be this very origin.
 function isPickerRequestAllowed(headers, token, port) {
@@ -632,4 +641,4 @@ function preflightWarnings(p) {
   return out;
 }
 
-module.exports = { identityBodyProblem, removalListsProblem, sourceBodyProblem, isPlainObject, isForeignFetchSite, isPrivateServedPath, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+module.exports = { identityBodyProblem, removalListsProblem, sourceBodyProblem, isPlainObject, isForeignFetchSite, isPrivateServedPath, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, servedFileFor, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };

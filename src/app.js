@@ -4939,6 +4939,9 @@ function maybeShowOnboarding() {
   if (!firstRun) return;
 
   const ov = el("div", "onboard");
+  // The wizard exists only through the server (src/setup.html, served at
+  // /setup.html), so from file:// the button opens the server's default
+  // address, the one the note names.
   ov.innerHTML = `
     <div class="onboard-card">
       <div class="onboard-title" id="onboard-title">Welcome to your Group Chat Archive</div>
@@ -4956,7 +4959,7 @@ function maybeShowOnboarding() {
         <code>node scripts/server.js</code> and open
         <code><span id="setup-url-note">localhost:8765/setup.html</span></code>.</div>
       <div class="onboard-actions">
-        <a class="btn primary" href="setup.html">Open setup wizard</a>
+        <a class="btn primary" href="${location.protocol === "file:" ? "http://localhost:8765/setup.html" : "setup.html"}">Open setup wizard</a>
         <button class="btn ghost" id="onboard-people">Go to People tab</button>
         <button class="btn ghost" id="onboard-dismiss">Maybe later</button>
       </div>

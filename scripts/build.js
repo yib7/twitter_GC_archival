@@ -1,8 +1,8 @@
 /*
  * build.js — builds personal_data/data.js from the setup wizard's config.
  *
- * Wizard-driven only: it reads personal_data/config.json (written by setup.html
- * / scripts/server.js) for the exact source file(s) + media folder, streams the
+ * Wizard-driven only: it reads personal_data/config.json (written by the setup
+ * wizard / scripts/server.js) for the exact source file(s) + media folder, streams the
  * group export (direct-messages-group.js and any -partN files), folds EVERY
  * group dmConversation into a per-conversation index, and writes
  * personal_data/data.js.
@@ -27,7 +27,7 @@
  * GCA_PERSONAL to point at a different personal_data/ folder (used by tests to
  * avoid touching real data).
  *
- * Not meant to be run by hand — use the setup wizard (setup.html).
+ * Not meant to be run by hand — use the setup wizard (/setup.html).
  */
 
 const fs = require("fs");

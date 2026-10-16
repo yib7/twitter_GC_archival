@@ -88,8 +88,8 @@ test.describe("launcher auto-exit", () => {
   });
 });
 
-test("index.html and setup.html load keepalive.js before anything else (it has no dependencies)", () => {
-  for (const f of ["index.html", "setup.html"]) {
+test("index.html and src/setup.html load keepalive.js before anything else (it has no dependencies)", () => {
+  for (const f of ["index.html", "src/setup.html"]) {
     const html = fs.readFileSync(path.join(__dirname, "..", f), "utf8");
     const scripts = [...html.matchAll(/<script src="([^"]+)"/g)].map((m) => m[1]);
     expect(scripts.filter((s) => s !== "src/theme-boot.js")[0], f).toBe("src/keepalive.js");

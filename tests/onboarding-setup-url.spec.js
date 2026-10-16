@@ -13,3 +13,22 @@ test("the onboarding card names the server's real setup address", async ({ page 
   expect(await page.evaluate(() => window.GCA_SERVER_URL)).toBe(origin);
   await expect(page.locator("#setup-url-note")).toHaveText(origin + "/setup.html");
 });
+
+// The wizard page lives in src/ and works only through the server, at
+// /setup.html. Served, the button opens it on this server; opened from
+// file://, there is no wizard file beside index.html, so the button goes to
+// the server's default address (the one the note names).
+test("the onboarding button opens /setup.html when served", async ({ page }) => {
+  await bootViewer(page, DATA, { ls: { "gca.onboarded": "0" } });
+  const btn = page.locator(".onboard a.btn.primary");
+  await expect(btn).toHaveAttribute("href", "setup.html");
+  expect(await btn.evaluate((a) => new URL(a.href).pathname)).toBe("/setup.html");
+});
+
+test("from file:// the onboarding button opens the server's default setup address", async ({ page }) => {
+  const path = require("node:path");
+  const { pathToFileURL } = require("node:url");
+  await page.goto(pathToFileURL(path.join(__dirname, "..", "index.html")).href);
+  expect(await page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample)).toBe(true);
+  await expect(page.locator(".onboard a.btn.primary")).toHaveAttribute("href", "http://localhost:8765/setup.html");
+});

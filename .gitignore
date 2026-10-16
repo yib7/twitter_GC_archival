@@ -4,7 +4,7 @@
 
 # All real, user-specific data lives here: config.json, the built data.js,
 # local.js (names/pfps/me/GC), copied media, and profile/group photos.
-# Written by the setup wizard (setup.html) — never commit.
+# Written by the setup wizard (served at /setup.html) — never commit.
 # Glob covers backups too (e.g. personal_data.REAL/ created during testing).
 personal_data*/
 

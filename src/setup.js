@@ -4,7 +4,7 @@
 
 // Avatar color + initials helpers shared with the viewer (src/app.js) and the
 // Node build live in ONE module, loaded as a <script> before this one
-// (setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule
+// (src/setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule
 // (hueVars) without the settings.colors override, which is viewer-only.
 /* global GCAShared */
 const { initials, hueVars, sanitizePhoto } = GCAShared;
@@ -270,25 +270,8 @@ $$("[data-back]").forEach((b) => b.onclick = () => go(Math.max(1, step - 1)));
 
 function flash(host, html, cls) { host.hidden = false; host.className = "setup-result " + (cls || ""); host.innerHTML = html; }
 
-// The wizard needs the Node server (writing files / copying media / native
-// dialogs all require it). Opened as a file://, every fetch fails with the
-// cryptic "Failed to fetch" — so detect that and say exactly what to do.
-const SERVED = location.protocol === "http:" || location.protocol === "https:";
-function needServer(host) {
-  const setupUrl = window.GCA_SERVER_URL
-    ? window.GCA_SERVER_URL + "/setup.html"
-    : "http://localhost:8765/setup.html";
-  flash(host,
-    "This page is open as a <b>local file</b>, but the setup wizard must run " +
-    "<b>through the local server</b>. Start it and reopen this page there:" +
-    "<br><br>1. <code>node scripts/server.js</code>" +
-    "<br>2. open <code>" + setupUrl + "</code>", "err");
-}
-if (!SERVED) needServer($("#src-result"));
-
 /* ---- step 1: native pickers + build -------------------------------------- */
 async function pick(kind, fill, which) {
-  if (!SERVED) { needServer($("#src-result")); return; }
   flash($("#src-result"), "Opening the file browser… (check for a dialog window)", "");
   try {
     const url = kind === "file" ? "/api/pick-file?for=" + (which || "group") : "/api/pick-folder" + (which === "root" ? "?for=root" : "");
@@ -339,7 +322,6 @@ $("#src-add-cancel").onclick = () => {
 };
 function loadStatus() {
   statusReady = (async () => {
-    if (!SERVED) return;
     try {
       const r = await fetch("/api/status");
       const j = await r.json();
@@ -491,7 +473,6 @@ function renderPreflight(j) {
 }
 // Step 1, part 1: read the export and show what a build would bring in. Read-only.
 $("#btn-build").onclick = async () => {
-  if (!SERVED) { needServer($("#src-result")); return; }
   if (building) return;   // one request at a time (a double-click used to run two)
   const archiveRoot = $("#src-root").value.trim();
   const groupJs = $("#src-group").value.trim();
@@ -526,7 +507,6 @@ $("#btn-build").onclick = async () => {
 };
 // Step 1, part 2: the user saw the preview and confirmed — copy + build.
 $("#btn-confirm").onclick = async () => {
-  if (!SERVED) { needServer($("#src-result")); return; }
   if (building || !pendingSource) return;   // one build at a time
   const body = pendingSource;
   flash($("#src-result"), "Building… (copying media can take a moment)", "");
@@ -640,7 +620,7 @@ function personCard(p) {
   const savedName = state.names[p.id];
   // Display-only: paint the avatar from a path saved in an earlier run (already
   // "personal_data/pfps/…", same as window.LOCAL_PFPS in app.js — served as-is,
-  // relative to setup.html at the project root). Never written into state.pfps —
+  // relative to the page's URL, /setup.html at the project root). Never written into state.pfps —
   // that map holds fresh data-URLs to be decoded and saved server-side, and a
   // path string there would be posted back as if it were image data.
   const savedPfp = savedPfpPaths[p.id];
@@ -832,7 +812,6 @@ function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&a
 // Guarded by a typed "RESET" confirmation because it's destructive + irreversible.
 const resetModal = $("#reset-modal");
 function openReset() {
-  if (!SERVED) { needServer($("#src-result")); return; }
   const inp = $("#reset-confirm");
   inp.value = ""; $("#reset-go").disabled = true; $("#reset-result").hidden = true;
   resetModal.hidden = false; inp.focus();

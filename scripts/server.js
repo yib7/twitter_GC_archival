@@ -30,7 +30,7 @@ const { execFileSync, spawn } = require("child_process");
 const { pipeline } = require("stream");
 const { idPartition, createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, replaceFile, TMP_RE } = require("./fs-io.js");
-const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath, isPlainObject, identityBodyProblem, removalListsProblem, sourceBodyProblem } = require("./server-core.js");
+const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, servedFileFor, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath, isPlainObject, identityBodyProblem, removalListsProblem, sourceBodyProblem } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -1463,10 +1463,11 @@ function serveStatic(req, res) {
   // /personal_data/... is served from PERSONAL (which GCA_PERSONAL can redirect
   // to a throwaway dir for tests) rather than literally ROOT/personal_data, so
   // local.js/media/pfps resolve to wherever this run's identity actually lives.
-  // Everything else is served from ROOT, unchanged.
+  // Everything else is served from ROOT (/setup.html from src/setup.html, see
+  // servedFileFor).
   const isPersonal = p === "/personal_data" || p.startsWith("/personal_data/");
   const base = isPersonal ? PERSONAL : ROOT;
-  const rel = isPersonal ? p.slice("/personal_data".length) || "/" : p;
+  const rel = isPersonal ? p.slice("/personal_data".length) || "/" : servedFileFor(p);
   const file = path.resolve(base, "." + rel.replace(/\\/g, "/"));
   const outside = path.relative(base, file);
   if (outside === "" || outside.startsWith("..") || path.isAbsolute(outside)) {
@@ -1582,7 +1583,7 @@ function sendFile(file, res, status, headers, range) {
 // them is a DoS + dialog-spoofing vector, not a harmless read.
 const GUARDED = new Set(["/api/reset", "/api/source", "/api/preflight", "/api/identity", "/api/removal-preview", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
 // the pickers additionally need this per-process token, which only
-// setup.html receives (injected into its HTML). Random per start, held in
+// the /setup.html page receives (injected into its HTML). Random per start, held in
 // memory only: never logged, printed or written to disk.
 const PICKERS = new Set(["/api/pick-file", "/api/pick-folder"]);
 const PICKER_TOKEN = crypto.randomBytes(32).toString("hex");
