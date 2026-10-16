@@ -5,7 +5,7 @@ const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 // missing point that makes Jan → Sep look like consecutive months (months
 // chart, hero sparkline, sidebar sparkline, keyword trend).
 // the Stats charts follow the theme and accent LIVE —
-// switching theme or accent while Stats is open re-colours ticks, grid lines
+// switching theme or accent while Stats is open re-colors ticks, grid lines
 // and datasets (no hard-coded green trend line or white hero dot), and every
 // chart canvas is labelled for assistive tech.
 test.use({ timezoneId: "UTC" });

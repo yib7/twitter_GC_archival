@@ -1,6 +1,6 @@
 // WCAG contrast helpers in src/shared-core.js. The viewer uses
 // them to derive --on-accent / --accent-fill / --accent-text from the
-// user-selectable accent and to keep user-picked person colours readable in
+// user-selectable accent and to keep user-picked person colors readable in
 // every theme, so the maths is pinned here independently of the DOM.
 require("./_real-data-guard.js");
 const test = require("node:test");
@@ -20,7 +20,7 @@ test("relLuminance / contrastRatio match the WCAG 2.x reference values", () => {
   assert.strictEqual(+contrastRatio("rgb(119, 119, 119)", "#fff").toFixed(2), 4.48);   // computed-style strings too
 });
 
-test("readableOn keeps a colour that already passes and nudges one that does not", () => {
+test("readableOn keeps a color that already passes and nudges one that does not", () => {
   assert.strictEqual(readableOn("#e7e9ea", ["#000000"], 4.5), "#e7e9ea");
   for (const [bgs, c] of [[THEME_BGS.light, "#eab308"], [THEME_BGS.lightsout, "#1e3a8a"], [THEME_BGS.dim, "#3b3b3b"], [THEME_BGS.light, "#ffffff"]]) {
     const out = readableOn(c, bgs, 4.5);
@@ -40,7 +40,7 @@ test("accentTokens: text on a filled accent reaches 4.5:1 for every preset accen
       assert.ok(contrastRatio(k.onAccent, k.gradEnd) >= 4.5, `${a}/${t}: gradient end ${k.gradEnd}`);
       assert.ok(contrastRatio(k.fill, a) < 1.25, `${a}: fill ${k.fill} drifted too far`);
       for (const bg of THEME_BGS[t]) assert.ok(contrastRatio(k.text, bg) >= 4.5, `${a}/${t}: accent text ${k.text} on ${bg}`);
-      // the focus ring / UI accent is a 3:1 non-text colour on the page
+      // the focus ring / UI accent is a 3:1 non-text color on the page
       assert.ok(contrastRatio(k.ui, THEME_BGS[t][0]) >= 3, `${a}/${t}: ui ${k.ui}`);
     }
   }

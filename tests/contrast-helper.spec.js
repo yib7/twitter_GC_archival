@@ -32,7 +32,7 @@ test("a %-sized radial vignette only darkens the text near its edge", async ({ p
 
 // Generated text (a ::before / ::after with string, counter() or attr()
 // content) is text too: a numbered step dot, a "↵" hint. It is checked with
-// its own colour on its own background, laid over its element's.
+// its own color on its own background, laid over its element's.
 const GEN = `<!doctype html><html><body style="margin:0;background:#000">
   <style>
     ol { counter-reset: s; list-style: none; }

@@ -24,7 +24,7 @@ const RULES = { defaults: DEFAULTS, fontMin: 13, fontMax: 19, densities: ["comfo
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const EVIL = 'red"><b id="injected">x</b><img src=x onerror=alert(1)>';
 
-test("sanitizeColor accepts only plain hex colours", () => {
+test("sanitizeColor accepts only plain hex colors", () => {
   for (const ok of ["#abc", "#AABBCC", "#11223344", "  #fff  "]) assert.equal(sanitizeColor(ok), ok.trim(), ok);
   for (const bad of [EVIL, "red", "#ab", "#abcd1", "rgb(0,0,0)", "#fff;color:red", 123, null, undefined, {}, ["#fff"]]) {
     assert.equal(sanitizeColor(bad), "", JSON.stringify(bad));

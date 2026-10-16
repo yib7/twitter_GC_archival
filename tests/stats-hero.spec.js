@@ -4,7 +4,7 @@ const { contrastFailures } = require("./_contrast.js");
 
 // The Stats hero leans its secondary text (the date line, the small labels and
 // the sparkline caption) toward --text, because its accent-tinted surface is
-// lighter / more coloured than a plain card. That override used to read itself
+// lighter / more colored than a plain card. That override used to read itself
 // (--text-dim: color-mix(…, var(--text-dim))), which is a custom-property cycle:
 // the value became invalid, so the "dimmed" text silently rendered at full
 // --text. The theme's own value is now captured on an ancestor first, the same

@@ -9,7 +9,7 @@ const { bootViewer, msgs, conv, collectErrors } = require("./_viewer-fixture.js"
 // date formatters, never re-filtered/re-rendered the conversation, and left
 // PFPS out of step with settings.pfps.
 //
-// New contract: Reset restores appearance + names/colours + saved searches,
+// New contract: Reset restores appearance + names/colors + saved searches,
 // and KEEPS bookmarks, "this is me", ignored people/groups, timezone and
 // photos. The confirm text lists both sides.
 

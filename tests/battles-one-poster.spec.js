@@ -74,10 +74,10 @@ test("words added to the battle count toward the wins", async ({ page }) => {
   await expect(sum).toContainText("User 2: 2 wins");
 });
 
-// Each side's bars wear that person's colour (the one on their name in the
+// Each side's bars wear that person's color (the one on their name in the
 // summary), not the theme accent / pink, and stay visible on their track.
 for (const th of ["lightsout", "dim", "light"]) {
-  test(`each side's bars are that person's colour (${th})`, async ({ page }) => {
+  test(`each side's bars are that person's color (${th})`, async ({ page }) => {
     await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.theme": th, "gca.settings": JSON.stringify({ colors: { u2: "#eab308" } }) } });
     const r = await page.evaluate(() => {
       const css = (sel, p) => getComputedStyle(document.querySelector(sel))[p];
@@ -159,10 +159,10 @@ test("an added heart counts hearts only", async ({ page }) => {
   await expect(page.locator("#view-battles .battle-added .battle-count")).toHaveText(["1", "0"]);
 });
 
-// The winning count wears the winner's colour (it was the theme accent on both
+// The winning count wears the winner's color (it was the theme accent on both
 // sides), and stays readable as text on what is behind it (tests/_contrast.js
 // measures every text run in the view at 4.5:1, the winner's count included).
-async function sideColours(page) {
+async function sideColors(page) {
   return page.evaluate(() => {
     const spans = document.querySelectorAll("#view-battles .battle-summary > span");
     const css = (e, p) => getComputedStyle(e)[p];
@@ -178,18 +178,18 @@ async function sideColours(page) {
   });
 }
 for (const th of ["lightsout", "dim", "light"]) {
-  test(`the winning count is that person's colour and readable (${th})`, async ({ page }) => {
+  test(`the winning count is that person's color and readable (${th})`, async ({ page }) => {
     await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.theme": th, "gca.settings": JSON.stringify({ colors: { u1: "#1e40af", u2: "#eab308" } }) } });
-    const r = await sideColours(page);
+    const r = await sideColors(page);
     expect(r.winners.length, "both sides have a winning word").toBeGreaterThanOrEqual(2);
     for (const w of r.winners) {
-      expect(w.color, w.side + " winner is that side's colour").toBe(w.side === "left" ? r.p1 : r.p2);
+      expect(w.color, w.side + " winner is that side's color").toBe(w.side === "left" ? r.p1 : r.p2);
     }
     expect(await contrastFailures(page, "#view-battles")).toEqual([]);
   });
-  test(`two people with the same colour still read as two sides (${th})`, async ({ page }) => {
+  test(`two people with the same color still read as two sides (${th})`, async ({ page }) => {
     await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.theme": th, "gca.settings": JSON.stringify({ colors: { u1: "#eab308", u2: "#eab308" } }) } });
-    const r = await sideColours(page);
+    const r = await sideColors(page);
     expect(r.p1).not.toBe(r.p2);
     expect(r.left).not.toBe(r.right);
     expect(r.left).toBe(r.p1);
@@ -200,7 +200,7 @@ for (const th of ["lightsout", "dim", "light"]) {
     expect(await contrastFailures(page, "#view-battles")).toEqual([]);
   });
 }
-test("two people whose automatic colours collide get two different colours", async ({ page }) => {
+test("two people whose automatic colors collide get two different colors", async ({ page }) => {
   const { personHue } = require("../src/shared-core.js");
   const ids = []; const seen = {};
   for (let k = 1; k < 200 && ids.length < 2; k++) { const id = "x" + k, h = personHue(id); if (seen[h]) ids.push(seen[h], id); else seen[h] = id; }
@@ -210,7 +210,7 @@ test("two people whose automatic colours collide get two different colours", asy
     { i: "w3", s: ids[0], t: T + 120000, x: "nah nah" }, { i: "w4", s: ids[1], t: T + 180000, x: "ok" },
   ])] };
   await bootViewer(page, data, { ls: { "gca.lastView": "battles" } });
-  const r = await sideColours(page);
+  const r = await sideColors(page);
   expect(r.p1).not.toBe(r.p2);
   expect(r.left).not.toBe(r.right);
   expect(r.left).toBe(r.p1);

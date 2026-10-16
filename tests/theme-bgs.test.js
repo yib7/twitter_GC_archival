@@ -5,9 +5,9 @@ const path = require("path");
 const { THEME_BGS } = require("../src/shared-core.js");
 
 // The viewer (app.js) and the wizard (setup.js) derive accent and person
-// colours against each theme's surfaces. Both read one table,
+// colors against each theme's surfaces. Both read one table,
 // GCAShared.THEME_BGS, and it must match the html[data-theme] blocks in
-// styles.css, so a theme colour change can't silently drift either page.
+// styles.css, so a theme color change can't silently drift either page.
 const SRC = path.join(__dirname, "..", "src");
 const css = fs.readFileSync(path.join(SRC, "styles.css"), "utf8");
 

@@ -157,7 +157,7 @@ async function dialogUnnamedFields(page, sel) {
 
 // The floating theme switch says which theme is on (aria-pressed, not only a
 // class), and the selected icon sits on the accent fill pair in its derived
-// text colour, as the viewer's toggle does (white on raw X blue was 3:1).
+// text color, as the viewer's toggle does (white on raw X blue was 3:1).
 test("the theme switch exposes the pressed theme and its icon is readable", async ({ page }) => {
   await routes(page);
   await page.goto("/setup.html");

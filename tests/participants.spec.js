@@ -7,7 +7,7 @@ const { bootViewer, collectErrors } = require("./_viewer-fixture.js");
 // numbered with the same "User N" everywhere.
 // an ignored user's REACTIONS are dropped too, not only their
 // messages — they never show in chips, tooltips, counts or awards.
-// one person colour everywhere (the avatar hue), not a second
+// one person color everywhere (the avatar hue), not a second
 // palette for battles / foreign pins / the quote card.
 
 const T0 = Date.parse("2024-04-01T12:00:00Z");
@@ -64,7 +64,7 @@ test("an ignored user's reactions are dropped everywhere", async ({ page }) => {
   await expect(page.locator(".card.super", { hasText: "The Hater" })).toHaveCount(0);
 });
 
-test("one person colour: battles and avatars agree", async ({ page }) => {
+test("one person color: battles and avatars agree", async ({ page }) => {
   await bootViewer(page, DATA);
   await page.locator('.nav-item[data-view="battles"]').click();
   const res = await page.evaluate(() => {

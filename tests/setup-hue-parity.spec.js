@@ -2,7 +2,7 @@ require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const { test, expect } = require("@playwright/test");
 const { checkAndBuild } = require("./_setup-helpers.js");
 
-// a person's avatar colour in the setup wizard is the colour the
+// a person's avatar color in the setup wizard is the color the
 // viewer gives them (shared-core hueVars → the theme's --f-<hue>), in every
 // theme. The viewer runs over the bundled sample archive; the wizard's /api
 // routes are mocked with the same person id. Nothing real is touched.
@@ -20,7 +20,7 @@ async function colorsByTheme(page, selector) {
   return out;
 }
 
-test("the same person has the same avatar colour in the viewer and the wizard", async ({ page }) => {
+test("the same person has the same avatar color in the viewer and the wizard", async ({ page }) => {
   await page.addInitScript(() => { localStorage.setItem("gca.onboarded", "1"); localStorage.removeItem("gca.lastView"); });
   await page.goto("/");
   // an initials avatar (no photo) of some person in the sample archive

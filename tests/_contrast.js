@@ -1,7 +1,7 @@
 // Rendered-text contrast audit shared by a11y-keyboard.spec and mobile-390.spec.
-// Every visible text run is checked against the colour actually behind it:
+// Every visible text run is checked against the color actually behind it:
 // ancestor backgrounds are composited and element opacity is applied. A
-// gradient background is checked against EACH of its colour stops (the worst
+// gradient background is checked against EACH of its color stops (the worst
 // one counts), so own-message bubbles, avatar initials, the Stats hero and
 // primary buttons are covered too. Only url() images (photos, avatars with a
 // picture) can't be computed from styles and are skipped. A ::before/::after
@@ -9,7 +9,7 @@
 // that element's background. Gradient text
 // (background-clip: text) uses its stops as the ink. Generated text (a
 // ::before / ::after whose content is a string, counter() or attr(), e.g. a
-// numbered step dot) is checked too, with its own colour over its own
+// numbered step dot) is checked too, with its own color over its own
 // background laid on its element's.
 // Normal text >= 4.5:1, large text (>= 24px, or >= 18.66px bold) >= 3:1.
 async function contrastFailures(page, root, skip) {
@@ -32,7 +32,7 @@ async function contrastFailures(page, root, skip) {
     const GRAD = /(?:repeating-)?(?:linear|radial|conic)-gradient\((?:[^()]|\([^()]*\))*\)/g;
     const COLOR = /(rgba?\([^)]*\)|color\([^)]*\))/g;
     // A radial gradient with an explicit "W H [at X Y]" ellipse (px or %) is position-
-    // aware: only the colours it actually paints over the text's rect count
+    // aware: only the colors it actually paints over the text's rect count
     // (nearest and farthest point, plus any stop in between). Other gradients
     // count every stop.
     const splitTop = (str) => { const out = []; let depth = 0, cur = ""; for (const ch of str) { if (ch === "(") depth++; if (ch === ")") depth--; if (ch === "," && !depth) { out.push(cur.trim()); cur = ""; } else cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
@@ -121,7 +121,7 @@ async function contrastFailures(page, root, skip) {
       }
       return t.trim();
     };
-    // generated text: its own colour and font, over its own background
+    // generated text: its own color and font, over its own background
     // layers laid on top of its element's
     for (const e of [r0].concat([...r0.querySelectorAll("*")])) {
       if (skipped(e)) continue;
@@ -146,7 +146,7 @@ async function contrastFailures(page, root, skip) {
       if (!r.width || !r.height || cs.visibility === "hidden") continue;
       const op = opacityOf(e);
       if (op < 0.05) continue;
-      // gradient text (background-clip: text, transparent colour): the
+      // gradient text (background-clip: text, transparent color): the
       // gradient stops are the ink, the parent's background is behind it
       const clipText = /text/.test(cs.webkitBackgroundClip || "") || /text/.test(cs.backgroundClip || "");
       const inks = clipText ? (cs.backgroundImage.match(/(rgba?\([^)]*\)|color\([^)]*\))/g) || []).map(parse) : [parse(cs.color)];

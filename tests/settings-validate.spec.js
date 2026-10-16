@@ -7,7 +7,7 @@ test.use({ timezoneId: "UTC" });
 
 // settings reach the app from two untrusted places — the
 // persisted gca.settings blob and an imported JSON file — and neither was
-// validated. A crafted colour value was interpolated raw into style="…"
+// validated. A crafted color value was interpolated raw into style="…"
 // (markup injection into Hall of Fame / Threads / Battles / Cmd-K), and a
 // merely malformed value (accent: 123, colors: {u1: 5}) threw inside
 // applyTheme/shade and bricked boot permanently. Import also saved BEFORE the
@@ -26,7 +26,7 @@ async function importJson(page, doc) {
   });
 }
 
-test("an imported colour payload cannot inject markup into any view", async ({ page }) => {
+test("an imported color payload cannot inject markup into any view", async ({ page }) => {
   page.on("dialog", (d) => d.accept());
   await bootViewer(page, DATA);
   await importJson(page, { names: { u1: "Bob" }, colors: { u1: EVIL, u2: "#ff0000" } });
@@ -39,14 +39,14 @@ test("an imported colour payload cannot inject markup into any view", async ({ p
   await page.keyboard.press("Control+k");
   await expect(page.locator(".cmdk")).toBeVisible();
   await expect(page.locator("#injected")).toHaveCount(0);
-  // The invalid colour never reached storage; the valid one did.
+  // The invalid color never reached storage; the valid one did.
   const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("gca.settings")).colors);
   expect(stored.u1).toBeUndefined();
   expect(stored.u2).toBe("#ff0000");
   expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
 });
 
-test("a crafted colour already in gca.settings is dropped on load", async ({ page }) => {
+test("a crafted color already in gca.settings is dropped on load", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "hof", "gca.settings": JSON.stringify({ colors: { u1: EVIL, u2: EVIL } }) } });
   for (const v of ["hof", "threads", "battles"]) {
     await page.locator('.nav-item[data-view="' + v + '"]').click();

@@ -16,9 +16,9 @@ const LIST = [
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 const THEMES = ["lightsout", "dim", "light"];
 
-// In-page helpers: WCAG contrast of two CSS colours, and whether the focused
+// In-page helpers: WCAG contrast of two CSS colors, and whether the focused
 // element shows a focus ring (an outline, or a box-shadow in the accent / ring
-// colour on the element or on the wrapper that draws it for an inner input).
+// color on the element or on the wrapper that draws it for an inner input).
 async function installHelpers(page) {
   await page.evaluate(() => {
     const probe = document.createElement("span"); probe.setAttribute("aria-hidden", "true"); document.body.appendChild(probe);
@@ -128,7 +128,7 @@ test.describe("a visible focus ring on every keyboard stop", () => {
     });
   }
 
-  test("the ring colour reaches 3:1 against the page in every theme", async ({ page }) => {
+  test("the ring color reaches 3:1 against the page in every theme", async ({ page }) => {
     await bootViewer(page, DATA);
     await installHelpers(page);
     for (const t of THEMES) {

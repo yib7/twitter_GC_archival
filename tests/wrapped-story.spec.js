@@ -1,7 +1,7 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, collectErrors } = require("./_viewer-fixture.js");
 
-// Wrapped as a story — accent-derived colours in every theme,
+// Wrapped as a story — accent-derived colors in every theme,
 // tap zones, swipe, hold-to-pause, segmented progress, polite slide
 // announcements and keys that never steal from a focused control. Synthetic
 // data only: one 2024 chat that produces every slide kind.
@@ -27,8 +27,8 @@ const slideNo = (page) => page.evaluate(() => {
 });
 const slideCount = (page) => page.locator("#wr-segs .wr-seg").count();
 
-// Every colour stop of the slide wash and of the big year's gradient text.
-async function washColours(page) {
+// Every color stop of the slide wash and of the big year's gradient text.
+async function washColors(page) {
   return page.evaluate(() => {
     const out = [];
     const grab = (s) => (s.match(/(rgba?\([^)]*\)|color\([^)]*\))/g) || []).forEach((c) => out.push(c));
@@ -43,7 +43,7 @@ const rgb = (c) => {
   return { r: a[0] * k, g: a[1] * k, b: a[2] * k, a: a.length > 3 ? a[3] : 1 };
 };
 
-test.describe("Wrapped colours derive from the accent", () => {
+test.describe("Wrapped colors derive from the accent", () => {
   test("Lights-out, a pure red accent: every wash and the year are red-only (no violet / emerald / amber / pink)", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await bootViewer(page, DATA, { ls: { "gca.theme": "lightsout", "gca.settings": JSON.stringify({ accent: "#ff0000" }) } });
@@ -52,10 +52,10 @@ test.describe("Wrapped colours derive from the accent", () => {
     const bad = [];
     for (let k = 0; k < n; k++) {
       if (k) await page.locator("#wr-next").click();
-      for (const c of await washColours(page)) {
+      for (const c of await washColors(page)) {
         const x = rgb(c);
         if (x.a < 0.02) continue;
-        // red mixed with near-greys (the page, the text) only: any colour
+        // red mixed with near-greys (the page, the text) only: any color
         // with real chroma is red-dominant with green ≈ blue
         const chroma = Math.max(x.r, x.g, x.b) - Math.min(x.r, x.g, x.b);
         if (chroma > 6 && (Math.abs(x.g - x.b) > 6 || x.r < Math.max(x.g, x.b))) bad.push("slide " + (k + 1) + ": " + c);
@@ -65,7 +65,7 @@ test.describe("Wrapped colours derive from the accent", () => {
   });
 
   for (const th of ["light", "dim", "lightsout"]) {
-    test(th + ": changing the accent recolours every slide", async ({ browser }) => {
+    test(th + ": changing the accent recolors every slide", async ({ browser }) => {
       const read = async (accent) => {
         const page = await browser.newPage();
         await page.emulateMedia({ reducedMotion: "reduce" });
@@ -74,7 +74,7 @@ test.describe("Wrapped colours derive from the accent", () => {
         const n = await slideCount(page), all = [];
         for (let k = 0; k < n; k++) {
           if (k) await page.locator("#wr-next").click();
-          all.push((await washColours(page)).join(" "));
+          all.push((await washColors(page)).join(" "));
         }
         await page.close();
         return all;
@@ -87,7 +87,7 @@ test.describe("Wrapped colours derive from the accent", () => {
 });
 
 // Ranks, names, dim copy and the big numbers toward --text
-// for Light and Dim; Lights-out didn't need it and keeps the pure colours.
+// for Light and Dim; Lights-out didn't need it and keeps the pure colors.
 test.describe("the Wrapped text nudges are scoped to Light and Dim", () => {
   const people = async (page) => {
     await go(page, "wrapped");
@@ -101,7 +101,7 @@ test.describe("the Wrapped text nudges are scoped to Light and Dim", () => {
         dimRoot: root.getPropertyValue("--text-dim").trim(), dimSlide: slide.getPropertyValue("--text-dim").trim() };
     });
   };
-  test("Lights-out: person colour, 55% ranks; dim copy leans only 20%", async ({ page }) => {
+  test("Lights-out: person color, 55% ranks; dim copy leans only 20%", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await bootViewer(page, DATA, { ls: { "gca.theme": "lightsout" } });
     const r = await people(page);

@@ -61,7 +61,7 @@ test("on a 390px phone the wizard and the preview fit without sideways scrolling
     await page.evaluate((t) => document.documentElement.setAttribute("data-theme", t), theme);
     expect(await fits(), "preview, " + theme).toBe(true);
   }
-  // warnings read in the body text colour (yellow text is unreadable on Light)
+  // warnings read in the body text color (yellow text is unreadable on Light)
   await page.evaluate(() => document.documentElement.setAttribute("data-theme", "light"));
   const warn = await page.locator("#pf-warnings li").first().evaluate((el) => getComputedStyle(el).color);
   const text = await page.evaluate(() => getComputedStyle(document.body).color);

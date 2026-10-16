@@ -4,12 +4,12 @@ const { bootViewer, msgs, conv } = require("./_viewer-fixture.js");
 // contrast across Light / Dim / Lights-out.
 //  - --text / --text-dim / --text-faint reach 4.5:1 on the page and card
 //    surfaces (faint was ~3:1 in every theme);
-//  - every person-palette name colour reaches 4.5:1 (the bright dark-theme
+//  - every person-palette name color reaches 4.5:1 (the bright dark-theme
 //    hues were reused on white: 1.8–3.0:1), and so does a user-picked
-//    override colour, adjusted per theme through personColor();
+//    override color, adjusted per theme through personColor();
 //  - text on a filled accent uses --on-accent, derived from the accent's
 //    luminance (white on X blue was 3.0:1), for every preset accent;
-//  - accent-coloured text uses --accent-text (4.5:1 on the theme);
+//  - accent-colored text uses --accent-text (4.5:1 on the theme);
 //  - the Stats chart tooltips take the same --on-accent / fill (chartTheme).
 const THEMES = ["lightsout", "dim", "light"];
 const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
@@ -17,7 +17,7 @@ const ACCENTS = ["#1d9bf0", "#3b82f6", "#2563eb", "#1d4ed8", "#0ea5e9", "#38bdf8
 const SURFACES = { light: ["#ffffff", "#f7f9f9"], dim: ["#15202b", "#1e2732"], lightsout: ["#000000", "#16181c"] };
 const DATA = { conversations: [conv("A", "Alpha", msgs("a", 12, { s: ["u1", "u2", "u3"] }))] };
 
-// WCAG contrast of two CSS colours, resolved by the browser (hex, rgb(), var()).
+// WCAG contrast of two CSS colors, resolved by the browser (hex, rgb(), var()).
 async function installContrast(page) {
   await page.evaluate(() => {
     const probe = document.createElement("span"); document.body.appendChild(probe);
@@ -43,13 +43,13 @@ test("text tokens reach 4.5:1 on the page and card surfaces in every theme", asy
     // app.js mirrors [--bg-page, --bg-card] in THEME_BGS for its contrast maths
     expect(await page.evaluate(() => [window.__tok("--bg-page"), window.__tok("--bg-card")]), t).toEqual(SURFACES[t]);
     // the viewer and the wizard share one copy (GCAShared.THEME_BGS:
-    // page, card, inset), so a theme colour change can't drift either one
+    // page, card, inset), so a theme color change can't drift either one
     expect(await page.evaluate((th) => (window.GCAShared.THEME_BGS || {})[th], t), t).toEqual(
       await page.evaluate(() => ["--bg-page", "--bg-card", "--bg-inset"].map(window.__tok)));
   }
 });
 
-test("person-palette names and a user-picked colour reach 4.5:1 in every theme", async ({ page }) => {
+test("person-palette names and a user-picked color reach 4.5:1 in every theme", async ({ page }) => {
   // u1 overrides to a bright yellow (fails on white), u2 to a deep navy (fails on black)
   await bootViewer(page, DATA, { ls: { "gca.settings": JSON.stringify({ colors: { u1: "#eab308", u2: "#1e3a8a" } }), "gca.lastView": "timeline" } });
   await installContrast(page);
@@ -71,7 +71,7 @@ test("person-palette names and a user-picked colour reach 4.5:1 in every theme",
   }
 });
 
-test("text on a filled accent and accent-coloured text pass for every preset accent and theme", async ({ page }) => {
+test("text on a filled accent and accent-colored text pass for every preset accent and theme", async ({ page }) => {
   await bootViewer(page, DATA);
   await installContrast(page);
   await page.locator('.nav-item[data-view="settings"]').click();
