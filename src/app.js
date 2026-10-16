@@ -2637,8 +2637,10 @@ function downloadText(name, lines) {
   // (Firefox), and an early revoke cancels the download. Share waits the same way.
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+// Today's date as "YYYY-MM-DD" in the zone the app displays, for file names.
+function todayKey() { return dayKey(Date.now()); }
 function exportResults() {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = todayKey();
   if (resState.groups) {
     if (!resState.total) { toast("No results to export"); return; }
     const out = [];
@@ -5816,7 +5818,7 @@ function renderPins() {
       ids.forEach((id) => { const m = hits.get(id); if (m) lines.push(exportLine(m, c)); });
       lines.push("");
     });
-    downloadText("pinned-messages-" + new Date().toISOString().slice(0,10) + ".txt", lines);
+    downloadText("pinned-messages-" + todayKey() + ".txt", lines);
     toast("Exported " + fmtNum(total) + " bookmarks");
   };
   const clr = v.querySelector("#pins-clear");
