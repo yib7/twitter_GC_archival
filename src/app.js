@@ -4393,7 +4393,7 @@ function renderSettings() {
     a.href = url;
     a.download = "gca-settings.json";
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast("Settings exported");
   };
 
