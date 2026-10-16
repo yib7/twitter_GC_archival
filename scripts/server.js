@@ -304,6 +304,16 @@ async function copyMediaFlatAsync(srcDir, destDir, opts, progress) {
 // flat (no folders), so one backup folder per destination never clashes.
 // A backup folder that can't be removed (Explorer has it open) is only
 // logged and left; clearStaleBackups removes it after a later build.
+// A backup folder holding a file that couldn't be put back is the only copy
+// of it: marked, so clearStaleBackups never removes it (the user is told where
+// it is; they move what they need and delete the folder, or use Start over).
+const KEEP_MARK = "KEEP - previous files that could not be put back.txt";
+function markKept(dir) {
+  try {
+    fs.writeFileSync(path.join(dir, KEEP_MARK), "A build failed and these previous files could not be put back.\n" +
+      "They are the only copies. Move what you need out of this folder, then delete the folder.\n");
+  } catch (e) { console.error("Couldn't mark " + path.basename(dir) + " to keep: " + (e && e.message)); }
+}
 function dropBackupDir(dir) {
   try { fs.rmSync(dir, { recursive: true, force: true }); }
   catch (e) { console.error("Couldn't remove " + path.basename(dir) + ": " + (e && e.message)); }
@@ -329,6 +339,7 @@ function copyJournal(backupDir) {
       }
       // Anything that couldn't be put back stays in backupDir rather than lost.
       if (!problems.length) dropBackupDir(backupDir);
+      else markKept(backupDir);
       return problems;
     },
     commit() { dropBackupDir(backupDir); },
@@ -366,7 +377,7 @@ function fileSnapshot(file, backupDir) {
       try {
         if (had) replaceFile(kept, file);
         else fs.rmSync(file, { force: true });
-      } catch (e) { return [file]; }
+      } catch (e) { markKept(backupDir); return [file]; }
       dropBackupDir(backupDir);
       return [];
     },
@@ -376,14 +387,15 @@ function fileSnapshot(file, backupDir) {
 // a server killed mid-build leaves its backup folders
 // behind. Once a later build has committed, source/, media/ and the
 // quarantine are consistent again and those old copies are just stale
-// private data — remove them.
+// private data — remove them. A folder marked to keep (markKept) is not stale:
+// it holds files a failed build couldn't put back, and stays.
 function clearStaleBackups() {
   let names;
   try { names = fs.readdirSync(PERSONAL); } catch (e) { return; }
   for (const n of names) {
     if (!PREV_DIR_RE.test(n)) continue;
     const p = path.join(PERSONAL, n);
-    if (!isInsidePersonal(p, PERSONAL)) continue;
+    if (!isInsidePersonal(p, PERSONAL) || fs.existsSync(path.join(p, KEEP_MARK))) continue;
     try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { console.error("Couldn't remove " + n + ": " + (e && e.message)); }
   }
 }

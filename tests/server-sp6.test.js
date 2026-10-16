@@ -765,6 +765,23 @@ describe("putting files back when a backup folder or file is held by another pro
       for (const k of Object.keys(before0).filter((k) => k.startsWith("source/"))) assert.equal(after0[k], before0[k], k);
       assert.ok(fs.readdirSync(personal).some((n) => /^media\.prev-/.test(n)), "the previous picture is kept in its backup folder");
     });
+
+    // The reply told the user those folders hold the only copy, so the next
+    // successful build must not clear them away with the stale backups.
+    test("a later successful build keeps that backup folder and its file", async () => {
+      const kept = fs.readdirSync(personal).filter((n) => /^media\.prev-/.test(n));
+      assert.equal(kept.length, 1, kept.join(","));
+      const keptFile = path.join(personal, kept[0], "9002-AbCdEf.png");
+      assert.ok(fs.existsSync(keptFile));
+      S.proc.kill();
+      const S2 = await startServer({}, { personal });
+      try {
+        const f = X.writeExport(scratch());
+        const r = await source(S2, f.group, f.headers, f.media);
+        assert.equal(r.status, 200, await r.text());
+      } finally { S2.proc.kill(); }
+      assert.ok(fs.existsSync(keptFile), "the only copy of the previous file is still there");
+    });
   });
 });
 
