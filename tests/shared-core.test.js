@@ -296,6 +296,23 @@ test("countTextKey keeps word boundaries at a letter or digit end", () => {
   assert.equal(c("2" + JOY + "2", JOY), 1);   // an emoji end needs no word boundary
 });
 
+// Japanese, Chinese and Thai are written without spaces, so a letter before
+// or after a phrase in them is no sign that it sits inside a longer word:
+// "thank you" + praying hands at the end of "really thank you" + praying
+// hands used to count 0.
+test("countTextKey needs no space beside a phrase in a script written without spaces", () => {
+  const c = (text, word) => shared.countQuery(text, shared.wordQuery(word));
+  const PRAY = "\u{1F64F}", JOY = "\u{1F602}", HEART = "❤️";
+  assert.equal(c("本当にありがとう" + PRAY, "ありがとう" + PRAY), 1);
+  assert.equal(c("めっちゃ草" + JOY, "草" + JOY), 1);
+  assert.equal(c("我爱你" + HEART, "爱你" + HEART), 1);
+  assert.equal(c("ขอบคุณครับ" + PRAY, "ครับ" + PRAY), 1);
+  assert.equal(c(JOY + "草生える", JOY + "草"), 1);
+  // a Latin letter beside one still marks a longer word
+  assert.equal(c("book \u{1F44D}", "ok \u{1F44D}"), 0);
+  assert.equal(c("草 abc" + JOY, "c" + JOY), 0);
+});
+
 // A flag is two regional-indicator letters; the US flag must not be found
 // across Australia + Sweden (A U | S E), and an emoji counts only whole: a
 // thumbs up is not inside a skin-toned thumbs up, nor a heart inside the
@@ -394,7 +411,7 @@ test("countTextKey agrees with a full grapheme split on mixed text", () => {
     const s = shared.plainText(text).replace(/[\uFE0E\uFE0F]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
     const b = new Set([0]); let p = 0;
     for (const g of shared.graphemes(s)) b.add(p += g.length);
-    const L = /^[\p{L}\p{N}]/u.test(key), R = /[\p{L}\p{N}]$/u.test(key), W = /(?!\u20E3)[\p{L}\p{N}\p{M}\u200C\u200D]/u;
+    const L = /^[\p{L}\p{N}]/u.test(key), R = /[\p{L}\p{N}]$/u.test(key), W = /(?![\u20E3\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}])[\p{L}\p{N}\p{M}\u200C\u200D]/u;
     let n = 0;
     for (let at = s.indexOf(key); at !== -1;) {
       const end = at + key.length;

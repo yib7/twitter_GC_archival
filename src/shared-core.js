@@ -1241,7 +1241,9 @@
   // flag is not found across Australia + Sweden, a thumbs up not inside a
   // skin-toned one) and, where the key starts or ends with a letter or digit,
   // with no letter, digit, mark or word joiner beside it there ("ok" plus an
-  // emoji is not inside "book" plus that emoji).
+  // emoji is not inside "book" plus that emoji). A letter of a script written
+  // without spaces (Japanese, Chinese, Thai, ...) does not count, as words
+  // there sit side by side.
   // Segmenting the message is skipped when the characters beside a hit
   // settle it: a grapheme always breaks between a printable ASCII character
   // or a pictograph and a key that does not start with a character that
@@ -1249,7 +1251,8 @@
   // tone, a spacing vowel) or end with one that may join what is after it
   // (a Prepend: a format character or one of a few Brahmic letters).
   const RE_WORD_START = /^[\p{L}\p{N}]/u, RE_WORD_END = /[\p{L}\p{N}]$/u;
-  const RE_GLUED_START = /^[\p{L}\p{N}\p{M}\u200C\u200D]/u, RE_GLUED_END = /(?!\u20E3)[\p{L}\p{N}\p{M}\u200C\u200D]$/u;
+  const GLUE = "(?!\\u20E3|" + RE_NOSPACE_SCRIPT.source + ")[\\p{L}\\p{N}\\p{M}\\u200C\\u200D]";
+  const RE_GLUED_START = new RegExp("^" + GLUE, "u"), RE_GLUED_END = new RegExp(GLUE + "$", "u");
   const RE_JOINS_BEFORE = /^[\p{M}\p{Cf}\p{Emoji_Modifier}\u0E33\u0EB3\uFF9E\uFF9F]/u, RE_JOINS_AFTER = /(?:\p{Cf}|\u0D4E|[\u{11000}-\u{11FFF}])$/u;
   const RE_CLEAN_BEFORE = /(?:[\x20-\x7E]|\p{Extended_Pictographic})$/u, RE_CLEAN_AFTER = /^(?:[\x20-\x7E]|\p{Extended_Pictographic})/u;
   function countTextKey(text, key) {
