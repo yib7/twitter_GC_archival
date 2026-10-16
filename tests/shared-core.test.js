@@ -296,3 +296,21 @@ test("countBattleText matches whole emoji, never across or inside one", () => {
   assert.equal(c(FIRE + " " + HEART, HEART), 1);
   assert.equal(c(FIRE + " \u2764\u200D\u{1F525}", FIRE), 2);
 });
+
+// An emoticon is its text, not the letter or digit in it: "<3" used to be the
+// word "3" (every "3" counted, and "<3" and "3" were one word), ":D" the word
+// "d". A symbol before the first word or between words makes the whole thing
+// text; punctuation after the last word does not ("lol!" is still lol).
+test("battleKey keeps an emoticon or a word led by a symbol as its text", () => {
+  const k = shared.battleKey;
+  assert.equal(k("<3"), "<3");
+  assert.equal(k(":D"), ":d");
+  assert.equal(k("\u00BFQu\u00E9"), "\u00BFqu\u00E9");
+  assert.equal(k("so, literally"), "so, literally");
+  assert.equal(k("USA \u{1F1FA}\u{1F1F8}"), "usa \u{1F1FA}\u{1F1F8}");   // a flag is an emoji too
+  for (const [w, key] of [["lol!", "lol"], ["wtf?!", "wtf"], ["don't", "dont"], ["Don\u2019t", "dont"], ["so  Literally", "so literally"]]) assert.equal(k(w), key, w);
+  assert.deepStrictEqual(shared.cleanBattleWords(["<3", "3", ":D", "d"]), ["<3", "3", ":D", "d"]);
+  const c = (text, word) => shared.countBattleText(text, k(word));
+  assert.equal(c("i <3 u, 3 cats, <33", "<3"), 1);
+  assert.equal(c("xD :D :Dd", ":D"), 1);
+});

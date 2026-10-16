@@ -1200,13 +1200,18 @@
   //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
   // The key a Word Battles word counts under: its whole-word tokens, apostrophes
   // and case folded, so "Lol", "lol!" and the built-in "lol" are one word and
-  // "don't" and "dont" are one; a phrase keeps all its tokens. A word with an
-  // emoji in it, or with no letters or digits ("?!"), is keyed by its text
-  // instead: lowercased, spaces collapsed, U+FE0F dropped (❤️ and ❤ are one).
-  const RE_PICTO = /\p{Extended_Pictographic}/u;
+  // "don't" and "dont" are one; a phrase keeps all its tokens. A word is keyed
+  // by its text instead (lowercased, spaces collapsed, U+FE0F and the keycap
+  // mark dropped, so a heart with or without U+FE0F is one word) when it has
+  // an emoji or flag in it, no letters or digits ("?!"), or a symbol before
+  // its first word or between two words: "<3" and ":D" are emoticons, not the
+  // words "3" and "d", and "¿qué" keeps its "¿". Punctuation after the last
+  // word is not part of it, so "lol!" is still lol.
+  const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
+  const RE_SYMBOL_IN_WORD = /[^\p{L}\p{N}\p{M}\p{Cf}\s'‘’ʼ＇][\s\S]*[\p{L}\p{N}]/u;
   const battleText = (s) => s.replace(RE_EMOJI_TAIL, "").toLowerCase().replace(/\s+/g, " ").trim();
   function battleKey(word) {
-    const keys = RE_PICTO.test(word) ? [] : wordKeys(word);
+    const keys = RE_PICTO.test(word) || RE_SYMBOL_IN_WORD.test(word) ? [] : wordKeys(word);
     return keys.length ? keys.join(" ") : battleText(word);
   }
   // How often a text-keyed battle word (its battleKey) appears in a message,
