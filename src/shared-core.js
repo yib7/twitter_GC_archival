@@ -1206,9 +1206,16 @@
   // @mention or a link is left out of the word, as it is of every message.
   const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20E3]/u;
   const RE_SYMBOL = /[^\p{L}\p{N}\p{M}\s'\u2018\u2019\u02BC\uFF07]/u;
-  // sentence-ending punctuation doesn't make one ("k.", "u?" are words)
-  const RE_END_PUNCT = /[.,!?…]+$/u;
-  const isEmoticon = (w, keys) => RE_SYMBOL.test(w.trim().replace(RE_END_PUNCT, "")) && keys.every((k) => [...k].length === 1);
+  // An emoticon is a space-separated piece with a symbol in it whose words are
+  // each one character, or one character repeated ("<3", ":D", "<33", ":DD");
+  // sentence-ending punctuation doesn't make one ("k.", "u?" and "え？" are words).
+  const RE_END_PUNCT = /[.,!?…、。！，．？]+$/u;
+  const RE_ONE_CHAR_RUN = /^(.)\1*$/u;
+  const isEmoticon = (w) => w.split(/\s+/).some((piece) => {
+    if (!RE_SYMBOL.test(piece.replace(RE_END_PUNCT, ""))) return false;
+    const keys = wordKeys(piece);
+    return keys.length > 0 && keys.every((k) => RE_ONE_CHAR_RUN.test(k));
+  });
   const RE_VS = /[\uFE0E\uFE0F]/g, RE_HAS_VS = /[\uFE0E\uFE0F]/;
   const battleText = (s) => s.replace(RE_VS, "").toLowerCase().replace(/\s+/g, " ").trim();
   const RE_INVISIBLE = /[\uFE0E\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/g;
@@ -1220,7 +1227,7 @@
   function wordQuery(word) {
     const w = plainText(word);
     const keys = RE_PICTO.test(w) ? [] : wordKeys(w);
-    if (keys.length && !isEmoticon(w, keys)) return { key: keys.join(" "), keys, byText: false, probe: keys.reduce((a, b) => (b.length > a.length ? b : a)) };
+    if (keys.length && !isEmoticon(w)) return { key: keys.join(" "), keys, byText: false, probe: keys.reduce((a, b) => (b.length > a.length ? b : a)) };
     let key = battleText(w);
     if (!key.replace(RE_INVISIBLE, "")) key = "";   // nothing visible to count
     const pic = key.match(RE_PICTO);
@@ -1256,10 +1263,14 @@
   // the start of the run. Hangul jamo sequences are not handled: precomposed
   // Hangul is what keyboards type.
   const RE_EXTEND = /[\p{M}\p{Emoji_Modifier}\u200C\u0E33\u0EB3\uFF9E\uFF9F\u{E0020}-\u{E007F}]|\u200D/uy;   // \p{M} has the selectors
+  const RE_VIRAMA = /[\u094D\u09CD\u0ACD\u0B4D\u0C4D\u0D4D]/, RE_LETTER = /\p{L}/u;
   const isRI = (c) => c >= 0x1F1E6 && c <= 0x1F1FF;
   function isBreak(s, p) {
     if (p <= 0 || p >= s.length) return true;
     if (s.charCodeAt(p - 1) === 0x200D) return false;
+    // a virama (Devanagari, Bengali, Gujarati, Oriya, Telugu, Malayalam)
+    // joins the consonant after it into one conjunct
+    if (RE_VIRAMA.test(s[p - 1]) && RE_LETTER.test(s[p])) return false;
     RE_EXTEND.lastIndex = p;
     if (RE_EXTEND.test(s)) return false;
     if (!isRI(s.codePointAt(p))) return true;

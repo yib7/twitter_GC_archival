@@ -377,6 +377,32 @@ test("a word in quotes or brackets is its words; only an emoticon is its text", 
   }
   assert.equal(c("k. fine k", "k."), 2);
   assert.equal(k(":P."), ":p.");   // an emoticon ending a sentence stays one
+  // fullwidth sentence punctuation too: a one-character Japanese or Chinese
+  // word with ？ or ！ is that word
+  for (const [w, key] of [["え？", "え"], ["草！", "草"], ["何。", "何"]]) {
+    assert.equal(k(w), key, w);
+    assert.equal(shared.wordQuery(w).byText, false, w);
+  }
+  // the rule looks at each space-separated piece, and a run of one repeated
+  // character is an emoticon's too ("<33", ":DD"): a phrase with an
+  // emoticon in it is counted as written
+  for (const [w, key] of [["<33", "<33"], ["<333", "<333"], [":DD", ":dd"], ["lol :D", "lol :d"]]) {
+    assert.equal(k(w), key, w);
+    assert.equal(shared.wordQuery(w).byText, true, w);
+  }
+  assert.equal(c("lol :D but lol d", "lol :D"), 1);
+  assert.equal(c("<3 <33 333", "<33"), 1);
+  for (const w of ["(lol)", "x-ray", "so, literally"]) assert.equal(shared.wordQuery(w).byText, false, w);
+});
+
+// A virama joins the consonant after it into one cluster (a conjunct), so a
+// text key that ends in one never matches inside a longer conjunct.
+test("countTextKey keeps an Indic conjunct whole", () => {
+  const c = (text, word) => shared.countQuery(text, shared.wordQuery(word));
+  assert.equal(c("\u{1F44D}क्ष", "\u{1F44D}क्"), 0);
+  assert.equal(c("\u{1F44D}क् ष", "\u{1F44D}क्"), 1);
+  const seg = new Intl.Segmenter("und", { granularity: "grapheme" });
+  assert.equal([...seg.segment("क्ष")].length, 1);   // what the rule follows
 });
 
 // The Battles loop skips a message whose lowercased text cannot hold the word
