@@ -562,6 +562,14 @@ function newestInArchive() {
 const groupsOf = (sum) => (sum && sum.conversations || []).map((c) => ({ id: c.id, title: c.title, count: c.count }));
 
 /* ---- endpoint: point at source + build ----------------------------------- */
+// True when two paths name the same file. Where both exist this compares the
+// real paths, which folds letter case on Windows and macOS and follows links;
+// otherwise it falls back to a resolved-path comparison that is case-folding on
+// win32 (path.relative is "" for paths that differ only in case there).
+function sameFile(a, b) {
+  try { return fs.realpathSync.native(a) === fs.realpathSync.native(b); }
+  catch (e) { return path.relative(path.resolve(a), path.resolve(b)) === ""; }
+}
 const absOfInput = (p) => path.resolve(path.isAbsolute(p) ? p : path.join(ROOT, p));
 const userPathOf = (v) => normalizeUserPath(v, { platform: process.platform, home: os.homedir() });
 // What the user pointed at → the export files to read, or { status, error }.
@@ -769,7 +777,7 @@ async function sourceAndBuild(body, res, progress) {
     // paths as-is, so no change needed there.
     const copyInto = (abs) => {
       const dest = path.join(srcDir, path.basename(abs));
-      if (path.resolve(abs) !== path.resolve(dest)) srcJournal.copy(abs, dest);
+      if (!sameFile(abs, dest)) srcJournal.copy(abs, dest);
       return dest;
     };
     cfg.sourceJs = groupFiles.map(copyInto);   // message bodies (build parses these)
