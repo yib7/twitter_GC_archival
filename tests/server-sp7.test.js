@@ -19,6 +19,8 @@ const source = (S, f) => S.post("/api/source", { groupJs: f.group, headersJs: f.
 
 // A server killed mid-build leaves its *.prev-* backup folders
 // (the copies a new source replaced). They were only removed by Start over.
+// A build marks each backup folder clearable as it makes it; one without the
+// mark (or with a keep-note) may hold an only copy, and stays.
 describe("a build that commits clears stale backup folders from earlier runs", () => {
   let S;
   before(async () => { S = await startServer(); });
@@ -28,11 +30,15 @@ describe("a build that commits clears stale backup folders from earlier runs", (
     for (const d of ["source.prev-123-0a1b2c3d", "media.prev-123-0a1b2c3d", "removed.prev-123-0a1b2c3d"]) {
       fs.mkdirSync(path.join(S.personal, d));
       fs.writeFileSync(path.join(S.personal, d, "old-copy.js"), "a previous copy");
+      fs.writeFileSync(path.join(S.personal, d, ".clearable"), "");
     }
     fs.mkdirSync(path.join(S.personal, "not-ours.prev-folder"));
+    fs.mkdirSync(path.join(S.personal, "media.prev-456-0a1b2c3d"));   // not marked clearable
+    fs.writeFileSync(path.join(S.personal, "media.prev-456-0a1b2c3d", "old-copy.png"), "maybe the only copy");
     const r = await source(S, X.writeExport(scratch()));
     assert.equal(r.status, 200, JSON.stringify(await r.json()));
-    assert.deepEqual(fs.readdirSync(S.personal).filter((n) => /\.prev-/.test(n)), ["not-ours.prev-folder"], "only the wizard's own backup folders are cleared");
+    assert.deepEqual(fs.readdirSync(S.personal).filter((n) => /\.prev-/.test(n)).sort(), ["media.prev-456-0a1b2c3d", "not-ours.prev-folder"],
+      "only the wizard's own backup folders marked clearable are cleared");
   });
 });
 

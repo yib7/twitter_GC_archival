@@ -308,11 +308,29 @@ async function copyMediaFlatAsync(srcDir, destDir, opts, progress) {
 // of it: marked, so clearStaleBackups never removes it (the user is told where
 // it is; they move what they need and delete the folder, or use Start over).
 const KEEP_MARK = "KEEP - previous files that could not be put back.txt";
+// Written into each backup folder as it is made. clearStaleBackups only clears
+// a folder that has it, so a folder that lost it, or never got it, is kept.
+const CLEARABLE_MARK = ".clearable";
+function makeBackupDir(dir) {
+  if (fs.existsSync(dir)) return;
+  fs.mkdirSync(dir, { recursive: true });
+  try { fs.writeFileSync(path.join(dir, CLEARABLE_MARK), ""); }
+  catch (e) { /* not marked clearable: the folder is kept until Start over */ }
+}
+// Removing the clearable mark needs no free space, so it works on a full disk
+// where the keep-note can't be written. When the note can't be written, the
+// folder is also renamed to a name PREV_DIR_RE doesn't match (it still
+// contains ".prev-", which is what the reply tells the user to look for).
 function markKept(dir) {
+  try { fs.rmSync(path.join(dir, CLEARABLE_MARK), { force: true }); }
+  catch (e) { console.error("Couldn't unmark " + path.basename(dir) + " as clearable: " + (e && e.message)); }
   try {
     fs.writeFileSync(path.join(dir, KEEP_MARK), "A build failed and these previous files could not be put back.\n" +
       "They are the only copies. Move what you need out of this folder, then delete the folder.\n");
+    return;
   } catch (e) { console.error("Couldn't mark " + path.basename(dir) + " to keep: " + (e && e.message)); }
+  try { fs.renameSync(dir, dir + ".kept"); }
+  catch (e) { console.error("Couldn't rename " + path.basename(dir) + " to keep it: " + (e && e.message)); }
 }
 function dropBackupDir(dir) {
   try { fs.rmSync(dir, { recursive: true, force: true }); }
@@ -322,7 +340,7 @@ function copyJournal(backupDir) {
   const created = [], saved = [];
   const note = (dest) => {
     if (fs.existsSync(dest)) {
-      fs.mkdirSync(backupDir, { recursive: true });
+      makeBackupDir(backupDir);
       const kept = path.join(backupDir, path.basename(dest));
       fs.renameSync(dest, kept);
       saved.push([kept, dest]);
@@ -333,13 +351,15 @@ function copyJournal(backupDir) {
     async copyAsync(src, dest) { note(dest); await copyIntoPlaceAsync(src, dest); },
     rollback() {
       const problems = [];
+      let stuck = false;   // a saved previous file is still in backupDir
       for (const f of created) { try { fs.rmSync(f, { force: true }); } catch (e) { problems.push(f); } }
       for (const [kept, dest] of saved) {
-        try { fs.rmSync(dest, { force: true }); fs.renameSync(kept, dest); } catch (e) { problems.push(dest); }
+        try { fs.rmSync(dest, { force: true }); fs.renameSync(kept, dest); } catch (e) { problems.push(dest); stuck = true; }
       }
-      // Anything that couldn't be put back stays in backupDir rather than lost.
-      if (!problems.length) dropBackupDir(backupDir);
-      else markKept(backupDir);
+      // A previous file that couldn't be put back stays in backupDir rather
+      // than lost. A new file that couldn't be removed leaves nothing in it.
+      if (stuck) markKept(backupDir);
+      else dropBackupDir(backupDir);
       return problems;
     },
     commit() { dropBackupDir(backupDir); },
@@ -360,6 +380,7 @@ function pruneSource(keep) {
   }
 }
 const PREV_DIR_RE = /^(?:source|media|removed)\.prev-\d+-[0-9a-f]+$/;
+const KEPT_DIR_RE = /^(?:source|media|removed)\.prev-\d+-[0-9a-f]+\.kept$/;   // renamed by markKept
 const prevDirName = (name) => name + ".prev-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
 // keep `file` as it is now (a hard link — the build
 // replaces files by rename, so the link keeps the old content — or a copy),
@@ -368,7 +389,7 @@ function fileSnapshot(file, backupDir) {
   const kept = path.join(backupDir, path.basename(file));
   let had = false;
   if (fs.existsSync(file)) {
-    fs.mkdirSync(backupDir, { recursive: true });
+    makeBackupDir(backupDir);
     try { fs.linkSync(file, kept); } catch (e) { fs.copyFileSync(file, kept); }
     had = true;
   }
@@ -377,7 +398,10 @@ function fileSnapshot(file, backupDir) {
       try {
         if (had) replaceFile(kept, file);
         else fs.rmSync(file, { force: true });
-      } catch (e) { markKept(backupDir); return [file]; }
+      } catch (e) {
+        if (had) markKept(backupDir);   // the kept copy is now the only one
+        return [file];
+      }
       dropBackupDir(backupDir);
       return [];
     },
@@ -388,7 +412,8 @@ function fileSnapshot(file, backupDir) {
 // behind. Once a later build has committed, source/, media/ and the
 // quarantine are consistent again and those old copies are just stale
 // private data — remove them. A folder marked to keep (markKept) is not stale:
-// it holds files a failed build couldn't put back, and stays.
+// it holds files a failed build couldn't put back, and stays. So does any
+// folder without the clearable mark: nothing says its files are spare.
 function clearStaleBackups() {
   let names;
   try { names = fs.readdirSync(PERSONAL); } catch (e) { return; }
@@ -396,6 +421,7 @@ function clearStaleBackups() {
     if (!PREV_DIR_RE.test(n)) continue;
     const p = path.join(PERSONAL, n);
     if (!isInsidePersonal(p, PERSONAL) || fs.existsSync(path.join(p, KEEP_MARK))) continue;
+    if (!fs.existsSync(path.join(p, CLEARABLE_MARK))) continue;
     try { fs.rmSync(p, { recursive: true, force: true }); } catch (e) { console.error("Couldn't remove " + n + ": " + (e && e.message)); }
   }
 }
@@ -1355,7 +1381,7 @@ function apiReset(res) {
   const targets = ["config.json", "data.js", "data.js.bak", "local.js", "source", "media", "pfps", ".removed"];
   const removed = [];
   // Backups of a source change interrupted mid-build
-  if (fs.existsSync(PERSONAL)) for (const f of fs.readdirSync(PERSONAL)) if (PREV_DIR_RE.test(f)) targets.push(f);
+  if (fs.existsSync(PERSONAL)) for (const f of fs.readdirSync(PERSONAL)) if (PREV_DIR_RE.test(f) || KEPT_DIR_RE.test(f)) targets.push(f);
   for (const name of targets) {
     const p = path.join(PERSONAL, name);
     if (!isInsidePersonal(p, PERSONAL)) continue;   // hard guard — never outside personal_data/

@@ -609,6 +609,7 @@ describe("a failed source build leaves the previous copies as they were", () => 
   test("Start over also removes backup folders an interrupted source change left behind", async () => {
     fs.mkdirSync(path.join(S.personal, "source.prev-123-0a1b2c3d"));
     fs.mkdirSync(path.join(S.personal, "media.prev-123-0a1b2c3d"));
+    fs.mkdirSync(path.join(S.personal, "media.prev-456-0a1b2c3d.kept"));   // a kept folder that couldn't be marked
     assert.equal((await S.post("/api/reset", {})).status, 200);
     assert.deepEqual(fs.readdirSync(S.personal), []);
   });
@@ -811,6 +812,83 @@ describe("a media copy fails and a previous file can't be moved back", () => {
     assert.match(j.error, /in use by another program/, "the copy's own error");
     assert.match(j.error, /\.prev-/, "says where the previous copies are");
     assert.ok(fs.readdirSync(personal).some((n) => /^media\.prev-/.test(n)), "the previous picture is kept in its backup folder");
+  });
+});
+
+// A backup folder holding a previous file that couldn't be put back is the
+// only copy of it. A full disk (a common reason the copy failed) can stop the
+// keep-note being written: the folder is then renamed out of the cleanup's
+// way, and if even that fails the cleanup still leaves it, because it only
+// clears folders a build marked as safe to clear. A folder whose saved files
+// all went back is not kept, even when a newly copied file couldn't be removed.
+describe("a backup folder holding the only copy of a file is kept even when it can't be marked", () => {
+  const PRELOAD = path.join(__dirname, "fixtures", "fs-busy-preload.js");
+  const BACKUP_RE = /^media\.prev-\d+-[0-9a-f]+$/;
+  // a built archive whose picture is emptied, so the next copy backs it up
+  const prepared = async () => {
+    const personal = scratch("gca-sp6-mark-");
+    const f = X.writeExport(scratch());
+    const S1 = await startServer({}, { personal });
+    try { assert.equal((await source(S1, f.group, f.headers, f.media)).status, 200); }
+    finally { S1.proc.kill(); }
+    fs.writeFileSync(path.join(personal, "media", "9002-AbCdEf.png"), "");
+    return personal;
+  };
+  // a source change whose build fails, under the given preload settings
+  const failedBuild = async (personal, env) => {
+    const S = await startServer(Object.assign({ GCA_TEST_BUILD_CRASH: "after-quarantine" }, env), { personal, nodeArgs: ["--require", PRELOAD] });
+    try {
+      const f = X.writeExport(scratch());
+      const r = await source(S, f.group, f.headers, f.media);
+      const j = await r.json();
+      assert.equal(r.status, 422, JSON.stringify(j));
+      return { error: j.error, stderr: S.stderr() };
+    } finally { S.proc.kill(); }
+  };
+  const successfulBuild = async (personal) => {
+    const S = await startServer({}, { personal });
+    try {
+      const f = X.writeExport(scratch());
+      const r = await source(S, f.group, f.headers, f.media);
+      assert.equal(r.status, 200, await r.text());
+    } finally { S.proc.kill(); }
+  };
+  const mediaBackups = (personal) => fs.readdirSync(personal).filter((n) => /^media\.prev-/.test(n));
+
+  test("the keep-note can't be written: the folder is renamed out of the cleanup's way and survives the next build", async () => {
+    const personal = await prepared();
+    const out = await failedBuild(personal, {
+      GCA_TEST_BUSY_RENAME: String.raw`media\.prev-[^\\/]+[\\/]`,   // the file inside can't go back; the folder itself can move
+      GCA_TEST_FULL_WRITE: "KEEP - ",
+    });
+    assert.match(out.error, /\.prev-/, "says where the previous copies are");
+    const kept = mediaBackups(personal);
+    assert.equal(kept.length, 1, kept.join(","));
+    assert.doesNotMatch(kept[0], BACKUP_RE, "renamed to a name the cleanup doesn't clear");
+    const keptFile = path.join(personal, kept[0], "9002-AbCdEf.png");
+    assert.ok(fs.existsSync(keptFile));
+    await successfulBuild(personal);
+    assert.ok(fs.existsSync(keptFile), "the only copy of the previous file is still there");
+  });
+
+  test("neither the keep-note nor the rename works: the next build still leaves the folder", async () => {
+    const personal = await prepared();
+    await failedBuild(personal, { GCA_TEST_BUSY_RENAME: String.raw`media\.prev-`, GCA_TEST_FULL_WRITE: "KEEP - " });
+    const kept = mediaBackups(personal);
+    assert.equal(kept.length, 1, kept.join(","));
+    const keptFile = path.join(personal, kept[0], "9002-AbCdEf.png");
+    assert.ok(fs.existsSync(keptFile));
+    await successfulBuild(personal);
+    assert.ok(fs.existsSync(keptFile), "the only copy of the previous file is still there");
+  });
+
+  test("a new file that can't be removed doesn't keep a folder whose saved files all went back", async () => {
+    const personal = await prepared();
+    fs.rmSync(path.join(personal, "media", "9002-ZzSecond.jpg"));   // copied in fresh, then can't be removed
+    const out = await failedBuild(personal, { GCA_TEST_BUSY_RM: String.raw`media[\\/]9002-ZzSecond\.jpg$` });
+    assert.equal(fs.readFileSync(path.join(personal, "media", "9002-AbCdEf.png"), "utf8"), "", "the previous picture went back");
+    assert.deepEqual(mediaBackups(personal), [], "no backup folder kept");
+    assert.doesNotMatch(out.stderr, /Couldn't mark/);
   });
 });
 
