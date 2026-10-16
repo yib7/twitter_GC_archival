@@ -101,8 +101,10 @@ for (const th of ["lightsout", "dim", "light"]) {
 
 // A word typed with a capital or punctuation ("Lol", "lol!") is the same word
 // as the built-in "lol": one row, one win. (Phone keyboards capitalise the
-// first letter.) Likewise "don't" and "dont" are one added word.
-for (const typed of ["Lol", "lol!", "LOL"]) {
+// first letter.) So is a word in quotes or brackets (it used to be keyed with
+// its quotes and count 0 beside the built-in row). Likewise "don't" and "dont"
+// are one added word.
+for (const typed of ["Lol", "lol!", "LOL", "\"lol\"", "“lol”", "(lol)"]) {
   test(`an added "${typed}" is one row with the built-in lol, counted once`, async ({ page }) => {
     await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.settings": JSON.stringify({ battleWords: [typed] }) } });
     const v = page.locator("#view-battles");
@@ -127,6 +129,11 @@ test("adding a word of only invisible characters says there is nothing to count"
   await page.locator("#battle-word").fill("\u200D");
   await page.locator("#battle-go").click();
   await expect(page.locator(".toast")).toContainText("nothing to count");
+  await expect(page.locator("#view-battles .battle-added")).toHaveCount(0);
+  // an @mention is left out of every message, so it has nothing to count either
+  await page.locator("#battle-word").fill("@bob");
+  await page.locator("#battle-go").click();
+  await expect(page.locator(".toast")).toContainText("@mentions");
   await expect(page.locator("#view-battles .battle-added")).toHaveCount(0);
 });
 

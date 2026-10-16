@@ -315,20 +315,44 @@ test("countTextKey matches whole emoji, never across or inside one", () => {
 
 // An emoticon is its text, not the letter or digit in it: "<3" used to be the
 // word "3" (every "3" counted, and "<3" and "3" were one word), ":D" the word
-// "d". A symbol before the first word or between words makes the whole thing
-// text; punctuation after the last word does not ("lol!" is still lol).
-test("battleKey keeps an emoticon or a word led by a symbol as its text", () => {
+// "d". Punctuation around longer words is not part of them ("lol!" and
+// "¿qué" are words).
+test("battleKey keeps an emoticon as its text", () => {
   const k = shared.battleKey;
   assert.equal(k("<3"), "<3");
   assert.equal(k(":D"), ":d");
-  assert.equal(k("\u00BFQu\u00E9"), "\u00BFqu\u00E9");
-  assert.equal(k("so, literally"), "so, literally");
+  assert.equal(k("\u00BFQu\u00E9"), "qu\u00E9");
+  assert.equal(k("so, literally"), "so literally");
   assert.equal(k("USA \u{1F1FA}\u{1F1F8}"), "usa \u{1F1FA}\u{1F1F8}");   // a flag is an emoji too
   for (const [w, key] of [["lol!", "lol"], ["wtf?!", "wtf"], ["don't", "dont"], ["Don\u2019t", "dont"], ["so  Literally", "so literally"]]) assert.equal(k(w), key, w);
   assert.deepStrictEqual(shared.cleanBattleWords(["<3", "3", ":D", "d"]), ["<3", "3", ":D", "d"]);
   const c = (text, word) => shared.countTextKey(text, k(word));
   assert.equal(c("i <3 u, 3 cats, <33", "<3"), 1);
   assert.equal(c("xD :D :Dd", ":D"), 1);
+});
+
+// Only an emoticon is keyed by its text: a symbol beside one-letter words
+// (":D", "<3", ";P", "=D"). A word typed in quotes or brackets, or a phrase
+// with punctuation in it, is its words: the search box teaches "quotes", and
+// "lol" in quotes used to count 0 next to a built-in lol row with real counts.
+// An @mention is left out of the word as it is left out of every message.
+test("a word in quotes or brackets is its words; only an emoticon is its text", () => {
+  const k = shared.battleKey, c = (text, word) => shared.countQuery(text, shared.wordQuery(word));
+  for (const [w, key] of [["\"lol\"", "lol"], ["“lol”", "lol"], ["(lol)", "lol"], ["*lol*", "lol"], ["¿lol?", "lol"],
+    ["so, literally", "so literally"], ["“so literally”", "so literally"], ["x-ray", "x ray"], ["@bob lol", "lol"]]) {
+    assert.equal(k(w), key, w);
+    assert.equal(shared.wordQuery(w).byText, false, w);
+  }
+  const TEXT = "lol that was so literally insane lol, Lol!";
+  for (const w of ["\"lol\"", "“lol”", "(lol)", "*lol*", "_lol_", "¿lol?", "@bob lol"]) assert.equal(c(TEXT, w), 3, w);
+  assert.equal(c(TEXT, "\"so literally\""), 1);
+  assert.equal(c(TEXT, "so, literally"), 1);
+  assert.equal(c("x-ray, x ray", "x-ray"), 2);
+  for (const [w, key] of [[":D", ":d"], ["<3", "<3"], [";P", ";p"], ["=D", "=d"], ["T_T", "t_t"]]) {
+    assert.equal(k(w), key, w);
+    assert.equal(shared.wordQuery(w).byText, true, w);
+  }
+  assert.equal(k("@bob"), "");   // nothing left to count: a mention never is
 });
 
 // The Battles loop skips a message whose lowercased text cannot hold the word

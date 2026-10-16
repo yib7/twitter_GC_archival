@@ -7242,7 +7242,7 @@ function addBattleWord(word) {
   const t = word.trim();
   // say why nothing happened — and keep the text so it can be shortened
   if (t.length > BATTLE_WORD_MAX) { toast("Battle words can be up to " + BATTLE_WORD_MAX + " characters"); return; }
-  if (!battleKey(t)) { if (inp) inp.value = ""; toast("That word is only invisible characters: nothing to count"); return; }
+  if (!battleKey(t)) { if (inp) inp.value = ""; toast("That word is only invisible characters, @mentions or links: nothing to count"); return; }
   if (settings.battleWords.some((w) => battleKey(w) === battleKey(t))) { if (inp) inp.value = ""; toast("“" + t + "” is already in the battle"); return; }
   const next = cleanBattleWords([t].concat(settings.battleWords));
   const dropped = settings.battleWords.filter((w) => next.indexOf(w) === -1);

@@ -1198,12 +1198,15 @@
   // "don't" and "dont" are one; a phrase keeps all its tokens. A word is keyed
   // by its text instead (lowercased, spaces collapsed, U+FE0F and U+FE0E
   // dropped, so a heart with or without U+FE0F is one word) when it has an
-  // emoji, flag or keycap in it, no letters or digits ("?!"), or a symbol before
-  // its first word or between two words: "<3" and ":D" are emoticons, not the
-  // words "3" and "d", and "¿qué" keeps its "¿". Punctuation after the last
-  // word is not part of it, so "lol!" is still lol.
+  // emoji, flag or keycap in it, no letters or digits ("?!"), or when it is an
+  // emoticon: a symbol with words of one letter or digit each, so "<3", ":D"
+  // and ";P" are not the words "3", "d" and "p". Quotes, brackets and other
+  // punctuation around or between longer words are not part of them: "lol" in
+  // quotes, "(lol)", "¿lol?" and "so, literally" are lol and so literally. An
+  // @mention or a link is left out of the word, as it is of every message.
   const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20E3]/u;
-  const RE_SYMBOL_IN_WORD = /[^\p{L}\p{N}\p{M}\p{Cf}\s'\u2018\u2019\u02BC\uFF07][\s\S]*[\p{L}\p{N}]/u;
+  const RE_SYMBOL = /[^\p{L}\p{N}\p{M}\s'\u2018\u2019\u02BC\uFF07]/u;
+  const isEmoticon = (w, keys) => RE_SYMBOL.test(w) && keys.every((k) => [...k].length === 1);
   const RE_VS = /[\uFE0E\uFE0F]/g, RE_HAS_VS = /[\uFE0E\uFE0F]/;
   const battleText = (s) => s.replace(RE_VS, "").toLowerCase().replace(/\s+/g, " ").trim();
   const RE_INVISIBLE = /[\uFE0E\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/g;
@@ -1213,13 +1216,14 @@
   // probe is the key's first emoji, or else its longest run without a space:
   // neither can span a space or a selector that battleText removed.
   function wordQuery(word) {
-    const keys = RE_PICTO.test(word) || RE_SYMBOL_IN_WORD.test(word) ? [] : wordKeys(word);
-    if (keys.length) return { key: keys.join(" "), keys, byText: false, probe: keys.reduce((a, b) => (b.length > a.length ? b : a)) };
-    let key = battleText(word);
+    const w = plainText(word);
+    const keys = RE_PICTO.test(w) ? [] : wordKeys(w);
+    if (keys.length && !isEmoticon(w, keys)) return { key: keys.join(" "), keys, byText: false, probe: keys.reduce((a, b) => (b.length > a.length ? b : a)) };
+    let key = battleText(w);
     if (!key.replace(RE_INVISIBLE, "")) key = "";   // nothing visible to count
     const pic = key.match(RE_PICTO);
     const probe = pic ? String.fromCodePoint(pic[0].codePointAt(0)) : key.split(" ").reduce((a, b) => (b.length > a.length ? b : a));
-    return { key, keys, byText: true, probe };
+    return { key, keys: [], byText: true, probe };
   }
   // Cheap prefilter: false only when a message whose lowercased text (plus
   // link text) is `lowerText` cannot count the word.
