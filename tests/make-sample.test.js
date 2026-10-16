@@ -2,7 +2,7 @@
  * scripts/make_sample.js — the synthetic demo generator. Run as a child process
  * into scratch directories (never the repo root), then checked for:
  *   - determinism: two runs produce byte-identical files (so CI can run
- *     `node scripts/make_sample.js && git diff --exit-code data.sample.js`);
+ *     `node scripts/make_sample.js && git diff --exit-code sample`);
  *   - a span long enough (~18 months) for Stats / Wrapped to have something to show;
  *   - honest media kinds: nothing tagged "vid" points at an image/SVG, and nothing
  *     tagged "img" points at a video file;
@@ -33,7 +33,7 @@ function listFiles(dir, base = dir) {
   }).sort();
 }
 function readSample(dir) {
-  const s = fs.readFileSync(path.join(dir, "data.sample.js"), "utf8");
+  const s = fs.readFileSync(path.join(dir, "sample", "data.sample.js"), "utf8");
   return JSON.parse(s.replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, ""));
 }
 
@@ -45,8 +45,9 @@ const media = allMsgs.flatMap((m) => (m.m ? [{ m: m.m, k: m.k }] : []).concat(m.
 test("--out writes only into the given directory, and two runs are byte-identical", () => {
   const second = generate();
   const a = listFiles(first), b = listFiles(second);
-  assert.ok(a.includes("data.sample.js"), "data.sample.js is written");
-  assert.ok(a.some((f) => f.startsWith("sample_media/")), "sample media is written");
+  assert.ok(a.includes("sample/data.sample.js"), "sample/data.sample.js is written");
+  assert.ok(a.some((f) => /^sample\/photo-\d+\.svg$/.test(f)), "sample photos are written");
+  assert.ok(a.every((f) => f.startsWith("sample/")), "everything lands in sample/: " + a.join(", "));
   assert.deepEqual(a, b);
   for (const f of a) assert.ok(fs.readFileSync(path.join(first, f)).equals(fs.readFileSync(path.join(second, f))), f + " differs between runs");
 });

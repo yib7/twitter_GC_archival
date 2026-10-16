@@ -7,7 +7,7 @@ test.use({ timezoneId: "UTC" });
 // Regression guard: computeStats() used to compute ~21 superlative
 // "winners" that no render path ever read; they were deleted as dead code.
 // This spec freezes the *rendered* stats surface on the repo sample data
-// (data.sample.js) so that deletion can never change what users see:
+// (sample/data.sample.js) so that deletion can never change what users see:
 //   (a) the Stats view's "Superlatives & Fun Stats" grid renders exactly the
 //       same cards (count + every title, in order), and
 //   (b) profile modals keep their badge and stat lines byte-identical.
@@ -39,7 +39,7 @@ test.beforeEach(async ({ page }) => {
     localStorage.setItem("gca.onboarded", "1");
     localStorage.removeItem("gca.lastView");
   });
-  // Let the repo's real data.sample.js load; keep data.js / local.js inert.
+  // Let the repo's real sample/data.sample.js load; keep data.js / local.js inert.
   await page.route("**/data.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
   await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
 });

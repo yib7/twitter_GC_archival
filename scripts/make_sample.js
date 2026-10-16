@@ -1,16 +1,16 @@
 /*
  * make_sample.js — generates a fully synthetic, publishable demo dataset.
  *
- * Emits:
- *   - data.sample.js          (same schema build.js produces, multi-conversation)
- *   - sample_media/*.svg      (placeholder photos the messages point at)
+ * Emits, into sample/:
+ *   - sample/data.sample.js   (same schema build.js produces, multi-conversation)
+ *   - sample/photo-*.svg      (placeholder photos the messages point at)
  *
- * Run:  node scripts/make_sample.js              (writes into the project root)
- *       node scripts/make_sample.js --out <dir>  (writes into <dir> instead)
+ * Run:  node scripts/make_sample.js              (writes the project's sample/)
+ *       node scripts/make_sample.js --out <dir>  (writes <dir>/sample/ instead)
  *
  * Deterministic: a fixed seed and a fixed "generated at" instant, no wall clock
  * and no Math.random(), so running it twice gives byte-identical files and CI
- * can check `node scripts/make_sample.js && git diff --exit-code data.sample.js`.
+ * can check `node scripts/make_sample.js && git diff --exit-code sample`.
  *
  * Everything here is invented — no real messages, names, ids, or media.
  * The repo is runnable/demoable with ZERO real data present.
@@ -23,8 +23,11 @@ const argv = process.argv.slice(2);
 const outAt = argv.indexOf("--out");
 if (outAt >= 0 && !argv[outAt + 1]) { console.error("Usage: node scripts/make_sample.js [--out <dir>]"); process.exit(2); }
 const here = outAt >= 0 ? path.resolve(argv[outAt + 1]) : path.join(__dirname, "..");   // project root by default
-const MEDIA = path.join(here, "sample_media");
-fs.mkdirSync(MEDIA, { recursive: true });
+// The demo data and its photos share one folder; the photo paths in the data
+// ("sample/photo-1.svg") are relative to index.html at the project root.
+const SAMPLE_DIR = "sample";
+const OUT_DIR = path.join(here, SAMPLE_DIR);
+fs.mkdirSync(OUT_DIR, { recursive: true });
 
 /* ---- fixed clock + deterministic pseudo-random --------------------------- */
 const DAY = 86400000;
@@ -49,8 +52,8 @@ function placeholder(file, label, bg) {
   <text x="300" y="200" font-family="system-ui,sans-serif" font-size="34" fill="#9fb6ff" text-anchor="middle" dominant-baseline="middle">${label}</text>
   <text x="300" y="245" font-family="system-ui,sans-serif" font-size="16" fill="#5b6b9a" text-anchor="middle">sample placeholder · no real media</text>
 </svg>`;
-  fs.writeFileSync(path.join(MEDIA, file), svg);
-  return "sample_media/" + file;
+  fs.writeFileSync(path.join(OUT_DIR, file), svg);
+  return SAMPLE_DIR + "/" + file;
 }
 const PHOTOS = [
   placeholder("photo-1.svg", "📷 Demo Photo", "#0a0e17"),
@@ -232,7 +235,7 @@ const conversations = [
 // largest first (matches build.js ordering)
 conversations.sort((a, b) => b.count - a.count);
 
-const OUT = path.join(here, "data.sample.js");
+const OUT = path.join(OUT_DIR, "data.sample.js");
 // __sample marks this as the synthetic demo so the app can show a first-run
 // onboarding prompt; any real build overrides window.CHAT_DATA without it.
 fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: GENERATED_AT, __sample: true, conversations }) + ";\n");
@@ -240,4 +243,4 @@ fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: GENE
 const total = conversations.reduce((s, c) => s + c.count, 0);
 console.log("Wrote", path.relative(process.cwd(), OUT) || OUT, "—", conversations.length, "group conversations,", total, "messages.");
 conversations.forEach((c) => console.log("  ·", c.title, "—", c.count, "msgs"));
-console.log("Wrote", PHOTOS.length, "placeholder photos to sample_media/.");
+console.log("Wrote", PHOTOS.length, "placeholder photos to " + SAMPLE_DIR + "/.");

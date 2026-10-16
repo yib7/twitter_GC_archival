@@ -17,7 +17,8 @@ function withTempRoot(fn) {
 
 test("a clean checkout (no hazard files/dirs) reports zero hazards", () => {
   withTempRoot((dir) => {
-    fs.writeFileSync(path.join(dir, "data.sample.js"), "window.CHAT_DATA = {};");
+    fs.mkdirSync(path.join(dir, "sample"));
+    fs.writeFileSync(path.join(dir, "sample", "data.sample.js"), "window.CHAT_DATA = {};");
     assert.deepEqual(findRealDataHazards(dir), []);
   });
 });
@@ -51,8 +52,10 @@ test("root data.js and names.local.js are each flagged by exact name", () => {
   });
 });
 
-test("data.sample.js (the committed demo data) is never mistaken for the hazardous data.js", () => {
+test("sample/data.sample.js (the committed demo data), or a data.sample.js at the root, is never mistaken for the hazardous data.js", () => {
   withTempRoot((dir) => {
+    fs.mkdirSync(path.join(dir, "sample"));
+    fs.writeFileSync(path.join(dir, "sample", "data.sample.js"), "window.CHAT_DATA = {};");
     fs.writeFileSync(path.join(dir, "data.sample.js"), "window.CHAT_DATA = {};");
     assert.deepEqual(findRealDataHazards(dir), []);
   });

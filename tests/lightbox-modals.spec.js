@@ -15,12 +15,12 @@ const { bootViewer, conv, collectErrors, afterSearchRun } = require("./_viewer-f
 //    to the newest-first Gallery and ignored the Hall of Fame ranking.
 const B = Date.parse("2024-03-10T08:00:00Z");
 const M = (k, extra) => Object.assign({ i: "m" + k, s: k % 2 ? "u1" : "u2", t: B + k * 60000, x: "text " + k }, extra || {});
-const img = (n) => ({ m: "sample_media/photo-" + n + ".svg", k: "img" });
+const img = (n) => ({ m: "sample/photo-" + n + ".svg", k: "img" });
 const R = (n) => Array.from({ length: n }, (_, j) => ({ s: j % 2 ? "u1" : "u2", k: "like" }));
 const LIST = [
   M(0, { x: "hello there" }),
   M(1, Object.assign({ x: "first pic" }, img(1), { r: R(2) })),
-  M(2, { x: "a report", m: "sample_media/report.pdf", k: "file" }),
+  M(2, { x: "a report", m: "sample/report.pdf", k: "file" }),
   M(3, Object.assign({ x: "second pic" }, img(2), { r: R(1) })),
   M(4, Object.assign({ x: "third pic" }, img(3), { r: R(3) })),
   M(5, { x: "bye now" }),
@@ -85,14 +85,14 @@ test("in Search, a peeked photo that is not a search result opens THAT photo", a
   await peek(page, "#s-list", 0);
   await page.locator('.ctx-modal .media img[src$="photo-1.svg"]').click();
   await expect(page.locator(".lightbox")).toBeVisible();
-  expect(await lbSrc(page)).toBe("sample_media/photo-1.svg");
+  expect(await lbSrc(page)).toBe("sample/photo-1.svg");
   // and with NO media among the results at all
   await page.keyboard.press("Escape"); await page.keyboard.press("Escape");
   await afterSearchRun(page, () => page.locator("#s-input").fill("hello there"));
   await peek(page, "#s-list", 0);
   await page.locator('.ctx-modal .media img[src$="photo-1.svg"]').click();
   await expect(page.locator(".lightbox")).toBeVisible();
-  expect(await lbSrc(page)).toBe("sample_media/photo-1.svg");
+  expect(await lbSrc(page)).toBe("sample/photo-1.svg");
 });
 
 test("file media is never a lightbox slide; its gallery cell does not open the lightbox", async ({ page }) => {
@@ -114,14 +114,14 @@ test("file media is never a lightbox slide; its gallery cell does not open the l
 test("Gallery arrows follow the newest-first grid", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.lastView": "gallery" } });
   const first = page.locator("#view-gallery .gcell img").first();
-  await expect(first).toHaveAttribute("src", "sample_media/photo-3.svg");
+  await expect(first).toHaveAttribute("src", "sample/photo-3.svg");
   await first.click();
   await expect(page.locator(".lightbox .lb-prev")).toHaveCount(0);
   await expect(page.locator(".lightbox .lb-next")).toHaveCount(1);
   await page.keyboard.press("ArrowRight");
-  expect(await lbSrc(page)).toBe("sample_media/photo-2.svg");
+  expect(await lbSrc(page)).toBe("sample/photo-2.svg");
   await page.keyboard.press("ArrowRight");
-  expect(await lbSrc(page)).toBe("sample_media/photo-1.svg");
+  expect(await lbSrc(page)).toBe("sample/photo-1.svg");
   await expect(page.locator(".lightbox .lb-next")).toHaveCount(0);
 });
 
@@ -130,9 +130,9 @@ test("Hall of Fame arrows walk the ranked media set", async ({ page }) => {
   const cells = page.locator("#hof-media .gcell img");
   await expect(cells).toHaveCount(3);
   await cells.first().click();
-  expect(await lbSrc(page)).toBe("sample_media/photo-3.svg");   // 3 reactions
+  expect(await lbSrc(page)).toBe("sample/photo-3.svg");   // 3 reactions
   await page.keyboard.press("ArrowRight");
-  expect(await lbSrc(page)).toBe("sample_media/photo-1.svg");   // 2 reactions
+  expect(await lbSrc(page)).toBe("sample/photo-1.svg");   // 2 reactions
   await page.keyboard.press("ArrowRight");
-  expect(await lbSrc(page)).toBe("sample_media/photo-2.svg");   // 1 reaction
+  expect(await lbSrc(page)).toBe("sample/photo-2.svg");   // 1 reaction
 });

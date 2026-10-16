@@ -103,7 +103,7 @@ describe("private files and media are only for this origin", () => {
   });
 
   test("the HTML pages, app assets, missing-override replies and 404s carry CORP too", async () => {
-    for (const p of ["/", "/index.html", "/setup.html", "/src/app.js", "/sample_media/photo-1.svg", "/nope.txt"]) {
+    for (const p of ["/", "/index.html", "/setup.html", "/src/app.js", "/sample/photo-1.svg", "/nope.txt"]) {
       const r = await raw(S.port, p);
       assert.equal(r.headers["cross-origin-resource-policy"], "same-origin", p);
     }

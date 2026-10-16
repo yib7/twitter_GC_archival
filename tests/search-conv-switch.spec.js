@@ -14,7 +14,7 @@ test.use({ timezoneId: "UTC" });
 // conversation resets the filters (sort + match mode are preferences and are
 // kept), and the toolbar is rendered FROM F.
 const A = msgs("a", 20, { s: ["u1", "u2"], t0: Date.parse("2024-03-10T08:00:00Z"),
-  extra: (k) => (k === 5 ? { m: "sample_media/photo-1.svg", k: "img" } : null) });
+  extra: (k) => (k === 5 ? { m: "sample/photo-1.svg", k: "img" } : null) });
 const B = msgs("b", 20, { s: ["u3"], t0: Date.parse("2024-06-01T10:00:00Z"), step: 3600000 });
 const DATA = { conversations: [conv("A", "Alpha", A), conv("B", "Beta", B)] };
 

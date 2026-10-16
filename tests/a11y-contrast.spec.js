@@ -124,7 +124,7 @@ test("Stats chart tooltips wear --on-accent on the accent fill (chartTheme)", as
 test("link chip text in your own messages passes on every preset accent and theme", async ({ page }) => {
   const T0 = Date.parse("2024-03-10T12:00:00Z");
   const CHIP = { conversations: [conv("A", "Alpha", [
-    { i: "c0", s: "u1", t: T0, x: "the doc", m: "sample_media/report.pdf", k: "file" },
+    { i: "c0", s: "u1", t: T0, x: "the doc", m: "sample/report.pdf", k: "file" },
     { i: "c1", s: "u2", t: T0 + 60000, x: "thanks" },
   ])] };
   await bootViewer(page, CHIP, { ls: { "gca.settings": JSON.stringify({ me: "u1" }) } });

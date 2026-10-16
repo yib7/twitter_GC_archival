@@ -271,15 +271,15 @@ test("isServablePath allows the app shell and its fixed top-level assets", () =>
   assert.equal(isServablePath("/index.html"), true);
   assert.equal(isServablePath("/setup.html"), true);
   assert.equal(isServablePath("/favicon.ico"), true);
-  assert.equal(isServablePath("/data.sample.js"), true);
+  assert.equal(isServablePath("/sample/data.sample.js"), true);
 });
 
-test("isServablePath allows anything under /src/, /lib/, /sample_media/", () => {
+test("isServablePath allows anything under /src/, /lib/, /sample/", () => {
   assert.equal(isServablePath("/src/app.js"), true);
   assert.equal(isServablePath("/src/styles.css"), true);
   assert.equal(isServablePath("/lib/fuse.min.js"), true);
   assert.equal(isServablePath("/lib/chart.min.js"), true);
-  assert.equal(isServablePath("/sample_media/photo-4.svg"), true);
+  assert.equal(isServablePath("/sample/photo-4.svg"), true);
 });
 
 test("isServablePath allows exactly personal_data/data.js and personal_data/local.js", () => {

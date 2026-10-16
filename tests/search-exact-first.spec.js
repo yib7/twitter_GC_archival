@@ -125,7 +125,7 @@ const GRID = {
     id: "G", type: "group", title: "Ops", participants: ["u1", "u2"], count: 3,
     msgs: [
       { i: "g1", s: "u1", t: Date.parse("2024-03-01T10:00:00Z"), x: "sunset was great" },
-      { i: "g2", s: "u2", t: Date.parse("2024-03-02T10:00:00Z"), x: "sunzet pic", m: "sample_media/photo-1.svg", k: "img" },
+      { i: "g2", s: "u2", t: Date.parse("2024-03-02T10:00:00Z"), x: "sunzet pic", m: "sample/photo-1.svg", k: "img" },
       { i: "g3", s: "u1", t: Date.parse("2024-03-03T10:00:00Z"), x: "unrelated chatter" },
     ],
     events: [],

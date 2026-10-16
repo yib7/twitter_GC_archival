@@ -8,7 +8,7 @@ test.use({ timezoneId: "UTC" });
 // superlative winners into a data table + derive loop).
 //
 // This freezes the ENTIRE rendered Superlatives grid on the repo sample data
-// (data.sample.js): for every ".card.super", the winner name (.s-name), the
+// (sample/data.sample.js): for every ".card.super", the winner name (.s-name), the
 // title (.s-title), and the full stat text (.s-stat), in DOM order. Where the
 // sibling stats-superlatives-guard.spec.js only pins the card *titles* and the
 // profile badges, this pins the winner *identity* and the exact desc string per
@@ -61,7 +61,7 @@ test.beforeEach(async ({ page }) => {
     localStorage.setItem("gca.onboarded", "1");
     localStorage.removeItem("gca.lastView");
   });
-  // Let the repo's real data.sample.js load; keep data.js / local.js inert.
+  // Let the repo's real sample/data.sample.js load; keep data.js / local.js inert.
   await page.route("**/data.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
   await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: "" }));
 });

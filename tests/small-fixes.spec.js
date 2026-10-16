@@ -65,7 +65,7 @@ async function bootInjected(page, data, { pfps } = {}) {
   await expect(page.locator(".msg").first()).toBeVisible();
 }
 
-// Boot on the real committed sample archive (data.sample.js untouched).
+// Boot on the real committed sample archive (sample/data.sample.js untouched).
 async function bootSample(page) {
   await page.addInitScript(() => {
     localStorage.setItem("gca.onboarded", "1");

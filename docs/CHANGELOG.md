@@ -138,7 +138,7 @@ All notable changes to this project are recorded here.
   The app itself still runs on Node 18.
 - The 100k-message performance test runs after the rest of the suite, on one
   worker, so its timings don't compete with other tests.
-- CI fails when `data.sample.js` or `sample_media/` differ from what the
+- CI fails when the demo data in `sample/` differs from what the
   generator makes.
 
 ### Features

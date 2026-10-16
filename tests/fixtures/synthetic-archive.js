@@ -3,14 +3,14 @@
 //
 // `generateArchive` is SELF-CONTAINED on purpose (no closures over module
 // scope): the perf spec injects `"(" + generateArchive + ")(opts)"` as the
-// body of data.sample.js, so 100k messages are generated in the page itself
+// body of sample/data.sample.js, so 100k messages are generated in the page itself
 // instead of shipping a ~20 MB JSON payload through page.route().
 //
 //   generateArchive({ main: 100000, side: 20000, seed: 4242 })
 //     -> { __sample: true, conversations: [ "Perf Big" (main msgs, 7 people,
 //          2019-03 → 2024-09), "Perf Side" (side msgs, 4 people) ] }
 //
-// Manual use (writes a data.sample.js-shaped file to stdout, e.g. for the
+// Manual use (writes a sample/data.sample.js-shaped file to stdout, e.g. for the
 // scratch perf harness): node tests/fixtures/synthetic-archive.js 100000 > /tmp/perf-data.js
 function generateArchive(opts) {
   opts = opts || {};
@@ -37,7 +37,7 @@ function generateArchive(opts) {
         r.x += " " + url;
         r.u = [{ s: url, e: url }];
       }
-      if (chance(0.03)) { r.m = "sample_media/photo-1.svg"; r.k = "img"; }
+      if (chance(0.03)) { r.m = "sample/photo-1.svg"; r.k = "img"; }
       if (chance(0.2)) {
         const o = parts.filter((p) => p !== s);
         r.r = [{ k: pick(REACTS), s: pick(o) }];
@@ -53,7 +53,7 @@ function generateArchive(opts) {
   return { generatedAt: "2024-09-01T00:00:00.000Z", __sample: true, conversations };
 }
 
-// data.sample.js-shaped script body that generates the archive in the page.
+// sample/data.sample.js-shaped script body that generates the archive in the page.
 function archiveScript(opts) {
   return "window.CHAT_DATA = (" + generateArchive.toString() + ")(" + JSON.stringify(opts || {}) + ");";
 }

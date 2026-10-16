@@ -54,7 +54,7 @@
   // data URL or a wizard-saved slug path; anything else collapses to "" (falsy),
   // which every call site treats as "no photo" (initials fallback).
   const PHOTO_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]*$/i;
-  const PHOTO_PATH_RE = /^(?:personal_data|sample_media)\/[A-Za-z0-9._/-]+$/;
+  const PHOTO_PATH_RE = /^(?:personal_data|sample)\/[A-Za-z0-9._/-]+$/;
   function sanitizePhoto(v) {
     if (typeof v !== "string") return "";
     return (PHOTO_RE.test(v) || PHOTO_PATH_RE.test(v)) ? v : "";

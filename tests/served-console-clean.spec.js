@@ -21,7 +21,7 @@ test("served app loads with no 404s or console errors (optional overrides are em
   // truthy, which it always is (a Locator is never null/undefined, matched or
   // not) — this passed even if the app never fell back to the sample at all.
   // Assert something that is actually only true when the fallback happened:
-  // window.CHAT_DATA.__sample is the fallback's own marker (see data.sample.js
+  // window.CHAT_DATA.__sample is the fallback's own marker (see sample/data.sample.js
   // / cmdk-jump.spec.js's DATA fixture, which sets it for the same reason).
   await expect.poll(() => page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample)).toBe(true);
 

@@ -13,7 +13,7 @@ const LIST = (() => {
     if (k % 5 === 0) m.r = [{ s: "u2", k: "funny" }, { s: "u3", k: "like" }];
     out.push(m);
   }
-  out.push({ i: "p1", s: "u1", t: T + 40 * 3600000, x: "", m: "sample_media/photo-1.svg", k: "img" });
+  out.push({ i: "p1", s: "u1", t: T + 40 * 3600000, x: "", m: "sample/photo-1.svg", k: "img" });
   return out;
 })();
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };

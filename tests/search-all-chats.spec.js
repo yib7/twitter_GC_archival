@@ -170,7 +170,7 @@ test.describe("unnamed people in other chats keep their own chat's User N", () =
   const SHARED = "1000000001";                  // User 1 in Alpha, User 3 in Beta
   const UA = msgs("ua", 5, { s: [SHARED, "1000000002", SHARED, "1000000002", SHARED], t0: T, x: (k) => "pizza a" + k });
   // b3 (P) and b5 (SHARED) carry several files, so their extra files are labelled too
-  const MULTI = { m: "sample_media/photo-1.svg", k: "img", mx: [{ m: "sample_media/photo-2.svg", k: "img" }, { m: "sample_media/clip-1.svg", k: "vid" }] };
+  const MULTI = { m: "sample/photo-1.svg", k: "img", mx: [{ m: "sample/photo-2.svg", k: "img" }, { m: "sample/clip-1.svg", k: "vid" }] };
   const UB = msgs("ub", 6, { s: ["2000000007", P, "2000000007", P, "2000000007", SHARED], t0: T + 864e5, x: (k) => "pizza b" + k,
     extra: (k) => (k === 3 || k === 5 ? MULTI : null) });
   const UDATA = { conversations: [conv("A", "Alpha", UA), conv("B", "Beta", UB)] };

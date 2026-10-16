@@ -10,7 +10,7 @@ test.use({ timezoneId: "UTC" });
 // 23:30 UTC on Mar 10 is Mar 11 in Tokyo
 const T = Date.parse("2024-03-10T23:30:00Z");
 const DATA = { conversations: [conv("A", "Alpha", [
-  { i: "p1", s: "u1", t: T, x: "a photo", m: "sample_media/photo-1.svg", k: "img" },
+  { i: "p1", s: "u1", t: T, x: "a photo", m: "sample/photo-1.svg", k: "img" },
   { i: "p2", s: "u2", t: T + 60000, x: "ok" },
 ])] };
 const cell = (page) => page.locator("#view-gallery .gcell").first();

@@ -11,15 +11,15 @@ const DATA = {
     { id: "A", type: "group", title: "Alpha", participants: ["u1"], count: 3,
       msgs: [
         { i: "a1", s: "u1", t: Date.parse("2024-01-01T10:00:00Z"), x: "alpha text" },
-        { i: "a2", s: "u1", t: Date.parse("2024-01-02T10:00:00Z"), x: "alpha pic one", m: "sample_media/alpha_1.png", k: "img" },
-        { i: "a3", s: "u1", t: Date.parse("2024-01-03T10:00:00Z"), x: "alpha pic two", m: "sample_media/alpha_2.png", k: "img" },
+        { i: "a2", s: "u1", t: Date.parse("2024-01-02T10:00:00Z"), x: "alpha pic one", m: "sample/alpha_1.png", k: "img" },
+        { i: "a3", s: "u1", t: Date.parse("2024-01-03T10:00:00Z"), x: "alpha pic two", m: "sample/alpha_2.png", k: "img" },
       ], events: [] },
     { id: "B", type: "group", title: "Beta", participants: ["u2"], count: 4,
       msgs: [
         { i: "b1", s: "u2", t: Date.parse("2024-02-01T10:00:00Z"), x: "beta text" },
-        { i: "b2", s: "u2", t: Date.parse("2024-02-02T10:00:00Z"), x: "beta pic one", m: "sample_media/beta_1.png", k: "img" },
-        { i: "b3", s: "u2", t: Date.parse("2024-02-03T10:00:00Z"), x: "beta pic two", m: "sample_media/beta_2.png", k: "img" },
-        { i: "b4", s: "u2", t: Date.parse("2024-02-04T10:00:00Z"), x: "beta pic three", m: "sample_media/beta_3.png", k: "img" },
+        { i: "b2", s: "u2", t: Date.parse("2024-02-02T10:00:00Z"), x: "beta pic one", m: "sample/beta_1.png", k: "img" },
+        { i: "b3", s: "u2", t: Date.parse("2024-02-03T10:00:00Z"), x: "beta pic two", m: "sample/beta_2.png", k: "img" },
+        { i: "b4", s: "u2", t: Date.parse("2024-02-04T10:00:00Z"), x: "beta pic three", m: "sample/beta_3.png", k: "img" },
       ], events: [] },
   ],
 };
@@ -40,7 +40,7 @@ async function boot(page, { savedConv, localJs = "" } = {}) {
 }
 
 // img.src is assigned the raw m.m path, so the src *attribute* keeps the
-// relative "sample_media/…" form — assert on filenames, order-agnostically.
+// relative "sample/…" form — assert on filenames, order-agnostically.
 async function expectGallerySrcs(page, filenames) {
   const imgs = page.locator("#gal-list .gcell img");
   await expect(imgs).toHaveCount(filenames.length);

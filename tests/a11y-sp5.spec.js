@@ -7,10 +7,10 @@ const { contrastFailures } = require("./_contrast.js");
 const T = Date.parse("2024-03-10T12:00:00Z");
 const LIST = [
   { i: "m0", s: "u1", t: T, x: "hello there, see https://example.test/a" },
-  { i: "m1", s: "u2", t: T + 60000, x: "a photo", m: "sample_media/photo-1.svg", k: "img", r: [{ s: "u1", k: "funny" }] },
+  { i: "m1", s: "u2", t: T + 60000, x: "a photo", m: "sample/photo-1.svg", k: "img", r: [{ s: "u1", k: "funny" }] },
   { i: "m2", s: "u3", t: T + 120000, x: "third message" },
   { i: "m3", s: "u1", t: T + 86400000, x: "next day hello" },
-  { i: "m4", s: "u2", t: T + 86400000 + 60000, x: "another photo", m: "sample_media/photo-2.svg", k: "img" },
+  { i: "m4", s: "u2", t: T + 86400000 + 60000, x: "another photo", m: "sample/photo-2.svg", k: "img" },
   { i: "m5", s: "u3", t: T + 86400000 + 120000, x: "the last word" },
 ];
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
@@ -198,8 +198,8 @@ const RICH = (() => {
     if (k % 7 === 0) m.r = [{ s: "u3", k: "funny" }, { s: k % 2 ? "u1" : "u2", k: "like" }];
     out.push(m);
   }
-  out.push({ i: "p1", s: "u3", t: t + 50 * 60000, x: "", m: "sample_media/photo-1.svg", k: "img", r: [{ s: "u1", k: "funny" }] });
-  out.push({ i: "p2", s: "u1", t: t + 51 * 60000, x: "", m: "sample_media/photo-2.svg", k: "img" });
+  out.push({ i: "p1", s: "u3", t: t + 50 * 60000, x: "", m: "sample/photo-1.svg", k: "img", r: [{ s: "u1", k: "funny" }] });
+  out.push({ i: "p2", s: "u1", t: t + 51 * 60000, x: "", m: "sample/photo-2.svg", k: "img" });
   return out;
 })();
 const RICH_DATA = { conversations: [conv("A", "Alpha", RICH)] };
@@ -789,7 +789,7 @@ test.describe("the sticky day pill doesn't block what's under it", () => {
 // RICH plus own-message content that only renders for `me`: a file chip and a
 // link, with a highlighted search hit in the bubble.
 const CONTRAST_DATA = { conversations: [conv("A", "Alpha", RICH.concat([
-  { i: "c1", s: "u1", t: Date.parse("2024-05-01T16:00:00Z"), x: "the plan doc, see https://example.test/plan", m: "sample_media/report.pdf", k: "file" },
+  { i: "c1", s: "u1", t: Date.parse("2024-05-01T16:00:00Z"), x: "the plan doc, see https://example.test/plan", m: "sample/report.pdf", k: "file" },
 ]))] };
 test.describe("Contrast of rendered text, every view × theme", () => {
   for (const th of THEMES) {

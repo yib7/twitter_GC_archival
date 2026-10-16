@@ -90,7 +90,7 @@ module.exports = defineConfig({
       // Fresh, empty, throwaway — the ~12 specs that don't stub data.js/local.js
       // (smoke, csp, localstorage, served-console-clean, the setup-*.spec.js
       // files that don't mock /api/*) get an unbuilt archive and fall back to
-      // the committed data.sample.js, exactly like a clean `npm start` would.
+      // the committed sample/data.sample.js, exactly like a clean `npm start` would.
       GCA_PERSONAL: testPersonalDir,
       // GCA_PERSONAL alone does not stop server.js from reading a
       // legacy ROOT/data.js or ROOT/names.local.js (readBuiltData's own

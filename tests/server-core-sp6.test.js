@@ -114,7 +114,7 @@ test("isPrivateServedPath covers the archive, the names and everything under per
   for (const p of ["/data.js", "/names.local.js", "/personal_data/data.js", "/personal_data/local.js", "/personal_data/media/9001-a.mp4", "/personal_data/pfps/ann_pfp.png", "/personal_data"]) {
     assert.equal(core.isPrivateServedPath(p), true, p);
   }
-  for (const p of ["/", "/index.html", "/setup.html", "/data.sample.js", "/src/app.js", "/lib/x.js", "/sample_media/photo-1.svg", "/favicon.ico"]) {
+  for (const p of ["/", "/index.html", "/setup.html", "/sample/data.sample.js", "/src/app.js", "/lib/x.js", "/sample/photo-1.svg", "/favicon.ico"]) {
     assert.equal(core.isPrivateServedPath(p), false, p);
   }
 });

@@ -12,11 +12,11 @@ const T = Date.parse("2024-02-01T10:00:00Z");
 const H = 3600000;
 const LIST = [
   { i: "a1", s: "u1", t: T, x: "pizza tonight" },
-  { i: "a2", s: "u2", t: T + H, x: "pizza again", m: "sample_media/photo-1.svg", k: "img" },
+  { i: "a2", s: "u2", t: T + H, x: "pizza again", m: "sample/photo-1.svg", k: "img" },
   { i: "a3", s: "u3", t: T + 2 * H, x: "pizza talk" },
   { i: "a4", s: "u4", t: T + 3 * H, x: "pizza menu" },
-  { i: "a5", s: "u5", t: T + 4 * H, x: "pizza photo", m: "sample_media/photo-2.svg", k: "img" },
-  { i: "a6", s: "u1", t: T + 5 * H, x: "more pizza", m: "sample_media/photo-3.svg", k: "img" },
+  { i: "a5", s: "u5", t: T + 4 * H, x: "pizza photo", m: "sample/photo-2.svg", k: "img" },
+  { i: "a6", s: "u1", t: T + 5 * H, x: "more pizza", m: "sample/photo-3.svg", k: "img" },
 ];
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 const NAMES = 'window.LOCAL_NAMES = {"u1":"Bob","u2":"Bella","u3":"José Álvarez","u4":"Mary-Jane","u5":"Ana María"};';

@@ -106,5 +106,5 @@ test("server enforces the static-path allowlist", async ({ request }) => {
   expect((await request.get("/.git/HEAD")).status()).toBe(404);
   // App assets stay reachable.
   expect((await request.get("/src/app.js")).status()).toBe(200);
-  expect((await request.get("/data.sample.js")).status()).toBe(200);
+  expect((await request.get("/sample/data.sample.js")).status()).toBe(200);
 });

@@ -32,7 +32,7 @@ test("sanitizeColor accepts only plain hex colours", () => {
 });
 
 test("sanitizePhoto accepts image data URLs and wizard slug paths only", () => {
-  for (const ok of [PNG, "data:image/svg+xml;base64,AAAA", "personal_data/pfp/u1.jpg", "sample_media/a-b_c.png"]) {
+  for (const ok of [PNG, "data:image/svg+xml;base64,AAAA", "personal_data/pfp/u1.jpg", "sample/a-b_c.png"]) {
     assert.equal(sanitizePhoto(ok), ok, ok);
   }
   for (const bad of [

@@ -11,9 +11,9 @@ const T = Date.parse("2024-02-01T10:00:00Z");
 const H = 3600000;
 const LIST = [
   { i: "a1", s: "u1", t: T, x: "pizza tonight" },
-  { i: "a2", s: "u2", t: T + H, x: "pizza again", m: "sample_media/photo-1.svg", k: "img" },
-  { i: "a3", s: "u3", t: T + 2 * H, x: "café talk", m: "sample_media/clip-1.svg", k: "vid" },
-  { i: "a4", s: "u4", t: T + 3 * H, x: "the caf menu", m: "sample_media/report.pdf", k: "file" },
+  { i: "a2", s: "u2", t: T + H, x: "pizza again", m: "sample/photo-1.svg", k: "img" },
+  { i: "a3", s: "u3", t: T + 2 * H, x: "café talk", m: "sample/clip-1.svg", k: "vid" },
+  { i: "a4", s: "u4", t: T + 3 * H, x: "the caf menu", m: "sample/report.pdf", k: "file" },
   { i: "a5", s: "u5", t: T + 4 * H, x: "see https://t.co/zz", u: [{ s: "https://t.co/zz", e: "https://example.com/menu", d: "example.com/menu" }] },
   { i: "a6", s: "u1", t: T + 5 * H, x: "pinned pizza plan" },
 ];

@@ -6,7 +6,7 @@ const { bootViewer, msgs, conv, afterSearchRun } = require("./_viewer-fixture.js
 // showing media only" over a blank page with 0 cells and no explanation.
 // In grid mode the result set is now the media subset.
 const LIST = msgs("m", 20, { x: (k) => "text " + k,
-  extra: (k) => (k === 3 || k === 11 ? { m: "sample_media/photo-" + k + ".svg", k: "img" } : null) });
+  extra: (k) => (k === 3 || k === 11 ? { m: "sample/photo-" + k + ".svg", k: "img" } : null) });
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 const grid = (page) => page.locator('#f-viewtoggle button[data-mode="grid"]').click();
 

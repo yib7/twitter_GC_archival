@@ -26,7 +26,7 @@ const DATA = {
         { i: "m2", s: "u2", t: Date.parse("2024-01-06T10:00:00Z"), x: "message from bella" },
         // bella (u2) also shares a file — a .pdf/unknown extension, i.e. the
         // kindOf() "file" kind that must render a chip, not a broken <video>.
-        { i: "m3", s: "u2", t: Date.parse("2024-01-07T10:00:00Z"), x: "a shared doc", m: "sample_media/report.pdf", k: "file" },
+        { i: "m3", s: "u2", t: Date.parse("2024-01-07T10:00:00Z"), x: "a shared doc", m: "sample/report.pdf", k: "file" },
         { i: "m4", s: "u2", t: Date.parse("2024-01-08T10:00:00Z"), x: "unrelated chatter" },
       ],
       events: [],
@@ -45,9 +45,9 @@ const HAS_DATA = {
       id: "H", type: "group", title: "Ops", participants: ["u1", "u2"], count: 4,
       msgs: [
         { i: "h1", s: "u1", t: Date.parse("2024-02-01T10:00:00Z"), x: "plain chatter" },
-        { i: "h2", s: "u2", t: Date.parse("2024-02-02T10:00:00Z"), x: "a photo", m: "sample_media/photo-1.svg", k: "image" },
+        { i: "h2", s: "u2", t: Date.parse("2024-02-02T10:00:00Z"), x: "a photo", m: "sample/photo-1.svg", k: "image" },
         { i: "h3", s: "u1", t: Date.parse("2024-02-03T10:00:00Z"), x: "see https://t.co/x1", u: [{ s: "https://t.co/x1", e: "https://example.com", d: "example.com" }] },
-        { i: "h4", s: "u2", t: Date.parse("2024-02-04T10:00:00Z"), x: "photo with link https://t.co/x2", m: "sample_media/photo-2.svg", k: "image", u: [{ s: "https://t.co/x2", e: "https://example.com/2", d: "example.com/2" }] },
+        { i: "h4", s: "u2", t: Date.parse("2024-02-04T10:00:00Z"), x: "photo with link https://t.co/x2", m: "sample/photo-2.svg", k: "image", u: [{ s: "https://t.co/x2", e: "https://example.com/2", d: "example.com/2" }] },
       ],
       events: [],
     },

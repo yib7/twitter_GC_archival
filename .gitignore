@@ -83,9 +83,3 @@ docs/superpowers/
 .DS_Store
 Thumbs.db
 *.log
-
-# ============================================================================
-#  Explicitly KEEP the synthetic, publishable sample (negate the broad ignore)
-# ============================================================================
-!data.sample.js
-!sample_media/

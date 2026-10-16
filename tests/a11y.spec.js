@@ -8,7 +8,7 @@ const DATA = {
     id: "G1", type: "group", title: "A11y Group", participants: ["u1", "u2"], count: 2,
     msgs: [
       { i: "m1", s: "u1", t: Date.parse("2020-05-01T10:00:00Z"), x: "hello there" },
-      { i: "m2", s: "u2", t: Date.parse("2020-05-01T11:00:00Z"), x: "a photo", m: "sample_media/photo-1.svg", k: "img" },
+      { i: "m2", s: "u2", t: Date.parse("2020-05-01T11:00:00Z"), x: "a photo", m: "sample/photo-1.svg", k: "img" },
     ],
     events: [],
   }],

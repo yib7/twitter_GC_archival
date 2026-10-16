@@ -20,7 +20,7 @@ const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, to
 
 /* ---- Data (multi-conversation) ------------------------------------------- */
 const DATA = window.CHAT_DATA || { conversations: [] };
-// True only for the shipped synthetic demo (data.sample.js sets __sample). Any
+// True only for the shipped synthetic demo (sample/data.sample.js sets __sample). Any
 // real build (data.js / personal_data/data.js) overrides CHAT_DATA without it.
 const IS_SAMPLE = !!(DATA && DATA.__sample);
 const CONVOS = normalizeConvos(DATA);

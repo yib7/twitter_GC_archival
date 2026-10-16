@@ -116,13 +116,13 @@ function mergeNames(prev, posted) {
 // outright rather than resolved; serveStatic's existing path.resolve +
 // relative() traversal guard still runs beneath this call, unchanged, as
 // defense in depth.
-const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico", "/data.sample.js", "/data.js", "/names.local.js", "/personal_data/data.js", "/personal_data/local.js"]);
-const SERVABLE_PREFIXES = ["/src/", "/lib/", "/sample_media/", "/personal_data/media/", "/personal_data/pfps/"];
+const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico", "/data.js", "/names.local.js", "/personal_data/data.js", "/personal_data/local.js"]);
+const SERVABLE_PREFIXES = ["/src/", "/lib/", "/sample/", "/personal_data/media/", "/personal_data/pfps/"];
 // The real-data overrides index.html probes with `<script src=... onerror>`. They
 // are gitignored, so on a clean clone / before setup they are absent and a plain
 // 404 prints a console error on every served load. Serving an empty 200 for a
 // MISSING one keeps the served console clean (the app harmlessly keeps the bundled
-// data.sample.js). A present file is served normally, unchanged. (Over file:// there
+// sample/data.sample.js). A present file is served normally, unchanged. (Over file:// there
 // is no server to intercept, so those file-not-found lines are inherent to the
 // zero-setup double-click mode — this only cleans `npm start`.) Keep in sync with
 // the `<script>` probe list in index.html — asserted by server-core.test.js.

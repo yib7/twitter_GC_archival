@@ -1,7 +1,7 @@
 const { expect } = require("@playwright/test");
 
 // Shared synthetic-data harness for the viewer specs. Routes a fixture
-// in place of data.sample.js (always flagged __sample so the app treats it as
+// in place of sample/data.sample.js (always flagged __sample so the app treats it as
 // the demo), blanks data.js, and optionally supplies a local.js. localStorage
 // is seeded on the FIRST load of the page only, so specs that reload keep
 // whatever the app itself persisted.

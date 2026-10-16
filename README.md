@@ -10,7 +10,7 @@ internet. Have several group chats? A picker switches between them.
 
 > The repo ships with synthetic demo data. No real messages, names, or media
 > are committed. Open `index.html` and you'll see a runnable demo built from
-> `data.sample.js`. Point it at your own export to see your real history (kept
+> `sample/data.sample.js`. Point it at your own export to see your real history (kept
 > local and `.gitignore`d).
 
 ## Screenshots
@@ -208,7 +208,7 @@ You'll get a synthetic demo: three group chats, 660 messages over about 18
 months. Regenerate the demo data anytime (the output is identical on every run):
 
 ```bash
-node scripts/make_sample.js     # writes data.sample.js + sample_media/
+node scripts/make_sample.js     # writes sample/ (data.sample.js + photos)
 ```
 
 ---
@@ -302,7 +302,7 @@ recap, and the stats dashboard (synthetic demo data):
 
 ## Data schema
 
-`data.js` / `data.sample.js` define one global:
+`personal_data/data.js` / `sample/data.sample.js` define one global:
 
 ```js
 window.CHAT_DATA = {
@@ -346,13 +346,12 @@ src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
 scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
 scripts/build-core.js    pure archive-assembly logic used by build.js
-scripts/make_sample.js   synthetic demo generator -> data.sample.js + sample_media/
+scripts/make_sample.js   synthetic demo generator -> sample/
 scripts/server.js   static server + setup-wizard API (range requests for video)
 scripts/server-core.js   pure server helpers (path allowlist, Host/Origin/Sec-Fetch guards)
 scripts/fs-io.js    streaming export readers + atomic writes
 lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored, with licenses
-data.sample.js      committed synthetic demo data
-sample_media/       committed placeholder media
+sample/             committed synthetic demo data (data.sample.js) + placeholder photos
 tests/              node:test units (*.test.js) + Playwright specs (*.spec.js)
 docs/               architecture, security, changelog, credits, screenshots
 personal_data/      (git-ignored) wizard output: config.json, data.js(.bak), local.js,
