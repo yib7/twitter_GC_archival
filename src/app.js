@@ -5559,6 +5559,10 @@ function paintWrappedPlay() {
   b.hidden = !allowed;
   const on = !wrUserPaused && !wrEnded;
   const label = on ? "Pause" : "Play";
+  // repaint only on a change: pressing the button blurs the story, and a
+  // rebuilt button under the pointer never gets the click
+  if (b.dataset.state === label) return;
+  b.dataset.state = label;
   b.setAttribute("aria-label", label + " autoplay");
   b.title = label + " autoplay";
   b.innerHTML = (on ? WR_ICON.pause : WR_ICON.play) + '<span class="wr-btn-txt">' + label + "</span>";

@@ -223,6 +223,21 @@ test.describe("story mechanics", () => {
     await expect(btn).toHaveAccessibleName(/Pause/);
   });
 
+  // Pressing the button blurs the story, and that blur must not rebuild the
+  // button under the pointer (a rebuilt button never receives the click).
+  test("the Pause button works right after a press on the story", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    const btn = page.locator("#wr-play");
+    const b = await stageBox(page);
+    await page.mouse.click(b.x + b.width * 0.5, b.y + b.height * 0.6);   // the middle: no navigation, but the story has focus
+    await expect(page.locator("#wr-stage")).toBeFocused();
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(/Play/);
+    await page.mouse.click(b.x + b.width * 0.5, b.y + b.height * 0.6);
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(/Pause/);
+  });
+
   test("reduced motion: no autoplay and no Pause button, manual advance still works", async ({ page }) => {
     await openWrapped(page);
     await page.addStyleTag({ content: ".wr-stage { --wr-dur: 300ms !important; }" });
