@@ -138,14 +138,23 @@ test("Hall of Fame arrows walk the ranked media set", async ({ page }) => {
 });
 
 // The lightbox is always a dark scrim, so its caption can't use the theme's
-// dim text (Light's is a dark grey: 2.7:1 there). Readable in every theme.
+// dim text (Light's is a dark grey: 2.7:1 there). Readable in every theme,
+// and its "jump to message" link with a deep preset accent too (the raw
+// accent #1d4ed8 was 2.5:1 there).
 for (const th of ["lightsout", "dim", "light"]) {
   test(`the lightbox caption and its controls are readable on the scrim (${th})`, async ({ page }) => {
     const { contrastFailures } = require("./_contrast.js");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await bootViewer(page, DATA, { ls: { "gca.lastView": "gallery", "gca.theme": th } });
-    await page.locator("#gal-list > *").first().click();
-    await expect(page.locator(".lightbox .lb-cap")).toBeVisible();
-    expect(await contrastFailures(page, ".lightbox")).toEqual([]);
+    for (const accent of ["#1d9bf0", "#1d4ed8", "#6366f1"]) {
+      await page.locator('.nav-item[data-view="settings"]').click();
+      await page.locator("#set-accent-custom").fill(accent);
+      await page.locator('.nav-item[data-view="gallery"]').click();
+      await page.locator("#gal-list > *").first().click();
+      await expect(page.locator(".lightbox .lb-cap a")).toBeVisible();
+      expect(await contrastFailures(page, ".lightbox"), accent).toEqual([]);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(".lightbox")).toHaveCount(0);
+    }
   });
 }

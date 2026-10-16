@@ -948,7 +948,11 @@ function applyAccentTokens() {
   r.setProperty("--accent-text", k.text);
   r.setProperty("--accent-text-soft", readableOn(shade(accent, 25), bgs, 4.5));
   r.setProperty("--accent-ui", k.ui);
+  // the lightbox is a near-black scrim in every theme (over white it is
+  // #1f1f1f), so its link is derived against that, not the theme
+  r.setProperty("--accent-on-scrim", readableOn(accent, SCRIM_BGS, 4.5));
 }
+const SCRIM_BGS = ["#000000", "#262626"];
 
 /* ---- Theme modes (X: Light / Dim / Lights out) --------------------------- */
 // Persisted under its own gca.theme key (separate from gca.settings) and applied
@@ -1529,7 +1533,7 @@ function renderLightbox() {
   box.appendChild(mediaEl);
   
   const cap = el("div", "lb-cap");
-  cap.innerHTML = esc(nameOf(m.s) + " · " + DT.format(m.t)) + '  —  <a href="#" style="color:var(--accent)">jump to message ↗</a>';
+  cap.innerHTML = esc(nameOf(m.s) + " · " + DT.format(m.t)) + '  —  <a href="#">jump to message ↗</a>';
   cap.querySelector("a").onclick = (e) => { e.preventDefault(); close(); jumpTo(i); };
   box.appendChild(cap);
   

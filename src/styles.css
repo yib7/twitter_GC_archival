@@ -93,8 +93,9 @@ html[data-theme="light"]{
      --accent-grad-end  far end of the .msg.me / primary-button gradient
      --accent-text / --accent-text-soft  accent / its light tint used AS text
                    on the theme surfaces (>= 4.5:1)
-     --accent-ui   accent for 3:1 non-text UI (focus ring) on --bg-page */
-  --on-accent:#0f1419; --accent-fill:#1d9bf0; --accent-grad-end:#3faaf2; --accent-text:#1d9bf0; --accent-text-soft:#4db2f5; --accent-ui:#1d9bf0;
+     --accent-ui   accent for 3:1 non-text UI (focus ring) on --bg-page
+     --accent-on-scrim  accent as text on the lightbox's dark scrim (any theme) */
+  --on-accent:#0f1419; --accent-fill:#1d9bf0; --accent-grad-end:#3faaf2; --accent-text:#1d9bf0; --accent-text-soft:#4db2f5; --accent-ui:#1d9bf0; --accent-on-scrim:#1d9bf0;
 }
 
 /* ==== Compact theme toggle — sidebar footer (desktop) + More sheet (mobile) ==== */
@@ -859,7 +860,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .lightbox .lb-next { right: 10px; }
 /* the scrim is dark in every theme, so the caption is a fixed light grey (Light's --text-dim is 2.7:1 on it) */
 .lightbox .lb-cap { position: absolute; bottom: 18px; left: 0; right: 0; text-align: center; color: #b9c0c6; font-size: 13px; z-index: 110; background: linear-gradient(0deg, rgba(0,0,0,0.8), transparent); padding-top: 30px; pointer-events: none; }
-.lightbox .lb-cap a { pointer-events: auto; }
+.lightbox .lb-cap a { pointer-events: auto; color: var(--accent-on-scrim); }
 
 .toast {
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
