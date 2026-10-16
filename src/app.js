@@ -2354,6 +2354,7 @@ function resultKeydown(e) {
   const r = resultAt(+card.dataset.pos);
   if (!r) return;
   e.preventDefault();
+  clearTimeout(resAnnT);   // this key's own message, not a "Result n of m" still queued
   if (e.key === "b") {
     togglePin(r.m.i);
     announce(isPinned(r.m.i) ? "Bookmarked" : "Removed bookmark");

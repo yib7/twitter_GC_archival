@@ -91,7 +91,10 @@ test("Enter opens the result, c its context, b bookmarks it", async ({ page }) =
   const at = await active(page);
   await page.keyboard.press("b");
   await expect(page.locator("#s-list .msg:focus .act-pin")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator("#sr-status")).toHaveText("Bookmarked");
+  // "j" queued a "Result 2 of 12" announcement 250 ms out; pressed sooner, "b"
+  // must win it, not be overwritten by it a moment later. The wait outlasts that timer.
+  await page.waitForTimeout(400);
+  expect(await page.locator("#sr-status").textContent()).toBe("Bookmarked");
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("gca.settings")).pins.length)).toBe(1);
   await page.keyboard.press("b");
   await expect(page.locator("#s-list .msg:focus .act-pin")).toHaveAttribute("aria-pressed", "false");
