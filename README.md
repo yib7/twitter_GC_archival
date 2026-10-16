@@ -2,11 +2,30 @@
 
 [![CI](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml/badge.svg)](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml)
 
-A dependency-free, fully offline browser for Twitter/X group chat (group DM)
-exports. Drop in your export, run one build script, and explore years of group
-history with fuzzy search, a virtual timeline, a media gallery, year-in-review
-"Wrapped" slideshows, leaderboards, and more. No server, no API keys, no
-internet. Have several group chats? A picker switches between them.
+An offline browser for Twitter/X group chat (group DM) exports. Search,
+read and chart years of group history from one `index.html` opened straight
+from disk.
+
+- **Runs from `file://`.** Vanilla JavaScript, no framework, no front-end
+  build step, and no runtime npm dependencies (Fuse.js and Chart.js are
+  vendored). A strict Content-Security-Policy, and nothing is sent over the
+  internet.
+- **Fast at 100K+ messages.** A virtualized timeline, exact-first search with
+  a prefiltered fuzzy fallback, and Stats computed in time-sliced passes.
+  CI holds search, Stats and Wrapped to timing budgets on a 120K-message
+  synthetic archive.
+- **Streaming import.** A local setup wizard previews an export read-only,
+  then builds it. The build streams, so a ~600 MB export imports, and a newer
+  export merges in, deduplicated by message id.
+- **A locked-down local server.** Needed only for setup, it listens on
+  `127.0.0.1` only and checks `Host`, `Origin` and `Sec-Fetch-Site` so other websites can't
+  read or change your archive. Node built-ins only.
+- **Tested.** About 690 unit tests and 620 Playwright browser tests,
+  including keyboard and colour-contrast audits in all three themes. CI runs
+  them on Windows, macOS and Linux.
+
+Reading an archive needs only a browser: no server, no account, no API key,
+no internet. Several group chats in one export? A picker switches between them.
 
 > The repo ships with synthetic demo data. No real messages, names, or media
 > are committed. Open `index.html` and you'll see a runnable demo built from
@@ -21,36 +40,12 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
 <tr>
 <td width="50%">
 
-![Search view on the default dark Lights-out theme: a fuzzy search for the misspelled "hilarous" finds no exact match and lists five close matches, highlighting "hilarious" in each "that's hilarious" message from the synthetic Demo Squad chat](docs/screenshot.png)
-
-</td>
-<td width="50%">
-
 ![Search across All chats for "weekend has:reacts after:2024-03": the operators show as removable "Has reactions" and "Since March 2024" chips under the box, and the five exact matches are grouped by chat, Demo Squad first, each group with a "Search only" link](docs/screenshot-search.png)
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 ![Timeline view opened at the start of the synthetic Demo Squad chat: a date pill, the "created the conversation" and "named the group" system events, and messages with reaction chips under them](docs/screenshot-timeline.png)
-
-</td>
-<td width="50%">
-
-![The Jump to date calendar over the Timeline: a date box that accepts natural dates, 2024 and 2025 year buttons, month bars sized by message volume with March 2024 selected, and a month of days where days with messages are highlighted](docs/screenshot-calendar.png)
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-![Wrapped year-in-review story for 2024 in the synthetic Demo Squad chat: a segmented progress bar, a large "2024 Wrapped" title over an accent-coloured backdrop, and Back, Share and Next buttons](docs/screenshot-wrapped.png)
-
-</td>
-<td width="50%">
-
-![The Share image dialog for a Wrapped ranking slide with "Hide names & photos" ticked: the preview card reads "61 messages from Person A" and ranks Person A, B and C with plain grey discs instead of avatars, above Copy image and Download PNG buttons](docs/screenshot-share.png)
 
 </td>
 </tr>
@@ -72,101 +67,119 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
 
 ## Features
 
-- Search that shows exact matches first and falls back to typo-tolerant
-  fuzzy matches (Fuse.js) when there are none; "+ Show close matches" adds
-  them on demand, and the matched text is highlighted either way. Sorting,
-  list/grid views, saved searches, and plain-text export of the results.
-  Search also covers the text a link shows (its full and display URL).
-  - Operators, typed in the box and shown as removable chips under it (click
-    a chip or press Backspace on it to drop it):
+- **Search.** Exact matches first, typo-tolerant fuzzy matches (Fuse.js)
+  when there are none or on request, with the matched text highlighted.
+  Operators such as `from:`, `has:photo`, `after:2021-06` and `-word` show as
+  removable chips. Sorting, list/grid views, saved searches and plain-text
+  export. Covers link text too (full and display URLs).
+- **All chats.** Search every group chat at once, grouped by chat, with a
+  "Search only <chat>" button on each group.
+- **Keyboard.** `/` focuses search; `j` / `k` move through results, `Enter`
+  opens one, `c` shows its context, `b` bookmarks it. Cmd/Ctrl-K opens a
+  command palette with commands, people, dates and matching messages.
+- **Timeline.** Virtualized, smooth at 100K+ messages, with inline system
+  events (created, renamed, joins, leaves). Opens at the newest message and
+  remembers your place per conversation.
+- **Jump to any date** from a calendar heatmap or the palette, both reading
+  natural dates ("June 2021", "Jan 7 2024").
+- **Deep links.** The address bar tracks view, chat and message by id only,
+  so Back / Forward work, even from `file://`. Your search text never goes in
+  the URL.
+- **Gallery** of every photo and video, with a lightbox. Reactions render
+  under each message, custom emoji included.
+- **Hall of Fame** (most-reacted messages, podium, yearly leaderboards) and
+  **Wrapped**, a tap-through year-in-review story.
+- **Stats:** per-person activity, word clouds, milestones, busiest hours and
+  superlatives that say how they are measured. Plus **Threads**,
+  **Chains** and head-to-head word **Battles**.
+- **Pinned** messages across every chat, a Time Capsule ("on this day"),
+  Random Quote and context peek.
+- **Share cards.** Save a message, Hall of Fame entry or Wrapped slide as a
+  PNG, offline, with an optional "Hide names & photos" (see the note below).
+- **Setup wizard.** Previews what an export holds (chats, counts, dates,
+  people, media, warnings) before writing anything, then builds the archive
+  and lets you name people and groups. Merges a newer export later without
+  losing names, photos or removals.
+- **Time zones.** Dates and stats follow your browser's zone, or any IANA
+  zone you pick in Settings.
+- **Theming.** Light, Dim and Lights-out (a black-and-blue default), with a
+  custom accent, density and a theme shuffle, saved in `localStorage`.
+- **Mobile layout** (≤760px): top app bar, 5-tab bottom bar and a bottom
+  sheet for the other views.
+- **Accessible.** Keyboard-reachable controls with a visible focus ring and
+  screen-reader labels, dialogs that hold focus, and WCAG AA text contrast in
+  all three themes.
 
-    | Operator | Keeps messages… |
-    | --- | --- |
-    | `from:ann`, `from:"Ann Lee"` (alias `sender:`) | sent by that person. Matches display names and aliases; typing `from:` suggests people |
-    | `has:photo` `has:video` `has:file` | with a photo, a video or another attachment |
-    | `has:media` `has:link` `has:reacts` | with any media, a link, or reactions |
-    | `is:pinned` | you bookmarked |
-    | `after:2021-06` `before:2024` | from / through a date (see below) |
-    | `"exact phrase"` | containing the phrase word for word, in Fuzzy mode too |
-    | `-word`, `-"some phrase"` | without that word or phrase |
+> **Hiding names on share cards** is word-based, so check the preview before
+> you share. A name that is also a common word (a lowercase "will") may stay
+> in the text. A one-word name that is a common word or one letter ("Will",
+> "U") is hidden everywhere, so a line can read "I Person A go". A possessive
+> name hides its stem too: "Dad's Phone" also hides "Dad".
 
-    Operators work with any script and accents (`from:Zoë`, `-café`).
-  - **This chat / All chats**: All chats searches every group chat at once
-    (exact matches), grouped by chat with a count and a "Search only <chat>"
-    button on each group. Removed group chats and ignored people stay out.
-  - **Keyboard**: `/` focuses the box. Once a result has focus, `j` / `↓` and
-    `k` / `↑` move between results, `Enter` opens one, `c` shows its context
-    and `b` bookmarks it.
-  - **Command palette** (Cmd/Ctrl-K): besides commands, people and dates, it
-    shows the five newest matching messages in this chat. "See all in Search"
-    opens the full result list.
-  - Dates in `before:`/`after:` can be a day (`2021-06-14`), a month
-    (`2021-06`) or a year (`2021`), or a quoted natural date
-    (`after:"June 2021"`, `before:"Jan 7 2024"`). Both are **inclusive** of the
-    whole period they name, in your configured timezone, like the From/To
-    filter: `after:2021-06` starts on June 1, 2021 and `before:2021-06` keeps
-    all of June. `after:2024-01-07 before:2024-01-07` is exactly that day. A
-    date that doesn't exist (`2023-02-30`) is ignored with a note in the result
-    line instead of being rolled over to another day. Slashed dates are read
-    month first (`6/14/2021`); a day-first one (`14/06/2021`) is ignored with a
-    note to use `2021-06-14` or `Jun 14 2021`.
-- Dates and every stats bucket follow your browser's timezone by default; any
-  IANA zone (or UTC) can be picked in Settings.
-- Multiple group chats: a conversation picker switches between every group in
-  your export. Every view is scoped to the selected group.
-- A virtual timeline that scrolls 100K+ messages smoothly, with inline system
-  events (group created, renamed, joins, leaves). It opens at the newest
-  message, remembers your reading position per conversation, and has a
-  "Latest" button plus Home / End for the oldest / newest message.
-- Jump to any date from a calendar heatmap (year / month volume strips and a
-  keyboard-browsable month of days) or the Cmd/Ctrl-K palette, which both
-  accept natural dates ("June 2021", "Jan 7 2024") and say plainly when a date
-  doesn't exist or falls outside the archive.
-- Deep links: the address bar tracks the view, conversation and jumped-to
-  message by id only, so Back / Forward work across views and jumps (also
-  from `file://`), and "Link" on a message copies an ids-only link to it (from
-  `file://` just the `#…` part, so your local path isn't shared). Your
-  search text never goes in the URL (only the All chats switch does, as
-  `&s=all`); Back / Forward and reload restore it from the tab's history state.
-- Gallery of every photo and video, with a lightbox.
-- Reactions render inline under each message, including custom emoji
-  reactions shown as the actual glyph rather than a generic placeholder.
-- Hall of Fame: most-reacted messages, podium and leaderboards by year.
-- Wrapped, a year-in-review story: tap or swipe between slides, hold to
-  pause, with backdrops mixed from your accent colour.
-- Stats covering per-person activity, word clouds, milestones, busiest hours,
-  and superlatives.
-- Threads, Chains, and Battles for playful analytics and head-to-head.
-- A Pinned view that collects bookmarked messages from every group chat, a
-  Cmd/Ctrl-K command palette, a Time Capsule ("on this day"), Random Quote,
-  and context-peek.
-- Share cards: save any message, Hall of Fame entry or Wrapped slide as a
-  PNG in your theme, fully offline, with an optional "Hide names & photos"
-  that swaps names, @handles and photos for Person A/B/C. Check the preview
-  before you share: a name that is also a common word (a lowercase "will",
-  say) may be left in the message text. A one-word name that is a common
-  word or one letter ("Will", "U") goes the other way: that word is hidden
-  everywhere, so a line can read "I Person A go". A possessive name hides
-  its stem too: someone named "Dad's Phone" also hides "Dad".
-- A setup wizard that takes the unzipped archive folder, shows a read-only
-  preview of what it found (chats, counts, dates, people, media, plain
-  warnings) before writing anything, and later merges a newer export into the
-  archive without losing names, photos or removals. Builds stream, so a
-  ~600 MB export imports.
-- Theming: three modes (Light, Dim, and Lights-out, a black-and-blue default),
-  with a customizable accent, adjustable density, and a theme shuffle. All
-  preferences are saved to `localStorage`.
-- A responsive mobile layout (≤760px): a top app bar, a 5-tab bottom bar
-  (Search / Timeline / Gallery / Stats / More), and a bottom sheet for the
-  remaining views.
+<details>
+<summary><strong>Search operators and date rules</strong></summary>
+
+Operators are typed in the box and shown as removable chips under it (click
+a chip or press Backspace on it to drop it):
+
+| Operator | Keeps messages… |
+| --- | --- |
+| `from:ann`, `from:"Ann Lee"` (alias `sender:`) | sent by that person. Matches display names and aliases; typing `from:` suggests people |
+| `has:photo` `has:video` `has:file` | with a photo, a video or another attachment |
+| `has:media` `has:link` `has:reacts` | with any media, a link, or reactions |
+| `is:pinned` | you bookmarked |
+| `after:2021-06` `before:2024` | from / through a date (see below) |
+| `"exact phrase"` | containing the phrase word for word, in Fuzzy mode too |
+| `-word`, `-"some phrase"` | without that word or phrase |
+
+Operators work with any script and accents (`from:Zoë`, `-café`).
+
+All chats shows exact matches only. Removed group chats and ignored people
+stay out of it.
+
+Dates in `before:`/`after:` can be a day (`2021-06-14`), a month (`2021-06`),
+a year (`2021`), or a quoted natural date (`after:"June 2021"`).
+
+- Both are **inclusive** of the whole period they name, in your configured
+  timezone: `after:2021-06` starts on June 1, 2021 and `before:2021-06` keeps
+  all of June. `after:2024-01-07 before:2024-01-07` is exactly that day.
+- A date that doesn't exist (`2023-02-30`) is ignored with a note, never
+  rolled over to another day.
+- Slashed dates are read month first (`6/14/2021`). A day-first one
+  (`14/06/2021`) is ignored with a note to use `2021-06-14` or `Jun 14 2021`.
+
+</details>
+
+---
+
+## How it works
+
+```mermaid
+flowchart TD
+  L["start-setup launcher<br/>or npm start"] -->|starts| S
+  X["Your unzipped<br/>X export"] -->|"read, previewed, copied"| S
+  W["Setup wizard<br/>in the browser"] <-->|"JSON API"| S["Local setup server<br/>scripts/server.js<br/>127.0.0.1 only"]
+  S -->|"runs as a child process"| B["Build<br/>scripts/build.js<br/>streams · merges · dedupes"]
+  B -->|writes| P[("personal_data/<br/>git-ignored<br/>data.js · local.js<br/>media/ · pfps/")]
+  S -->|"names and photos"| P
+  P -->|"read from disk"| V["Viewer<br/>index.html + src/app.js<br/>opened from file://"]
+  D["sample/data.sample.js<br/>synthetic demo"] -.->|"when no archive is built"| V
+```
+
+1. The launcher starts a small Node server and opens the wizard.
+2. The wizard previews the export, then the server copies it and runs the build.
+3. The build writes `personal_data/data.js`; the wizard saves names and photos.
+4. From then on the viewer opens from disk. The server is only for setup.
+
+More detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
 ## Requirements
 
 - **To browse an archive (the demo included):** a modern browser. Nothing to
-  install and no internet connection. The test suite runs in Chromium, so
-  Chrome and Edge are the tested browsers.
+  install and no internet connection. The browser tests run in Chromium only
+  (Playwright); Firefox and Safari are not tested.
 - **To import your own export:** [Node.js](https://nodejs.org) 22.13 or newer
   for the setup wizard. CI tests Node 22.13.0 and Node 24; Node 23 and anything
   older than 22.13 are not supported, and the double-click launchers say so
@@ -382,8 +395,8 @@ local override.
 
 ```
 index.html          app shell + script loading
-start-setup.cmd     double-click launchers for the wizard (Windows / macOS)
-start-setup.command
+start-setup.cmd     wizard launcher for Windows (double-click)
+start-setup.command wizard launcher for macOS (double-click) and Linux (sh start-setup.command)
 src/app.js          all UI logic (vanilla JS, no framework)
 src/shared-core.js  helpers shared by the viewer, the wizard and the build
 src/theme-boot.js   applies the saved theme before first paint
@@ -417,20 +430,20 @@ For how the raw export, the build step, and the viewer fit together, see
 
 ## Limitations
 
-- Group chats only — 1:1 DM exports aren't parsed (X ships them in a separate
-  file this tool doesn't read).
-- Single-user, local-only: no accounts or sync. Everything you edit in-app
-  (names, photos, bookmarks) lives in this browser's `localStorage` unless you
-  back it up yourself.
-- Native Browse-button file dialogs are Windows-only; macOS/Linux users paste
-  file/folder paths into the wizard by hand.
-- Load-tested with synthetic data up to ~130K messages; hasn't been run
-  against a real export at that scale, and custom-emoji reaction rendering
-  trusts a documented X export field name that hasn't been independently
-  re-verified against a real archive.
+- **Not a hosted service.** One person, one machine: no accounts, no sync. What
+  you edit in the viewer (names, photos, bookmarks) lives in this browser's
+  `localStorage`; Settings → Export settings saves it to a file.
+- **X/Twitter group chats only.** 1:1 DMs (a separate file in the export) and
+  other platforms' exports aren't read.
+- **Chromium is the only tested browser,** and the wizard's Browse dialogs are
+  Windows-only (on macOS and Linux you paste the folder path).
+- **Tested scale is synthetic:** timing budgets at 120K messages, a build of a
+  ~600 MB export. No real export that large has been run, and custom-emoji
+  reactions rely on an X field name (`emojiReaction`) not yet checked against
+  a real archive.
 
-What's next: native macOS/Linux file-picker dialogs, and confirming that
-field name against a real export.
+What's next: native file pickers on macOS and Linux, a Firefox and WebKit run
+in CI, and confirming that field name against a real export.
 
 ---
 
