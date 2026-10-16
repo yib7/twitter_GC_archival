@@ -1609,8 +1609,12 @@ const server = http.createServer(async (req, res) => {
     // replies, but it could still make the server run them (/api/status and
     // /api/parts stream the whole archive; /api/ping keeps a launcher-started
     // server from shutting down). The wizard and the app only call them from
-    // this origin.
-    if (url.startsWith("/api/") && isForeignFetchSite(req.headers)) {
+    // this origin. A browser without Fetch Metadata (Safari before 16.4)
+    // still names the page that sent it: a present Origin or Referer must be
+    // this server's own (our pages keep their Referer on every same-origin
+    // request, Referrer-Policy: same-origin). Neither one (curl, a typed-in
+    // address) is still allowed.
+    if (url.startsWith("/api/") && (isForeignFetchSite(req.headers) || !isAllowedOrigin(req.headers.origin, req.headers.referer, PORT))) {
       req.resume();
       return sendJSON(res, 403, { error: "forbidden origin" });
     }

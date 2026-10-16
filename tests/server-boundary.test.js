@@ -58,7 +58,65 @@ describe("every /api/ route refuses a request the browser says another site sent
       assert.equal((await raw(S.port, "/api/status", { headers })).status, 200, String(site));
       assert.equal((await raw(S.port, "/api/progress", { headers })).status, 200, String(site));
       assert.equal((await raw(S.port, "/api/ping?c=abc", { headers })).status, 200, String(site));
+      // /api/parts ran (no group asked for), rather than being refused
+      const parts = await raw(S.port, "/api/parts", { headers });
+      assert.notEqual(parts.status, 403, String(site));
+      assert.doesNotMatch(parts.body, /forbidden/, String(site));
     }
+  });
+});
+
+// A browser without Fetch Metadata (Safari before 16.4) sends no
+// Sec-Fetch-Site, but an <img> or fetch from another site still carries
+// that site's Referer, and a sandboxed or file:// page sends Origin: null.
+// Those are refused too; this server's own pages send their own address
+// (Referrer-Policy: same-origin keeps it on every same-origin request), and
+// curl or a typed-in address sends neither.
+describe("every /api/ route refuses a foreign Origin or Referer when Sec-Fetch-Site is missing", () => {
+  let S;
+  before(async () => {
+    S = await startServer();
+    fs.writeFileSync(path.join(S.personal, "data.js"), 'window.CHAT_DATA = {"conversations":[]};\n');
+  });
+  after(() => S.stop());
+
+  const foreign = {
+    "a Referer from another site": { Referer: "https://evil.example/page" },
+    "Origin: null": { Origin: "null" },
+    "an Origin from another site": { Origin: "https://evil.example" },
+    "a Referer from another localhost port": () => ({ Referer: "http://127.0.0.1:" + (S.port + 1) + "/" }),
+    "an https Referer on this port": () => ({ Referer: "https://127.0.0.1:" + S.port + "/" }),
+  };
+  for (const p of ["/api/status", "/api/parts", "/api/parts?group=1", "/api/progress", "/api/ping?c=abc"]) {
+    for (const [what, h] of Object.entries(foreign)) {
+      test("GET " + p + " with " + what + " → 403", async () => {
+        const r = await raw(S.port, p, { headers: typeof h === "function" ? h() : h });
+        assert.equal(r.status, 403, r.body);
+        assert.match(r.body, /forbidden origin/);
+      });
+    }
+  }
+
+  test("this server's own pages, on 127.0.0.1 or localhost, and no header at all still answer", async () => {
+    const own = [
+      {},
+      { Referer: "http://127.0.0.1:" + S.port + "/setup.html" },
+      { Referer: "http://localhost:" + S.port + "/index.html#search" },
+      { Origin: "http://127.0.0.1:" + S.port },
+      { Origin: "http://localhost:" + S.port, Referer: "http://localhost:" + S.port + "/" },
+    ];
+    for (const headers of own) {
+      for (const p of ["/api/status", "/api/progress", "/api/ping?c=abc"]) {
+        assert.equal((await raw(S.port, p, { headers })).status, 200, p + " " + JSON.stringify(headers));
+      }
+    }
+  });
+
+  test("the goodbye beacon from this origin still answers, from another site it doesn't", async () => {
+    const own = await raw(S.port, "/api/bye?c=abc", { method: "POST", headers: { Origin: "http://127.0.0.1:" + S.port } });
+    assert.equal(own.status, 204);
+    const evil = await raw(S.port, "/api/bye?c=abc", { method: "POST", headers: { Referer: "https://evil.example/" } });
+    assert.equal(evil.status, 403);
   });
 });
 
