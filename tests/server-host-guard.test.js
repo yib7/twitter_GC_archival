@@ -211,14 +211,50 @@ describe("destructive & security-sensitive route coverage", () => {
     assert.equal(outOfRange.status, 416);
   });
 
+  // POSTs `body` over a raw socket and resolves with the response's status
+  // line as soon as it arrives. fetch() is the wrong tool for a body past the
+  // server's 64 MB cap: the server answers 413 mid-upload and then deliberately
+  // closes the connection (see readBody in scripts/server.js), so undici can hit
+  // ECONNRESET/EPIPE while still sending, before it ever reads the response.
+  // Here a socket error or close AFTER the status line was seen is expected and
+  // fine; one BEFORE it is a real failure.
+  function postRawStatusLine(port, urlPath, body) {
+    return new Promise((resolve, reject) => {
+      const socket = net.connect(port, "127.0.0.1");
+      let head = "";
+      let settled = false;
+      const finish = (err, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        socket.destroy();
+        if (err) reject(err); else resolve(value);
+      };
+      const timer = setTimeout(() => finish(new Error("no response status line within 30s")), 30000);
+      socket.on("connect", () => {
+        socket.write(
+          "POST " + urlPath + " HTTP/1.1\r\n" +
+          "Host: 127.0.0.1:" + port + "\r\n" +
+          "Content-Type: application/json\r\n" +
+          "Content-Length: " + body.length + "\r\n" +
+          "Connection: close\r\n\r\n",
+        );
+        socket.write(body);
+      });
+      socket.on("data", (chunk) => {
+        head += chunk.toString("latin1");
+        const eol = head.indexOf("\r\n");
+        if (eol !== -1) finish(null, head.slice(0, eol));
+      });
+      socket.on("error", (e) => finish(e));   // no-op once the status line was seen
+      socket.on("close", () => finish(new Error("connection closed before a status line was received")));
+    });
+  }
+
   test("a JSON body over the 64 MB cap is rejected 413 before it is ever parsed", async () => {
     const oversized = Buffer.alloc(64 * 1024 * 1024 + 1, 0x61);
-    const res = await fetch("http://127.0.0.1:" + qPort + "/api/source", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: oversized,
-    });
-    assert.equal(res.status, 413);
+    const statusLine = await postRawStatusLine(qPort, "/api/source", oversized);
+    assert.match(statusLine, /^HTTP\/1\.1 413\b/);
   });
 
   test("an uploaded pfp image over the 10 MB cap is rejected 413", async () => {
