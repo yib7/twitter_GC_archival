@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <!-- The setup wizard. scripts/server.js serves this file at /setup.html (it
        needs the server's /api), so the asset paths below are relative to that
-       URL, the project root: "src/styles.css" is this folder's styles.css. -->
+       URL, the project root: "src/styles.css" is this folder's styles.css.
+       Anywhere else they miss and the page shows only a start-the-server note. -->
   <!-- Served-mode defense-in-depth: see index.html for the full rationale.
        Strict script-src 'self'; the theme-boot is a same-origin file (shared
        with the app), so no inline-script hash to keep in sync. -->
@@ -23,6 +24,26 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="theme-color" content="#000000" />
   <title>Setup · Group Chat Archive</title>
+  <!-- Shows only the start-the-server note (in <body>) when setup.css does
+       not load: opened from disk, or fetched as the raw /src/setup.html, the
+       src/... paths here resolve to src/src/... and miss. It sits before the
+       stylesheets on purpose: setup.css comes later and overrides every rule
+       here, so the served page shows the wizard and hides the note. -->
+  <style>
+    body { margin: 0; padding: 0 16px; background: #000; color: #e7e9ea;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .setup-shell, .theme-switch { display: none; }
+    .su-unserved { box-sizing: border-box; max-width: 560px; margin: 48px auto;
+      padding: 24px 26px; background: #16181c; border: 1px solid #2f3336;
+      border-radius: 16px; font-size: 15px; line-height: 1.55; }
+    .su-unserved-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+    .su-unserved p { margin: 10px 0; }
+    .su-unserved ol { margin: 10px 0; padding-left: 22px; }
+    .su-unserved li { margin: 8px 0; }
+    .su-unserved code { background: #000; border: 1px solid #2f3336;
+      border-radius: 6px; padding: 1px 6px; font-size: 13px; }
+    .su-unserved a { color: #1d9bf0; }
+  </style>
   <link rel="stylesheet" href="src/styles.css" />
   <link rel="stylesheet" href="src/setup.css" />
   <!-- Render-blocking in <head> so the saved theme applies before first paint. -->
@@ -32,13 +53,20 @@
   <script src="src/keepalive.js"></script>
 </head>
 <body class="setup-body">
-  <!-- Opened straight from disk, none of the styles or scripts load, so this
-       plain note is all that shows; setup.css hides it when served. -->
-  <p class="su-unserved">This is the setup wizard, and it runs through the local
-    server. Double-click <b>start-setup.cmd</b> (Windows) or
-    <b>start-setup.command</b> (macOS) in the project folder, or run
-    <code>node scripts/server.js</code> and open
-    <code>http://localhost:8765/setup.html</code>.</p>
+  <!-- The note the <head> styles show when this page is not served (setup.css
+       hides it when it is). setup.js never runs then, as its path misses too. -->
+  <div class="su-unserved" role="note">
+    <div class="su-unserved-title">Start the setup server first</div>
+    <p>The setup wizard runs through a small server on your own computer, so it
+      can't work when this page is opened straight from disk.</p>
+    <ol>
+      <li>Double-click <b>start-setup.cmd</b> (Windows) or <b>start-setup.command</b>
+        (macOS) in the project folder. It opens the wizard in your browser.</li>
+      <li>Or, in a terminal in the project folder, run <code>npm start</code> and
+        open <code>http://localhost:8765/setup.html</code>.</li>
+    </ol>
+    <p>Reading your archive needs no server: <a href="../index.html">open the archive</a>.</p>
+  </div>
   <div class="setup-shell">
     <header class="setup-head">
       <div class="brand-mark setup-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg></div>

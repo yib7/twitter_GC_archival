@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="lightsout">
+<head>
+  <meta charset="UTF-8" />
+  <!-- Served-mode defense-in-depth: see index.html for the full rationale.
+       Strict script-src 'self'; the theme-boot is a same-origin file (shared
+       with the app), so no inline-script hash to keep in sync. -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data:;
+    media-src 'self';
+    font-src 'self';
+    connect-src 'self';
+    object-src 'none';
+    base-uri 'self'
+  " />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#000000" />
+  <title>Setup · Group Chat Archive</title>
+  <link rel="stylesheet" href="src/styles.css" />
+  <link rel="stylesheet" href="src/setup.css" />
+  <!-- Render-blocking in <head> so the saved theme applies before first paint. -->
+  <script src="src/theme-boot.js"></script>
+</head>
+<body class="setup-body">
+  <div class="setup-shell">
+    <header class="setup-head">
+      <div class="brand-mark setup-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg></div>
+      <div>
+        <div class="setup-title">Set up your archive</div>
+        <div class="setup-sub">One-time wizard · runs over the local server</div>
+      </div>
+    </header>
+
+    <ol class="setup-steps" id="steps">
+      <li data-step="1" class="active">Source</li>
+      <li data-step="2">Group</li>
+      <li data-step="3">People</li>
+      <li data-step="4">Finish</li>
+    </ol>
+
+    <!-- Step 1: source -->
+    <section class="setup-pane active" data-pane="1">
+      <h2>1 · Point at your export</h2>
+      <p class="setup-p">
+        From your unzipped Twitter/X archive, pick all three pieces of your group
+        export. Click <b>Browse…</b> for each (native pickers on Windows), or paste a
+        path. <b>All three are required.</b>
+      </p>
+      <label class="setup-label">Messages file <code>direct-messages-group.js</code> <span class="setup-req">required</span></label>
+      <div class="setup-pickrow">
+        <input id="src-group" class="setup-input" type="text"
+          placeholder="direct-messages-group.js" />
+        <button class="btn ghost setup-browse" id="group-browse">Browse…</button>
+      </div>
+      <label class="setup-label">Headers file <code>direct-message-group-headers.js</code> <span class="setup-req">required</span></label>
+      <div class="setup-pickrow">
+        <input id="src-headers" class="setup-input" type="text"
+          placeholder="direct-message-group-headers.js" />
+        <button class="btn ghost setup-browse" id="headers-browse">Browse…</button>
+      </div>
+      <label class="setup-label">Media folder <code>direct_messages_group_media</code> <span class="setup-req">required</span></label>
+      <p class="setup-p" style="margin:0 0 6px;font-size:12.5px;">Browse… open any file inside the media folder, we will use its folder.</p>
+      <div class="setup-pickrow">
+        <input id="src-media" class="setup-input" type="text"
+          placeholder="direct_messages_group_media" />
+        <button class="btn ghost setup-browse" id="media-browse">Browse…</button>
+      </div>
+      <div class="setup-actions">
+        <button class="btn primary" id="btn-build">Build archive</button>
+      </div>
+      <div class="setup-result" id="src-result" hidden></div>
+      <div class="setup-locked" id="src-locked" hidden>
+        ✓ Archive already built. To change the source files, use <b>Start over</b>
+        at the bottom of the page, then build again.
+      </div>
+    </section>
+
+    <!-- Step 2: group -->
+    <section class="setup-pane" data-pane="2" hidden>
+      <h2>2 · Name the group <span class="setup-opt">optional</span></h2>
+      <p class="setup-p">Restore the group's real name and photo. The photo becomes
+        the sidebar brand mark. You can change these later in Settings.</p>
+      <div id="gc-grouprow" hidden>
+        <label class="setup-label" style="margin-top:0;">Which group chat</label>
+        <select id="gc-group" class="setup-input"></select>
+      </div>
+      <label class="setup-label">Group name</label>
+      <input id="gc-name" class="setup-input" type="text" placeholder="The GC" />
+      <label class="setup-label">Group photo</label>
+      <div class="setup-uprow">
+        <div class="setup-avpreview" id="gc-preview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg></div>
+        <input id="gc-photo" type="file" accept="image/*" class="setup-file" />
+        <button class="btn ghost" id="gc-pick">Choose photo…</button>
+      </div>
+      <label class="su-removegroup" id="gc-remove-row">
+        <input type="checkbox" id="gc-remove" />
+        <span>Remove this group chat — exclude it from the archive entirely</span>
+      </label>
+      <div class="setup-actions">
+        <button class="btn ghost" data-back>Back</button>
+        <button class="btn primary" data-next>Next</button>
+      </div>
+    </section>
+
+    <!-- Step 3: people -->
+    <section class="setup-pane" data-pane="3" hidden>
+      <h2>3 · Name everyone <span class="setup-opt">optional</span></h2>
+      <p class="setup-p">The export only has numeric IDs. Use each person's sample
+        messages &amp; shared media (Twitter/X links excluded — they don't help) to
+        recognize them. Add a name, a photo, and mark which one is <b>you</b>.</p>
+      <div id="people-grouprow" hidden>
+        <label class="setup-label" style="margin-top:0;">Which group chat</label>
+        <select id="people-group" class="setup-input"></select>
+      </div>
+      <div id="people" class="setup-people"></div>
+      <div class="setup-actions">
+        <button class="btn ghost" data-back>Back</button>
+        <button class="btn primary" data-next>Next</button>
+      </div>
+    </section>
+
+    <!-- Step 4: finish -->
+    <section class="setup-pane" data-pane="4" hidden>
+      <h2>4 · Finish</h2>
+      <div class="setup-finhero">
+        <div class="setup-seal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-11"/></svg></div>
+        <div class="fin-title">Your archive is ready</div>
+        <p class="setup-p fin-sub">Save your names, photos and "you" marker, then open the archive.</p>
+      </div>
+      <div class="fin-receipt" id="fin-receipt" hidden></div>
+      <div class="setup-actions">
+        <button class="btn ghost" data-back>Back</button>
+        <button class="btn primary" id="btn-save">Save &amp; finish</button>
+      </div>
+      <div class="setup-result" id="finish-result" hidden></div>
+    </section>
+
+    <div class="setup-danger">
+      <button type="button" class="su-reset-link" id="btn-reset">Start over — erase setup data</button>
+    </div>
+  </div>
+
+  <div class="su-reset-modal" id="reset-modal" role="dialog" aria-modal="true" aria-label="Erase setup data" hidden>
+    <div class="su-reset-box">
+      <div class="su-reset-title">Erase all setup data?</div>
+      <p class="su-reset-msg">This deletes everything the wizard created in
+        <code>personal_data/</code> — the built archive, names, photos, and the
+        copied media &amp; source files — so you can start setup from a clean slate.
+        <b>This cannot be undone.</b></p>
+      <p class="su-reset-msg">Type <b>RESET</b> to confirm:</p>
+      <input id="reset-confirm" class="setup-input" type="text" autocomplete="off" placeholder="RESET" />
+      <div class="setup-actions">
+        <button type="button" class="btn ghost" id="reset-cancel">Cancel</button>
+        <button type="button" class="btn danger" id="reset-go" disabled>Erase &amp; start over</button>
+      </div>
+      <div class="setup-result" id="reset-result" hidden></div>
+    </div>
+  </div>
+
+  <div class="theme-switch" role="group" aria-label="Theme">
+    <button data-set="light" title="Light" aria-label="Light"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg></button>
+    <button data-set="dim" title="Dim" aria-label="Dim"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 000 18z" fill="currentColor" stroke="none"/></svg></button>
+    <button data-set="lightsout" title="Lights out" aria-label="Lights out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4 7 7 0 1020 14.5z"/></svg></button>
+  </div>
+
+  <script src="src/keepalive.js"></script>
+  <script src="src/shared-core.js"></script>
+  <script src="src/setup.js"></script>
+</body>
+</html>

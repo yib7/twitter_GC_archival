@@ -122,7 +122,7 @@ const SERVABLE_PREFIXES = ["/src/", "/sample/", "/personal_data/media/", "/perso
 // beside its code in src/ but is served at /setup.html, the URL its relative
 // asset and photo paths resolve against and the only one that gets the picker
 // token. (Fetched at /src/setup.html it gets no token and none of its styles or
-// scripts resolve, so it shows only its plain "open /setup.html" note.)
+// scripts resolve, so its inline styles show only its start-the-server note.)
 const SERVED_FILE_FOR = new Map([["/setup.html", "/src/setup.html"]]);
 // The repo-relative file a servable URL path reads: the path itself, or the
 // file an alias above names.

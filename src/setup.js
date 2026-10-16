@@ -2,6 +2,20 @@
 (function () {
 "use strict";
 
+// The wizard works only through the local server: every step calls its /api.
+// src/setup.html opened from disk never runs this file (its src/... paths miss)
+// and shows its start-the-server note. One page does run it from disk: a root
+// setup.html left behind by unzipping this version over a v1.4 folder, whose
+// src/... paths resolve from the root. Every button there would fail with
+// "Failed to fetch", so send it to that note instead.
+if (location.protocol !== "http:" && location.protocol !== "https:") {
+  if (!/\/src\/setup\.html$/i.test(location.pathname)) {
+    document.documentElement.style.display = "none";
+    location.replace(new URL("src/setup.html", location.href).href);
+  }
+  return;
+}
+
 // Avatar color + initials helpers shared with the viewer (src/app.js) and the
 // Node build live in ONE module, loaded as a <script> before this one
 // (src/setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule

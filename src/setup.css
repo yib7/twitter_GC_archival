@@ -1,6 +1,8 @@
 /* setup.css — first-run wizard. Reuses styles.css theme variables. */
-/* the "open me through the server" note, for src/setup.html opened from disk */
+/* src/setup.html's inline <head> styles show only its start-the-server note
+   (for when this file does not load); served, these rules undo that. */
 .su-unserved { display: none; }
+.setup-shell { display: block; }
 .setup-body {
   min-height: 100vh; margin: 0; background: var(--bg-page); color: var(--text);
   font-family: var(--font); display: grid; place-items: start center; padding: 40px 20px;
