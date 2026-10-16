@@ -6194,7 +6194,8 @@ function openShareDialog(build, opts) {
     const g = ++gen;
     const T = shareTheme();
     const model = build(cb.checked, T, cb.checked ? shareRedactor() : null);
-    ready = renderShareCard(cv, model, T, () => g === gen);
+    // data-rendered = the number of the render now on the canvas
+    ready = renderShareCard(cv, model, T, () => g === gen).then((m) => { if (m) cv.dataset.rendered = String(g); return m; });
     return ready;
   };
   // The canvas as a PNG once the LATEST render has drawn: if the toggle

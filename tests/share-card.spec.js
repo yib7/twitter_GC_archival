@@ -66,13 +66,18 @@ function checkPng(buf) {
   return { w, h };
 }
 
-async function openShareOnMessage(page, text) {
+// Resolves once the dialog's first render has drawn (the canvas carries the
+// number of the render on it), so a reset of the recorder that follows can't
+// race a photo still decoding. `{ painted: false }` returns at once, for the
+// tests that race that render on purpose.
+async function openShareOnMessage(page, text, opts = {}) {
   const row = page.locator("#view-timeline .msg", { hasText: text }).first();
   await row.scrollIntoViewIfNeeded();
   await row.hover();
   await row.getByRole("button", { name: "Share", exact: true }).click();
   const dlg = page.getByRole("dialog", { name: "Share image" });
   await expect(dlg).toBeVisible();
+  if (opts.painted !== false) await expect(dlg.locator("canvas")).toHaveAttribute("data-rendered", "1");
   return dlg;
 }
 async function download(page, dlg) {
@@ -128,6 +133,29 @@ test.describe("Share: message cards", () => {
     const { buf } = await download(page, dlg);
     checkPng(buf);
     expect(leaks(await drawn(page))).toEqual([]);
+  });
+
+  test("the first render, slow photo and all, is drawn before the canvas says so", async ({ page }) => {
+    await page.addInitScript(() => {
+      const Real = window.Image;
+      window.Image = function () {
+        const img = new Real();
+        let h = null;
+        Object.defineProperty(img, "onload", { get: () => h, set: (f) => { h = f; } });
+        img.addEventListener("load", () => setTimeout(() => { if (h) h.call(img); }, 300));
+        return img;
+      };
+    });
+    await recordCanvas(page);
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS(), "gca.pfps": JSON.stringify({ u1: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==" }) } });
+    const dlg = await openShareOnMessage(page, "booked it");
+    expect((await drawn(page)).some((s) => s.includes("Alex Rivera"))).toBe(true);
+    await resetDrawn(page);
+    await dlg.getByRole("checkbox", { name: /Hide names/ }).check();
+    await expect(dlg.locator("canvas")).toHaveAttribute("data-rendered", "2");
+    const after = await drawn(page);
+    expect(leaks(after), after.join(" | ")).toEqual([]);
+    expect(after.some((s) => s.includes("Person A"))).toBe(true);
   });
 
   test("the choice is remembered for the next share", async ({ page }) => {
@@ -304,7 +332,7 @@ test.describe("Share: review fixes", () => {
     const PFP = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
     await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline", "gca.settings": SETTINGS(), "gca.pfps": JSON.stringify({ u1: PFP }) } });
     await page.evaluate(() => { window.__imgDelay = 1000; });
-    const dlg = await openShareOnMessage(page, "booked it");           // render 1: names + slow photo
+    const dlg = await openShareOnMessage(page, "booked it", { painted: false });   // render 1: names + slow photo
     const cb = dlg.getByRole("checkbox", { name: /Hide names/ });
     await cb.check();                                                   // render 2: redacted, instant
     await cb.uncheck();                                                 // render 3: names + slow photo
