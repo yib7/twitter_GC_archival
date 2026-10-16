@@ -117,6 +117,25 @@ test("tokenize: the no-Segmenter fallback keeps combining marks on their base (r
   assert.equal(toks.join(""), "กินข้าว");
 });
 
+// A zero-width joiner or non-joiner inside a word is part of it: Bengali
+// "RAB" (ra + ZWJ + hasanta + ya + aa + ba), Persian "mi-khaham" (I want,
+// with a ZWNJ) and Sinhala "shri" (with a ZWJ). The word used to split
+// there, and its second half (Bengali "jab", "will go") counted as a word.
+test("tokenize: a ZWJ or ZWNJ between letters keeps the word whole", () => {
+  const RAB = "র‍্যাব", JAB = "যাব";
+  const MIKHAHAM = "می‌خواهم", SHRI = "ශ්‍රී";
+  for (const tok of [S.tokenize, S.tokenizeNoSegmenter]) {
+    assert.deepStrictEqual(tok(RAB + " " + JAB), [RAB, JAB]);
+    assert.deepStrictEqual(tok(MIKHAHAM), [MIKHAHAM]);
+    assert.deepStrictEqual(tok(SHRI), [SHRI]);
+    // a joiner not followed by a letter, digit or mark ends the word, and an
+    // emoji ZWJ sequence is not a word at all
+    assert.deepStrictEqual(tok("lol‍ ok‌"), ["lol", "ok"]);
+    assert.deepStrictEqual(tok("a \u{1F468}‍\u{1F469}‍\u{1F467} b"), ["a", "b"]);
+  }
+  assert.equal(S.countWord(RAB, JAB), 0);
+});
+
 test("stopwords are apostrophe-insensitive", () => {
   for (const w of ["i'm", "don't", "can't", "that's", "it's", "everyone's", "didn't", "dont", "im"]) {
     assert.ok(S.isStopword(w), w);

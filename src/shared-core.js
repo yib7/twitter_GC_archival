@@ -703,8 +703,11 @@
     return s;
   }
   // A token starts with a letter or digit; marks only continue one, so the
-  // variation selector after an emoji (❤️) is never a token by itself.
-  const RE_TOKEN = /[\p{L}\p{N}][\p{L}\p{N}\p{M}]*(?:'[\p{L}\p{N}\p{M}]+)*/gu;
+  // variation selector after an emoji is never a token by itself. A zero-width
+  // joiner or non-joiner (U+200D / U+200C) followed by a letter, digit or mark
+  // stays inside the word: Bengali, Persian, Sinhala and Devanagari write them
+  // mid-word. An emoji ZWJ sequence starts with no letter, so it is no token.
+  const RE_TOKEN = /[\p{L}\p{N}](?:[‌‍]?[\p{L}\p{N}\p{M}])*(?:'[\p{L}\p{N}\p{M}](?:[‌‍]?[\p{L}\p{N}\p{M}])*)*/gu;
   const RE_NOSPACE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
   // No-Segmenter fallback: one no-space-script grapheme cluster at a time — a
   // base character plus its combining marks (Thai vowel signs / tone marks
