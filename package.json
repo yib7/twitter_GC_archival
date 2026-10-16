@@ -1,7 +1,16 @@
 {
   "name": "group-chat-archive",
-  "version": "1.3.0",
+  "version": "1.5.0",
   "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yib7/twitter_GC_archival.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yib7/twitter_GC_archival/issues"
+  },
+  "homepage": "https://github.com/yib7/twitter_GC_archival#readme",
   "engines": {
     "node": "^22.13.0 || >=24"
   },
