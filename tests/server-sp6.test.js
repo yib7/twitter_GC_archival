@@ -790,15 +790,13 @@ describe("streaming media files", () => {
     req.on("error", (e) => (e.code === "ECONNRESET" ? resolve(0) : reject(e)));
   });
 
-  test("a file that can't be opened fails that one request; the server keeps running", async () => {
+  // The file is opened before the reply starts, so the browser gets a real
+  // 500 (not a cut connection) and the server keeps running.
+  test("a file that can't be opened answers 500; the server keeps running", async () => {
     for (const range of [null, "bytes=0-"]) {
-      let failed;
-      try {
-        const r = await S.get("/personal_data/media/9002-unreadable.jpg", range ? { Range: range } : {});
-        await r.arrayBuffer();
-        failed = r.status >= 500;
-      } catch (e) { failed = true; }   // headers were already sent: the connection is cut
-      assert.ok(failed, "the request fails (" + (range || "full") + ")");
+      const r = await S.get("/personal_data/media/9002-unreadable.jpg", range ? { Range: range } : {});
+      await r.arrayBuffer();
+      assert.equal(r.status, 500, "the request fails with 500 (" + (range || "full") + ")");
     }
     assert.equal((await S.get("/api/ping")).status, 200, "still running: " + S.stderr());
   });

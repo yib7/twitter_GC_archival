@@ -1426,13 +1426,13 @@ function serveStatic(req, res) {
         return res.end("range not satisfiable");
       }
       end = Math.min(end, st.size - 1);
-      res.writeHead(206, {
+      const head206 = {
         ...frameGuard,
         "Content-Type": type, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff",
         "Content-Range": `bytes ${start}-${end}/${st.size}`, "Content-Length": end - start + 1,
-      });
-      if (req.method === "HEAD") return res.end();
-      sendFile(fs.createReadStream(file, { start, end }), res);
+      };
+      if (req.method === "HEAD") { res.writeHead(206, head206); return res.end(); }
+      sendFile(file, res, 206, head206, { start, end });
     } else if (isHtmlFile) {
       // Read HTML, inject server URL config, send modified version
       fs.readFile(file, "utf8", (err, data) => {
@@ -1473,18 +1473,22 @@ function serveStatic(req, res) {
         res.end(body);
       });
     } else {
-      res.writeHead(200, { ...frameGuard, "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" });
-      if (req.method === "HEAD") return res.end();
-      sendFile(fs.createReadStream(file), res);
+      const head200 = { ...frameGuard, "Content-Type": type, "Content-Length": st.size, "Accept-Ranges": "bytes", "X-Content-Type-Options": "nosniff" };
+      if (req.method === "HEAD") { res.writeHead(200, head200); return res.end(); }
+      sendFile(file, res, 200, head200);
     }
   });
 }
-// Stream a file to the reply. pipeline() closes the file when the browser
-// hangs up early (a video seek) and catches a read error (a file stat saw
-// but that can't be opened) instead of letting it end the server.
-function sendFile(stream, res) {
-  pipeline(stream, res, (err) => {
-    if (err && !res.headersSent) { res.writeHead(500); res.end(); }
+// Stream a file to the reply. The file is opened first, so one that stat saw
+// but that can't be opened (an offline OneDrive placeholder, a locked file)
+// answers a plain 500 before any header is sent. pipeline() closes the file
+// when the browser hangs up early (a video seek), and a read error after the
+// headers can only cut that one reply, never end the server.
+function sendFile(file, res, status, headers, range) {
+  fs.open(file, "r", (err, fd) => {
+    if (err) { res.writeHead(500); return res.end("internal server error"); }
+    res.writeHead(status, headers);
+    pipeline(fs.createReadStream(null, Object.assign({ fd }, range || {})), res, () => { /* cut: nothing more to send */ });
   });
 }
 

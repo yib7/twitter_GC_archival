@@ -2,8 +2,8 @@
  * Test-only preload for a spawned server (node --require <this file>):
  *   - counts the file read streams the server has open (each leaves the count
  *     when it closes), reported by GET /__test/open-streams;
- *   - GCA_TEST_UNREADABLE=<regex>: createReadStream of a matching path fails
- *     to open, as a file that stat sees but can't read would (a OneDrive
+ *   - GCA_TEST_UNREADABLE=<regex>: fs.open / createReadStream of a matching
+ *     path fails, as a file that stat sees but can't read would (a OneDrive
  *     placeholder offline, a file antivirus has locked).
  */
 "use strict";
@@ -18,6 +18,10 @@ fs.createReadStream = function (p, opts) {
   open.add(s);
   s.on("close", () => open.delete(s));
   return s;
+};
+const realOpen = fs.open;
+fs.open = function (p, ...rest) {
+  return realOpen.call(fs, bad && bad.test(String(p)) ? String(p) + ".unreadable-in-this-test" : p, ...rest);
 };
 const realCreate = http.createServer;
 http.createServer = function (handler) {
