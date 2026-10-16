@@ -169,7 +169,10 @@ test.describe("unnamed people in other chats keep their own chat's User N", () =
   const P = "3000001006";                       // 2nd-most-active in Beta; not in Alpha
   const SHARED = "1000000001";                  // User 1 in Alpha, User 3 in Beta
   const UA = msgs("ua", 5, { s: [SHARED, "1000000002", SHARED, "1000000002", SHARED], t0: T, x: (k) => "pizza a" + k });
-  const UB = msgs("ub", 6, { s: ["2000000007", P, "2000000007", P, "2000000007", SHARED], t0: T + 864e5, x: (k) => "pizza b" + k });
+  // b3 (P) and b5 (SHARED) carry several files, so their extra files are labelled too
+  const MULTI = { m: "sample_media/photo-1.svg", k: "img", mx: [{ m: "sample_media/photo-2.svg", k: "img" }, { m: "sample_media/clip-1.svg", k: "vid" }] };
+  const UB = msgs("ub", 6, { s: ["2000000007", P, "2000000007", P, "2000000007", SHARED], t0: T + 864e5, x: (k) => "pizza b" + k,
+    extra: (k) => (k === 3 || k === 5 ? MULTI : null) });
   const UDATA = { conversations: [conv("A", "Alpha", UA), conv("B", "Beta", UB)] };
   const uboot = (page, ls) => bootViewer(page, UDATA, { ls: Object.assign({ "gca.conv": "A" }, ls || {}) });
   const betaRows = (page) => page.locator("#s-list .msg").filter({ hasText: /pizza b\d/ });
@@ -186,6 +189,12 @@ test.describe("unnamed people in other chats keep their own chat's User N", () =
     await expect(nameIn(betaRows(page).filter({ hasText: "pizza b3" }))).toHaveText("User 2");
     await expect(nameIn(betaRows(page).filter({ hasText: "pizza b5" }))).toHaveText("User 3");
     await expect(nameIn(page.locator("#s-list .msg").filter({ hasText: "pizza a4" }))).toHaveText("User 1");
+    // the extra files on those rows name the same person
+    for (const [k, label] of [["b3", "User 2"], ["b5", "User 3"]]) {
+      const more = betaRows(page).filter({ hasText: "pizza " + k }).locator(".media-more-item");
+      await expect(more.nth(0)).toHaveAttribute("aria-label", new RegExp("^Open photo 2 of 3 from " + label + " · "));
+      await expect(more.nth(1)).toHaveAttribute("aria-label", new RegExp("^Video 3 of 3 from " + label + " · "));
+    }
     // the export says the same
     const dlP = page.waitForEvent("download");
     await page.locator("#f-export").click();
@@ -207,9 +216,12 @@ test.describe("unnamed people in other chats keep their own chat's User N", () =
   });
 
   test("a pin from another chat shows that chat's label", async ({ page }) => {
-    await uboot(page, { "gca.lastView": "pins", "gca.settings": JSON.stringify({ pins: ["ub1"] }) });
+    await uboot(page, { "gca.lastView": "pins", "gca.settings": JSON.stringify({ pins: ["ub1", "ub5"] }) });
     const row = page.locator("#view-pins .msg").filter({ hasText: "pizza b1" });
     await expect(nameIn(row)).toHaveText("User 2");
+    const multi = page.locator("#view-pins .msg").filter({ hasText: "pizza b5" });
+    await expect(nameIn(multi)).toHaveText("User 3");
+    await expect(multi.locator(".media-more-item").first()).toHaveAttribute("aria-label", /^Open photo 2 of 3 from User 3 · /);
     const dlP = page.waitForEvent("download");
     await page.locator("#pins-export").click();
     const text = require("fs").readFileSync(await (await dlP).path(), "utf8");

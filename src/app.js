@@ -1351,11 +1351,12 @@ function renderMedia(m, i) {
 // the lightbox, gallery and stats read) and the rest in m.mx; show those as a
 // row of small thumbnails under the first. Each extra photo is a plain link
 // (keyboard-reachable, opens the full file); videos keep their controls.
-function appendMoreMedia(d, m) {
+// name: the sender as the row shows them (another chat's row passes its own).
+function appendMoreMedia(d, m, name) {
   if (!Array.isArray(m.mx) || !m.mx.length) return;
   const row = el("div", "media-more");
   const total = m.mx.length + 1;
-  const who = nameOf(m.s) + " · " + DT.format(m.t);
+  const who = (name || nameOf(m.s)) + " · " + DT.format(m.t);
   m.mx.forEach((x, j) => {
     if (!x || !x.m) return;
     let node;
@@ -5836,7 +5837,7 @@ function renderForeignPin(conv, m, needles) {
       a.addEventListener("click", (e) => e.stopPropagation());
       d.appendChild(a);
     }
-    appendMoreMedia(d, m);   // the message's other files
+    appendMoreMedia(d, m, who(m.s));   // the message's other files
     body.appendChild(d);
   }
   if (m.r) body.appendChild(renderReacts(m.r, who));
