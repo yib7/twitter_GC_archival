@@ -1087,12 +1087,18 @@ function createArchiveScanner(handlers) {
 // unexpected). Only real damage is called damaged, and deleting is never
 // suggested without a backup copy first: this file IS the history (messages
 // that may no longer be in any export).
-function prevArchiveProblem(e) {
-  const where = "Your existing archive (personal_data/data.js)";
+// opts.root: the file is the older layout's data.js in the project folder
+// (read as the baseline while personal_data/ has none), not personal_data's.
+function prevArchiveProblem(e, opts) {
+  const root = !!(opts && opts.root);
+  const where = root ? "Your existing archive (the data.js in the project folder)" : "Your existing archive (personal_data/data.js)";
   const code = e && e.code;
   if (e instanceof ExportScanError) {
-    return where + " couldn't be read — it looks damaged (" + String(e.message).replace(/\.$/, "") + "), perhaps by a crash or a full disk. " +
-      "The build stopped so the history in it isn't silently replaced. First make a backup copy of data.js. Then restore an older copy of it " +
+    const damaged = where + " couldn't be read — it looks damaged (" + String(e.message).replace(/\.$/, "") + "), perhaps by a crash or a full disk. " +
+      "The build stopped so the history in it isn't silently replaced. First make a backup copy of data.js. ";
+    // Start over empties personal_data/ only: it can't help with the root file
+    if (root) return damaged + "Then restore an older copy of it, or move it out of the project folder to rebuild from this export only.";
+    return damaged + "Then restore an older copy of it " +
       "(data.js.bak next to it is the archive as it was before the last build), " +
       "or delete it (or use Start over) to rebuild from this export only.";
   }

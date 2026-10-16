@@ -254,3 +254,20 @@ for (const [label, extraEnv, keeps] of [["merges the root data.js when personal_
     assert.equal(fs.readFileSync(path.join(root, "data.js"), "utf8"), ROOT_ARCHIVE, "the root file itself is never changed");
   });
 }
+
+// A damaged root data.js names that file and says what helps: Start over only
+// empties personal_data/, so it must not be the advice; moving the file aside is.
+test("a damaged root data.js is named as the project folder's data.js, with advice that works", () => {
+  const root = synthRootWith("window.CHAT_DATA = {\"conversations\":[{\"id\":\"1000000001\",\"msgs\":[{\"i\":");
+  const { personal, files } = setup();
+  fs.writeFileSync(path.join(personal, "config.json"), JSON.stringify({ sourceJs: [files.group, files.part1], headersJs: files.headers }));
+  const env = Object.assign({}, process.env, { GCA_PERSONAL: personal });
+  delete env.GCA_NO_ROOT_FALLBACK;
+  const r = spawnSync(process.execPath, [path.join(root, "scripts", "build.js")], { cwd: root, env, encoding: "utf8" });
+  assert.notEqual(r.status, 0);
+  const out = r.stdout + r.stderr;
+  assert.match(out, /data\.js in the project folder/, out);
+  assert.doesNotMatch(out, /personal_data\/data\.js/, out);
+  assert.doesNotMatch(out, /Start over/, out);
+  assert.match(out, /move it out of the project folder/i, out);
+});

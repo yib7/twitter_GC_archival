@@ -142,7 +142,7 @@ function loadPrev(acc) {
   } catch (e) {
     // never rebuild over history that couldn't be read. Each cause gets
     // its own sentence; only real damage is called damaged.
-    const msg = core.prevArchiveProblem(e);
+    const msg = core.prevArchiveProblem(e, { root: prevFile === ROOT_PREV });
     if (msg) fail(msg);
     throw e;
   }
