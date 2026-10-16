@@ -145,6 +145,41 @@ describe("a request body must be a JSON object", () => {
     }
   }
 
+  // A field that is an object (one whose toString isn't callable makes
+  // String() throw) reached String() in these routes: a 500 carrying the
+  // TypeError's text. Each is a plain 400 now, before any work runs.
+  const shapes = [
+    ["/api/removal-preview", { ignoredUsers: [{ toString: 1 }] }, /removed people and group chats/],
+    ["/api/removal-preview", { ignoredGroups: [{ toString: 1 }] }, /removed people and group chats/],
+    ["/api/removal-preview", { ignoredGroups: "100" }, /removed people and group chats/],
+    ["/api/source", { archiveRoot: { toString: 1 } }, /path/i],
+    ["/api/source", { groupJs: { toString: 1 }, headersJs: "h.js", mediaDir: "m" }, /path/i],
+    ["/api/preflight", { groupJs: { toString: 1 } }, /path/i],
+    ["/api/preflight", { archiveRoot: ["C:\\x"] }, /path/i],
+    ["/api/preflight", { groupJs: "g.js", headersJs: "h.js", mediaDir: { toString: 1 } }, /path/i],
+  ];
+  for (const [p, body, msg] of shapes) {
+    test("POST " + p + " with " + JSON.stringify(body) + " → 400 in a plain sentence", async () => {
+      const before_ = listing(S.personal);
+      const r = await S.post(p, body);
+      const text = await r.text();
+      assert.equal(r.status, 400, text);
+      const err = JSON.parse(text).error;
+      assert.match(err, msg);
+      assert.match(err, /\.$/);
+      assert.doesNotMatch(text, /Cannot convert|TypeError|primitive|Something went wrong/);
+      assert.deepEqual(listing(S.personal), before_);
+    });
+  }
+  test("the shapes the wizard sends still pass the check", async () => {
+    const ok = await S.post("/api/removal-preview", { ignoredUsers: ["1", 2], ignoredGroups: [] });
+    assert.equal(ok.status, 200, await ok.text());
+    // a path that doesn't exist is the usual "not found", not a shape error
+    const r = await S.post("/api/preflight", { archiveRoot: path.join(S.personal, "no-such-folder") });
+    assert.notEqual(r.status, 500);
+    assert.doesNotMatch((await r.json()).error, /sent as text/);
+  });
+
   test("an empty body still counts as {} (a bodiless POST)", async () => {
     const r = await raw(S.port, "/api/removal-preview", { method: "POST", headers: { "Sec-Fetch-Site": "same-origin", "Content-Length": "0" } });
     assert.equal(r.status, 200, r.body);

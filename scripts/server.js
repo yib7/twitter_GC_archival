@@ -30,7 +30,7 @@ const { execFileSync, spawn } = require("child_process");
 const { pipeline } = require("stream");
 const { idPartition, createParticipantCollector, createExportSurvey, missingPartNumbers, exportPartFiles, identifyExport, wrongKindMessage, isGroupId } = require("./build-core.js");
 const { locateExport, writeFileAtomic, readExportHead, scanExportFile, readArchiveSummary, foldArchive, readArchiveMeta, replaceFile, TMP_RE } = require("./fs-io.js");
-const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath, isPlainObject, identityBodyProblem } = require("./server-core.js");
+const { preflightWarnings, withText, createRemovalCounter, createOwnersCollector, createReferencedNames, createMessageCounter, safeSegment, diskSpaceProblem, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, pfpFileName, isInsidePersonal, openerCommand, makeLiveness, mergeNames, isServablePath, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin, isForeignFetchSite, isPrivateServedPath, isPlainObject, identityBodyProblem, removalListsProblem, sourceBodyProblem } = require("./server-core.js");
 
 const ROOT = path.resolve(__dirname, "..");     // project root (this script lives in scripts/)
 // GCA_PERSONAL mirrors build.js's env override: point identity storage at a
@@ -587,6 +587,8 @@ const userPathOf = (v) => normalizeUserPath(v, { platform: process.platform, hom
 // → { groupFiles, headerFiles, mediaAbs (or null), mediaDescended, swapped,
 //     via: "manifest" | "scan" | "files", notes: [{ code, … }] }
 function resolveSource(body) {
+  const bad = sourceBodyProblem(body);
+  if (bad) return { status: 400, error: bad };
   const rootIn = userPathOf(body.archiveRoot);
   if (rootIn) return resolveArchiveRoot(rootIn);
   // All three pieces of the group export are required.
@@ -1348,7 +1350,9 @@ function apiIdentity(body, res) {
 // Read-only: the wizard asks before a save that removes more, with real counts.
 function apiRemovalPreview(body, res) {
   if (job) return sendJSON(res, 409, { error: BUSY });   // a merge started while the body arrived (see apiIdentity)
-  const list = (v) => (Array.isArray(v) ? v.map(String) : []);
+  const bad = removalListsProblem(body);
+  if (bad) return sendJSON(res, 400, { error: bad });
+  const list =(v) => (Array.isArray(v) ? v.map(String) : []);
   const make = () => [createRemovalCounter(list(body && body.ignoredGroups), list(body && body.ignoredUsers))];
   const cols = duringBlocking(() => foldBuilt(make)) || make();
   sendJSON(res, 200, cols[0].result());

@@ -434,8 +434,22 @@ function identityBodyProblem(body) {
     }
   }
   if (b.me != null && !idOk(b.me)) return "“This is you” must name one person.";
+  return removalListsProblem(b);
+}
+// ignoredUsers / ignoredGroups, when present: lists of ids (text or numbers).
+function removalListsProblem(body) {
+  const b = isPlainObject(body) ? body : {};
   for (const k of ["ignoredUsers", "ignoredGroups"]) {
     if (b[k] != null && (!Array.isArray(b[k]) || !b[k].every(idOk))) return "The removed people and group chats weren't sent as a list.";
+  }
+  return null;
+}
+// The paths POST /api/source and /api/preflight read: each one text when
+// present (the wizard sends what was typed or picked).
+function sourceBodyProblem(body) {
+  const b = isPlainObject(body) ? body : {};
+  for (const k of ["archiveRoot", "groupJs", "headersJs", "mediaDir"]) {
+    if (b[k] != null && typeof b[k] !== "string") return "A file or folder path wasn't sent as text. Choose it again.";
   }
   return null;
 }
@@ -616,4 +630,4 @@ function preflightWarnings(p) {
   return out;
 }
 
-module.exports = { identityBodyProblem, isPlainObject, isForeignFetchSite, isPrivateServedPath, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
+module.exports = { identityBodyProblem, removalListsProblem, sourceBodyProblem, isPlainObject, isForeignFetchSite, isPrivateServedPath, withText, preflightWarnings, createReferencedNames, createRemovalCounter, createOwnersCollector, createMessageCounter, removalPreview, removedMediaOwners, safeSegment, diskSpaceProblem, referencedMediaNames, sameIdSet, normalizeUserPath, pathNotFoundHint, isPickerRequestAllowed, buildHeapMb, buildNodeArgs, buildFailureMessage, friendlyError, MEDIA_FILE_RE, mediaFolderProblem, dialogFilter, sanitizeName, pfpFileName, isInsidePersonal, openerCommand, isIdleTimedOut, makeLiveness, mergeNames, isServablePath, SERVABLE_EXACT, OPTIONAL_OVERRIDES, isAllowedHost, isAllowedOrigin };
