@@ -97,3 +97,23 @@ for (const th of ["lightsout", "dim", "light"]) {
     for (const fill of [r.left, r.right]) for (const bg of [r.track, r.page]) expect(cr(fill, bg), fill + " on " + bg).toBeGreaterThanOrEqual(3);
   });
 }
+
+// A word typed with a capital or punctuation ("Lol", "lol!") is the same word
+// as the built-in "lol": one row, one win. (Phone keyboards capitalise the
+// first letter.) Likewise "don't" and "dont" are one added word.
+for (const typed of ["Lol", "lol!", "LOL"]) {
+  test(`an added "${typed}" is one row with the built-in lol, counted once`, async ({ page }) => {
+    await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.settings": JSON.stringify({ battleWords: [typed] }) } });
+    const v = page.locator("#view-battles");
+    await expect(v.locator(".battle-word")).toHaveText([typed, "bruh", "nah"]);
+    await expect(v.locator(".battle-summary")).toContainText("User 1: 2 wins");   // lol, nah
+    await expect(v.locator(".battle-summary")).toContainText("User 2: 1 win");    // bruh
+  });
+}
+test("typing a spelling of a word already added says so and adds no row", async ({ page }) => {
+  await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.settings": JSON.stringify({ battleWords: ["don't"] }) } });
+  await page.locator("#battle-word").fill("Dont");
+  await page.locator("#battle-go").click();
+  await expect(page.locator(".toast")).toContainText("already in the battle");
+  await expect(page.locator("#view-battles .battle-added")).toHaveCount(1);
+});

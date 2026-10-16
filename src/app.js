@@ -7198,7 +7198,7 @@ function drawBattleResults() {
   // each built-in word either person used that isn't already an added row.
   // The wins are tallied over exactly these rows.
   const rows = settings.battleWords.map((word) => Object.assign({ word, added: true }, battleCounts(word)));
-  const addedKeys = new Set(settings.battleWords.map((w) => wordKey(w)));
+  const addedKeys = new Set(settings.battleWords.map(battleKey));
   BUILT_IN.forEach((word) => {
     const k = wordKey(word);
     if (addedKeys.has(k)) return;
@@ -7239,7 +7239,7 @@ function addBattleWord(word) {
   const t = word.trim(), k = t.toLowerCase();
   // say why nothing happened — and keep the text so it can be shortened
   if (t.length > BATTLE_WORD_MAX) { toast("Battle words can be up to " + BATTLE_WORD_MAX + " characters"); return; }
-  if (settings.battleWords.some((w) => w.toLowerCase() === k)) { if (inp) inp.value = ""; toast("“" + t + "” is already in the battle"); return; }
+  if (settings.battleWords.some((w) => w.toLowerCase() === k || battleKey(w) === battleKey(t))) { if (inp) inp.value = ""; toast("“" + t + "” is already in the battle"); return; }
   const next = cleanBattleWords([t].concat(settings.battleWords));
   const dropped = settings.battleWords.filter((w) => next.indexOf(w) === -1);
   settings.battleWords = next;
@@ -7248,6 +7248,11 @@ function addBattleWord(word) {
   drawBattleResults();
   if (inp) inp.value = "";
 }
+
+// The key a battle word counts under: its whole-word tokens, apostrophes and
+// case folded, so "Lol", "lol!" and the built-in "lol" are one word and
+// "don't" and "dont" are one. A phrase keeps all its tokens.
+function battleKey(word) { return wordKeys(word).join(" ") || word.trim().toLowerCase(); }
 
 // An added word's counts, with the same whole-word keys as everything else.
 function battleCounts(word) {
