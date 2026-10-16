@@ -98,9 +98,10 @@ html[data-theme="light"]{
   --on-accent:#0f1419; --accent-fill:#1d9bf0; --accent-grad-end:#3faaf2; --accent-text:#1d9bf0; --accent-text-soft:#4db2f5; --accent-ui:#1d9bf0; --accent-on-scrim:#1d9bf0;
 }
 
-/* the native parts of date fields and drop-down lists (calendar icon,
-   picker, option list) follow the theme's lightness */
-:root{--control-scheme:dark}
+/* the native parts of every control (date picker and calendar icon, drop-down
+   lists, the colour picker, scrollbars) follow the theme's lightness; it is
+   set once here and inherited by every field, in the viewer and the wizard */
+:root{--control-scheme:dark;color-scheme:var(--control-scheme)}
 html[data-theme="light"]{--control-scheme:light}
 
 /* ==== Compact theme toggle — sidebar footer (desktop) + More sheet (mobile) ==== */
@@ -306,7 +307,7 @@ button, input, select, textarea { font-family: inherit; }
 }
 .pill input[type="date"] {
   background: transparent; border: 0; color: var(--text); font-family: var(--font); font-size: 13px; outline: 0;
-  color-scheme: var(--control-scheme); cursor: pointer;
+  cursor: pointer;
 }
 .spacer { flex: 1; }
 .result-meta { color: var(--text-dim); font-size: 13px; white-space: nowrap; }
@@ -1299,7 +1300,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .pill.sortpill { padding-right: 8px; gap: 4px; }
 .pill.sortpill select {
   background: transparent; border: 0; color: var(--text); font-family: var(--font);
-  font-size: 13px; outline: 0; cursor: pointer; color-scheme: var(--control-scheme);
+  font-size: 13px; outline: 0; cursor: pointer;
 }
 .pill.sortpill select option { background: var(--bg-card); color: var(--text); }
 
@@ -1637,7 +1638,7 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 .battle-picker select {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
   color: var(--text); font-family: var(--font); font-size: 14px; padding: 8px 12px;
-  cursor: pointer; color-scheme: var(--control-scheme); outline: none;
+  cursor: pointer; outline: none;
 }
 .battle-picker select:focus { border-color: var(--accent); }
 /* the select is capped so two pickers and VS fit in 600px; narrower than that
