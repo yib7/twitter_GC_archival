@@ -1244,37 +1244,36 @@
   // emoji is not inside "book" plus that emoji). A letter of a script written
   // without spaces (Japanese, Chinese, Thai, ...) does not count, as words
   // there sit side by side.
-  // Segmenting the message is skipped when the characters beside a hit
-  // settle it: a grapheme always breaks between a printable ASCII character
-  // or a pictograph and a key that does not start with a character that
-  // joins what is before it (a mark, a format character such as ZWJ, a skin
-  // tone, a spacing vowel) or end with one that may join what is after it
-  // (a Prepend: a format character or one of a few Brahmic letters).
   const RE_WORD_START = /^[\p{L}\p{N}]/u, RE_WORD_END = /[\p{L}\p{N}]$/u;
   const GLUE = "(?!\\u20E3|" + RE_NOSPACE_SCRIPT.source + ")[\\p{L}\\p{N}\\p{M}\\u200C\\u200D]";
   const RE_GLUED_START = new RegExp("^" + GLUE, "u"), RE_GLUED_END = new RegExp(GLUE + "$", "u");
-  const RE_JOINS_BEFORE = /^[\p{M}\p{Cf}\p{Emoji_Modifier}\u0E33\u0EB3\uFF9E\uFF9F]/u, RE_JOINS_AFTER = /(?:\p{Cf}|\u0D4E|[\u{11000}-\u{11FFF}])$/u;
-  const RE_CLEAN_BEFORE = /(?:[\x20-\x7E]|\p{Extended_Pictographic})$/u, RE_CLEAN_AFTER = /^(?:[\x20-\x7E]|\p{Extended_Pictographic})/u;
+  // Is s[p] the start of a grapheme? Decided from the code points beside it,
+  // without Intl.Segmenter: there is no break before a mark, a joiner, a
+  // selector, a spacing vowel, a skin tone or a tag, after a zero-width
+  // joiner, or inside a pair of regional indicators (a flag), counted from
+  // the start of the run. Hangul jamo sequences are not handled: precomposed
+  // Hangul is what keyboards type.
+  const RE_EXTEND = /[\p{M}\p{Emoji_Modifier}\u200C\u0E33\u0EB3\uFF9E\uFF9F\u{E0020}-\u{E007F}]|\u200D/uy;   // \p{M} has the selectors
+  const isRI = (c) => c >= 0x1F1E6 && c <= 0x1F1FF;
+  function isBreak(s, p) {
+    if (p <= 0 || p >= s.length) return true;
+    if (s.charCodeAt(p - 1) === 0x200D) return false;
+    RE_EXTEND.lastIndex = p;
+    if (RE_EXTEND.test(s)) return false;
+    if (!isRI(s.codePointAt(p))) return true;
+    let run = 0;
+    for (let i = p - 2; i >= 0 && isRI(s.codePointAt(i)); i -= 2) run++;
+    return run % 2 === 0;
+  }
   function countTextKey(text, key) {
     if (!text || !key) return 0;
     const s = battleText(plainText(text));
     const edgeL = RE_WORD_START.test(key), edgeR = RE_WORD_END.test(key);
-    const cleanL = !RE_JOINS_BEFORE.test(key), cleanR = !RE_JOINS_AFTER.test(key);
-    let n = 0, bounds = null;
-    const isBound = (p) => {
-      if (!bounds) {
-        bounds = new Set([0]);
-        let q = 0;
-        for (const g of graphemes(s)) bounds.add(q += g.length);
-      }
-      return bounds.has(p);
-    };
+    let n = 0;
     for (let at = s.indexOf(key); at !== -1;) {
       const end = at + key.length;
-      const before = s.slice(Math.max(0, at - 2), at), after = s.slice(end, end + 2);
-      const ok = !(edgeL && RE_GLUED_END.test(before)) && !(edgeR && RE_GLUED_START.test(after)) &&
-        (at === 0 || (cleanL && RE_CLEAN_BEFORE.test(before)) || isBound(at)) &&
-        (end === s.length || (cleanR && RE_CLEAN_AFTER.test(after)) || isBound(end));
+      const ok = isBreak(s, at) && isBreak(s, end) &&
+        !(edgeL && RE_GLUED_END.test(s.slice(Math.max(0, at - 2), at))) && !(edgeR && RE_GLUED_START.test(s.slice(end, end + 2)));
       if (ok) n++;
       at = s.indexOf(key, ok ? end : at + 1);
     }

@@ -399,14 +399,36 @@ test("wordQuery probes with the emoji or the longest run, and never skips a matc
   assert.equal(shared.countQuery(KC("1") + KC("2"), q("12")), 1);
 });
 
-// countTextKey only segments a message into graphemes when the characters
-// beside a hit do not settle it; it must agree with always segmenting.
+// countTextKey decides a grapheme boundary from the code points beside a hit,
+// never with Intl.Segmenter: segmenting each Cyrillic or Japanese message
+// that held a "?" or an emoji made those chats several times slower to count.
+test("countTextKey never segments the message", () => {
+  if (typeof Intl.Segmenter !== "function") return;
+  const P = Intl.Segmenter.prototype, segment = P.segment;
+  let calls = 0;
+  P.segment = function (...a) { calls++; return segment.apply(this, a); };
+  try {
+    assert.equal(shared.countTextKey("привет? да?", "?"), 2);
+    assert.equal(shared.countTextKey("ахах\u{1F602} 草\u{1F602}", "\u{1F602}"), 2);
+  } finally { P.segment = segment; }
+  assert.equal(calls, 0);
+});
+
+// countTextKey's code-point boundary rule must agree with Intl.Segmenter's
+// grapheme split on mixed text. A zero-width joiner, a virama and a tag appear
+// only inside the sequences they are typed in (an emoji ZWJ sequence, a
+// conjunct, a subdivision flag): the rule always joins after a joiner, which
+// UAX #29 does only between emoji. Hangul jamo sequences and Prepend
+// characters (U+0600) are left out: the rule does not handle them, and
+// keyboards type precomposed Hangul.
 test("countTextKey agrees with a full grapheme split on mixed text", () => {
-  const POOL = ["a", "b", "1", " ", "!", "<", "3", ":", "d", "\u0301", "\u093F", "\u0915", "\u094D", "\u200D", "\u200C",
-    "\u{1F602}", "\u{1F44D}", "\u{1F3FD}", "\u2764", "\uFE0F", "\u{1F525}", "\u{1F1FA}", "\u{1F1F8}", "\u{1F1E6}",
-    "\u1100", "\u1161", "\uAC00", "\u0600", "\u0E33", "\u0E01", "\uFF76", "\uFF9E", "\u{E0067}", "\u20E3", "#"];
+  const POOL = ["a", "b", "1", " ", "!", "?", "<", "3", ":", "d", "\u0301", "\u093F", "\u0915", "\u0903", "\u09BE", "\u200C",
+    "\u{1F602}", "\u{1F44D}", "\u{1F3FD}", "\u2764", "\uFE0F", "\uFE0E", "\u{1F525}", "\u{1F1FA}", "\u{1F1F8}", "\u{1F1E6}",
+    "\uAC00", "\u0E33", "\u0E01", "\uFF76", "\uFF9E", "\u20E3", "#", "\u672C", "\u3042", "\u0430",
+    "\u2764\u200D\u{1F525}", "\u{1F468}\u{1F3FD}\u200D\u{1F469}", "\u0915\u094D\u0937", "\u0915\u094D\u200D\u0937",
+    "\u{1F3F4}\u{E0067}\u{E0062}\u{E0065}\u{E006E}\u{E0067}\u{E007F}"];
   const KEYS = ["\u{1F602}", "a \u{1F602}", "\u{1F602} a", "\u{1F44D}", "\u{1F44D}\u{1F3FD}", "\u{1F1FA}\u{1F1F8}", "<3", ":d",
-    "\u2764", "\u2764\u200D\u{1F525}", "!", "\u0915", "\u0600", "\u0301", "\u200D", "\uAC00", "\u1161", "#"];
+    "\u2764", "\u2764\u200D\u{1F525}", "!", "?", "\u0915", "\u0301", "\u200D", "\uAC00", "#", "#\u20E3", "\u3042\u{1F602}"];
   const ref = (text, key) => {
     const s = shared.plainText(text).replace(/[\uFE0E\uFE0F]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
     const b = new Set([0]); let p = 0;
