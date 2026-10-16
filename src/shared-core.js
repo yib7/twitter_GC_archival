@@ -707,7 +707,7 @@
   // joiner or non-joiner (U+200D / U+200C) followed by a letter, digit or mark
   // stays inside the word: Bengali, Persian, Sinhala and Devanagari write them
   // mid-word. An emoji ZWJ sequence starts with no letter, so it is no token.
-  const RE_TOKEN = /[\p{L}\p{N}](?:[‌‍]?[\p{L}\p{N}\p{M}])*(?:'[\p{L}\p{N}\p{M}](?:[‌‍]?[\p{L}\p{N}\p{M}])*)*/gu;
+  const RE_TOKEN = /[\p{L}\p{N}](?:[\u200C\u200D]?[\p{L}\p{N}\p{M}])*(?:'[\p{L}\p{N}\p{M}](?:[\u200C\u200D]?[\p{L}\p{N}\p{M}])*)*/gu;
   const RE_NOSPACE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
   // No-Segmenter fallback: one no-space-script grapheme cluster at a time — a
   // base character plus its combining marks (Thai vowel signs / tone marks
@@ -1210,12 +1210,32 @@
     return keys.length ? keys.join(" ") : battleText(word);
   }
   // How often a text-keyed battle word (its battleKey) appears in a message,
-  // links and @mentions left out as for every other word count.
+  // links and @mentions left out as for every other word count. A hit counts
+  // only when it starts and ends between two graphemes (a whole emoji: the US
+  // flag is not found across Australia + Sweden, a thumbs up not inside a
+  // skin-toned one) and, where the key starts or ends with a letter or digit,
+  // with no letter, digit, mark or word joiner beside it there ("ok" plus an
+  // emoji is not inside "book" plus that emoji).
+  const RE_WORD_START = /^[\p{L}\p{N}]/u, RE_WORD_END = /[\p{L}\p{N}]$/u;
+  const RE_GLUED_START = /^[\p{L}\p{N}\p{M}\u200C\u200D]/u, RE_GLUED_END = /[\p{L}\p{N}\p{M}\u200C\u200D]$/u;
   function countBattleText(text, key) {
     if (!text || !key) return 0;
     const s = battleText(plainText(text));
-    let n = 0;
-    for (let at = s.indexOf(key); at !== -1; at = s.indexOf(key, at + key.length)) n++;
+    const edgeL = RE_WORD_START.test(key), edgeR = RE_WORD_END.test(key);
+    let n = 0, bounds = null;
+    for (let at = s.indexOf(key); at !== -1;) {
+      const end = at + key.length;
+      if (!bounds) {
+        bounds = new Set([0]);
+        let p = 0;
+        for (const g of graphemes(s)) bounds.add(p += g.length);
+      }
+      const ok = bounds.has(at) && bounds.has(end) &&
+        !(edgeL && RE_GLUED_END.test(s.slice(Math.max(0, at - 2), at))) &&
+        !(edgeR && RE_GLUED_START.test(s.slice(end, end + 2)));
+      if (ok) n++;
+      at = s.indexOf(key, ok ? end : at + 1);
+    }
     return n;
   }
   // custom Word Battles words — strings only, trimmed, ≤40 chars,

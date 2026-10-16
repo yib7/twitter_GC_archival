@@ -264,3 +264,35 @@ test("a keycap or a variation selector after a letter is not part of the word", 
   assert.equal(shared.countWord(two, "12"), 1);
   assert.equal(shared.mayContainKey(two.toLowerCase(), "12"), true);
 });
+
+// A text-keyed word that starts or ends with a letter or digit counts only
+// as whole words there: "ok <thumbs up>" is not inside "book <thumbs up>",
+// as "man" is never inside "many".
+test("countBattleText keeps word boundaries at a letter or digit end", () => {
+  const c = (text, word) => shared.countBattleText(text, shared.battleKey(word));
+  const UP = "\u{1F44D}", JOY = "\u{1F602}";
+  assert.equal(c("book " + UP + " tiktok " + UP, "ok " + UP), 0);
+  assert.equal(c("ok " + UP + " and OK " + UP, "ok " + UP), 2);
+  assert.equal(c("trollol " + JOY, "lol " + JOY), 0);
+  assert.equal(c(JOY + " lollipop", JOY + " lol"), 0);
+  assert.equal(c(JOY + " lol!", JOY + " lol"), 1);
+  assert.equal(c(JOY + " e\u0301", JOY + " e"), 0);   // a combining mark continues the word
+  assert.equal(c("2" + JOY + "2", JOY), 1);   // an emoji end needs no word boundary
+});
+
+// A flag is two regional-indicator letters; the US flag must not be found
+// across Australia + Sweden (A U | S E), and an emoji counts only whole: a
+// thumbs up is not inside a skin-toned thumbs up, nor a heart inside the
+// heart on fire.
+test("countBattleText matches whole emoji, never across or inside one", () => {
+  const c = (text, word) => shared.countBattleText(text, shared.battleKey(word));
+  const ri = (a, b) => String.fromCodePoint(0x1F1E6 + a.charCodeAt(0) - 65, 0x1F1E6 + b.charCodeAt(0) - 65);
+  const US = ri("U", "S"), AU = ri("A", "U"), SE = ri("S", "E");
+  assert.equal(c(AU + SE, US), 0);
+  assert.equal(c(US + US + " " + AU + US, US), 3);
+  const UP = "\u{1F44D}", TONE = "\u{1F3FD}", HEART = "\u2764\uFE0F", FIRE = "\u2764\uFE0F\u200D\u{1F525}";
+  assert.equal(c(UP + TONE + " " + UP, UP), 1);
+  assert.equal(c(UP + TONE + " " + UP, UP + TONE), 1);
+  assert.equal(c(FIRE + " " + HEART, HEART), 1);
+  assert.equal(c(FIRE + " \u2764\u200D\u{1F525}", FIRE), 2);
+});
