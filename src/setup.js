@@ -21,7 +21,7 @@ if (location.protocol !== "http:" && location.protocol !== "https:") {
 // (src/setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule
 // (hueVars) without the settings.colors override, which is viewer-only.
 /* global GCAShared */
-const { initials, hueVars, sanitizePhoto } = GCAShared;
+const { initials, hueVars, sanitizePhoto, accentTokens } = GCAShared;
 // a person's avatar here is the same hue the viewer gives them (the
 // --p / --f pair of src/shared-core.js hueVars), not a separate palette.
 function paintHue(el, id) { const h = hueVars(id); el.style.setProperty("--p", h.p); el.style.setProperty("--f", h.f); }
@@ -662,6 +662,7 @@ function personCard(p) {
   const main = document.createElement("div"); main.className = "su-main";
   const name = document.createElement("input");
   name.className = "setup-input su-name"; name.type = "text"; name.placeholder = labelOf(p);
+  name.setAttribute("aria-label", "Name for " + labelOf(p) + " (id " + p.id + ")");
   if (savedName) name.value = savedName;
   // emptying a name keeps the id with "" — the server's signal to forget it.
   name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { state.names[p.id] = ""; if (!state.pfps[p.id]) av.textContent = initials(labelOf(p)); } };
@@ -680,6 +681,7 @@ function personCard(p) {
 
   const me = document.createElement("label"); me.className = "su-me";
   const radio = document.createElement("input"); radio.type = "radio"; radio.name = "su-me"; radio.value = p.id;
+  radio.setAttribute("aria-label", "This is YOU: " + labelOf(p) + " (id " + p.id + ")");   // every card's label reads the same
   if (state.me != null && String(state.me) === String(p.id)) radio.checked = true;
   radio.onchange = () => { if (radio.checked) state.me = String(p.id); };
   me.appendChild(radio); me.appendChild(document.createTextNode(" This is YOU"));
@@ -851,12 +853,28 @@ $("#reset-go").onclick = async () => {
 };
 
 /* ---- theme switch (mirrors app.js: key gca.theme, default lightsout) ------ */
+// Accent text, a filled accent's text and its fill, derived for the theme's
+// surfaces as the viewer does (applyAccentTokens in app.js): X blue is 3:1 on
+// white, so on Light the accent-as-text darkens and a filled button takes
+// near-black text instead of white.
+const THEME_BGS = { light: ["#ffffff", "#f7f9f9"], dim: ["#15202b", "#1e2732", "#1a2531"], lightsout: ["#000000", "#16181c", "#0a0b0d"] };
+function applyAccentTokens(t) {
+  const r = document.documentElement.style;
+  const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#1d9bf0";
+  const k = accentTokens(accent, THEME_BGS[t] || THEME_BGS.lightsout);
+  r.setProperty("--on-accent", k.onAccent);
+  r.setProperty("--accent-fill", k.fill);
+  r.setProperty("--accent-grad-end", k.gradEnd);
+  r.setProperty("--accent-text", k.text);
+  r.setProperty("--accent-ui", k.ui);
+}
 (function initTheme() {
   const KEY = "gca.theme", THEMES = ["light", "dim", "lightsout"];
   function get() { try { const t = localStorage.getItem(KEY); if (THEMES.indexOf(t) !== -1) return t; } catch (e) { /* ignore */ } return "lightsout"; }
   function set(t) {
     if (THEMES.indexOf(t) === -1) t = "lightsout";
     document.documentElement.setAttribute("data-theme", t);
+    applyAccentTokens(t);
     try { localStorage.setItem(KEY, t); } catch (e) { /* ignore */ }
     $$(".theme-switch button").forEach((b) => b.classList.toggle("on", b.dataset.set === t));
   }

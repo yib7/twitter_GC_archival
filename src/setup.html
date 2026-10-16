@@ -100,20 +100,20 @@
       </div>
       <div class="setup-or" role="separator"><span>or pick the three files yourself</span></div>
       <p class="setup-p setup-hint">Picking them one by one? <b>All three are required.</b> They're ignored while an archive folder is filled in.</p>
-      <label class="setup-label">Messages file <code>direct-messages-group.js</code> <span class="setup-req">required</span></label>
+      <label class="setup-label" for="src-group">Messages file <code>direct-messages-group.js</code> <span class="setup-req">required</span></label>
       <p class="setup-p setup-hint">Big archives split this into <code>-part1</code>, <code>-part2</code>… files. Pick the first one; the other parts in the same folder are added automatically.</p>
       <div class="setup-pickrow">
         <input id="src-group" class="setup-input" type="text"
           placeholder="Full path to …\data\direct-messages-group.js" />
         <button class="btn ghost setup-browse" id="group-browse">Browse…</button>
       </div>
-      <label class="setup-label">Headers file <code>direct-message-group-headers.js</code> <span class="setup-req">required</span></label>
+      <label class="setup-label" for="src-headers">Headers file <code>direct-message-group-headers.js</code> <span class="setup-req">required</span></label>
       <div class="setup-pickrow">
         <input id="src-headers" class="setup-input" type="text"
           placeholder="Full path to …\data\direct-message-group-headers.js" />
         <button class="btn ghost setup-browse" id="headers-browse">Browse…</button>
       </div>
-      <label class="setup-label">Media folder <code>direct_messages_group_media</code> <span class="setup-req">required</span></label>
+      <label class="setup-label" for="src-media">Media folder <code>direct_messages_group_media</code> <span class="setup-req">required</span></label>
       <p class="setup-p" style="margin:0 0 6px;font-size:12.5px;">Browse… open any file inside the media folder, we will use its folder.</p>
       <div class="setup-pickrow">
         <input id="src-media" class="setup-input" type="text"
@@ -167,10 +167,10 @@
       <p class="setup-p">Restore the group's real name and photo. The photo becomes
         the sidebar brand mark. You can change these later in Settings.</p>
       <div id="gc-grouprow" hidden>
-        <label class="setup-label" style="margin-top:0;">Which group chat</label>
+        <label class="setup-label" for="gc-group" style="margin-top:0;">Which group chat</label>
         <select id="gc-group" class="setup-input"></select>
       </div>
-      <label class="setup-label">Group name</label>
+      <label class="setup-label" for="gc-name">Group name</label>
       <input id="gc-name" class="setup-input" type="text" placeholder="The GC" />
       <label class="setup-label">Group photo</label>
       <div class="setup-uprow">
@@ -195,7 +195,7 @@
         messages &amp; shared media (Twitter/X links excluded — they don't help) to
         recognize them. Add a name, a photo, and mark which one is <b>you</b>.</p>
       <div id="people-grouprow" hidden>
-        <label class="setup-label" style="margin-top:0;">Which group chat</label>
+        <label class="setup-label" for="people-group" style="margin-top:0;">Which group chat</label>
         <select id="people-group" class="setup-input"></select>
       </div>
       <div class="su-me-row">

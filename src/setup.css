@@ -88,7 +88,7 @@
 .setup-browse { white-space: nowrap; flex: none; align-self: stretch; }
 .setup-req {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--accent); background: var(--accent-glow); padding: 1px 6px; border-radius: 5px;
+  color: var(--text); background: var(--accent-glow); padding: 1px 6px; border-radius: 5px;
 }
 
 /* ---- Finish hero + success seal (mock-setup .receipt-hero/.seal) ---------- */
@@ -119,7 +119,7 @@
 .fr-name { font-size: 15px; font-weight: 700; }
 .fr-sub { font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
 .fr-tag {
-  margin-left: auto; font-size: 11px; font-weight: 700; color: var(--success);
+  margin-left: auto; font-size: 11px; font-weight: 700; color: var(--success-text);
   background: var(--success-bg); border: 1px solid color-mix(in srgb, var(--success) 34%, transparent);
   padding: 5px 11px; border-radius: var(--radius-pill);
 }
@@ -128,7 +128,7 @@
 .fr-line:last-child { border-bottom: 0; }
 .fr-line .rl { font-size: 13px; color: var(--text-dim); }
 .fr-line .rv { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.fr-line .rv.blue { color: var(--accent-soft); }
+.fr-line .rv.blue { color: var(--accent-text); }
 .fr-people { display: flex; align-items: center; padding: 12px 17px 15px; }
 .fr-av {
   width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
@@ -145,7 +145,7 @@
 
 .setup-actions { display: flex; gap: 10px; margin-top: 22px; flex-wrap: wrap; }
 .btn.primary {
-  background: linear-gradient(160deg, var(--accent), var(--accent-deep)); color: #fff;
+  background: linear-gradient(160deg, var(--accent-fill), var(--accent-grad-end)); color: var(--on-accent);
   border-color: transparent; box-shadow: 0 8px 22px -8px var(--accent-glow);
 }
 /* a button that can't be pressed yet looks it (e.g. the merge button waiting for the
@@ -208,7 +208,9 @@
 .su-remove { font-size: 11px; padding: 3px 8px; color: var(--danger); }
 .su-person.removed { opacity: 0.5; }
 .su-person.removed .su-av { filter: grayscale(1); }
-.su-removegroup { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; color: var(--danger); cursor: pointer; }
+.su-removegroup { display: flex; align-items: center; gap: 8px; margin-top: 16px; font-size: 13px; cursor: pointer;
+  /* danger red pulled toward the text colour: still red, 4.5:1 in every theme */
+  color: color-mix(in srgb, var(--danger) 78%, var(--text)); }
 .su-removegroup input { width: auto; accent-color: var(--danger); }
 .setup-pane.group-removed #gc-name,
 .setup-pane.group-removed #gc-preview,
@@ -308,7 +310,7 @@
    three single-file fields */
 .setup-easy {
   font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--success); background: var(--success-bg); padding: 1px 6px; border-radius: 5px;
+  color: var(--success-text); background: var(--success-bg); padding: 1px 6px; border-radius: 5px;
 }
 .setup-or { display: flex; align-items: center; gap: 10px; margin: 20px 0 8px; color: var(--text-faint);
   font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -316,7 +318,7 @@
 
 /* the pre-flight preview (reuses the finish receipt's look) */
 .preflight { margin-top: 14px; }
-.pf-tag { color: var(--accent-soft); background: var(--accent-glow); border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
+.pf-tag { color: var(--text); background: var(--accent-glow); border-color: color-mix(in srgb, var(--accent) 34%, transparent); }
 .pf-groups { list-style: none; margin: 0; padding: 4px 17px 8px; border-top: 1px dashed var(--border-lift); }
 .pf-groups li { padding: 8px 0; font-size: 13px; color: var(--text-dim); border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
 .pf-groups li:last-child { border-bottom: 0; }
@@ -327,7 +329,7 @@
 .pf-warnings li::marker { color: var(--warning, var(--accent)); }
 .pf-warnings:empty { display: none; }
 .pf-warnings li + li { margin-top: 4px; }
-.pf-warnings li.pf-ok { list-style: none; margin-left: -18px; color: var(--success); }
+.pf-warnings li.pf-ok { list-style: none; margin-left: -18px; color: var(--success-text); }
 /* the extra confirm for an export older than the archive */
 .pf-older { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 10px 17px 0; font-size: 13px; line-height: 1.45; color: var(--text); cursor: pointer; }
 .pf-older[hidden] { display: none; }
@@ -348,7 +350,7 @@
 
 /* "Add a newer export" (merge mode) notice under the unlocked fields */
 .setup-merge { margin-top: 12px; padding: 11px 14px; border-radius: var(--radius-sm); font-size: 13px; line-height: 1.5;
-  background: var(--accent-glow); border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); color: var(--text-dim); }
+  background: var(--accent-glow); border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent); color: var(--text); }
 .setup-merge b { color: var(--text); }
 .setup-merge code { font-family: var(--font-mono); font-size: 0.92em; background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .setup-merge .setup-actions, .setup-locked .setup-actions { margin-top: 10px; }
