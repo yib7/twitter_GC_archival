@@ -855,6 +855,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   transition: opacity 0.3s ease, transform 0.3s ease;
 }
 .toast.fade-out { opacity: 0; transform: translate(-50%, 10px); }
+@media (max-width: 760px) { .toast { bottom: calc(62px + 16px + env(safe-area-inset-bottom)); } }   /* clear the fixed tab bar */
 @keyframes toastin { from { opacity: 0; transform: translate(-50%, 10px); } }
 
 /* ---- Back to top button -------------------------------------------------- */

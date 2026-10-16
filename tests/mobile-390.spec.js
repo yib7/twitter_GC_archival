@@ -389,3 +389,17 @@ test.describe("Contrast of rendered text at 390px", () => {
     });
   }
 });
+
+test.describe("a toast sits above the tab bar", () => {
+  test("the toast's box doesn't overlap the fixed tab bar", async ({ page }) => {
+    await bootViewer(page, DATA);
+    const card = page.locator("#s-list .msg").first();
+    await card.getByRole("button", { name: "Message actions" }).tap();
+    await card.locator(".msg-acts").getByRole("button", { name: "Bookmark" }).tap();
+    const toast = page.locator(".toast");
+    await expect(toast).toContainText("Bookmarked");
+    await expect.poll(() => toast.evaluate((t) => getComputedStyle(t).opacity)).toBe("1");   // settled after its entrance
+    const t = await toast.boundingBox(), bar = await page.locator(".tabbar").boundingBox();
+    expect(t.y + t.height, "toast bottom vs tab bar top").toBeLessThanOrEqual(bar.y);
+  });
+});
