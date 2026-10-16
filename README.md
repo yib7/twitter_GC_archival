@@ -355,7 +355,7 @@ identical on every run, and CI fails if the committed copy differs.
 
 ## Demo
 
-A quick tour through search (a fuzzy match, then operators across All chats), the
+A quick tour through search (a fuzzy match, then an operator across All chats), the
 timeline and its date calendar, the media gallery, Hall of Fame, the Wrapped
 recap, and the stats dashboard (synthetic demo data):
 
