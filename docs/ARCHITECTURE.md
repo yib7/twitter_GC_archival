@@ -216,7 +216,8 @@ served mode; nothing frames a `file://` page.
       msgs:  [ { i, s, t, x, u?, m?, k?, mx?, r? } ],  // id, sender, time(ms), text,
                                                        //   urls, first media path + kind
                                                        //   ("img"|"vid"|"file"), further
-                                                       //   media [{m,k}], reactions [{s,k}]
+                                                       //   media [{m,k}], reactions [{s,k,e?}]
+                                                       //   (e: a custom emoji's glyph)
       events:[ { t, type:"name"|"join"|"leave"|"create", ... } ] }
   ]
 }
