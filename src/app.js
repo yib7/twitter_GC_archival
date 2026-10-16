@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, initials, hueVars, userLabels } = GCAShared;
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
 // the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with.
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -962,10 +962,9 @@ const SCRIM_BGS = ["#000000", "#262626"];
 // on the theme's page background (theme-boot.js does the same pre-paint).
 const THEME_KEY = "gca.theme";
 const THEMES = ["light", "dim", "lightsout"];
-// [--bg-page, --bg-card] per theme — mirrors the html[data-theme] blocks in
-// styles.css (tests/a11y-contrast.spec.js checks they agree). Feeds the theme-color
-// meta and the contrast derivations (accent tokens, person-colour overrides).
-const THEME_BGS = { light: ["#ffffff", "#f7f9f9"], dim: ["#15202b", "#1e2732"], lightsout: ["#000000", "#16181c"] };
+// THEME_BGS (GCAShared, shared with the wizard): [--bg-page, --bg-card,
+// --bg-inset] per theme. Feeds the theme-color meta and the contrast
+// derivations (accent tokens, person-colour overrides).
 function getTheme() {
   try { const t = localStorage.getItem(THEME_KEY); if (THEMES.indexOf(t) !== -1) return t; } catch (e) { /* ignore */ }
   return "lightsout";

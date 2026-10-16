@@ -106,6 +106,15 @@
     }
     return target;
   }
+  // [--bg-page, --bg-card, --bg-inset] per theme, mirroring the
+  // html[data-theme] blocks in styles.css (tests/theme-bgs.test.js checks
+  // they agree). The viewer and the wizard derive accent and person colours
+  // against these; the viewer's theme-color meta uses the page colour.
+  const THEME_BGS = {
+    light: ["#ffffff", "#f7f9f9", "#f7f9f9"],
+    dim: ["#15202b", "#1e2732", "#1a2531"],
+    lightsout: ["#000000", "#16181c", "#0a0b0d"],
+  };
   const ON_LIGHT = "#0f1419";   // the Light theme's --text: "near-black" text on a light accent
   function accentTokens(accent, bgs) {
     const w = contrastRatio("#ffffff", accent), d = contrastRatio(ON_LIGHT, accent);
@@ -1258,7 +1267,7 @@
   return {
     PALETTE, X_LINK, hashId, initials, HUES, personHue, hueVars,
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
-    relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
+    relLuminance, contrastRatio, readableOn, accentTokens, THEME_BGS, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant, zonedDayStart, parseJumpDate, MONTH_NAMES,
     parseSearchQuery, resolvePeople, rankPeople, removeSearchToken, replaceSearchToken, quoteOpValue,
     createBigramIndex, fuzzyCandidates,

@@ -42,6 +42,10 @@ test("text tokens reach 4.5:1 on the page and card surfaces in every theme", asy
     for (const k in r) expect(r[k], t + ": " + k).toBeGreaterThanOrEqual(4.5);
     // app.js mirrors [--bg-page, --bg-card] in THEME_BGS for its contrast maths
     expect(await page.evaluate(() => [window.__tok("--bg-page"), window.__tok("--bg-card")]), t).toEqual(SURFACES[t]);
+    // the viewer and the wizard share one copy (GCAShared.THEME_BGS:
+    // page, card, inset), so a theme colour change can't drift either one
+    expect(await page.evaluate((th) => (window.GCAShared.THEME_BGS || {})[th], t), t).toEqual(
+      await page.evaluate(() => ["--bg-page", "--bg-card", "--bg-inset"].map(window.__tok)));
   }
 });
 

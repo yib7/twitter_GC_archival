@@ -21,7 +21,7 @@ if (location.protocol !== "http:" && location.protocol !== "https:") {
 // (src/setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule
 // (hueVars) without the settings.colors override, which is viewer-only.
 /* global GCAShared */
-const { initials, hueVars, sanitizePhoto, accentTokens } = GCAShared;
+const { initials, hueVars, sanitizePhoto, accentTokens, THEME_BGS } = GCAShared;
 // a person's avatar here is the same hue the viewer gives them (the
 // --p / --f pair of src/shared-core.js hueVars), not a separate palette.
 function paintHue(el, id) { const h = hueVars(id); el.style.setProperty("--p", h.p); el.style.setProperty("--f", h.f); }
@@ -863,8 +863,8 @@ $("#reset-go").onclick = async () => {
 // Accent text, a filled accent's text and its fill, derived for the theme's
 // surfaces as the viewer does (applyAccentTokens in app.js): X blue is 3:1 on
 // white, so on Light the accent-as-text darkens and a filled button takes
-// near-black text instead of white.
-const THEME_BGS = { light: ["#ffffff", "#f7f9f9"], dim: ["#15202b", "#1e2732", "#1a2531"], lightsout: ["#000000", "#16181c", "#0a0b0d"] };
+// near-black text instead of white. THEME_BGS is the viewer's table
+// (GCAShared).
 function applyAccentTokens(t) {
   const r = document.documentElement.style;
   const accent = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#1d9bf0";
