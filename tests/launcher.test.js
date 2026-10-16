@@ -190,7 +190,8 @@ test("the .command launcher's header matches how it behaves", () => {
 });
 
 test("the README tells a cloner to cd into the project and warns about the first-launch prompt", () => {
-  const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
+  // a Windows checkout has CRLF line endings (.gitattributes text=auto)
+  const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8").replace(/\r\n/g, "\n");
   assert.match(readme, /git clone [^\n]*\ncd twitter_GC_archival\n/);
   assert.match(readme, /Open Anyway/);
 });
