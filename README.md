@@ -449,33 +449,23 @@ in CI, and confirming that field name against a real export.
 
 ## Privacy & security
 
-This repository is designed to be published without any private data. Real
-messages, media, profile pictures, names, and packaged archives are listed in
-[`.gitignore`](.gitignore). The only data committed is the fully synthetic
-sample.
+The repository is built to be published with no private data. Real messages,
+media, photos, names and packaged archives are git-ignored
+([`.gitignore`](.gitignore)). The only committed data is the synthetic sample.
 
-Both pages carry a strict Content-Security-Policy in a `<meta>` tag
-(`script-src 'self'`, no inline scripts), which the browser enforces over
-`file://` as well. When you run the local setup server (`scripts/server.js`),
-it adds a fresh per-response nonce for the one config script it injects, and
-sends every page with `X-Frame-Options: DENY` and a `frame-ancestors 'none'`
-CSP header so no other site can frame them. What it checks, and where:
+- **Strict CSP.** Both pages set `script-src 'self'` with no inline scripts,
+  enforced over `file://` too.
+- **Loopback only.** The setup server listens on `127.0.0.1` and checks `Host`
+  on every request, which stops DNS rebinding.
+- **No cross-site reads.** Every reply carries
+  `Cross-Origin-Resource-Policy: same-origin`, so another site can't load your
+  data, media or photos with a `<script>`, `<img>` or `<video>` tag.
+- **Cross-site requests are refused.** `/api/` routes and private files return
+  `403` when `Sec-Fetch-Site` says another site sent the request. `/api/`
+  routes also check `Origin` and `Referer`.
+- **File pickers need a token.** The native dialogs require a per-run token
+  that only the setup page receives.
+- **No framing.** Pages are sent with `X-Frame-Options: DENY`.
 
-- **Every request:** the `Host` header must name this loopback server, which
-  stops DNS rebinding.
-- **Every reply** carries `Cross-Origin-Resource-Policy: same-origin`, so a
-  web page on another site can't load `data.js`, your names, media or photos
-  through a `<script>`, `<img>` or `<video>` tag and read them. When the
-  browser also says (with `Sec-Fetch-Site`) that another site asked for one of
-  those private files, the server refuses it with `403`.
-- **Routes that change files or open a dialog** (build, save, Start over, the
-  file pickers) also need an `Origin`/`Referer` that is this server or absent.
-  Every setup route, read-only ones included, is refused when
-  `Sec-Fetch-Site` says another site sent it, or when its `Origin` or
-  `Referer` names another site (for browsers that don't send
-  `Sec-Fetch-Site`, such as Safari before 16.4). The
-  native file pickers also need a per-run token that only the setup page
-  receives.
-
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for details. The server is
-not needed for daily use — the built archive runs from `file://`.
+Full rules in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). The server is not
+needed for daily use: the built archive runs from `file://`.
