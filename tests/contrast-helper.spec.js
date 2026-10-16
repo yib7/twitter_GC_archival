@@ -29,3 +29,29 @@ test("a %-sized radial vignette only darkens the text near its edge", async ({ p
   expect(bad.some((f) => f.includes("edge text")), bad.join("\n")).toBe(true);
   expect(bad.some((f) => f.includes("mid text")), bad.join("\n")).toBe(false);
 });
+
+// Generated text (a ::before / ::after with string, counter() or attr()
+// content) is text too: a numbered step dot, a "↵" hint. It is checked with
+// its own colour on its own background, laid over its element's.
+const GEN = `<!doctype html><html><body style="margin:0;background:#000">
+  <style>
+    ol { counter-reset: s; list-style: none; }
+    li { counter-increment: s; color: #fff; }
+    li::before { content: counter(s); display: inline-grid; width: 30px; height: 30px; place-items: center; font-size: 13px; color: #fff; }
+    li.bad::before { background: linear-gradient(145deg, #4db2f5, #1a8cd8); }
+    li.ok::before { background: linear-gradient(145deg, #1d4ed8, #1e3a8a); }
+    li.tint::after { content: "↵"; color: rgba(255, 255, 255, 0.3); }
+    li.empty::before { content: ""; background: #4db2f5; }
+    li.gone::before { content: "9"; color: #4db2f5; display: none; }
+  </style>
+  <ol id="r"><li class="bad">one</li><li class="ok">two</li><li class="tint">three</li><li class="empty">four</li><li class="gone">five</li></ol></body></html>`;
+
+test("generated ::before / ::after text is audited on its own background", async ({ page }) => {
+  await page.setContent(GEN);
+  const bad = await contrastFailures(page, "#r");
+  expect(bad.some((f) => /li\.bad::before “counter\(s\)”/.test(f)), bad.join("\n")).toBe(true);
+  expect(bad.some((f) => /li\.ok::before/.test(f)), bad.join("\n")).toBe(false);
+  expect(bad.some((f) => /li\.tint::after “↵”/.test(f)), bad.join("\n")).toBe(true);
+  expect(bad.some((f) => /li\.(empty|gone)::/.test(f)), bad.join("\n")).toBe(false);
+  expect(bad.filter((f) => !/::/.test(f)), "the li text itself (white on black) passes").toEqual([]);
+});

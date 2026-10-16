@@ -7,7 +7,10 @@
 // picture) can't be computed from styles and are skipped. A ::before/::after
 // that covers its element (inset 0: a vignette, a scrim) is one more layer of
 // that element's background. Gradient text
-// (background-clip: text) uses its stops as the ink.
+// (background-clip: text) uses its stops as the ink. Generated text (a
+// ::before / ::after whose content is a string, counter() or attr(), e.g. a
+// numbered step dot) is checked too, with its own colour over its own
+// background laid on its element's.
 // Normal text >= 4.5:1, large text (>= 24px, or >= 18.66px bold) >= 3:1.
 async function contrastFailures(page, root, skip) {
   return page.evaluate(([sel, skipSel]) => {
@@ -57,7 +60,9 @@ async function contrastFailures(page, root, skip) {
     const coverPseudos = (n) => ["::after", "::before"].map((p) => getComputedStyle(n, p)).filter((ps) =>
       ps.content && ps.content !== "none" && ps.content !== "normal" && /absolute|fixed/.test(ps.position) &&
       [ps.top, ps.right, ps.bottom, ps.left].every((v) => v === "0px"));
-    const bgsOf = (e, text) => {
+    // `own` (optional): the computed style of a text-bearing ::before /
+    // ::after of e, painted above e's own layers.
+    const bgsOf = (e, text, own) => {
       const stack = [];
       let floor = [parse(getComputedStyle(document.body).backgroundColor)];
       walk: for (let n = e; n; n = n.parentElement) {
@@ -66,7 +71,7 @@ async function contrastFailures(page, root, skip) {
         // element's own background and under its content, so it is the top
         // layer of this element (::after above ::before).
         const box = n.getBoundingClientRect();
-        for (const cs of coverPseudos(n).concat([getComputedStyle(n)])) {
+        for (const cs of (n === e && own ? [own] : []).concat(coverPseudos(n), [getComputedStyle(n)])) {
           if (cs.backgroundImage !== "none") {
             if (/url\(/.test(cs.backgroundImage)) return null;
             for (const g of cs.backgroundImage.match(GRAD) || []) {
@@ -93,24 +98,61 @@ async function contrastFailures(page, root, skip) {
     const out = [];
     const r0 = document.querySelector(sel);
     if (!r0) return out;
+    const skipped = (e) => e.closest("[aria-hidden=true], svg, canvas, button:disabled" + (skipSel ? ", " + skipSel : ""));
+    const opacityOf = (e) => { let op = 1; for (let n = e; n; n = n.parentElement) op *= Number(getComputedStyle(n).opacity); return op; };
+    const needOf = (cs) => { const px = parseFloat(cs.fontSize), bold = Number(cs.fontWeight) >= 700; return px >= 24 || (bold && px >= 18.66) ? 3 : 4.5; };
+    const worst = (inks, bgs, op) => {
+      let cr = Infinity;
+      for (const f0 of inks) for (const bg of bgs) cr = Math.min(cr, ratio(over({ r: f0.r, g: f0.g, b: f0.b, a: f0.a * op }, bg), bg));
+      return cr;
+    };
+    const tag = (e) => e.tagName.toLowerCase() + "." + String(e.className).trim().split(/\s+/).slice(0, 2).join(".");
+    // The text a ::before / ::after generates: quoted strings, counter() /
+    // counters() and attr(). content: "" (a decorative layer, a connector
+    // line, a scrim) generates none. A counter is reported by its name.
+    const generated = (e, content) => {
+      if (!content || content === "none" || content === "normal") return "";
+      let t = "";
+      const TOK = /"((?:[^"\\]|\\.)*)"|(counters?\([^)]*\))|attr\(([^)]*)\)/g;
+      for (let m; (m = TOK.exec(content));) {
+        if (m[1] != null) t += m[1].replace(/\\(.)/g, "$1");
+        else if (m[2] != null) t += m[2];
+        else t += e.getAttribute(m[3].trim()) || "";
+      }
+      return t.trim();
+    };
+    // generated text: its own colour and font, over its own background
+    // layers laid on top of its element's
+    for (const e of [r0].concat([...r0.querySelectorAll("*")])) {
+      if (skipped(e)) continue;
+      const r = e.getBoundingClientRect();
+      if (!r.width || !r.height) continue;
+      for (const p of ["::before", "::after"]) {
+        const ps = getComputedStyle(e, p);
+        const t = generated(e, ps.content);
+        if (!t || ps.display === "none" || ps.visibility === "hidden") continue;
+        const op = opacityOf(e) * Number(ps.opacity);
+        if (op < 0.05) continue;
+        const bgs = bgsOf(e, r, ps); if (!bgs) continue;
+        const cr = worst([parse(ps.color)], bgs, op);
+        if (cr < needOf(ps)) out.push(tag(e) + p + " “" + t.slice(0, 18) + "” " + cr.toFixed(2));
+      }
+    }
     for (const e of r0.querySelectorAll("*")) {
       if (![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
-      if (e.closest("[aria-hidden=true], svg, canvas, button:disabled" + (skipSel ? ", " + skipSel : ""))) continue;
+      if (skipped(e)) continue;
       const cs = getComputedStyle(e);
       const r = e.getBoundingClientRect();
       if (!r.width || !r.height || cs.visibility === "hidden") continue;
-      let op = 1; for (let n = e; n; n = n.parentElement) op *= Number(getComputedStyle(n).opacity);
+      const op = opacityOf(e);
       if (op < 0.05) continue;
-      const px = parseFloat(cs.fontSize), bold = Number(cs.fontWeight) >= 700;
-      const need = px >= 24 || (bold && px >= 18.66) ? 3 : 4.5;
       // gradient text (background-clip: text, transparent colour): the
       // gradient stops are the ink, the parent's background is behind it
       const clipText = /text/.test(cs.webkitBackgroundClip || "") || /text/.test(cs.backgroundClip || "");
       const inks = clipText ? (cs.backgroundImage.match(/(rgba?\([^)]*\)|color\([^)]*\))/g) || []).map(parse) : [parse(cs.color)];
       const bgs = bgsOf(clipText ? e.parentElement : e, r); if (!bgs || !inks.length) continue;
-      let cr = Infinity;
-      for (const f0 of inks) for (const bg of bgs) cr = Math.min(cr, ratio(over({ r: f0.r, g: f0.g, b: f0.b, a: f0.a * op }, bg), bg));
-      if (cr < need) out.push((e.parentElement.className ? String(e.parentElement.className).split(" ")[0] + ">" : "") + e.tagName.toLowerCase() + "." + String(e.className).trim().split(/\s+/).slice(0, 2).join(".") + " “" + e.textContent.trim().slice(0, 18) + "” " + cr.toFixed(2));
+      const cr = worst(inks, bgs, op);
+      if (cr < needOf(cs)) out.push((e.parentElement.className ? String(e.parentElement.className).split(" ")[0] + ">" : "") + tag(e) + " “" + e.textContent.trim().slice(0, 18) + "” " + cr.toFixed(2));
     }
     return out;
   }, [root, skip || ""]);

@@ -50,9 +50,11 @@
 .setup-steps li:last-child::after { display: none; }
 /* current step */
 .setup-steps li.active { color: var(--text); }
+/* the number sits on the accent fill pair with its derived text colour (as
+   .btn.primary does): white on the light-blue stop was 2.3:1 */
 .setup-steps li.active::before {
-  background: linear-gradient(145deg, var(--accent-soft), var(--accent-deep));
-  border-color: transparent; color: #fff; box-shadow: 0 0 0 4px var(--accent-glow);
+  background: linear-gradient(145deg, var(--accent-fill), var(--accent-grad-end));
+  border-color: transparent; color: var(--on-accent); box-shadow: 0 0 0 4px var(--accent-glow);
 }
 /* completed steps */
 .setup-steps li.done { color: var(--text-dim); }
