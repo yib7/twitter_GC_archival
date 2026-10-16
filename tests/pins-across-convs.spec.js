@@ -134,7 +134,7 @@ test("a pin from another chat leaves out ignored people's reactions", async ({ p
   const reacts = row.locator(".reacts .react");
   await expect(reacts).toHaveCount(1);
   await expect(reacts.first().locator(".who")).toHaveText("1");
-  await expect(reacts.first()).toHaveAttribute("title", "like — Di");
+  await expect(reacts.first()).toHaveAttribute("title", "like: Di");
 });
 
 // The Export / Clear all buttons are a row of ordinary pills, not the search

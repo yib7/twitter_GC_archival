@@ -302,7 +302,7 @@ test("file:// — Copy link copies only the #… part, and pasting it at the end
   const idx = await msg.getAttribute("data-idx");
   await msg.hover();
   await msg.getByRole("button", { name: "Copy link to message" }).click();
-  const T = "Copied the message's #link — paste it at the end of this archive's address to open it";
+  const T = "Copied the message's #link. Paste it at the end of this archive's address to open it";
   await expect(page.locator(".toast")).toHaveText(T);
   const link = await page.evaluate(() => navigator.clipboard.readText());
   expect(link).toMatch(/^#v=timeline&c=[^&]+&m=[^&]+$/);

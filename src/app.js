@@ -1,5 +1,5 @@
 /* =========================================================================
-   Group Chat Archive — app logic (vanilla JS, no dependencies)
+   Group Chat Archive: app logic (vanilla JS, no dependencies)
    ========================================================================= */
 (function () {
 "use strict";
@@ -45,7 +45,7 @@ let PARTS = [];            // participants of the active conversation
 let GENERIC = {};          // per-conversation generic names: id -> "User N"
 
 // A conversation whose every sender is ignored filters down to N === 0 and
-// would blank/crash the app if picked as active — prefer one that
+// would blank/crash the app if picked as active. Prefer one that
 // actually has visible messages; only fall back to saved/first if none do.
 function hasVisibleMessages(c) {
   const ignored = ignoredUserIds();
@@ -55,7 +55,7 @@ function hasVisibleMessages(c) {
 // The empty-chat panel: a chat with no messages at all, or one whose every
 // sender is ignored (plain text, no markup).
 function emptyConvText() {
-  return CONV && (CONV.msgs || []).length ? "No messages in this group — every sender is ignored." : "This group has no messages.";
+  return CONV && (CONV.msgs || []).length ? "No messages in this group. Every sender is ignored." : "This group has no messages.";
 }
 
 function pickInitialConvId() {
@@ -74,7 +74,7 @@ function rebuildIndexes() {
   ID2IDX = new Map();
   for (let i = 0; i < N; i++) { LOWER[i] = searchText(MSGS[i]); ID2IDX.set(MSGS[i].i, i); }
 }
-// what Search reads for a message — its text plus the expanded and
+// what Search reads for a message: its text plus the expanded and
 // display URLs of its links (renderText shows those, not the raw t.co link,
 // so what you see is what you can find). Search only: the word cloud and the
 // keyword analytics read m.x through plainText() / tokenize() (a LOWER probe
@@ -93,7 +93,7 @@ function assignGenericNames() {
   GENERIC = CONV ? userLabels(CONV, ignoredUserIds()) : {};
 }
 
-// renderGallery() only rebuilds when the view is empty — clear it so the next
+// renderGallery() only rebuilds when the view is empty; clear it so the next
 // visit rebuilds (unlike timeline/search, gallery has no *Built flag): on a
 // conversation switch, and when its cells' names or dates change (a rename, a
 // timezone change). Guarded: boot calls this before the DOM is ready.
@@ -113,7 +113,7 @@ function resetDerived() {
   resetGallery();
   hofYear = "all"; wrappedYear = null; wrappedSlide = 0;
   battleP1 = null; battleP2 = null;
-  // filters are per-conversation state — another
+  // filters are per-conversation state: another
   // chat's dates / people / media toggles / grid mode (or Threads year) must
   // not silently narrow this one. Sort order and match mode are preferences
   // and are kept. ensureSearch() renders its controls FROM F, so the rebuilt
@@ -122,7 +122,7 @@ function resetDerived() {
   threadFilter = "all";
   for (const k in wrappedCache) delete wrappedCache[k];
   if (trendChart) { try { trendChart.destroy(); } catch (e) {} trendChart = null; }
-  // same lifecycle as trendChart for the three per-render stats charts —
+  // same lifecycle as trendChart for the three per-render stats charts:
   // without this, every conversation switch leaks instances holding the old
   // (now detached) canvases.
   statCharts.forEach((c) => { try { c.destroy(); } catch (e) {} });
@@ -131,7 +131,7 @@ function resetDerived() {
 }
 // drop the half-stepped stats/word sweeps, cancel a pending deferred Stats
 // stage, and clear the (hidden) Stats DOM so numbers derived from the previous
-// conversation or zone never linger or get mixed — setView re-renders Stats on
+// conversation or zone never linger or get mixed; setView re-renders Stats on
 // entry. Called on a conversation switch (resetDerived) and a timezone change.
 function cancelStatsRender() {
   statsJob = null; statsRenderSeq++;
@@ -162,7 +162,7 @@ function activateConversation(id, rerender) {
   if (!c) return;
   saveTlPos();   // the conversation being left keeps its reading position
   CONV = c;
-  // the active chat searches through MSGS / LOWER — its All chats index
+  // the active chat searches through MSGS / LOWER, so its All chats index
   // (built while it was "another chat") would only hold memory; rebuilt
   // lazily if it is searched from another chat again.
   convSearchIdx.delete(c.id);
@@ -211,9 +211,9 @@ function initDateFormatters() {
     ZP_LOCAL = isLocal;
   };
   // A corrupt/ported zone throws a RangeError on construction, and this runs at
-  // top-level module init with no other guard — an uncaught throw bricks the app
+  // top-level module init with no other guard; an uncaught throw bricks the app
   // before it leaves the boot skeleton. validateSettings already keeps
-  // invalid zones out; as a last line of defence fall back to the DEFAULT zone
+  // invalid zones out; as a last line of defense fall back to the DEFAULT zone
   // (not a literal), then to UTC only if even that cannot be built.
   const zones = [(settings && settings.timezone) || DEFAULTS.timezone, DEFAULTS.timezone, "UTC"];
   for (const tz of zones) {
@@ -301,7 +301,7 @@ function monthKeyStr(mk) { return Math.floor(mk / 12) + "-" + String((mk % 12) +
 //   dayMin / dayCounts: dayCounts[dn - dayMin] = messages on zoned day dn
 //   days:     { "YYYY-MM-DD": count } in chronological order
 //   monthArr: [["YYYY-MM", count], …] ascending
-//   busy:     ["YYYY-MM-DD", count] — the earliest busiest day
+//   busy:     ["YYYY-MM-DD", count] (the earliest busiest day)
 // dayCounts is dense over the index's day range, which buildTimeIndex bounds
 // (instants clamped to 1900..2199), so one corrupt timestamp can size it to at
 // most ~110k days (<0.5 MB), never the ~10^8 days a raw outlier would.
@@ -334,7 +334,7 @@ function timeAgg() {
     if (c > busy[1]) busy = [key, c];
   }
   const monthArr = [];
-  // every month from the first to the last, silent months as 0 — the
+  // every month from the first to the last, silent months as 0: the
   // months chart, hero / sidebar sparklines and keyword trend all read this,
   // so a gap never draws as consecutive months.
   for (let k = 0; k < monthCounts.length; k++) monthArr.push([monthKeyStr(mMin + k), monthCounts[k]]);
@@ -364,7 +364,7 @@ function dayKeyBoundInstant(k) {
 }
 
 /* ---- Settings ------------------------------------------------------------ */
-// Committed defaults carry NO real names — participants render as generic
+// Committed defaults carry NO real names: participants render as generic
 // "User N" labels (assigned per-conversation) until the viewer renames them in
 // the People tab (saved to localStorage). A private, gitignored names.local.js
 // may set window.LOCAL_NAMES / window.LOCAL_PFPS to override locally.
@@ -372,26 +372,26 @@ const LOCAL_NAMES = (typeof window !== "undefined" && window.LOCAL_NAMES) || {};
 const LOCAL_IGNORED_USERS = (typeof window !== "undefined" && Array.isArray(window.LOCAL_IGNORED_USERS)) ? window.LOCAL_IGNORED_USERS.map(String) : [];
 const LOCAL_IGNORED_GROUPS = (typeof window !== "undefined" && Array.isArray(window.LOCAL_IGNORED_GROUPS)) ? window.LOCAL_IGNORED_GROUPS.map(String) : [];
 // Optional gitignored overrides written by the setup wizard (personal_data/local.js):
-//   window.LOCAL_ME  = "<id>"               — which participant is "you"
-//   window.LOCAL_GC  = { name, photo }       — the real group name + photo path
+//   window.LOCAL_ME  = "<id>"  (which participant is "you")
+//   window.LOCAL_GC  = { name, photo }  (the real group name + photo path)
 const LOCAL_ME = (typeof window !== "undefined" && window.LOCAL_ME) || null;
 const LOCAL_GC = (typeof window !== "undefined" && window.LOCAL_GC) || null;
 // Storage keys read by loadSettings() below. They MUST be declared before the
-// top-level `let settings = loadSettings()` runs: as `const`s further down they
-// sat in the temporal dead zone at boot, loadPfps()/loadGc() threw (and
-// swallowed) a ReferenceError, and every saved photo / in-app group rename was
-// silently dropped on reload.
+// top-level `let settings = loadSettings()` runs: declared as `const`s
+// further down, they would sit in the temporal dead zone at boot, loadPfps()/
+// loadGc() would throw (and swallow) a ReferenceError, and every saved photo /
+// in-app group rename would be silently dropped on reload.
 const PFPS_KEY = "gca.pfps";
 const GC_KEY = "gca.gc";
 // Deep-frozen: every consumer gets its own copy via cloneDefaults(), so a
-// settings object can never alias (and later mutate) these arrays/maps — the
-// old Reset did `Object.assign({}, DEFAULTS, …)` and bookmarking afterwards
-// pushed straight into DEFAULTS.pins.
+// settings object can never alias (and later mutate) these arrays/maps. A
+// shallow `Object.assign({}, DEFAULTS, …)` copy would let bookmarking push
+// straight into DEFAULTS.pins.
 const DEFAULTS = deepFreeze({
   names: {}, pfps: {}, gc: {}, gcName: "", gcPhoto: "",
   colors: {}, me: null, accent: "#1d9bf0", fontSize: 15, density: "comfortable", avatars: true, timestamps: true, saved: [], pins: [], ignoredUsers: [], ignoredGroups: [],
   // dates render in the viewer's own zone by default. tzExplicit
-  // marks a zone picked in Settings — see validateSettings (shared-core) for
+  // marks a zone picked in Settings; see validateSettings (shared-core) for
   // how an unmarked legacy "UTC" is migrated.
   timezone: "local", tzExplicit: false,
   // the words added in Word Battles (newest first), kept across
@@ -402,8 +402,8 @@ const FONT_MIN = 13, FONT_MAX = 19;   // the Settings slider's range
 function deepFreeze(o) { Object.values(o).forEach((v) => { if (v && typeof v === "object") deepFreeze(v); }); return Object.freeze(o); }
 function cloneDefaults() { return JSON.parse(JSON.stringify(DEFAULTS)); }
 
-// every settings object — the persisted gca.settings blob at boot
-// (loadSettings) and an imported JSON file (Import) — passes through ONE gate.
+// every settings object, whether the persisted gca.settings blob at boot
+// (loadSettings) or an imported JSON file (Import), passes through ONE gate.
 // The validators are pure and live in src/shared-core.js (validateSettings,
 // sanitizePhoto, sanitizeColor, cleanMap, cleanSaved, …); this wrapper only
 // supplies the viewer's rules. Declared up here because it runs at boot.
@@ -414,7 +414,7 @@ function validateSettings(raw, base) {
 }
 
 // The toast timers (see Toast below) are declared before the first settings
-// write: a failed save at boot shows a toast, which must not find them uninitialised.
+// write: a failed save at boot shows a toast, which must not find them uninitialized.
 let toastT = null, srT = 0;
 let settings = loadSettings();
 // persist the one-time "unmarked UTC -> local" migration, so the stored
@@ -438,8 +438,8 @@ function loadSettings() {
 }
 // Profile-picture data URLs are bulky; persist them under their OWN localStorage
 // key so an over-quota photo can never block names/pins/saved searches from
-// saving. (Previously photos lived inside the gca.settings blob, where one large
-// upload tripped QuotaExceededError and silently wiped ALL settings.)
+// saving. (Inside the gca.settings blob, one large upload would trip
+// QuotaExceededError and silently wipe ALL settings.)
 function loadPfps(legacy) {
   try {
     const raw = localStorage.getItem(PFPS_KEY);
@@ -449,10 +449,10 @@ function loadPfps(legacy) {
   return (legacy && typeof legacy === "object") ? Object.assign({}, legacy) : {};
 }
 // Persist the pfp map. Returns false (and warns) if storage is full, leaving the
-// previously-saved photos and every other setting intact.
+// photos already saved and every other setting intact.
 function savePfps() {
   try { localStorage.setItem(PFPS_KEY, JSON.stringify(settings.pfps || {})); return true; }
-  catch (e) { toast("That photo was too large to save — your names and other settings are safe."); return false; }
+  catch (e) { toast("That photo was too large to save. Your names and other settings are safe."); return false; }
 }
 // Per-group name + photo overrides ({ convId: { name, photo } }) editable in the
 // app. Like pfps, the (bulky) photo data URLs live under their OWN localStorage
@@ -466,13 +466,13 @@ function loadGc(legacy) {
 }
 function saveGc() {
   try { localStorage.setItem(GC_KEY, JSON.stringify(settings.gc || {})); return true; }
-  catch (e) { toast("That group photo was too large to save — your other settings are safe."); return false; }
+  catch (e) { toast("That group photo was too large to save. Your other settings are safe."); return false; }
 }
 function saveSettings() {
   try {
     const toStore = Object.assign({}, settings); delete toStore.pfps; delete toStore.gc;   // pfps + gc live under their own keys
     localStorage.setItem("gca.settings", JSON.stringify(toStore));
-  } catch (e) { toast("Couldn't save settings — browser storage may be full."); }
+  } catch (e) { toast("Couldn't save settings. Browser storage may be full."); }
 }
 // One-time: lift any pfps still embedded in gca.settings into their own key, so
 // existing users' photos survive the move off the settings blob.
@@ -565,7 +565,7 @@ function highlightDOM(element, needles) {
 // inclusive [start, end] pairs (Fuse match indices) into the message's plain
 // text; we walk the rendered text nodes tracking the absolute offset and wrap
 // the intersecting slices in <mark>. Same XSS discipline as highlightDOM:
-// only text nodes are split/rewrapped via textContent — raw message text
+// only text nodes are split/rewrapped via textContent, so raw message text
 // never goes through innerHTML.
 function highlightRangesDOM(element, ranges) {
   if (!ranges || !ranges.length) return;
@@ -616,7 +616,7 @@ function highlightRangesDOM(element, ranges) {
 function hexToRgb(h) { h = String(h).replace("#", ""); if (h.length === 3) h = h.split("").map((c) => c + c).join(""); if (h.length === 8) h = h.slice(0, 6); const n = parseInt(h, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function hexA(h, a) { const [r, g, b] = hexToRgb(h); return `rgba(${r},${g},${b},${a})`; }
 function shade(h, p) { let [r, g, b] = hexToRgb(h); const t = p < 0 ? 0 : 255; const f = Math.abs(p) / 100; r = Math.round((t - r) * f + r); g = Math.round((t - g) * f + g); b = Math.round((t - b) * f + b); return "#" + [r, g, b].map((x) => x.toString(16).padStart(2, "0")).join(""); }
-// hashId moved to src/shared-core.js (used there by hueVars).
+// hashId lives in src/shared-core.js (used there by hueVars).
 // Day bucket for an epoch, in the configured zone ("YYYY-MM-DD"). Callers group
 // by equality; the human-readable busiest-day label formats via zone-aware DAY.
 function dayKey(t) { return zonedParts(t).key; }
@@ -624,14 +624,14 @@ function dayKey(t) { return zonedParts(t).key; }
 // toLocaleString on a string hands it back unchanged into innerHTML.
 function fmtNum(n) { return (Number(n) || 0).toLocaleString("en-US"); }
 
-/* Count-up stat numbers (mock-stats animate()): finds [data-count] (integers,
+/* Count-up stat numbers: finds [data-count] (integers,
    fmtNum separators) and [data-decimal] (toFixed(1)) descendants of rootEl and
-   eases each 0→target over ~1s (ease-out cubic), starts staggered 80ms + i*45ms
-   like the mock. data-suffix is appended verbatim. Markup seeds the FINAL value
+   eases each 0→target over ~1s (ease-out cubic), starts staggered 80ms + i*45ms.
+   data-suffix is appended verbatim. Markup seeds the FINAL value
    (no-JS / print stays sensible); this zeroes it synchronously before the first
    frame so there's no flash. prefers-reduced-motion → final value instantly,
-   no rAF. Safe if a node detaches mid-animation (isConnected guards). Shared:
-   Stats uses it now, Wrapped reuses it. */
+   no rAF. Safe if a node detaches mid-animation (isConnected guards). Shared
+   by Stats and Wrapped. */
 function animateCounts(rootEl) {
   if (!rootEl) return;
   const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -683,14 +683,14 @@ function genericFor(conv) {
   }
   return g.names;
 }
-// ONE person colour everywhere: avatars, names, cards, Word
+// ONE person color everywhere: avatars, names, cards, Word
 // Battles, foreign pins and the share cards all read personColor().
-// X person palette — 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
+// X person palette: 10 hue pairs (--p-* bright name / --f-* deep avatar fill).
 // A person maps to one hue by id hash; a user-picked settings.colors[id] overrides
 // (deep = shaded). Returns the CSS values for the inline --p/--f the avatar + name use.
-// The automatic (hashed) hue alone, ignoring any override — what the People
+// The automatic (hashed) hue alone, ignoring any override; it is what the People
 // tab's "A" swatch previews. The rule lives in src/shared-core.js
-// (HUES / personHue / hueVars) so the setup wizard paints the same colour.
+// (HUES / personHue / hueVars) so the setup wizard paints the same color.
 function autoColor(id) { return hueVars(id); }
 function personColor(id) {
   const c = sanitizeColor(settings.colors[id]);
@@ -698,7 +698,7 @@ function personColor(id) {
   if (c) return { p: overrideVar(c), f: readableOn(shade(c, -20), ["#ffffff"], 4.5) };
   return autoColor(id);
 }
-// a user-picked colour is used for name TEXT, so it must stay readable
+// a user-picked color is used for name TEXT, so it must stay readable
 // in every theme (a bright yellow fails on white, a deep navy on black). Each
 // distinct override gets one --pc-<hex> custom property whose value is set per
 // theme (nudged toward white/black only as far as 4.5:1 needs), so switching
@@ -869,7 +869,7 @@ let STATS = null;
 // Messages containing a Twitter/X link are useless for telling people apart, so
 // they're excluded from the naming samples entirely (not only when they *start*
 // with a URL). A few shared-media paths are collected as extra memory jogs.
-// (X_LINK moved to src/shared-core.js — destructured at the top of this IIFE.)
+// (X_LINK lives in src/shared-core.js and is destructured at the top of this IIFE.)
 function computeParticipants() {
   const map = new Map();
   for (let i = 0; i < N; i++) {
@@ -882,8 +882,8 @@ function computeParticipants() {
     if (m.m && p.media.length < 6) p.media.push({ m: m.m, k: m.k });
   }
   const arr = [...map.values()].sort((a, b) => b.count - a.count);
-  // members who never posted — on the roster (conversation.participants),
-  // reacting only, or only in a join / leave event — are people too. They go
+  // members who never posted are people too: on the roster
+  // (conversation.participants), reacting only, or only in a join / leave event. They go
   // after every sender (so senders keep their "User N" numbers), in the order
   // they are first seen: roster, then reactions, then events. Ignored users
   // never come back this way.
@@ -964,7 +964,7 @@ const THEME_KEY = "gca.theme";
 const THEMES = ["light", "dim", "lightsout"];
 // THEME_BGS (GCAShared, shared with the wizard): [--bg-page, --bg-card,
 // --bg-inset] per theme. Feeds the theme-color meta and the contrast
-// derivations (accent tokens, person-colour overrides).
+// derivations (accent tokens, person-color overrides).
 function getTheme() {
   try { const t = localStorage.getItem(THEME_KEY); if (THEMES.indexOf(t) !== -1) return t; } catch (e) { /* ignore */ }
   return "lightsout";
@@ -992,7 +992,7 @@ function initTheme() {
 }
 
 /* ---- Mobile chrome (top bar + bottom tab bar + "More" sheet) -------------- */
-// ≤760px replaces the sidebar with the mock's mobile experience: a fixed top
+// ≤760px replaces the sidebar with the mobile layout: a fixed top
 // app bar (brand mark + conv picker + palette button), a 5-tab bottom bar
 // (Search / Timeline / Gallery / Stats / More) and a bottom sheet holding the
 // remaining views. Everything is element-guarded so non-DOM contexts and the
@@ -1111,7 +1111,7 @@ function renderText(raw, urls) {
   return out;
 }
 
-/* ---- Timeline liveliness helpers (mock-timeline.html parity) -------------- */
+/* ---- Timeline liveliness helpers -------------- */
 // Sticky day pill: "Saturday, <b>May 23, 2020</b>" — weekday plain, date bold
 // (split on the first comma of the DAY format). Outer class stays `daysep`.
 function renderDaySep(t, cont) {
@@ -1122,13 +1122,13 @@ function renderDaySep(t, cont) {
     : "<b>" + esc(label) + "</b>";
   const d = el("div", "daysep" + (cont ? " cont" : ""), '<span class="daypill">' + inner + "</span>");
   // a continuation pill repeats the day already announced in an earlier
-  // chunk purely so the sticky header survives the chunk seam — zero height,
+  // chunk purely so the sticky header survives the chunk seam; zero height,
   // and hidden from assistive tech so the day isn't read out twice.
   if (cont) d.setAttribute("aria-hidden", "true");
   return d;
 }
 
-// Rich link chip (mock .linkchip structure; class stays `urlchip`): icon box +
+// Rich link chip (.linkchip structure; class stays `urlchip`): icon box +
 // bold domain line + dim ellipsized label. Domain via new URL() in a try/catch;
 // non-URL hrefs (local media paths) fall back to the path's basename.
 const CHIP_LINK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 15l6-6M9.5 8.5l1.4-1.4a3.5 3.5 0 015 5l-1.4 1.4M14.5 15.5l-1.4 1.4a3.5 3.5 0 01-5-5l1.4-1.4"/></svg>';
@@ -1168,8 +1168,8 @@ function renderMsg(i, opts) {
   const tm = el("span", "msg-time"); tm.textContent = DT.format(m.t);
   head.appendChild(nm); head.appendChild(tm); body.appendChild(head);
 
-  // Copy and Share only make sense with text — on a media-only message
-  // Copy used to copy "" and still toast "Copied text".
+  // Copy and Share only make sense with text: on a media-only message
+  // Copy would copy "" and still toast "Copied text".
   const hasText = !!(m.x || "").trim();
   const acts = msgActions(wrap, m, { i }, [hasText && "copy", "context", hasText && "share", "jump", "link"]);
   body.appendChild(acts);
@@ -1210,11 +1210,11 @@ function renderMsg(i, opts) {
 }
 // the per-message action toolbar. A mouse reveals it on hover; a
 // keyboard user tabs to the message (a focusable article) and on into the
-// toolbar, which shows while focus is inside the card; a touch user — who has
-// no hover — opens it with the "⋯" button. Running an action closes it.
+// toolbar, which shows while focus is inside the card; a touch user, who has
+// no hover, opens it with the "⋯" button. Running an action closes it.
 // the buttons only carry data-act; ONE delegated listener (below) runs
-// them for every message on the page — Search, Timeline, Pinned, Hall of
-// Fame, Context peek — instead of 4-6 closures per rendered message. What an
+// them for every message on the page (Search, Timeline, Pinned, Hall of
+// Fame, Context peek) instead of 4-6 closures per rendered message. What an
 // action needs is kept on the card (wrap._msgAct: the message, its index in
 // the active chat, or the conversation of a foreign pin).
 const MSG_ACT_LABELS = { copy: "Copy", context: "Context", share: "Share", jump: "Jump", link: "Link" };
@@ -1264,7 +1264,7 @@ const MSG_ACTS = {
   jump: (a) => (a.conv != null ? jumpToConvMsg(a.conv, a.m.i) : jumpTo(a.i)),
   link: (a) => copyMsgLink(a.conv != null ? a.conv : CONV.id, a.m.i),
 };
-// Capture phase + stopPropagation: like the old per-button handlers, an action
+// Capture phase + stopPropagation: like per-button handlers, an action
 // click never reaches the card's own click (open / jump) or any list handler.
 document.addEventListener("click", (e) => {
   const b = e.target.closest && e.target.closest(".msg-acts [data-act], .msg > .msg-more[data-act]");
@@ -1304,11 +1304,11 @@ function msgFocusable(wrap, m) {
   wrap.setAttribute("aria-label", nameOf(m.s) + ", " + DT.format(m.t));
 }
 // a whole-card click/Enter target (Search results, bookmark cards) must
-// not hijack its interactive children — a link opens only the link, an avatar
+// not hijack its interactive children: a link opens only the link, an avatar
 // only the profile, a video only plays, and Enter on a focused link follows
 // the link. The card acts on clicks that land on its own non-interactive
 // parts, and on Enter/Space only while the card itself has focus.
-// (Only a video WITH controls is its own target — a gallery cell's bare
+// (Only a video WITH controls is its own target; a gallery cell's bare
 // preview <video> is part of the cell.)
 const CARD_CHILD_SEL = "a, button, input, select, textarea, label, video[controls], .av-clickable";
 function cardActivation(wrap, go) {
@@ -1351,8 +1351,8 @@ function renderMedia(m, i) {
     const img = el("img"); img.loading = "lazy"; img.src = safeHref(m.m);
     img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
     // A search result walks the result media; anywhere else (timeline, a
-    // Context peek — even over Search) walks the conversation's media.
-    // the image is its own Tab stop (Enter/Space open it too) — the
+    // Context peek, even one over Search) walks the conversation's media.
+    // the image is its own Tab stop (Enter/Space open it too); the
     // message around it is focusable but can't open the lightbox itself.
     asButton(img, () => openLightbox(i, img.closest("#s-list") ? resState.idx : null), "Open photo from " + nameOf(m.s) + " · " + DT.format(m.t));
     img.addEventListener("click", (e) => e.stopPropagation());   // not the card's own click
@@ -1416,14 +1416,14 @@ function renderReacts(r, nameFn) {
     g.senders.push(x.s);
   });
   groups.forEach((g) => {
-    // g.e is untrusted export data (X's raw reaction payload) — it MUST be
+    // g.e is untrusted export data (X's raw reaction payload), so it MUST be
     // escaped before it enters innerHTML (via el()) or the title, exactly
     // like renderText() escapes message bodies. Never insert it raw.
     const isCustom = g.k === "emoji" && g.e;
     const glyph = isCustom ? esc(g.e) : (REACT[g.k] || "•");
     const label = isCustom ? esc(g.e) : g.k;
     const c = el("span", "react", glyph + ' <span class="who">' + g.senders.length + "</span>");
-    c.title = label + " — " + g.senders.map(nameFn || nameOf).join(", ");
+    c.title = label + ": " + g.senders.map(nameFn || nameOf).join(", ");
     wrap.appendChild(c);
   });
   return wrap;
@@ -1440,7 +1440,7 @@ function convMediaList() { const out = []; for (let i = 0; i < N; i++) if (isVie
 // `list` is the ordered set the arrows walk, supplied by the caller so they
 // follow what the user is looking at: newest-first Gallery, the ranked
 // Hall of Fame set, the search results. When the list doesn't contain `i`
-// (e.g. a neighbour photo in Context peek over Search) or no list is
+// (e.g. a neighbor photo in Context peek over Search) or no list is
 // given, fall back to the conversation's media in date order.
 function openLightbox(i, list) {
   if (!isViewable(i)) return;
@@ -1472,9 +1472,9 @@ function renderLightbox() {
   const close = closeLightbox;
   box.addEventListener("click", (e) => { if (e.target === box) close(); });
   
-  // one top toolbar inside the safe area — "n / N", then bookmark,
-  // download and close — instead of controls pinned at separate corners
-  // (Download used to sit over the sidebar brand).
+  // one top toolbar inside the safe area ("n / N", then bookmark,
+  // download and close) instead of controls pinned at separate corners, so
+  // Download never sits over the sidebar brand.
   const bar = el("div", "lb-bar");
   const n = lbState.idxList.length;
   const count = el("span", "lb-count", (lbState.pos + 1) + " / " + n);
@@ -1532,7 +1532,7 @@ function renderLightbox() {
   box.appendChild(mediaEl);
   
   const cap = el("div", "lb-cap");
-  cap.innerHTML = esc(nameOf(m.s) + " · " + DT.format(m.t)) + '  —  <a href="#">jump to message ↗</a>';
+  cap.innerHTML = esc(nameOf(m.s) + " · " + DT.format(m.t)) + '  ·  <a href="#">jump to message ↗</a>';
   cap.querySelector("a").onclick = (e) => { e.preventDefault(); close(); jumpTo(i); };
   box.appendChild(cap);
   
@@ -1544,8 +1544,8 @@ function renderLightbox() {
 }
 
 function lbKeyHandler(e) {
-  // Escape is the global handler's job (closeTopModal) — handling it here too
-  // closed two layers per keypress. Arrows only drive the lightbox
+  // Escape is the global handler's job (closeTopModal); handling it here too
+  // would close two layers per keypress. Arrows only drive the lightbox
   // while it is the top layer (not under the keyboard help, say).
   if (!lbState.box || topModal() !== lbState.box) return;
   if (e.key === "ArrowLeft" && lbState.pos > 0) { lbState.pos--; renderLightbox(); }
@@ -1606,8 +1606,8 @@ let resObserver = null;
    (navHash), the query text never. Indexes for the other chats are built on
    first use and cached per conversation (keyed on the ignored-people set and
    the message array, so un/ignoring someone rebuilds just that); the active
-   chat reuses MSGS / LOWER. Exact tier only — no typo-tolerant pass across
-   chats — so Fuzzy/Exact and Grid are hidden while it is on. */
+   chat reuses MSGS / LOWER. Exact tier only (no typo-tolerant pass across
+   chats), so Fuzzy/Exact and Grid are hidden while it is on. */
 let searchScope = "this";
 const convSearchIdx = new Map();
 function allScope() { return searchScope === "all" && visibleConvos().length > 1; }
@@ -1863,7 +1863,7 @@ function ensureSearch() {
   resPageObs = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
       // a hidden Search view has an unlaid-out root (0 height) and reports
-      // every page as not intersecting — ignore it, or leaving the view would
+      // every page as not intersecting. Ignore it, or leaving the view would
       // empty the list and lose the reading position.
       if (!e.rootBounds || !e.rootBounds.height) return;
       const pg = e.target;
@@ -1884,13 +1884,13 @@ function ensureSearch() {
 /* ---- Query context -------------------------------------
    The box is parsed by GCAShared.parseSearchQuery (shared with the command
    palette's message hits and the operator chips) and resolved here into the
-   run's context: its needles plus a TRANSIENT operator overlay —
+   run's context: its needles plus a TRANSIENT operator overlay:
    from:/sender: people, before:/after: bounds, has:/is: flags, -exclusions.
    The overlay is rebuilt from the text on every run and never written into the
    persistent F.people/F.from/F.to/F.media/F.links/F.reacts filter-panel state:
    it narrows further than the manual filters and vanishes with its token. */
 // Who a from: value can name: participants (ignored people are already gone
-// from PARTS) by display name plus aliases — the wizard name, a name set in
+// from PARTS) by display name plus aliases: the wizard name, a name set in
 // People and the generic "User N" label.
 function personNames(id) {
   const out = [];
@@ -1946,7 +1946,7 @@ function buildSearchCtx(raw, people) {
       if (!r.ids.length) ctx.notes.push("No one named “" + op.value + "”");
     } else if (op.key === "before" || op.key === "after") {
       // a date that doesn't exist is dropped with a note, not rolled over
-      if (op.error) { ctx.notes.push("Ignored " + op.raw + (op.error === "order" ? " — use YYYY-MM-DD or Jan 7 2024" : " — no such date")); continue; }
+      if (op.error) { ctx.notes.push("Ignored " + op.raw + (op.error === "order" ? ": use YYYY-MM-DD or Jan 7 2024" : ": no such date")); continue; }
       // both inclusive of the named period: after:P = from P's first
       // day, before:P = through P's last day
       if (op.key === "before") ctx.to = ctx.to == null ? op.date.end - 1 : Math.min(ctx.to, op.date.end - 1);
@@ -2013,10 +2013,10 @@ function literalHits(ctx, msgs, lower) {
      - literal hits -> only those, newest first, plus a "close matches" button
        (#s-fuzzy-toggle) that opts THIS query into the typo-tolerant ranking;
      - no literal hit (after filters) -> falls back to fuzzy on its own, and the
-       meta line says "No exact matches — N close matches".
+       meta line says "No exact matches: N close matches".
    Exact mode is literal-only and never offers fuzzy. A fuzzy run scores only the
    prefiltered candidates (GCAShared.fuzzyCandidates, a bigram-index q-gram
-   filter that provably keeps everything Fuse would match — see
+   filter that provably keeps everything Fuse would match; see
    tests/fuzzy-prefilter.test.js), and highlight ranges are computed per
    rendered page instead of for every hit. */
 const FUSE_OPTS = { threshold: 0.3, ignoreLocation: true };
@@ -2096,7 +2096,7 @@ function runSearch() {
       const lit = out;
       fuzzyPattern = F.needles.join(" ");
       fuzzyRanges = new Map();
-      // "quoted phrases" stay exact in Fuzzy mode — a close match must
+      // "quoted phrases" stay exact in Fuzzy mode: a close match must
       // still hold each one contiguously (same lowercasing as the literal
       // tier); only the unquoted words are typo-tolerant.
       const fz = fuzzyMatch(fuzzyPattern).filter((i) => testMsgNoNeedle(i) && hasPhrases(SQ, LOWER[i]));
@@ -2131,9 +2131,9 @@ function runSearch() {
   const sortLbl = sortLabel(searchKind === "fallback" || searchKind === "forced");
   const noun = (gridOn() ? " media message" : " message") + (out.length === 1 ? "" : "s");
   sEls.meta.textContent = !hasFilter
-    ? "Showing all " + fmtNum(out.length) + noun + ", " + sortLabel(false) + " first — " + SEARCH_HINT
+    ? "Showing all " + fmtNum(out.length) + noun + ", " + sortLabel(false) + " first. " + SEARCH_HINT
     : searchKind === "fallback" && out.length
-      ? "No exact " + (gridOn() ? "media " : "") + "matches — " + fmtNum(out.length) + " close " + (gridOn() ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
+      ? "No exact " + (gridOn() ? "media " : "") + "matches: " + fmtNum(out.length) + " close " + (gridOn() ? "media " : "") + (out.length === 1 ? "match" : "matches") + " · sorted by " + sortLbl
       : fmtNum(out.length) + noun + " found" + (searchKind === "forced" ? " incl. close matches" : "") + " · sorted by " + sortLbl;
   // The per-query opt-in / opt-out for close matches (Fuzzy mode only).
   if (searchKind === "exact-first" || searchKind === "forced") {
@@ -2150,7 +2150,7 @@ function runSearch() {
   if (!out.length) {
     sEls.list.className = "list";
     sEls.list.appendChild(matched && gridOn()
-      ? emptyState("camera", "No media in these results.", fmtNum(matched) + (matched === 1 ? " message matches" : " messages match") + " — switch to List to see " + (matched === 1 ? "it" : "them") + ".",
+      ? emptyState("camera", "No media in these results.", fmtNum(matched) + (matched === 1 ? " message matches" : " messages match") + ". Switch to List to see " + (matched === 1 ? "it" : "them") + ".",
         ["Switch to List", () => sEls.viewtoggle.querySelector('button[data-mode="list"]').click()])
       : emptyState("search", "No messages match your search.", "Try fewer words, switch to Fuzzy, or clear the filters.",
         ["Clear search & filters", () => { clearAllFilters(); if (matchMedia("(pointer: fine)").matches) sEls.input.focus(); }]));
@@ -2158,13 +2158,13 @@ function runSearch() {
   }
   appendResultsPage();
 }
-const SEARCH_HINT = "start typing or add a filter. Try from:name, has:photo, has:link, is:pinned, after:2021-06, before:2024, -word";
+const SEARCH_HINT = "Start typing or add a filter. Try from:name, has:photo, has:link, is:pinned, after:2021-06, before:2024, -word";
 // A new result set: observers off, the list emptied and back at the top.
 function resetResultList(cls) {
   sEls.list.className = cls;
   if (resPageObs) resPageObs.disconnect();
   sEls.list.innerHTML = "";
-  // a new result set starts at the top — keeping the old offset hid the
+  // a new result set starts at the top — keeping the previous offset would hide the
   // best results above the fold and let the sentinel pull in page 2 at once.
   sEls.scroll.scrollTop = 0;
   if (resObserver) resObserver.disconnect();
@@ -2181,7 +2181,7 @@ function finishSearchMeta() {
   renderChips();
   // bumped on every completed run (debounced or not), so tests can wait
   // for "the search actually re-ran" instead of a fixed sleep timed to the
-  // 150ms debounce — a sleep-then-negative-assertion pattern can pass even if
+  // 150ms debounce. A sleep-then-negative-assertion pattern can pass even if
   // the search never reran at all. See search-operators.spec.js.
   sEls.meta.dataset.gen = String((Number(sEls.meta.dataset.gen) || 0) + 1);
   if (curView === "search") navCommit("replace");   // the entry's query (history.state) follows the box
@@ -2214,12 +2214,12 @@ function runSearchAll() {
   const nChats = groups.length;
   const inChats = " in " + fmtNum(nChats) + (nChats === 1 ? " chat" : " chats");
   sEls.meta.textContent = !ctxFiltered(SQ)
-    ? "Showing all " + fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + ", " + sortLabel(false) + " first — " + SEARCH_HINT
+    ? "Showing all " + fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + ", " + sortLabel(false) + " first. " + SEARCH_HINT
     : fmtNum(total) + (total === 1 ? " message" : " messages") + inChats + " · exact matches · sorted by " + sortLabel(false);
   finishSearchMeta();
   if (!total) {
     sEls.list.appendChild(emptyState("search", "No messages match in any chat.",
-      "All chats finds exact matches only — try fewer words, or search This chat, where Fuzzy also finds close matches.",
+      "All chats finds exact matches only. Try fewer words, or search This chat, where Fuzzy also finds close matches.",
       ["Search this chat", () => setSearchScope("this")]));
     return;
   }
@@ -2254,7 +2254,7 @@ function resRows() { return resState.groups ? resState.rows : resState.idx.lengt
    Results arrive as 60-row .res-page blocks appended by the bottom sentinel
    (infinite scroll). resPageObs then keeps only the pages within ~1500px of the
    viewport rendered: a page that scrolls far away is frozen at its measured
-   height and emptied, and re-rendered from resState.idx when it comes back —
+   height and emptied, and re-rendered from resState.idx when it comes back:
    the same scheme as the Timeline's chunks, so a 100k-hit list never holds
    more than a few pages of rows. Grid mode makes each page its own .gallery
    grid (60 cells fill whole rows for every column count the 980px-max grid can
@@ -2325,10 +2325,10 @@ function appendResultsPage() {
 }
 /* ---- Keyboard result navigation ---------------------------------------
    With focus in the result list (a result card, a control inside one, or a
-   chat's header in All chats) — never in the box, a chip or the autocomplete,
-   which sit outside #s-list — j / ↓ and k / ↑ move focus to the next /
+   chat's header in All chats), j / ↓ and k / ↑ move focus to the next /
    previous result (rendering a windowed-out page, or appending the next one,
-   on the way; All chats headers are stepped over). Enter opens the result
+   on the way; All chats headers are stepped over). They do nothing in the box,
+   a chip or the autocomplete, which sit outside #s-list. Enter opens the result
    (cardActivation), c opens its context, b bookmarks it. The position is
    announced through the live region once the keys come to rest. */
 const RESULT_STEP = { j: 1, ArrowDown: 1, k: -1, ArrowUp: -1 };
@@ -2385,13 +2385,13 @@ function resultKeydown(e) {
     togglePin(r.m.i);
     announce(isPinned(r.m.i) ? "Bookmarked" : "Removed bookmark");
   } else if (r.conv) {
-    const msg = "Its context is in " + displayConvName(r.conv) + " — press Enter to open it there";
+    const msg = "Its context is in " + displayConvName(r.conv) + ". Press Enter to open it there";
     toast(msg); announce(msg);
   } else openContextPeek(r.i);
 }
 function galleryCell(i, list) {
   const m = MSGS[i], c = el("div", "gcell");
-  // kindOf() can return "file" for unknown extensions (e.g. .pdf) — that
+  // kindOf() can return "file" for unknown extensions (e.g. .pdf), which
   // is neither "img" nor "vid", so it must not fall into the video branch
   // (which renders an empty, broken <video>). Reuse renderMedia's file-chip
   // markup instead of forking a third pattern.
@@ -2480,8 +2480,8 @@ function renderChips() {
 // brings back what a chip removal took out: select all + execCommand
 // ("insertText" / "delete"), which joins the input's native undo stack.
 // Deprecated but still the only way to do that; when it is missing or
-// refuses — and on a touch screen, where focusing the box would pop the
-// keyboard — the value is set directly (no undo entry).
+// refuses, and on a touch screen, where focusing the box would pop the
+// keyboard, the value is set directly (no undo entry).
 function setBoxUndoable(text) {
   const inp = sEls.input;
   let done = false;
@@ -2614,7 +2614,7 @@ function updateClearAllBtn() {
     sEls.ftoggle.setAttribute("aria-label", "Filters" + (n ? ", " + n + " active" : ""));
   }
 }
-// the mobile filter sheet — a layer of the shared modal stack while
+// the mobile filter sheet: a layer of the shared modal stack while
 // open (Esc / Done / a tap outside close it, focus returns to the toggle); on
 // desktop the same .filters bar is inline and none of this applies.
 function openFilterSheet() {
@@ -2641,7 +2641,7 @@ function closeFilterSheet(opts) {
 document.addEventListener("click", (e) => {
   if (sEls.filters && sEls.filters.classList.contains("open") && !e.target.closest("#s-filters, #f-toggle")) closeFilterSheet();
 });
-// the sheet only exists at the mobile breakpoint — widening the window
+// the sheet only exists at the mobile breakpoint; widening the window
 // past it closes the sheet, so the inline desktop bar isn't left behind as an
 // aria-modal dialog with a focus trap.
 if (window.matchMedia) {
@@ -2758,7 +2758,7 @@ function invalidateTimeline() {
 }
 // The first message whose top is inside the timeline scroller, and how far
 // below the scroller's top edge it sits. end: the scroller is at the very
-// bottom (reading the newest message) — reopened as "at the newest", so a
+// bottom (reading the newest message), reopened as "at the newest", so a
 // later rebuild with more messages still lands on the newest one.
 function timelineFirstVisible() {
   if (!tlBuilt || !tlEls.scroll || !tlEls.scroll.clientHeight) return null;
@@ -2773,7 +2773,7 @@ function timelineFirstVisible() {
 }
 /* ---- Reading position per conversation ---------------------------------
    The Timeline opens at the NEWEST message the first time, and afterwards where
-   that conversation was last being read — across conversation switches and
+   that conversation was last being read, across conversation switches and
    reloads. Stored as { convId: { m: message id, o: px offset } | { e: 1 } (at
    the newest), t: last write } under gca.tlpos, capped to TLPOS_MAX
    conversations (oldest write dropped). Ids and offsets only, never text.
@@ -2825,7 +2825,7 @@ function jumpTargetInView() {
   return r.bottom > sr.top && r.top < sr.bottom;
 }
 // Open the active conversation's Timeline where it was last read (this session's
-// tlResume first — e.g. after a timezone rebuild — then the saved position),
+// tlResume first, e.g. after a timezone rebuild, then the saved position),
 // else at the newest message.
 function openTimelineAtReadingPosition() {
   const pos = tlResume || storedTlPos();
@@ -2878,7 +2878,7 @@ function ensureTimelineShell() {
   if (tlBuilt) return;
   tlBuilt = true;
   const v = document.getElementById("view-timeline");
-  // Toolbar (mock .toolbar): rebuilt with the shell on every conversation
+  // Toolbar (.toolbar): rebuilt with the shell on every conversation
   // switch (tlBuilt is reset by resetDerived()), so the count stays fresh.
   v.innerHTML = `
     <div class="tl-toolbar">
@@ -2936,7 +2936,7 @@ function ensureTimelineShell() {
   }, { root: tlEls.scroll, rootMargin: "1500px" });
 }
 
-// opts.quiet: restore a reading position — no flash; the anchor goes back to
+// opts.quiet: restore a reading position, no flash; the anchor goes back to
 // opts.off px below the scroller top. opts.top: open at the very top, quietly.
 // opts.bottom: open at the very bottom (the newest message), quietly.
 function openTimeline(anchor, opts) {
@@ -2963,7 +2963,7 @@ function openTimeline(anchor, opts) {
     // instead of re-scanning all of EVENTS against each chunk's message-time
     // envelope on every renderChunk() call. Owning chunk = chunk of the first
     // message at-or-after the event's time (binary search over MSGS, which
-    // is sorted ascending by t) — this also naturally places pre-first-message
+    // is sorted ascending by t). This also naturally places pre-first-message
     // events (create/name, fired before MSGS[0].t) into chunk 0, and gap
     // events into the chunk of the next message, with no boundary duplicate.
     eventBuckets = Array.from({ length: numChunks }, () => []);
@@ -3091,7 +3091,7 @@ function renderChunk(idx, container) {
   chunkRendered[idx] = true;
 }
 
-// System event chip (mock .sysevent .chip): dashed inset pill with a sparkle
+// System event chip (.sysevent .chip): dashed inset pill with a sparkle
 // icon and bold actor names. Outer class stays `sysline`; each fragment is
 // escaped individually so the <b> wrappers survive.
 const SYS_EVENT_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M18 6l-2.5 2.5M8.5 15.5L6 18"/></svg>';
@@ -3128,16 +3128,16 @@ function jumpTo(i) {
    ======================================================================== */
 /* ---- Superlatives: ONE definition list ---------------------
    Every award is one row here. The deferred Stats grid AND the profile badges
-   both read the resulting STATS.awards — same winners, same filter — so a badge
+   both read the resulting STATS.awards, with the same winners and the same filter, so a badge
    can never exist for a card that isn't shown.
 
    Scoring (statsGen scores each row per person from one sweep):
-     - `need` — who is eligible: "all" (every member, including people who never
+     - `need`: who is eligible: "all" (every member, including people who never
        posted), "msgs" (at least minMsgs messages), "words" (minMsgs messages
        with words), "replies" (MIN_REPLIES replies), "scholar" (minMsgs messages
        and at least the smallest vocabulary checkpoint of words);
-     - `value(P, ctx)` — the score from that person's record;
-     - `min: true` — lowest wins (otherwise highest).
+     - `value(P, ctx)`: the score from that person's record;
+     - `min: true`: lowest wins (otherwise highest).
    Frequency awards are rates (per 100 messages / % of messages), not raw
    counts, so the top poster doesn't win them all by volume.
    Visibility: a card is hidden when fewer than two people are eligible, when a
@@ -3169,8 +3169,8 @@ function fmtDur(ms) {
   if (ms > 0 && ms < 1000) return "<1s";      // not "0s" for a quick reply
   return Math.round(ms / 1000) + "s";
 }
-// a chat's age in the unit that reads naturally — "3 days", "5 months",
-// "2.4 years" — never "0.0 yrs" for a young chat. `days` is whole calendar
+// a chat's age in the unit that reads naturally: "3 days", "5 months",
+// "2.4 years", never "0.0 yrs" for a young chat. `days` is whole calendar
 // days in the configured zone (first message day → last message day).
 function fmtAge(days) {
   if (days < 1) return "Under a day";
@@ -3217,7 +3217,7 @@ const SUPERLATIVES = [
   { key: "slacker", icon: "💼", title: "The Work Slacker", need: "msgs", value: (P) => share(P.slacker, P),
     fmt: (v) => pct(v) + " of msgs 9–5 weekdays", def: "Highest share of messages sent 9 AM–5 PM on weekdays." },
   { key: "lurker", icon: "👻", title: "The Ghost", need: "all", min: true, value: (P) => P.msgs,
-    fmt: (v) => (v ? "Only " + plural(v, "message") + " total" : "Never posted"), def: "Fewest messages sent — members who never posted count too." },
+    fmt: (v) => (v ? "Only " + plural(v, "message") + " total" : "Never posted"), def: "Fewest messages sent. Members who never posted count too." },
   { key: "ghoster", icon: "🐌", title: "The Ghoster", need: "replies", value: (P) => P.replyMedian,
     fmt: (v) => fmtDur(v) + " median reply", def: "Slowest typical reply: median time to answer someone else (answers within 12 h, 5+ replies)." },
   { key: "flash", icon: "⚡", title: "The Flash", need: "replies", min: true, value: (P) => P.replyMedian,
@@ -3235,7 +3235,7 @@ const SUPERLATIVES = [
     fmt: (v) => pct(v) + " of msgs 3–5 AM", def: "Highest share of messages sent between 3 and 5 AM." },
   { key: "deserter", icon: "🏃", title: "The Deserter", need: "msgs", value: (P) => P.desertMsgs,
     // On a tie the duration is quoted only when every winner's silence lasted
-    // the same time (review fix 8) — never the first winner's for all of them.
+    // the same time, never the first winner's for all of them.
     fmt: (v, ctx, P, W) => {
       const ms = (W || [P]).map((x) => (x ? x.desertMs : 0));
       const same = ms.every((m) => m === ms[0]);
@@ -3286,11 +3286,11 @@ const RE_BANG = /[!！]/g;              // counted via countMatches (match reset
    deadline (sliceEnd) has passed, checked every 1024 messages. A job wraps one
    such generator for one input (`key`):
      - synchronous callers (profile modal, Wrapped, …) drain it: runJob(job, Infinity)
-       — sliceEnd stays Infinity, so the generator never yields;
+       (sliceEnd stays Infinity, so the generator never yields);
      - the deferred Stats stage steps it in short tasks: runJob(job, SLICE_MS),
        so the first Stats paint isn't blocked by a ~0.5 s sweep at 100k.
    A job half-stepped by the deferred stage and then drained by a sync caller
-   simply finishes from where it was — the result is identical either way. */
+   simply finishes from where it was; the result is identical either way. */
 let sliceEnd = Infinity;
 const SLICE_MS = 24;
 function makeJob(key, genFn) { return { key, gen: genFn(), done: false, value: undefined }; }
@@ -3423,7 +3423,7 @@ function* statsGen() {
       if (txt.length > P.maxLen) { const cp = [...txt].length; if (cp > P.maxLen) P.maxLen = cp; }
 
       // Keyword / keysmash / caps / question checks read the text without its
-      // links (review fix 1): a t.co slug is not a keysmash, "?s=20" not a question.
+      // links: a t.co slug is not a keysmash, "?s=20" not a question.
       const plain = plainText(txt);
       if (isKeysmashPlain(plain)) P.keysmash++;
       if (isProfane(plain)) P.swear++;
@@ -3466,7 +3466,7 @@ function* statsGen() {
     } else run = 1;
   }
 
-  // The archive's last message ends its day too (review fix 5): the loop only
+  // The archive's last message ends its day too: the loop only
   // credits a day's closer when the next day starts.
   if (prevMsgUser !== null) R(prevMsgUser).killer++;
 
@@ -3555,9 +3555,9 @@ let trendChart = null;
 // render. Tracked (like trendChart) so renderStats()/resetDerived() can
 // destroy them before their canvases are detached.
 let statCharts = [];
-// every Stats chart wears the LIVE theme — tick labels and
+// every Stats chart wears the LIVE theme: tick labels and
 // grid lines from --text-dim / --border, datasets from the accent (never a
-// fixed colour). Applied to a config before a chart is built, and re-applied to
+// fixed color). Applied to a config before a chart is built, and re-applied to
 // the open charts by refreshChartTheme() on every theme / accent change.
 function chartTheme() {
   const cs = getComputedStyle(document.documentElement);
@@ -3571,11 +3571,11 @@ function chartTheme() {
     onAccent: cs.getPropertyValue("--on-accent").trim() || "#ffffff",
   };
 }
-// Explicit x / y axes so a later re-theme has objects to recolour.
+// Explicit x / y axes so a later re-theme has objects to recolor.
 function chartAxes() {
   return { x: { ticks: {}, grid: {}, border: {} }, y: { beginAtZero: true, ticks: {}, grid: {}, border: {} } };
 }
-// Colour one chart (a live Chart or its config — both carry data + options):
+// Color one chart (a live Chart or its config — both carry data + options):
 // bars are solid accent, lines an accent stroke over a soft accent fill.
 function paintChart(type, data, options, th) {
   const sc = options.scales || {};
@@ -3608,7 +3608,7 @@ function refreshChartTheme() {
     try { paintChart(c.config.type, c.data, c.options, th); c.update("none"); } catch (e) { /* detached canvas */ }
   });
 }
-// Whole-word uses of `word` (or phrase) per zoned month — counted exactly as
+// Whole-word uses of `word` (or phrase) per zoned month, counted exactly as
 // Word Battles counts it (wordQuery): never a substring, and an emoji or an
 // emoticon where its text appears, whole.
 function computeKeywordTrend(word) {
@@ -3701,10 +3701,10 @@ function computeMilestones() {
 
 // Stats renders in two stages so the first paint never waits on the text
 // sweep (~0.5 s of regexes at 100k messages):
-//   1. synchronously — hero, milestones, per-person bars, the month / keyword-
-//      trend / hour / weekday charts — all from the zoned time-index aggregate
+//   1. synchronously: hero, milestones, per-person bars, the month / keyword-
+//      trend / hour / weekday charts, all from the zoned time-index aggregate
 //      (timeAgg) plus computeMilestones();
-//   2. deferred — superlatives, latency & pairings, yapping, double-texting,
+//   2. deferred: superlatives, latency & pairings, yapping, double-texting,
 //      generosity, vocabulary, platforms, top emojis and the word cloud. Their
 //      slots render as pulsing placeholders; the computeStats() job (which
 //      also gathers the word cloud) is stepped in SLICE_MS tasks and the slots are swapped for the real
@@ -3713,7 +3713,7 @@ function computeMilestones() {
 // conversation changes (resetDerived) or the view is left and re-entered.
 let statsRenderSeq = 0;
 // The keyword-trend word survives re-renders (tz change, revisits, other
-// conversations) — it used to reset to "lol" with an empty input every time.
+// conversations); without this it would reset to "lol" with an empty input every time.
 let trendWord = "lol";
 const deferSlot = (key) => `<div class="st-pending" data-defer="${key}" aria-busy="true" aria-label="Loading"></div>`;
 
@@ -3739,7 +3739,7 @@ function renderStats() {
   // ---- Milestones (longest active streak, busiest single day, anniversary) ----
   const ms = computeMilestones();
 
-  // ---- Hero sparkline (mock-stats .spark): monthly message volume ----------
+  // ---- Hero sparkline (.spark): monthly message volume ----------
   // monthArr is [["YYYY-MM", count], …] sorted ascending. Fewer than 2 months →
   // no trend to draw, skip the block entirely. Fixed gradient id is safe: only
   // one stats view exists per document and Chart.js paints to canvas, not SVG.
@@ -3833,7 +3833,7 @@ function renderStats() {
       ${deferSlot("generosity")}
       ${deferSlot("vocab")}
 
-      <div class="section"><div class="section-h">Activity over time (by month) — busiest day: ${esc(a.busy[0] ? DAY.format(dayKeyBoundInstant(a.busy[0])) : "—")} (${plural(a.busy[1], "message")})</div>
+      <div class="section"><div class="section-h">Activity over time (by month), busiest day: ${esc(a.busy[0] ? DAY.format(dayKeyBoundInstant(a.busy[0])) : "—")} (${plural(a.busy[1], "message")})</div>
       <div class="chart-container" style="position: relative; height:200px; width:100%"><canvas id="chart-months" role="img" aria-label="${esc(monthsLabel)}"></canvas></div></div>
 
       <div class="section">
@@ -3858,7 +3858,7 @@ function renderStats() {
 
       <div class="section"><div class="section-h">Top Emojis</div><div class="words" id="top-emojis">${deferSlot("emojis")}</div></div>
 
-      <div class="section"><div class="section-h">Most-used words — click to search</div><div class="words cloud" id="words">${deferSlot("words")}</div></div>
+      <div class="section"><div class="section-h">Most-used words (click to search)</div><div class="words cloud" id="words">${deferSlot("words")}</div></div>
     </div></div>`;
   v.innerHTML = html;
 
@@ -3920,7 +3920,7 @@ function renderStats() {
     updateTrendChart(trendWord);
   }
 
-  animateCounts(v); // count-up the hero + milestone numbers (mock-stats liveliness)
+  animateCounts(v); // count-up the hero + milestone numbers
   scheduleStatsStage2(v, seq);
 }
 
@@ -3946,7 +3946,7 @@ function fillStatsDeferred(v, s, cloudWords) {
   };
   const panel = 'background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-card); padding:16px; min-height:150px; display:flex; flex-direction:column; gap:9px;';
   const av = (id) => pfpHtml(id, "width:22px;height:22px;font-size:10px");
-  // a panel with no rows is not drawn (it used to be an empty bordered
+  // a panel with no rows is not drawn (not an empty bordered
   // box); a two-panel row collapses to one column, or vanishes when both are
   // empty.
   const panels = (list) => {
@@ -3979,7 +3979,7 @@ function fillStatsDeferred(v, s, cloudWords) {
   }).join("");
   slot("supers", cards
     ? '<div class="cards" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">' + cards + "</div>"
-    : '<div class="pop-empty">Not enough messages yet for any awards — each needs at least two people to compare.</div>');
+    : '<div class="pop-empty">Not enough messages yet for any awards. Each needs at least two people to compare.</div>');
 
   // ---- Latency + pairings -----------------------------------------------------
   let latencyRows = "";
@@ -4136,14 +4136,14 @@ function fillStatsDeferred(v, s, cloudWords) {
       cloudWords.forEach(([w, c]) => {
         const t = (c - cmin) / span;                 // 0..1
         const size = (13 + t * 23).toFixed(1);       // 13px → 36px
-        // Frequency is shown by size and by a dim → full text-colour ramp. Both
+        // Frequency is shown by size and by a dim → full text-color ramp. Both
         // ends are ≥ 4.5:1, so rarer words never fade below the AA line
-        // (opacity used to drop them to ~2.5:1).
+        // (opacity alone would drop them to ~2.5:1).
         const ink = Math.round(t * 100);
-        const chip = btnEl("word cloud-word", esc(w) + "<b>" + fmtNum(c) + "</b>", "Search “" + w + "” — " + fmtNum(c) + " uses");
+        const chip = btnEl("word cloud-word", esc(w) + "<b>" + fmtNum(c) + "</b>", "Search “" + w + "”: " + fmtNum(c) + " uses");
         chip.style.fontSize = size + "px";
         chip.style.color = "color-mix(in srgb, var(--text) " + ink + "%, var(--text-dim))";
-        chip.title = fmtNum(c) + " uses — click to search";
+        chip.title = fmtNum(c) + " uses, click to search";
         chip.onclick = () => { setView("search"); clearAllFilters(); sEls.input.value = w; sEls.clear.hidden = false; runSearch(); };
         wc.appendChild(chip);
       });
@@ -4157,7 +4157,7 @@ function fillStatsDeferred(v, s, cloudWords) {
 function renderPeople() {
   const v = document.getElementById("view-people");
   v.innerHTML = `<div class="page"><div class="page-head"><div class="page-title">People</div>
-    <div class="page-sub">The export only has numeric IDs. Give each person a name &amp; color — recognize them from their message counts and sample messages below. Mark yourself with “This is me” to right-align your messages.</div></div>
+    <div class="page-sub">The export only has numeric IDs. Give each person a name &amp; color. Recognize them from their message counts and sample messages below. Mark yourself with “This is me” to right-align your messages.</div></div>
     <div class="page-body" id="people-body"></div></div>`;
   const body = v.querySelector("#people-body");
   PARTS.forEach((p) => body.appendChild(personCard(p)));
@@ -4214,7 +4214,7 @@ function personCard(p) {
   const span = p.count
     ? plural(p.count, "message") + " · " + DT.format(p.first).split(",")[0] + ", " + zonedParts(p.first).y +
       " → " + DT.format(p.last).split(",")[0] + ", " + zonedParts(p.last).y
-    : "Never posted — on the member list, reacting or in a join / leave event only";
+    : "Never posted: on the member list, reacting or in a join / leave event only";
   main.appendChild(el("div", "person-meta", esc(span) + ' &nbsp; <span class="person-id">id ' + esc(p.id) + "</span>"));
 
   if (p.samples.length) {
@@ -4249,14 +4249,14 @@ function personCard(p) {
 
   const sws = el("div", "swatches");
   const override = sanitizeColor(settings.colors[p.id]);
-  const auto = btnEl("swatch swatch-auto" + (override ? "" : " sel"), "A", "Automatic colour", !override);
-  auto.title = "Automatic colour";
+  const auto = btnEl("swatch swatch-auto" + (override ? "" : " sel"), "A", "Automatic color", !override);
+  auto.title = "Automatic color";
   auto.style.setProperty("--p", autoColor(p.id).p);   // the hash hue, not the override
   auto.onclick = () => { delete settings.colors[p.id]; saveSettings(); renderPeople(); };
   sws.appendChild(auto);
   PALETTE.forEach((col) => {
     const on = !!override && override.toLowerCase() === col.toLowerCase();
-    const sw = btnEl("swatch" + (on ? " sel" : ""), "", "Colour " + col, on); sw.style.background = col; sw.style.color = col;
+    const sw = btnEl("swatch" + (on ? " sel" : ""), "", "Color " + col, on); sw.style.background = col; sw.style.color = col;
     sw.onclick = () => { settings.colors[p.id] = col; saveSettings(); renderPeople(); };
     sws.appendChild(sw);
   });
@@ -4288,7 +4288,7 @@ function effectiveGcExport() {
 
 // Build the portable identity+preferences object. Folds the wizard's LOCAL_*
 // (names/pfps/me/gc/ignored) into the settings so an exported file carries every
-// wizard-assigned name and photo — a recipient imports it and needs no setup.
+// wizard-assigned name and photo, so a recipient imports it and needs no setup.
 function buildExportPayload() {
   return Object.assign({}, settings, {
     version: 2,
@@ -4335,7 +4335,7 @@ function renderSettings() {
       </div>
 
       <div class="set-group">
-        <div class="set-row"><div><div class="set-label">Group chats</div><div class="set-desc">Rename a group or change its sidebar photo — saved in this browser.</div></div></div>
+        <div class="set-row"><div><div class="set-label">Group chats</div><div class="set-desc">Rename a group or change its sidebar photo. Saved in this browser.</div></div></div>
         <div class="gc-list" id="set-gcs"></div>
       </div>
 
@@ -4500,8 +4500,8 @@ function renderSettings() {
         importFile.value = "";
         return;
       }
-      // validate BEFORE anything is saved or applied — a crafted
-      // colour or photo is dropped and nothing throws, so nothing bad ever
+      // validate BEFORE anything is saved or applied: a crafted
+      // color or photo is dropped and nothing throws, so nothing bad ever
       // reaches storage or the DOM. A field the file lacks, or gets wrong,
       // keeps its CURRENT value (not the default): a file with no photos must
       // not wipe the saved ones.
@@ -4538,7 +4538,7 @@ function tzZoneList() {
   return TZ_ALL;
 }
 function tzLabel(z) {
-  if (TZ_LABELS[z]) return z === "local" || z === "UTC" ? TZ_LABELS[z] : TZ_LABELS[z] + " — " + z.replace(/_/g, " ");
+  if (TZ_LABELS[z]) return z === "local" || z === "UTC" ? TZ_LABELS[z] : TZ_LABELS[z] + " · " + z.replace(/_/g, " ");
   return z.replace(/_/g, " ");
 }
 function fillTzOptions(sel, filter) {
@@ -4556,11 +4556,10 @@ function fillTzOptions(sel, filter) {
   });
   sel.replaceChildren(frag);
 }
-// a SCOPED reset. The old "Reset all" silently wiped bookmarks,
-// "me", ignored people/groups and the timezone while its dialog only
-// mentioned names/colors/theme/saved searches. It now resets exactly what the
-// dialog lists and keeps the rest; the new object is built from a deep clone
-// of DEFAULTS so nothing can alias the defaults afterwards.
+// a SCOPED reset. It resets exactly what the confirm dialog lists and keeps
+// the rest (bookmarks, "me", ignored people/groups, the timezone, …); the new
+// object is built from a deep clone of DEFAULTS so nothing can alias the
+// defaults afterwards.
 const RESET_CONFIRM = "Reset customization?\n\n" +
   "Resets: theme, accent color, font size, density, avatar & timestamp display, people & group names, person colors, and saved searches.\n\n" +
   "Keeps: bookmarks, Word Battles words, “this is me”, hidden people & groups, timezone, timeline reading positions, and profile & group photos.";
@@ -4608,7 +4607,7 @@ function resetCustomization() {
   applySettingsChange();
 }
 // Settings were replaced wholesale (Import / Reset): re-derive everything that
-// reads them — photo map, date formatters (timezone), theme vars — then
+// reads them: photo map, date formatters (timezone), theme vars, then
 // re-activate the conversation, which re-filters MSGS for ignored people,
 // drops every derived cache, rebuilds brand / picker / sparkline and
 // re-renders the current view. A conversation that is now hidden is swapped
@@ -4641,7 +4640,7 @@ const VIEWS = ["search", "timeline", "stats", "people", "settings", "capsule", "
 
 /* ---- URL hash state ----------------------------------------------------
    The address bar carries where you are, as ids only: #v=<view>&c=<conversation
-   id>[&m=<message id> — the message a Timeline jump landed on]. The search
+   id>[&m=<message id>, the message a Timeline jump landed on]. The search
    query is private-chat text and browser history can sync to the cloud, so it
    NEVER goes in the URL: it rides in history.state ({ q }), which Back /
    Forward and a reload restore (file:// included); a legacy #q= is ignored and
@@ -4705,8 +4704,8 @@ function writeHash(h, push) {
   }
   lastNav = navKey(location.hash, stateQ(history.state));
 }
-// "#v=…&c=…" -> { v, c, m } (first of each; undecodable / unknown keys —
-// including a legacy q — dropped; values length-capped). Plain strings —
+// "#v=…&c=…" -> { v, c, m } (first of each; undecodable / unknown keys,
+// including a legacy q, dropped; values length-capped). Plain strings,
 // never markup.
 function parseHash(h) {
   const out = {};
@@ -4747,8 +4746,8 @@ function applyHash(h, state) {
     if (st.c != null) {
       const c = CONVOS.find((x) => String(x.id) === st.c);
       convOk = !!c && !ignoredGroupIds().has(String(c.id));
-      if (!c) toast("That conversation isn't in this archive — showing this one instead");
-      else if (!convOk) toast("That conversation is hidden in Settings — showing this one instead");
+      if (!c) toast("That conversation isn't in this archive. Showing this one instead");
+      else if (!convOk) toast("That conversation is hidden in Settings. Showing this one instead");
       else if (!CONV || c.id !== CONV.id) activateConversation(c.id, true);
     }
     const view = VIEWS.indexOf(st.v) >= 0 ? st.v : null;
@@ -4800,14 +4799,14 @@ function copyMsgLink(convId, mid) {
   const local = location.protocol === "file:";
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(msgLink(convId, mid))
-      .then(() => (local ? toast("Copied the message's #link — paste it at the end of this archive's address to open it", 6000) : toast("Copied link to message")))
+      .then(() => (local ? toast("Copied the message's #link. Paste it at the end of this archive's address to open it", 6000) : toast("Copied link to message")))
       .catch(() => toast("Copy failed"));
   } else toast("Copy failed");
 }
 
 function setView(name) {
   // Remember where the timeline was being read, so a rebuild (timezone
-  // change) can reopen there instead of at the top — and for the next
+  // change) can reopen there instead of at the top, and for the next
   // visit / reload of this conversation.
   if (curView === "timeline" && name !== "timeline") { tlResume = timelineFirstVisible(); saveTlPos(); }
   curView = name;
@@ -4822,14 +4821,14 @@ function setView(name) {
   });
   reflectMobileNav(name);
   // never pull focus out of an open dialog layer (e.g. first-run onboarding)
-  // and only with a fine pointer — on a phone focusing the box pops the
+  // and only with a fine pointer: on a phone focusing the box pops the
   // soft keyboard over the results.
   if (name !== "search") closeFilterSheet();
   if (name === "search") { ensureSearch(); setTimeout(() => { if (sEls.input && !topModal() && matchMedia("(pointer: fine)").matches) sEls.input.focus(); }, 0); }
   else if (name === "timeline") {
     // an open is quiet (no highlight) and a cold jumpTo() doesn't
-    // render a position first. Where a first open lands has since changed: the
-    // newest message (or where this conversation was last read), not the top.
+    // render a position first. A first open lands on the newest message (or
+    // where this conversation was last read), not the top.
     if (!tlBuilt && !tlJumping) openTimelineAtReadingPosition();
     else if (!tlBuilt) ensureTimelineShell();
     updateLatestBtn();
@@ -4961,8 +4960,8 @@ function init() {
       closePopovers();
     }
     if (curView === "wrapped" && !topModal() && wrappedKey(e)) return;
-    // "/" focuses the search box — on the Search view too (it used to
-    // be a no-op there), never while typing or with an overlay open.
+    // "/" focuses the search box, including on the Search view, never while
+    // typing or with an overlay open.
     if (e.key === "/" && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable && !topModal()) {
       e.preventDefault();
       if (curView !== "search") setView("search");
@@ -4984,8 +4983,8 @@ function init() {
   document.getElementById("app").hidden = false;
   buildSidebarSparkline();
   showOnThisDayToast();
-  // guarded like every other storage access — with site data blocked
-  // the localStorage getter itself throws, and an unguarded read here used to
+  // guarded like every other storage access: with site data blocked
+  // the localStorage getter itself throws, and an unguarded read here would
   // abort init() before setView() ever ran (blank main area).
   let lastView = null;
   try { lastView = localStorage.getItem("gca.lastView"); } catch (e) { /* storage blocked */ }
@@ -5020,7 +5019,7 @@ function maybeShowOnboarding() {
       <div class="onboard-body">
         ${IS_SAMPLE
           ? `You're looking at <b>synthetic demo data</b>. To load your own Twitter/X
-             group chat export, run the one-time <b>setup wizard</b> — it points the
+             group chat export, run the one-time <b>setup wizard</b>. It points the
              build at your raw <code>.js</code> + media, restores the group photo, and
              helps you name everyone.`
           : `Your archive is loaded, but no one's named yet. Open the <b>setup wizard</b>
@@ -5051,7 +5050,7 @@ function maybeShowOnboarding() {
   ov.querySelector("#onboard-dismiss").onclick = close;
   document.body.appendChild(ov);
   updateSetupUrlInfo();
-  // a real dialog — labelled, focus moved in and trapped; Esc = "Maybe later"
+  // a real dialog: labeled, focus moved in and trapped; Esc = "Maybe later"
   // Opened at boot, so there is no opener to hand focus back to: return it to
   // the current view's own nav item (sidebar on desktop, tab bar on mobile).
   ov._close = close;
@@ -5097,7 +5096,7 @@ function renderCapsule() {
   const years = Object.keys(matchesByYear).sort((a,b) => b - a);
   if (years.length === 0) {
     body.appendChild(emptyState("clock", "Nothing was said on " + DAY.formatToParts(Date.now()).filter((p) => p.type === "month" || p.type === "day").map((p) => p.value).join(" ") + " in earlier years.",
-      "The capsule shows messages sent on today's date in earlier years — check back another day, or read the whole story.",
+      "The capsule shows messages sent on today's date in earlier years. Check back another day, or open the Timeline.",
       ["Open Timeline", () => setView("timeline")]));
     return;
   }
@@ -5193,7 +5192,7 @@ function appendGalleryPage() {
 }
 
 /* ===========================================================================
-   THEME SHUFFLE (surprise me — random theme + accent)
+   THEME SHUFFLE (surprise me: random theme + accent)
    ======================================================================== */
 function shuffleTheme() {
   settings.accent = ACCENTS[Math.floor(Math.random() * ACCENTS.length)];
@@ -5201,16 +5200,16 @@ function shuffleTheme() {
   setTheme(t);
   saveSettings(); applyTheme();
   if (curView === "settings") renderSettings();
-  toast("New theme — " + t + " · " + settings.accent);
+  toast("New theme: " + t + " · " + settings.accent);
 }
 
 /* ===========================================================================
    SIDEBAR ACTIVITY SPARKLINE (monthly message volume)
    ======================================================================== */
 function buildSidebarSparkline() {
-  // own container, content REPLACED on every build (it used to be
-  // prepended to #sidebar-foot, duplicating on each timezone change, while
-  // updateBrand() wiped it on every rename / photo change / import).
+  // own container, content REPLACED on every build (prepending it
+  // to #sidebar-foot would duplicate it on each timezone change, and
+  // updateBrand() would wipe it on every rename / photo change / import).
   const foot = document.getElementById("sidebar-spark");
   if (!foot) return;
   foot.innerHTML = "";
@@ -5226,7 +5225,7 @@ function buildSidebarSparkline() {
   const line = pts.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
   const area = R + "," + H + " " + line + " " + (W - R) + "," + H;
   const peak = pts[vals.indexOf(max)] || pts[pts.length - 1];
-  const svg = `<div class="spark" title="Monthly message volume — ${vals.length} months">
+  const svg = `<div class="spark" title="Monthly message volume, ${vals.length} months">
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="${H}">
       <polygon points="${area}" fill="var(--accent-glow)"/>
       <polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/>
@@ -5236,7 +5235,7 @@ function buildSidebarSparkline() {
 }
 
 /* ===========================================================================
-   HALL OF FAME — most-reacted messages & media, ranked
+   HALL OF FAME: most-reacted messages & media, ranked
    ======================================================================== */
 let HOF = null;
 let hofYear = "all";
@@ -5267,7 +5266,7 @@ function renderHallOfFame() {
 
   v.innerHTML = `<div class="page"><div class="page-head">
       <div class="page-title">Hall of Fame</div>
-      <div class="page-sub">The most-reacted messages of all time — the legendary moments, ranked by reaction count.</div></div>
+      <div class="page-sub">The most-reacted messages of all time, ranked by reaction count.</div></div>
     <div class="page-body">
       <div class="hof-years">${yearChips}</div>
       ${items.length ? '<div class="hof-podium" id="hof-podium"></div>' : ''}
@@ -5299,7 +5298,7 @@ function renderHallOfFame() {
       </div>
       <div class="hof-snip">${esc(snippet.slice(0, 140))}${snippet.length > 140 ? "…" : ""}</div>
       <div class="hof-rc">🔥 ${fmtNum(x.rc)} reaction${x.rc === 1 ? "" : "s"}</div>`;
-    asButton(card, () => jumpTo(x.i), "#" + (k + 1) + ": " + nameOf(m.s) + ", " + DT.format(m.t) + ", " + plural(x.rc, "reaction") + " — jump to message");
+    asButton(card, () => jumpTo(x.i), "#" + (k + 1) + ": " + nameOf(m.s) + ", " + DT.format(m.t) + ", " + plural(x.rc, "reaction") + ". Jump to message");
     podium.appendChild(card);
   });
 
@@ -5318,7 +5317,7 @@ function renderHallOfFame() {
     frag.appendChild(node);
     shown++;
   }
-  if (shown === 0) list.appendChild(el("div", "empty", '<div class="big">' + cmdIco("gallery") + '</div><div>The most-reacted items here are all media — see below.</div>'));
+  if (shown === 0) list.appendChild(el("div", "empty", '<div class="big">' + cmdIco("gallery") + '</div><div>The most-reacted items here are all media. See below.</div>'));
   list.appendChild(frag);
 
   // Media grid
@@ -5337,7 +5336,7 @@ function renderHallOfFame() {
 }
 
 /* ===========================================================================
-   WRAPPED — animated Year in Review slideshow
+   WRAPPED: animated Year in Review slideshow
    ======================================================================== */
 let wrappedYear = null, wrappedSlide = 0;
 const wrappedCache = {};
@@ -5402,7 +5401,7 @@ function wrappedSlides(w) {
   slides.push({ kind: "outro", label: "That was " + w.year, sub: "Tap a different year above to relive another one" });
   return slides;
 }
-// Wrapped nav pill icons (mock-wrapped .nav-btn chevrons + restart loop).
+// Wrapped nav pill icons (.nav-btn chevrons + restart loop).
 const WR_ICON = {
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>',
   next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
@@ -5561,7 +5560,7 @@ function wrAnnounce() {
   const w = computeWrapped(wrappedYear), slides = wrappedSlides(w);
   live.textContent = "Slide " + (wrappedSlide + 1) + " of " + slides.length + ": " + wrappedSummary(slides[wrappedSlide], w);
 }
-// ←/→/Space move the story — never from a text field, never while a control
+// ←/→/Space move the story, but never from a text field, never while a control
 // inside Wrapped (a year chip, Back / Next, an avatar) has focus, and Space
 // never from any control at all (it activates it). The story itself is a
 // focus stop that takes all three.
@@ -5630,7 +5629,7 @@ function drawWrappedSlide() {
       <div class="wr-sub st">${fmtNum(s.rc)} reaction${s.rc === 1 ? "" : "s"}</div>
       <div class="wr-star st" id="wr-star"></div>`;
   } else {
-    // stat: the number leads (per the mock); a glyph shows only for the "emoji
+    // stat: the number leads; a glyph shows only for the "emoji
     // of the year" slide, where the emoji itself is the data being celebrated.
     inner = `${s.emoji ? `<div class="wr-emoji${s.giant ? " giant" : ""} st">${s.emoji}</div>` : ""}
       ${s.big === s.emoji ? "" : big}
@@ -5651,7 +5650,7 @@ function drawWrappedSlide() {
   animateWrappedFills(slideEl);
   paintWrappedChrome(slides.length);
 }
-// Grow the .pl-fill bars 0 → pct, staggered ~80ms (mock playSlide). Reduced
+// Grow the .pl-fill bars 0 → pct, staggered ~80ms. Reduced
 // motion or a hidden document (rAF/transitions unreliable) → final width now.
 function animateWrappedFills(rootEl) {
   const fills = rootEl.querySelectorAll(".pl-fill");
@@ -5663,7 +5662,7 @@ function animateWrappedFills(rootEl) {
     f.style.width = f.dataset.w + "%";
   });
 }
-// Segmented progress (replaces the dots; non-interactive, aria-hidden —
+// Segmented progress (non-interactive, aria-hidden;
 // the live region says where you are) + context label + nav buttons.
 function paintWrappedChrome(n) {
   const segs = document.getElementById("wr-segs");
@@ -5690,7 +5689,7 @@ function paintWrappedChrome(n) {
 new MutationObserver(() => paintWrappedPlay()).observe(document.body, { childList: true });
 // Autoplay classes on the stage + the Pause / Play button (hidden when
 // reduced motion turns autoplay off). A hold or focus pauses the fill but
-// doesn't flip the button — only the button's own choice (or the end) does.
+// doesn't flip the button; only the button's own choice (or the end) does.
 function paintWrappedPlay() {
   const stage = document.getElementById("wr-stage");
   if (!stage) return;
@@ -5723,9 +5722,9 @@ function toggleKeyboardHelp() {
         <button class="kb-close" type="button" aria-label="Close">✕</button>
       </div>
       <div class="kb-body">
-        <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette — jump anywhere, search messages</span></div>
+        <div class="kb-row"><kbd>${MOD_KEY}</kbd> <kbd>K</kbd><span>Command palette: jump anywhere, search messages</span></div>
         <div class="kb-row"><kbd>/</kbd><span>Focus search</span></div>
-        <div class="kb-row"><kbd>j</kbd> <kbd>k</kbd><span>Next / previous search result (↓ ↑ too) — with a result focused</span></div>
+        <div class="kb-row"><kbd>j</kbd> <kbd>k</kbd><span>Next / previous search result (↓ ↑ too), with a result focused</span></div>
         <div class="kb-row"><kbd>c</kbd> <kbd>b</kbd><span>The focused result's context / bookmark it (Enter opens it)</span></div>
         <div class="kb-row"><kbd>Home</kbd> <kbd>End</kbd><span>Oldest / newest message in the Timeline</span></div>
         <div class="kb-row"><kbd>?</kbd><span>Show this help</span></div>
@@ -5799,10 +5798,10 @@ function openProfileModal(id) {
   if (avInner) { avInner.classList.remove("av-clickable"); avInner.style.cursor = "default"; }
 
   document.body.appendChild(modal);
-  applyDialog(modal, "Profile — " + nameOf(id), { initial: ".profile-card-close", opener: inherit, focusHeld: inheritHeld });
+  applyDialog(modal, "Profile: " + nameOf(id), { initial: ".profile-card-close", opener: inherit, focusHeld: inheritHeld });
 
   // the stats-derived fields (words/msg, vocab, badges). On a cold STATS
-  // cache computeStats() sweeps every message — synchronously that freezes the
+  // cache computeStats() sweeps every message, and synchronously that freezes the
   // tab on 134k-message archives before the modal can even paint. Warm cache:
   // fill in the same tick (no placeholder flash). Cold: paint the shell now,
   // run the sweep on the next macrotask. Same STATS object either way, so the
@@ -5840,11 +5839,11 @@ function renderPins() {
   const ids = settings.pins.slice().reverse();
 
   // settings.pins is ONE global list, and message ids are globally unique
-  // (real builds keep the original X message id — scripts/build-core.js
-  // rawToRec; the sample generator shares one counter — scripts/make-sample.js),
+  // (real builds keep the original X message id, see scripts/build-core.js
+  // rawToRec; the sample generator shares one counter, see scripts/make-sample.js),
   // so resolve pins across ALL visible conversations, not only through the
-  // active conversation's ID2IDX (other chats' bookmarks used to be
-  // silently dropped from this view and its export).
+  // active conversation's ID2IDX, which would silently drop other chats'
+  // bookmarks from this view and its export.
   const ignored = ignoredUserIds();
   const wanted = new Set(ids);
   const byConv = new Map();   // convId -> Map(msgId -> msg)
@@ -5864,7 +5863,7 @@ function renderPins() {
   // still stored, just not showable; said out loud instead of silently dropped
   const hidden = ids.length - total;
   const hiddenNote = () => el("div", "pins-hidden-note",
-    fmtNum(hidden) + " bookmark" + (hidden === 1 ? "" : "s") + " not shown — from removed group chats or ignored people.");
+    fmtNum(hidden) + " bookmark" + (hidden === 1 ? "" : "s") + " not shown: from removed group chats or ignored people.");
 
   const sub = total
     ? fmtNum(total) + " bookmarked message" + (total === 1 ? "" : "s")
@@ -5967,7 +5966,7 @@ function renderForeignPin(conv, m, needles) {
 }
 
 /* ===========================================================================
-   CONTEXT PEEK — surrounding messages without leaving the current view
+   CONTEXT PEEK: surrounding messages without leaving the current view
    ======================================================================== */
 function openContextPeek(center) {
   const prevCtx = document.querySelector(".ctx-modal");
@@ -6013,7 +6012,7 @@ function openContextPeek(center) {
 }
 
 /* ===========================================================================
-   SHARE CARDS — a message, a Hall of Fame card or a Wrapped slide as a PNG.
+   SHARE CARDS: a message, a Hall of Fame card or a Wrapped slide as a PNG.
    ONE pipeline: a builder turns what is shared into a card model (a
    list of blocks), drawShareCard() lays the blocks out and paints them on a
    canvas in the live theme + accent, and the Share dialog previews it with a
@@ -6044,7 +6043,7 @@ function saveShareRedactPref(kind, on) {
   } catch (e) { /* storage blocked: the choice lasts for this dialog only */ }
 }
 
-// Canvas can't read CSS custom properties or color-mix(): every colour is
+// Canvas can't read CSS custom properties or color-mix(): every color is
 // resolved through a probe element in the live theme, then handed to the
 // canvas as rgb()/rgba().
 let shareProbe = null;
@@ -6079,8 +6078,8 @@ function shareRedactor() {
   Object.keys(LOCAL_NAMES).forEach((id) => ids.add(id));
   return createRedactor([...ids].map((id) => ({ id, names: personNames(id) })));
 }
-// A person on a card: name, name colour and avatar. Redacted → "Person A"
-// in the text colour on a plain neutral disc (no photo, no initials).
+// A person on a card: name, name color and avatar. Redacted → "Person A"
+// in the text color on a plain neutral disc (no photo, no initials).
 function sharePerson(id, R, T) {
   if (R) return { name: R.label(id), color: T.text, av: { fill: T.neutral } };
   const pc = personColor(id), name = nameOf(id);
@@ -6347,7 +6346,7 @@ function openShareDialog(build, opts) {
   copyBtn.hidden = !canCopy;
   copyBtn.onclick = () => {
     const item = new ClipboardItem({ "image/png": toBlob().then(({ blob }) => blob) });
-    navigator.clipboard.write([item]).then(() => toast("Copied image")).catch(() => toast("Couldn't copy the image — use Download PNG"));
+    navigator.clipboard.write([item]).then(() => toast("Copied image")).catch(() => toast("Couldn't copy the image. Use Download PNG"));
   };
   document.body.appendChild(modal);
   applyDialog(modal, "Share image", { initial: ".share-dl", opener: opts.opener });
@@ -6390,17 +6389,17 @@ function jumpToDate(input) {
 // Jump to the first message of a parsed period ([p.start, p.end) in the
 // configured zone) and say honestly where that landed: outside the archive it
 // clamps to the first / latest message, and an empty period lands on the next
-// message after it — never a bare "Jumped to <date>" that isn't true.
+// message after it, never a bare "Jumped to <date>" that isn't true.
 function jumpToPeriod(p) {
   if (!N) return false;
   const first = MSGS[0].t, last = MSGS[N - 1].t;
   let idx, msg;
-  if (p.end <= first) { idx = 0; msg = "No messages before " + dShort.format(first) + " — jumped to the first one"; }
-  else if (p.start > last) { idx = N - 1; msg = "No messages after " + dShort.format(last) + " — jumped to the latest one"; }
+  if (p.end <= first) { idx = 0; msg = "No messages before " + dShort.format(first) + ". Jumped to the first one"; }
+  else if (p.start > last) { idx = N - 1; msg = "No messages after " + dShort.format(last) + ". Jumped to the latest one"; }
   else {
     idx = Math.min(indexAtOrAfter(p.start), N - 1);
     msg = MSGS[idx].t < p.end ? "Jumped to " + p.label
-      : "No messages " + (p.unit === "day" ? "on " : "in ") + p.label + " — jumped to the next one, " + dShort.format(MSGS[idx].t);
+      : "No messages " + (p.unit === "day" ? "on " : "in ") + p.label + ". Jumped to the next one, " + dShort.format(MSGS[idx].t);
   }
   jumpTo(idx);
   toast(msg);
@@ -6408,12 +6407,12 @@ function jumpToPeriod(p) {
 }
 
 /* ===========================================================================
-   CALENDAR — year / month scrubber + month heatmap
+   CALENDAR: year / month scrubber + month heatmap
    ======================================================================== */
 /* The Timeline's "Jump to date" (and the palette's "Browse by date") opens a
    dialog to browse and jump through history:
      - a typed-date box (GCAShared.parseJumpDate, like the palette);
-     - a year strip and a month strip whose bars are message volume — the
+     - a year strip and a month strip whose bars are message volume: the
        year / month scrubber; arrows move the selection (by month across years
        in the month strip), which re-draws the day grid;
      - a month heatmap: one named button per day ("Saturday, January 7, 2023:
@@ -6422,7 +6421,7 @@ function jumpToPeriod(p) {
        Page Up / Down by month, Home / End to the month's first / last day,
        Enter jumps (closing the dialog) through jumpToPeriod, which says
        honestly where it landed.
-   Everything comes from timeAgg() — the cached per-conversation time index,
+   Everything comes from timeAgg(), the cached per-conversation time index,
    so days are the CONFIGURED zone's days (incl. "local") and opening it costs
    no per-message work. Roving tabindex: each strip / grid is one Tab stop. */
 const MON_LONG = GCAShared.MONTH_NAMES;
@@ -6639,10 +6638,10 @@ function openCalendar() {
 /* ===========================================================================
    COMMAND PALETTE (Ctrl/Cmd+K)
    ======================================================================== */
-// Line-icon set — symbols from the mockup's IC map (mock-cmdk.html) plus a few
+// Line-icon set: the command palette's symbols plus a few
 // extras, keyed by name and rendered via cmdIco(). Shared by the command palette,
 // the search filter bar, empty states, Wrapped and other chrome so the whole UI
-// carries the nav rail's tasteful iconography instead of emoji glyphs.
+// carries the nav rail's line icons instead of emoji glyphs.
 const CMD_IC = {
   search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
   timeline: '<path d="M4 6h16M4 12h16M4 18h11"/>',
@@ -6711,7 +6710,7 @@ function buildCommands() {
 }
 // open the Search view on a query, box focused (the palette's
 // "See all in Search", the Timeline's Search button). The query rides in
-// history.state like any typed one — never the URL.
+// history.state like any typed one, never the URL.
 function openSearchWith(q) {
   setView("search");
   if (q != null && sEls.input) {
@@ -6835,7 +6834,7 @@ function openCommandPalette() {
     rows.push({ kind: "seeall", ico: "search", hint: "Search", run: () => openSearchWith(raw),
       label: ready && hits.total ? "See all in Search" : "Search messages for “" + q + "”",
       sub: !ready ? "Searching this chat…" : hits.total ? fmtNum(hits.total) + " message" + (hits.total === 1 ? " matches" : "s match") + " in this chat"
-        : "No exact matches in this chat — Search also finds close matches" });
+        : "No exact matches in this chat. Search also finds close matches" });
     return rows;
   }
   function refresh() {
@@ -6861,7 +6860,7 @@ function openCommandPalette() {
     else if (sel >= filtered.length) sel = 0;
     draw();
     listEl.removeAttribute("aria-busy");
-    if (filtered.length === 1 && filtered[0].kind === "seeall") announce("No matches for “" + raw.trim() + "” — press Enter to search messages");
+    if (filtered.length === 1 && filtered[0].kind === "seeall") announce("No matches for “" + raw.trim() + "”. Press Enter to search messages");
     listEl.dataset.hits = String((Number(listEl.dataset.hits) || 0) + 1);   // a hits pass completed (tests / perf)
   }
   function draw() {
@@ -6932,16 +6931,16 @@ function openCommandPalette() {
 // all module-level state is declared — activateConversation() touches it.
 
 /* ===========================================================================
-   "ON THIS DAY" TOAST — show a preview on app load
+   "ON THIS DAY" TOAST: show a preview on app load
    ======================================================================== */
 function showOnThisDayToast() {
   // Same-zone "on this day" match as the Capsule view (configured timezone).
   const todayZ = zonedParts(Date.now());
   const tMonth = todayZ.mo, tDate = todayZ.d, tYear = todayZ.y;
   // gather EVERY same-day match from PAST years (a future-dated outlier
-  // is not "N years ago"; the old scan stopped at 20 matches,
-  // so a chatty early year hid every later one), then pick a random year and a
-  // random message of that year — each past year is equally likely.
+  // is not "N years ago"; stopping at 20 matches would let a chatty
+  // early year hide every later one), then pick a random year and a
+  // random message of that year; each past year is equally likely.
   const TI = timeIndex(), byYear = new Map();
   for (let i = 0; i < N; i++) {
     if (TI.month[i] === tMonth && TI.mday[i] === tDate && TI.year[i] < tYear) {
@@ -6984,7 +6983,7 @@ function showOnThisDayToast() {
 }
 
 /* ===========================================================================
-   CONVERSATION THREADS — detect bursts of activity as "threads"
+   CONVERSATION THREADS: detect bursts of activity as "threads"
    ======================================================================== */
 let threadsCache = null;
 function computeThreads() {
@@ -7058,7 +7057,7 @@ function renderThreads() {
 
   v.innerHTML = `<div class="page"><div class="page-head">
       <div class="page-title">Conversation Threads</div>
-      <div class="page-sub">Activity bursts detected: ${plural(threads.length, "thread")} with 8+ messages, separated by 1-hour gaps. Browse the conversations that brought the group alive.</div></div>
+      <div class="page-sub">Activity bursts detected: ${plural(threads.length, "thread")} with 8+ messages, separated by 1-hour gaps.</div></div>
     <div class="page-body">
       <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
         <div class="thr-years">${yearChips}</div>
@@ -7103,14 +7102,14 @@ function renderThreads() {
       </div>
       <div class="thr-preview">${preview ? esc(preview) + (preview.length >= 80 ? "…" : "") : "<i>media thread</i>"}</div>
       <div class="thr-people">${avs}${extra}</div>`;
-    asButton(card, () => jumpTo(t.startIdx), "Thread #" + (idx + 1) + ", " + DT.format(t.startT) + ", " + plural(t.count, "message") + " — open in timeline");
+    asButton(card, () => jumpTo(t.startIdx), "Thread #" + (idx + 1) + ", " + DT.format(t.startT) + ", " + plural(t.count, "message") + ". Open in timeline");
     frag.appendChild(card);
   });
   grid.appendChild(frag);
 }
 
 /* ===========================================================================
-   WORD BATTLES — head-to-head word usage comparison
+   WORD BATTLES: head-to-head word usage comparison
    ======================================================================== */
 let battleP1 = null, battleP2 = null;
 function renderBattles() {
@@ -7154,9 +7153,9 @@ function renderBattles() {
   const sel2 = v.querySelector("#battle-p2");
   sel1.value = battleP1;
   sel2.value = battleP2;
-  // changing a person used to re-render the whole view, dropping every
-  // added word (and a half-typed one). Now only the picker avatar and the
-  // results update; the words live in settings.battleWords.
+  // changing a person updates only the picker avatar and the results, so
+  // every added word (and a half-typed one) survives; the words live in
+  // settings.battleWords.
   const pickAv = (sel, id) => {
     const old = sel.parentElement.querySelector(".av");
     const tmp = document.createElement("div"); tmp.innerHTML = pfpHtml(id, "width:40px;height:40px;font-size:15px");
@@ -7180,7 +7179,7 @@ function drawBattleResults() {
   const container = document.getElementById("battle-results");
   if (!container || !battleP1 || !battleP2) return;
 
-  // Whole-word token counts (the shared tokenizer, apostrophe-folded keys) —
+  // Whole-word token counts (the shared tokenizer, apostrophe-folded keys):
   // "lol!" is the word lol, "many" is not "man". The custom rows added
   // (battleCounts()) count the very same way.
   const counts1 = new Map(), counts2 = new Map();
@@ -7224,7 +7223,7 @@ function drawBattleResults() {
   </div>`;
 
   container.innerHTML = html;
-  // each side's bars and winning count wear that person's name colour (as the
+  // each side's bars and winning count wear that person's name color (as the
   // summary does), which reaches 4.5:1 on the page and card in every theme
   container.style.setProperty("--battle-left", col1);
   container.style.setProperty("--battle-right", col2);
@@ -7254,8 +7253,8 @@ function addBattleWord(word) {
 }
 
 
-// The two sides' colours: each person's own, but when both come out the same
-// (one in ten automatic pairs, or one colour picked for both) the right-hand
+// The two sides' colors: each person's own, but when both come out the same
+// (one in ten automatic pairs, or one color picked for both) the right-hand
 // side takes the next automatic hue that differs, so the sides stay apart.
 function battleColors(a, b) {
   const left = personColor(a).p;
@@ -7306,7 +7305,7 @@ function battleRowHtml({ word, added, c1, c2 }) {
 }
 
 /* ===========================================================================
-   REPLY CHAINS — longest back-and-forth exchanges between two people
+   REPLY CHAINS: longest back-and-forth exchanges between two people
    ======================================================================== */
 function renderChains() {
   const v = document.getElementById("view-chains");

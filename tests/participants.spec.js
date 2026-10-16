@@ -55,7 +55,7 @@ test("an ignored user's reactions are dropped everywhere", async ({ page }) => {
   // Timeline chips: m1 keeps only u3's 😂 (named by the generic name), m2 has none.
   const react = page.locator(".reacts .react");
   await expect(react).toHaveCount(1);
-  await expect(react.first()).toHaveAttribute("title", "funny — User 3");
+  await expect(react.first()).toHaveAttribute("title", "funny: User 3");
 
   await page.locator('.nav-item[data-view="stats"]').click();
   await expect(page.locator("#view-stats")).toHaveAttribute("data-ready", "1");

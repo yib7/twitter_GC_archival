@@ -109,7 +109,7 @@ test("a conversation with no messages says it has none, not that its senders are
   await page.route("**/local.js", (route) => route.fulfill({ contentType: "text/javascript", body: 'window.LOCAL_IGNORED_USERS = ["u1"];' }));
   await page.goto("/");
   await expect(page.locator(".msg").first()).toContainText("hi from beta");
-  for (const [conv, text, not] of [["E", "This group has no messages.", "ignored"], ["A", "every sender is ignored", "has no messages"]]) {
+  for (const [conv, text, not] of [["E", "This group has no messages.", "ignored"], ["A", "Every sender is ignored", "has no messages"]]) {
     await page.locator("#conv-select").selectOption(conv);
     for (const name of ["timeline", "stats", "gallery"]) {
       await page.locator(`.nav-item[data-view="${name}"]`).click();

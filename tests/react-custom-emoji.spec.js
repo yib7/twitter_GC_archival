@@ -46,7 +46,7 @@ test("a custom-emoji reaction renders its captured glyph, not the generic placeh
   await expect(cleanReact).toContainText("🎉");
   // The generic placeholder must NOT be used for a captured custom glyph.
   expect(await cleanReact.innerText()).not.toContain("💬");
-  await expect(cleanReact).toHaveAttribute("title", /🎉 — /);
+  await expect(cleanReact).toHaveAttribute("title", /🎉: /);
 
   expect(errors).toEqual([]);
 });

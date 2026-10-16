@@ -61,25 +61,25 @@ test.describe("jump to date", () => {
     await paletteJump(page, "2031-05-05");
     await page.keyboard.press("Enter");
     await landed(page, 7);
-    await expect(page.locator(".toast")).toHaveText("No messages after Apr 2, 2024 — jumped to the latest one");
+    await expect(page.locator(".toast")).toHaveText("No messages after Apr 2, 2024. Jumped to the latest one");
   });
 
   test("before the first message: lands on the first and says so", async ({ page }) => {
     await paletteJump(page, "June 2021");
     await page.keyboard.press("Enter");
     await landed(page, 0);
-    await expect(page.locator(".toast")).toHaveText("No messages before Jan 5, 2024 — jumped to the first one");
+    await expect(page.locator(".toast")).toHaveText("No messages before Jan 5, 2024. Jumped to the first one");
   });
 
   test("a day without messages lands on the next one and says so", async ({ page }) => {
     await paletteJump(page, "2024-01-08");
     await page.keyboard.press("Enter");
     await landed(page, 4);
-    await expect(page.locator(".toast")).toHaveText("No messages on Jan 8, 2024 — jumped to the next one, Jan 9, 2024");
+    await expect(page.locator(".toast")).toHaveText("No messages on Jan 8, 2024. Jumped to the next one, Jan 9, 2024");
     await paletteJump(page, "Feb 2024");
     await page.keyboard.press("Enter");
     await landed(page, 5);
-    await expect(page.locator(".toast")).toHaveText("No messages in February 2024 — jumped to the next one, Mar 15, 2024");
+    await expect(page.locator(".toast")).toHaveText("No messages in February 2024. Jumped to the next one, Mar 15, 2024");
   });
 
   test("a date that doesn't exist is rejected, not rolled over", async ({ page }) => {
@@ -147,9 +147,9 @@ test.describe("before:/after: share the parser and are inclusive", () => {
     await expect(page.locator("#s-meta")).not.toContainText("Ignored");
     await afterSearchRun(page, () => page.locator("#s-input").fill("before:2024-01-32 "));
     expect(await count(page)).toBe(8);
-    await expect(page.locator("#s-meta")).toContainText("Ignored before:2024-01-32 — no such date");
+    await expect(page.locator("#s-meta")).toContainText("Ignored before:2024-01-32: no such date");
     await afterSearchRun(page, () => page.locator("#s-input").fill("after:13/01/2024 "));
     expect(await count(page)).toBe(8);
-    await expect(page.locator("#s-meta")).toContainText("Ignored after:13/01/2024 — use YYYY-MM-DD or Jan 7 2024");
+    await expect(page.locator("#s-meta")).toContainText("Ignored after:13/01/2024: use YYYY-MM-DD or Jan 7 2024");
   });
 });

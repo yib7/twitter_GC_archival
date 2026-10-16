@@ -98,7 +98,7 @@ test.describe("calendar heatmap", () => {
     expect(await focused()).toMatch(/^Thursday, February 16, 2023: no messages/);
     await page.keyboard.press("Enter");
     await expect(dlg(page)).toHaveCount(0);
-    await expect(page.locator(".toast")).toHaveText("No messages on Feb 16, 2023 — jumped to the next one, Jun 1, 2023");
+    await expect(page.locator(".toast")).toHaveText("No messages on Feb 16, 2023. Jumped to the next one, Jun 1, 2023");
   });
 
   test("the month strip moves by month with the arrows and Jump to month jumps", async ({ page }) => {

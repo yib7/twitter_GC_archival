@@ -73,7 +73,7 @@ test("fuzzy mode shows literal hits first and offers close matches on demand", a
 test("no literal hit → automatic fuzzy fallback, labelled as such", async ({ page }) => {
   await boot(page);
   await search(page, "refrigirator");
-  await expect(page.locator("#s-meta")).toContainText(/No exact matches — 1 close match\b/);
+  await expect(page.locator("#s-meta")).toContainText(/No exact matches: 1 close match\b/);
   await expect(page.locator("#s-list .msg")).toContainText("refrigerator");
   // Nothing to opt into — the list already IS the close matches.
   await expect(page.locator("#s-fuzzy-toggle")).toHaveCount(0);
@@ -136,7 +136,7 @@ test("grid mode falls back to close media matches when the literal hits have no 
   await page.locator('#f-viewtoggle button[data-mode="grid"]').click();
   await search(page, "sunset");
   await expect(page.locator("#s-list .gcell")).toHaveCount(1);
-  await expect(page.locator("#s-meta")).toContainText(/No exact media matches — 1 close media match\b/);
+  await expect(page.locator("#s-meta")).toContainText(/No exact media matches: 1 close media match\b/);
   await expect(page.locator("#s-list .empty")).toHaveCount(0);
   // List mode is still exact-first: the literal (text-only) hit.
   await page.locator('#f-viewtoggle button[data-mode="list"]').click();
