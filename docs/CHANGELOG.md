@@ -282,7 +282,7 @@ All notable changes to this project are recorded here.
   dialog previews the card, saves a PNG, and can copy it to the clipboard
   where the browser supports it. Nothing is uploaded and file names only
   carry ids and years. This replaces the old "Quote" PNG export.
-- "Hide names & photos" in the Share dialog swaps every name, alias, @handle
+- "Hide names & photos" in the Share dialog swaps every name, alias, `@handle`
   and photo for "Person A/B/C" and plain discs, in titles and rankings too.
   It is on by default for Wrapped slides that rank people, and your last
   choice is remembered on this device. A name that is also a common word
