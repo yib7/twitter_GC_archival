@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { bootViewer, conv } = require("./_viewer-fixture.js");
+const { bootViewer, conv, viewReady } = require("./_viewer-fixture.js");
 const { contrastFailures } = require("./_contrast.js");
 
 // Accessibility checkpoint: keyboard reach, focus rings, names, live regions, dialogs. Synthetic data
@@ -118,7 +118,7 @@ test.describe("a visible focus ring on every keyboard stop", () => {
     test(v + " view: every Tab stop shows an unclipped ring", async ({ page }) => {
       await bootViewer(page, DATA, { ls: { "gca.lastView": v, "gca.settings": JSON.stringify({ pins: ["m1", "m4"] }) } });
       await installHelpers(page);
-      await page.waitForTimeout(v === "stats" ? 700 : 150);
+      await viewReady(page, v);
       await page.locator('.nav-item[data-view="' + v + '"]').focus();
       const { missing, seen } = await tabWalk(page, v === "search" ? 90 : 45);   // Search has the filter bar first
       expect(seen.length).toBeGreaterThan(3);
@@ -233,7 +233,7 @@ test.describe("no click-only elements", () => {
     test(v + ": every pointer target is keyboard-operable", async ({ page }) => {
       await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": v === "timeline" ? "timeline" : "search" } });
       await go(page, v);
-      await page.waitForTimeout(v === "stats" ? 600 : 100);
+      await viewReady(page, v);
       const bad = await clickOnly(page, "#view-" + v);
       expect(bad, "click-only: " + [...new Set(bad)].join(", ")).toEqual([]);
     });
@@ -356,7 +356,7 @@ test.describe("every icon-only control has a name", () => {
     bad.push(...await unnamed(page, "#app"));
     for (const v of ["timeline", "gallery", "hof", "stats", "threads", "chains", "wrapped", "capsule", "battles", "people", "settings", "pins"]) {
       await go(page, v);
-      await page.waitForTimeout(v === "stats" ? 600 : 60);
+      await viewReady(page, v);
       bad.push(...(await unnamed(page, "#view-" + v)).map((d) => v + ": " + d));
     }
     expect([...new Set(bad)], "unnamed: " + [...new Set(bad)].join(", ")).toEqual([]);
@@ -502,7 +502,7 @@ test.describe("desktop keeps its two-up layouts", () => {
   test("Settings rows stay side by side; Stats two-up sections keep two columns", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "stats" } });
-    await page.waitForTimeout(700);
+    await viewReady(page, "stats");
     const cols = await page.locator("#view-stats .stat-grid2").evaluateAll((gs) => gs.map((g) => getComputedStyle(g).gridTemplateColumns.split(" ").length));
     expect(cols.length).toBeGreaterThan(0);
     expect(cols).toContain(2);
@@ -799,7 +799,7 @@ test.describe("Contrast of rendered text, every view × theme", () => {
       const bad = [];
       for (const v of ["search", "timeline", "gallery", "pins", "hof", "wrapped", "capsule", "stats", "threads", "chains", "battles", "people", "settings"]) {
         await go(page, v);
-        await page.waitForTimeout(v === "stats" ? 700 : 120);
+        await viewReady(page, v);
         for (const f of await contrastFailures(page, "#view-" + v)) bad.push(v + ": " + f);
       }
       for (const f of await contrastFailures(page, ".sidebar")) bad.push("sidebar: " + f);

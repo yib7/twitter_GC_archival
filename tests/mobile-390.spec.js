@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { bootViewer, conv } = require("./_viewer-fixture.js");
+const { bootViewer, conv, viewReady } = require("./_viewer-fixture.js");
 
 // Mobile checkpoint at 390px with a touch (coarse) pointer: touch actions,
 // no horizontal overflow, 44px targets, the search filters sheet + no
@@ -179,7 +179,7 @@ test.describe("nothing overflows 390px", () => {
       const bad = [];
       for (const v of VIEWS) {
         await page.evaluate((name) => { const b = document.querySelector('.nav-item[data-view="' + name + '"]'); b.click(); }, v);
-        await page.waitForTimeout(v === "stats" ? 700 : 80);
+        await viewReady(page, v);
         const r = await overflowers(page);
         if (r.doc > r.W || r.out.length) bad.push(v + " (scrollWidth " + r.doc + "): " + r.out.join(" | "));
       }
@@ -200,7 +200,7 @@ test.describe("nothing overflows 390px", () => {
 
   test("Stats: two-up sections collapse to one column (no inline grid templates)", async ({ page }) => {
     await bootViewer(page, RICH_DATA, { ls: { "gca.lastView": "stats" } });
-    await page.waitForTimeout(700);
+    await viewReady(page, "stats");
     const inline = await page.locator("#view-stats [style*='1fr 1fr']").count();
     expect(inline).toBe(0);
     const grids = page.locator("#view-stats .stat-grid2");
@@ -320,7 +320,7 @@ test.describe("44px touch targets on a coarse pointer", () => {
     await page.keyboard.press("Escape");
     for (const v of VIEWS.slice(1)) {
       await page.evaluate((name) => document.querySelector('.nav-item[data-view="' + name + '"]').click(), v);
-      await page.waitForTimeout(v === "stats" ? 700 : 80);
+      await viewReady(page, v);
       await add(v, "#view-" + v);
     }
     expect([...new Set(bad)], [...new Set(bad)].join("\n")).toEqual([]);
@@ -369,7 +369,7 @@ test.describe("Contrast of rendered text at 390px", () => {
       await page.getByRole("button", { name: "Done" }).tap();
       for (const v of ["timeline", "gallery", "stats"]) {
         await page.locator('.tabbar .tab[data-tab="' + v + '"]').tap();
-        await page.waitForTimeout(v === "stats" ? 700 : 150);
+        await viewReady(page, v);
         await check(v, "#view-" + v);
       }
       await page.locator("#tab-more").tap();

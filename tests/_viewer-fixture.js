@@ -93,4 +93,15 @@ const frames = (page, n = 2) => page.evaluate((k) => new Promise((done) => {
   step();
 }), n);
 
-module.exports = { bootViewer, msgs, conv, collectErrors, afterSearchRun, timelineSnap, settled, settledTimeline, frames };
+// A view has finished rendering. Stats fills its deferred sections after the
+// first paint and then sets data-ready; the other views render when shown, so
+// a visible root plus two frames (observers delivered, a focus queued with
+// setTimeout 0 done) is enough. Replaces fixed sleeps after a view switch.
+async function viewReady(page, v) {
+  const root = page.locator("#view-" + v);
+  await expect(root).toBeVisible();
+  if (v === "stats") await expect(root).toHaveAttribute("data-ready", "1");
+  await frames(page, 2);
+}
+
+module.exports = { bootViewer, msgs, conv, collectErrors, afterSearchRun, timelineSnap, settled, settledTimeline, frames, viewReady };
