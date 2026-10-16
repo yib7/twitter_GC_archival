@@ -334,16 +334,19 @@ test.describe("the capsule is sized by layout, not a hardcoded height", () => {
     const body = page.locator("#capsule-body");
     await expect(body.locator(".msg").first()).toBeVisible();
     expect(await body.getAttribute("style")).toBeNull();
-    // scroll whatever scrolls the capsule to its end
-    await page.evaluate(() => {
+    // scroll whatever scrolls the capsule to its end. Photos are lazy and
+    // have no reserved height, so one only loads (and grows) once the scroll
+    // reaches it — re-scroll until every image is in and the end holds still.
+    await expect.poll(() => page.evaluate(() => {
       for (let n = document.getElementById("capsule-body"); n; n = n.parentElement) {
         if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) n.scrollTop = n.scrollHeight;
       }
-    });
-    await page.waitForTimeout(100);
-    const last = await body.locator(".msg").last().boundingBox();
-    const bar = await page.locator(".tabbar").boundingBox();
-    expect(last.y + last.height).toBeLessThanOrEqual(bar.y);
+      const imgs = [...document.querySelectorAll("#capsule-body img")];
+      if (!imgs.every(i => i.complete)) return false;
+      const msgs = document.querySelectorAll("#capsule-body .msg");
+      const last = msgs[msgs.length - 1].getBoundingClientRect();
+      return last.bottom <= document.querySelector(".tabbar").getBoundingClientRect().top;
+    })).toBe(true);
     // exactly one scroll container (no nested scroller inside the page)
     expect(await page.evaluate(() => /auto|scroll/.test(getComputedStyle(document.getElementById("capsule-body")).overflowY))).toBe(false);
   });
