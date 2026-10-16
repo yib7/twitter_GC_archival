@@ -103,50 +103,52 @@ function sendJSON(res, code, obj) {
   res.writeHead(code, { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(body) });
   res.end(body);
 }
+// After a 413: drain the rest of the upload, then close. See readBody.
+const LINGER_IDLE_MS = 1000, LINGER_MAX_MS = 10000;
+function lingerThenClose(req, res) {
+  const sock = req.socket;
+  sock.destroySoon = function () { if (this.writable) this.end(); };
+  let idle = null;
+  const cap = setTimeout(() => sock.destroy(), LINGER_MAX_MS);
+  // the upload is over or has gone quiet: close as soon as the 413 is out
+  const close = () => {
+    clearTimeout(idle);
+    req.lingerTick = null;
+    if (res.writableFinished) sock.destroy(); else res.once("finish", () => sock.destroy());
+  };
+  req.lingerTick = () => {
+    clearTimeout(idle);
+    idle = setTimeout(close, LINGER_IDLE_MS);
+    if (idle.unref) idle.unref();
+  };
+  if (cap.unref) cap.unref();
+  req.lingerTick();
+  req.once("end", close);
+  sock.once("close", () => { clearTimeout(idle); clearTimeout(cap); });
+}
 function readBody(req, res) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     let tooLarge = false;
     req.on("data", (c) => {
-      if (tooLarge) return;   // already rejected — keep draining so the socket
-      size += c.length;       // isn't reset mid-upload, but stop buffering.
+      if (tooLarge) { if (req.lingerTick) req.lingerTick(); return; }   // draining after the 413
+      size += c.length;
       if (size > MAX_JSON_BODY) {
         tooLarge = true;
         chunks.length = 0;    // free what we'd buffered so far — bounded memory
-        // NOTE: no req.destroy() here — destroying the request stream destroys
-        // the underlying socket (per Node's http docs) before the 413 response
-        // below has a chance to be written, so a real client sees a mid-upload
-        // connection reset instead of a clean 413. Reject now (readBody's
-        // caller sends the 413) and keep the connection open, silently
-        // draining the rest of the oversized body, so the response actually
-        // reaches the client. Bounded memory is still guaranteed: nothing past
-        // the cap is ever pushed onto `chunks`.
-        //
-        // Review fix: draining is only meant to last long enough for the 413
-        // to reach the client — a slow/unbounded/never-ending body (a stalled
-        // upload, or deliberately, a slowloris-style client that just never
-        // sends 'end') would otherwise keep this connection — and its socket —
-        // open forever, even though the response was fully sent ages ago.
-        // res's "finish" event fires only once the 413 has actually been
-        // flushed to the client (unlike destroying req synchronously here,
-        // which is the exact bug the note above describes), so closing the
-        // connection there is safe and bounds the connection's lifetime too.
-        //
-        // destroying on "finish" itself was still too early
-        // on Linux/macOS — "finish" means handed to the kernel, not read by
-        // the peer, and closing a socket that still has unread request bytes
-        // makes the kernel send a RST, which can discard the 413 before the
-        // client reads it. So: advertise `Connection: close` (Node then
-        // half-closes gracefully with a FIN once the 413 is flushed) and only
-        // hard-destroy after a short grace period, which still bounds a
-        // never-ending upload's lifetime.
+        // Answer 413 now, but don't close yet: a client still uploading reads
+        // the response only once its upload is over, and closing a socket that
+        // still has request bytes arriving sends a RST, which throws away the
+        // 413 it hasn't read. Node would do exactly that for a Connection: close
+        // response (destroySoon() on finish), so this socket only half-closes
+        // (a FIN after the 413) and keeps draining. Nothing past the cap is
+        // buffered. It is hard-closed once the upload goes quiet, or after
+        // LINGER_MAX_MS in all, so a never-ending (slowloris) body can't hold
+        // it open.
         if (res) {
           if (!res.headersSent) res.setHeader("Connection", "close");
-          res.once("finish", () => {
-            const t = setTimeout(() => req.destroy(), 1000);
-            if (t.unref) t.unref();
-          });
+          lingerThenClose(req, res);
         }
         reject(httpError(413, "This save is too large to send in one go. Use smaller photos, or save a few at a time."));
         return;

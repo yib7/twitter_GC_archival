@@ -273,8 +273,8 @@ describe("destructive & security-sensitive route coverage", () => {
   // finishes sending and the socket naturally reaches 'end'), but a client
   // that never finishes sending (stalled upload, or deliberately, a
   // slowloris-style attacker) kept the connection — and its socket — open
-  // indefinitely even though the 413 had long since been flushed. The fix
-  // closes the connection once the 413 response's "finish" event fires. This
+  // indefinitely even though the 413 had long since been flushed. The server now
+  // closes the connection once the upload has gone quiet for a second. This
   // uses a raw net socket (not fetch, which doesn't let us hold the request
   // open past the point the server responds) so it can watch that the SERVER
   // actively ends its side of the connection while this test is still mid-way
@@ -332,8 +332,8 @@ describe("destructive & security-sensitive route coverage", () => {
         // (5000ms) — that default WILL eventually reap an idle keep-alive
         // connection on its own, so a generous timeout here would pass even
         // without the fix (it did, at ~6s, when this was sabotaged for RED
-        // verification). The fix closes the connection within ~1s of the 413
-        // (Connection: close + a short grace timer), so 2500ms measured from
+        // verification). The server closes the connection about 1s after this
+        // client's upload stops (it stops right at the 413), so 2500ms from
         // the 413 cleanly separates "closed because of the fix" from "closed
         // because Node eventually gave up anyway".
         closeTimer = setTimeout(() => {
@@ -362,6 +362,50 @@ describe("destructive & security-sensitive route coverage", () => {
         fail(e);
       });
     });
+  });
+
+  // A real browser keeps uploading an oversized save after the server's 413
+  // and only reads the response once its upload is done (or a slow link takes
+  // a while to finish it). Closing the connection while those bytes are still
+  // arriving makes the server's side answer with a RST, and a RST throws away
+  // the 413 the client hasn't read yet: it sees a reset, not the message. The
+  // server has to keep draining while the upload is still moving.
+  test("a client still uploading after the 413, reading only at the end, still gets the 413", async () => {
+    const statusLine = await new Promise((resolve, reject) => {
+      let head = "", settled = false, trickle = null;
+      const finish = (err, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer); clearInterval(trickle);
+        socket.destroy();
+        if (err) reject(err); else resolve(value);
+      };
+      const timer = setTimeout(() => finish(new Error("no response status line within 30s")), 30000);
+      const socket = net.connect(qPort, "127.0.0.1", () => {
+        socket.pause();   // don't read anything until the upload is over
+        socket.write(
+          "POST /api/source HTTP/1.1\r\n" +
+          "Host: 127.0.0.1:" + qPort + "\r\n" +
+          "Content-Type: application/json\r\n" +
+          "Content-Length: " + (70 * 1024 * 1024) + "\r\n\r\n",
+        );
+        socket.write(Buffer.alloc(65 * 1024 * 1024, 0x61));
+        const piece = Buffer.alloc(16 * 1024, 0x61);
+        let sent = 0;
+        trickle = setInterval(() => {
+          if (++sent > 25) { clearInterval(trickle); socket.resume(); return; }   // ~2.5s more upload
+          socket.write(piece);
+        }, 100);
+      });
+      socket.on("data", (chunk) => {
+        head += chunk.toString("latin1");
+        const eol = head.indexOf("\r\n");
+        if (eol !== -1) finish(null, head.slice(0, eol));
+      });
+      socket.on("error", (e) => finish(e));
+      socket.on("close", () => finish(new Error("connection closed before a status line was received")));
+    });
+    assert.match(statusLine, /^HTTP\/1\.1 413\b/);
   });
 
   // The original version of this test asserted
