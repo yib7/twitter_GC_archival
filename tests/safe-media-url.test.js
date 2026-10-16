@@ -37,6 +37,11 @@ test("a file: URL that names another machine is refused, however the share is sp
     "file:\\\\attacker.example\\share\\x.pdf",
     "//attacker.example/share/x.pdf",
     "\\\\attacker.example\\share\\x.pdf",
+    // an encoded slash or backslash a later decode could turn into a share
+    "file:///%5C%5Cattacker.example/share/x.pdf",
+    "file:///%2F%2Fattacker.example/share/x.pdf",
+    "file:///%5c%5cattacker.example/share/x.pdf",
+    "%5C%5Cattacker.example/share/x.pdf",
   ]) {
     assert.equal(safeMediaUrl(bad, VIEWER), "", bad);
   }

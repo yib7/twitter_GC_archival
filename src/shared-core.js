@@ -1250,6 +1250,7 @@
     try { u = new URL(p, base); } catch (err) { return ""; }
     if (u.protocol === "http:" || u.protocol === "https:") return p;
     if (u.protocol !== "file:") return "";
+    if (/%2f|%5c/i.test(u.pathname)) return "";   // an encoded / or \ could decode into a share
     try { b = new URL(base); } catch (err) { /* no page URL: only this machine counts */ }
     const host = fileHost(u);
     return !host || (b && host === fileHost(b)) ? p : "";
