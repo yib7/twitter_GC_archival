@@ -843,13 +843,14 @@ function applyPfp(av, id, name) {
   }
 }
 
-function pfpHtml(id, styleStr) {
+// name: the label shown beside it, when that isn't nameOf(id) (another chat's)
+function pfpHtml(id, styleStr, name) {
   const photo = sanitizePhoto(PFPS[id]);
   if (photo) {
     return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};background-image:url('${esc(photo)}');background-size:cover;background-position:center;background-repeat:no-repeat;"></span>`;
   }
   const hue = personColor(id);
-  return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};--p:${esc(hue.p)};--f:${esc(hue.f)}">${esc(initials(nameOf(id)))}</span>`;
+  return `<span class="av av-clickable" data-id="${esc(id)}" style="${styleStr};--p:${esc(hue.p)};--f:${esc(hue.f)}">${esc(initials(name || nameOf(id)))}</span>`;
 }
 
 /* ---- Participants & derived stats (computed once) ------------------------ */
@@ -2511,7 +2512,7 @@ function updateAutocomplete() {
     row.id = "s-ac-opt-" + k; row.dataset.k = k;
     row.setAttribute("role", "option");
     const aka = x.names.slice(1).join(" · ");
-    row.innerHTML = pfpHtml(x.p.id, "") + '<span class="s-ac-tx"><span class="s-ac-name">' + esc(x.names[0]) + "</span>" +
+    row.innerHTML = pfpHtml(x.p.id, "", x.names[0]) + '<span class="s-ac-tx"><span class="s-ac-name">' + esc(x.names[0]) + "</span>" +
       (aka ? '<span class="s-ac-aka">' + esc(aka) + "</span>" : "") + '</span><span class="s-ac-n">' + fmtNum(x.p.count) + " msg" + (x.p.count === 1 ? "" : "s") + "</span>";
     const av = row.querySelector(".av-clickable"); if (av) av.classList.remove("av-clickable");
     box.appendChild(row);

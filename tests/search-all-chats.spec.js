@@ -215,6 +215,16 @@ test.describe("unnamed people in other chats keep their own chat's User N", () =
     await expect(nameIn(page.locator("#view-timeline .msg").filter({ hasText: "pizza b3" }))).toHaveText("User 2");
   });
 
+  test("the from: suggestion's avatar matches its label", async ({ page }) => {
+    await uboot(page);
+    await afterSearchRun(page, () => scopeBtn(page, "all").click());
+    await page.locator("#s-input").fill('from:"User 3');
+    // SHARED is User 3 in Beta (and User 1 here): its avatar reads U3, not U1
+    const opt = page.locator("#s-ac [role=option]").filter({ hasText: "User 3" });
+    await expect(opt).toHaveCount(1);
+    await expect(opt.locator(".av")).toHaveText("U3");
+  });
+
   test("a pin from another chat shows that chat's label", async ({ page }) => {
     await uboot(page, { "gca.lastView": "pins", "gca.settings": JSON.stringify({ pins: ["ub1", "ub5"] }) });
     const row = page.locator("#view-pins .msg").filter({ hasText: "pizza b1" });
