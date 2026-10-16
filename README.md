@@ -8,24 +8,26 @@ from disk.
 
 - **Runs from `file://`.** Vanilla JavaScript, no framework, no front-end
   build step, and no runtime npm dependencies (Fuse.js and Chart.js are
-  vendored). A strict Content-Security-Policy, and nothing is sent over the
-  internet.
+  vendored). It sets a strict Content-Security-Policy and sends nothing over
+  the internet.
 - **Fast at 100K+ messages.** A virtualized timeline, exact-first search with
   a prefiltered fuzzy fallback, and Stats computed in time-sliced passes.
   CI holds search, Stats and Wrapped to timing budgets on a 120K-message
   synthetic archive.
 - **Streaming import.** A local setup wizard previews an export read-only,
-  then builds it. The build streams, so a ~600 MB export imports, and a newer
-  export merges in, deduplicated by message id.
-- **A locked-down local server.** Needed only for setup, it listens on
-  `127.0.0.1` only and checks `Host`, `Origin` and `Sec-Fetch-Site` so other websites can't
-  read or change your archive. Node built-ins only.
+  then builds it. The build streams, so a ~600 MB export imports. A newer
+  export merges into an existing archive, deduplicated by message id.
+- **A locked-down local server.** Needed for setup, optional for reading
+  (video can need it over `file://`). It listens on `127.0.0.1` only and
+  checks `Host`, `Origin` and `Sec-Fetch-Site` so other websites can't read or
+  change your archive. Node built-ins only.
 - **Tested.** About 690 unit tests and 620 Playwright browser tests,
-  including keyboard and colour-contrast audits in all three themes. CI runs
+  including keyboard and color-contrast audits in all three themes. CI runs
   them on Windows, macOS and Linux.
 
-Reading an archive needs only a browser: no server, no account, no API key,
-no internet. Several group chats in one export? A picker switches between them.
+Reading an archive needs only a browser: no account, no API key, no internet,
+and no server unless your browser blocks video over `file://`. Several group
+chats in one export? A picker switches between them.
 
 > The repo ships with synthetic demo data. No real messages, names, or media
 > are committed. Open `index.html` and you'll see a runnable demo built from
@@ -77,7 +79,7 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
 - **Keyboard.** `/` focuses search; `j` / `k` move through results, `Enter`
   opens one, `c` shows its context, `b` bookmarks it. Cmd/Ctrl-K opens a
   command palette with commands, people, dates and matching messages.
-- **Timeline.** Virtualized, smooth at 100K+ messages, with inline system
+- **Timeline.** Virtualized, so 100K+ messages aren't all rendered at once, with inline system
   events (created, renamed, joins, leaves). Opens at the newest message and
   remembers your place per conversation.
 - **Jump to any date** from a calendar heatmap or the palette, both reading
@@ -155,21 +157,22 @@ a year (`2021`), or a quoted natural date (`after:"June 2021"`).
 ## How it works
 
 ```mermaid
-flowchart TD
-  L["start-setup launcher<br/>or npm start"] -->|starts| S
-  X["Your unzipped<br/>X export"] -->|"read, previewed, copied"| S
-  W["Setup wizard<br/>in the browser"] <-->|"JSON API"| S["Local setup server<br/>scripts/server.js<br/>127.0.0.1 only"]
-  S -->|"runs as a child process"| B["Build<br/>scripts/build.js<br/>streams · merges · dedupes"]
-  B -->|writes| P[("personal_data/<br/>git-ignored<br/>data.js · local.js<br/>media/ · pfps/")]
-  S -->|"names and photos"| P
-  P -->|"read from disk"| V["Viewer<br/>index.html + src/app.js<br/>opened from file://"]
-  D["sample/data.sample.js<br/>synthetic demo"] -.->|"when no archive is built"| V
+flowchart LR
+  L["Launcher<br/>or npm start"] -->|starts| S
+  X["Your X<br/>export"] -->|"read-only<br/>preview"| S
+  W["Setup<br/>wizard"] <-->|"JSON API"| S["Setup server<br/>127.0.0.1 only"]
+  S -->|"runs"| B["Build<br/>streams, merges"]
+  B -->|"writes"| P[("personal_data/<br/>git-ignored")]
+  S -->|"copies export,<br/>names, photos"| P
+  P -->|"read from<br/>disk"| V["Viewer<br/>index.html"]
+  D["Sample data"] -.->|"if no<br/>archive"| V
 ```
 
 1. The launcher starts a small Node server and opens the wizard.
 2. The wizard previews the export, then the server copies it and runs the build.
 3. The build writes `personal_data/data.js`; the wizard saves names and photos.
-4. From then on the viewer opens from disk. The server is only for setup.
+4. From then on the viewer opens from disk. The server is only needed for
+   setup, or to play video if your browser blocks it over `file://`.
 
 More detail in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
