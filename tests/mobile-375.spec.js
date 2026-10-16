@@ -103,6 +103,20 @@ test("at 768px (touch) a People card gives its messages the card's width", async
   for (const r of sw) expect(r).toBeLessThanOrEqual(card.x + card.width + 0.5);
 });
 
+// Under the messages, the swatches use the card's width: they were held to a
+// 150px block (3 across, 5 rows of 44px touch targets, one left over).
+for (const vp of [{ width: 768, height: 1024, rows: 2 }, { width: 375, height: 812, rows: 3 }]) {
+  test(`at ${vp.width}px (touch) the People colour swatches wrap in at most ${vp.rows} rows`, async ({ page }) => {
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "people" } });
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    const card = await page.locator("#view-people .person").first().boundingBox();
+    const sw = await page.locator("#view-people .person").first().locator(".swatch").evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top), right: r.right }; }));
+    expect(sw.length).toBeGreaterThan(5);
+    expect(new Set(sw.map((r) => r.top)).size).toBeLessThanOrEqual(vp.rows);
+    for (const r of sw) expect(r.right).toBeLessThanOrEqual(card.x + card.width + 0.5);
+  });
+}
+
 // Beside the sidebar on a tablet, the Timeline toolbar's "Jump to date" broke
 // onto two lines inside its pill. Both buttons stay one line and on screen.
 test("at 768px the Timeline toolbar buttons stay on one line", async ({ page }) => {
