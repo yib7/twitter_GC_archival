@@ -42,3 +42,17 @@ test("clicking a media thumbnail opens an enlarged, closable view", async ({ pag
   await page.keyboard.press("Escape");
   await expect(lb).toHaveCount(0);
 });
+
+// The thumbnails were mouse-only images (alt="", not focusable). Each is a
+// named button now: Enter opens the enlarged view, Escape returns focus to it.
+test("a media thumbnail is a named button that works from the keyboard", async ({ page }) => {
+  await gotoPeopleStep(page);
+  const btn = page.getByRole("button", { name: /Enlarge shared photo/ }).first();
+  await expect(btn).toBeVisible();
+  await btn.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".su-lightbox")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.locator(".su-lightbox")).toHaveCount(0);
+  await expect(btn).toBeFocused();
+});

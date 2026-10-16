@@ -234,8 +234,10 @@
 .su-media { margin-top: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
 .su-thumb {
   width: 50px; height: 50px; border-radius: 8px; object-fit: cover; cursor: pointer;
-  background: var(--bg-panel); border: 1px solid var(--border);
+  background: var(--bg-panel); border: 1px solid var(--border); display: block;
 }
+.su-thumb-btn { padding: 0; border: 0; background: none; border-radius: 8px; cursor: pointer; }
+.su-thumb-btn:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 2px; }
 
 /* "Is this image good?" preview — confirm a photo before it's committed. */
 .su-modal {

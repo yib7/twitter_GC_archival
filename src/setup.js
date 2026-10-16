@@ -694,9 +694,16 @@ function personCard(p) {
   }
   if (p.media && p.media.length) {
     const mw = document.createElement("div"); mw.className = "su-media";
-    p.media.forEach((it) => {
-      if (it.k === "vid") { const v = document.createElement("video"); v.className = "su-thumb"; v.src = it.m; v.muted = true; v.preload = "metadata"; v.title = "Click to enlarge"; v.onclick = () => viewMedia(it.m, "vid"); mw.appendChild(v); }
-      else { const img = document.createElement("img"); img.className = "su-thumb"; img.src = it.m; img.loading = "lazy"; img.alt = ""; img.title = "Click to enlarge"; img.onclick = () => viewMedia(it.m, "img"); mw.appendChild(img); }
+    // each thumbnail is a named button, so it can be reached and opened from
+    // the keyboard (viewMedia returns focus to it on close)
+    p.media.forEach((it, k) => {
+      const vid = it.k === "vid";
+      const b = document.createElement("button"); b.type = "button"; b.className = "su-thumb-btn"; b.title = "Click to enlarge";
+      b.setAttribute("aria-label", "Enlarge shared " + (vid ? "video" : "photo") + " " + (k + 1) + " from " + labelOf(p));
+      b.onclick = () => viewMedia(it.m, vid ? "vid" : "img");
+      const m = document.createElement(vid ? "video" : "img"); m.className = "su-thumb"; m.src = it.m;
+      if (vid) { m.muted = true; m.preload = "metadata"; } else { m.loading = "lazy"; m.alt = ""; }
+      b.appendChild(m); mw.appendChild(b);
     });
     main.appendChild(mw);
   }
