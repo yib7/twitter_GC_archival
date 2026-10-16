@@ -15,9 +15,10 @@ test("the onboarding card names the server's real setup address", async ({ page 
 });
 
 // The wizard page lives in src/ and works only through the server, at
-// /setup.html. Served, the button opens it on this server; opened from
-// file://, there is no wizard file beside index.html, so the button goes to
-// the server's default address (the one the note names).
+// /setup.html. Served, the button opens it on this server. Opened from
+// file://, there is probably no server running, so the button opens
+// src/setup.html from disk, which shows only how to start the server (never a
+// "This site can't be reached" page).
 test("the onboarding button opens /setup.html when served", async ({ page }) => {
   await bootViewer(page, DATA, { ls: { "gca.onboarded": "0" } });
   const btn = page.locator(".onboard a.btn.primary");
@@ -25,10 +26,16 @@ test("the onboarding button opens /setup.html when served", async ({ page }) => 
   expect(await btn.evaluate((a) => new URL(a.href).pathname)).toBe("/setup.html");
 });
 
-test("from file:// the onboarding button opens the server's default setup address", async ({ page }) => {
+test("from file:// the onboarding button opens the start-the-server note", async ({ page }) => {
   const path = require("node:path");
   const { pathToFileURL } = require("node:url");
   await page.goto(pathToFileURL(path.join(__dirname, "..", "index.html")).href);
   expect(await page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample)).toBe(true);
-  await expect(page.locator(".onboard a.btn.primary")).toHaveAttribute("href", "http://localhost:8765/setup.html");
+  const btn = page.locator(".onboard a.btn.primary");
+  const target = pathToFileURL(path.join(__dirname, "..", "src", "setup.html")).href;
+  expect(await btn.evaluate((a) => a.href)).toBe(target);
+  await btn.click();
+  await expect(page).toHaveURL(target);
+  await expect(page.locator(".su-unserved")).toBeVisible();
+  await expect(page.locator(".setup-shell")).toBeHidden();
 });
