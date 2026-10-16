@@ -1,12 +1,12 @@
 /*
- * server.js — optional local web server for the Group Chat Archive.
+ * server.js: optional local web server for the Group Chat Archive.
  *
  * Daily use does NOT need this: just double-click index.html. Use the server
  * when your browser blocks local videos/images over file://, OR to run the
  * one-time setup wizard (it needs Node to write config + copy media):
  *
  *   node scripts/server.js
- *   → open  http://localhost:8765            (the app)
+ *   → open  http://localhost:8765            (the viewer)
  *   → open  http://localhost:8765/setup.html (first-run setup wizard)
  *
  * The wizard talks to three small JSON endpoints, all Node built-ins only:
@@ -44,18 +44,18 @@ const CONFIG = path.join(PERSONAL, "config.json");
 // anything else (the startup message, the Host-allowlist check) reads it.
 let PORT = process.env.GCA_PORT ? Number(process.env.GCA_PORT) : 8765;
 const HOST = "127.0.0.1";
-// when set (Playwright's own webServer sets this — see
+// when set (Playwright's own webServer sets this; see
 // playwright.config.js), skip the legacy ROOT/data.js + ROOT/names.local.js
 // fallbacks entirely, so a spawned test server can NEVER read or serve a
 // leftover root-level file even if one happens to exist on disk.
 const NO_ROOT_FALLBACK = !!process.env.GCA_NO_ROOT_FALLBACK;
 
 // When launched via the double-click launcher (`--open`), shut the server down
-// once the browser is closed — so users aren't left with a stray command window.
+// once the browser is closed, so users aren't left with a stray command window.
 // Served pages ping GET /api/ping?c=<page id> and send a goodbye beacon
 // (POST /api/bye?c=<page id>) when they close; see makeLiveness for why
 // a quiet heartbeat alone is never taken as "closed".
-// GCA_AUTO_EXIT=1 turns the same behaviour on without opening a browser (tests).
+// GCA_AUTO_EXIT=1 turns the same behavior on without opening a browser (tests).
 const AUTO_EXIT = process.argv.includes("--open") || process.env.GCA_AUTO_EXIT === "1";
 // ~20 s of grace after the last goodbye, so the next page
 // (a reload, the wizard's "Open your archive", a slow-loading big archive)
@@ -68,15 +68,15 @@ function notePing(id) {
   if (AUTO_EXIT && !idleWatch) {   // arm the watchdog once the browser first connects
     idleWatch = setInterval(() => {
       if (live.shouldExit()) {
-        console.log("Browser closed — shutting down.");
+        console.log("Browser closed. Shutting down.");
         process.exit(0);
       }
     }, 1000);
   }
 }
 // Bracket a synchronous, event-loop-freezing call (a native picker, the build) so
-// the auto-exit watchdog can't mistake that frozen stretch — during which the
-// browser's heartbeats can't be received — for the browser having closed.
+// the auto-exit watchdog can't mistake that frozen stretch (during which the
+// browser's heartbeats can't be received) for the browser having closed.
 function duringBlocking(fn) {
   live.enter();
   try { return fn(); }
@@ -141,7 +141,7 @@ function readBody(req, res) {
       size += c.length;
       if (size > MAX_JSON_BODY) {
         tooLarge = true;
-        chunks.length = 0;    // free what we'd buffered so far — bounded memory
+        chunks.length = 0;    // free what we'd buffered so far: bounded memory
         // Answer 413 now, but don't close yet: a client still uploading reads
         // the response only once its upload is over, and closing a socket that
         // still has request bytes arriving sends a RST, which throws away the
@@ -213,7 +213,7 @@ function decodeDataUrl(url, whose) {
 // (1:1 DMs, account.js, other media) into the servable personal_data/media/.
 // X's group media folder is flat, so there are no same-name clashes to resolve.
 // `journal` records each copy so a failed build can undo it.
-// a file destDir already has is never replaced — X names
+// a file destDir already has is never replaced; X names
 // media by message id + media id, so the same name is the same picture, and a
 // newer download's copy may be the damaged one. An EMPTY file there counts as
 // missing. `keepExisting` (a build) counts those kept as `same`;
@@ -242,7 +242,7 @@ function planMediaCopy(srcDir, destDir, opts) {
   return { todo, unmatched, same };
 }
 // copy to "<dest>.<pid>.<hex>.tmp" and rename it into
-// place, so a file under its real name is always complete — a crash mid-copy
+// place, so a file under its real name is always complete: a crash mid-copy
 // leaves only a temp file, which the next build that commits clears
 // (clearCopyTemps). GCA_TEST_COPY_CRASH=<name> (tests only) stops the server
 // half-way through copying that file, as a crash would.
@@ -394,8 +394,8 @@ function pruneSource(keep) {
 const PREV_DIR_RE = /^(?:source|media|removed)\.prev-\d+-[0-9a-f]+$/;
 const KEPT_DIR_RE = /^(?:source|media|removed)\.prev-\d+-[0-9a-f]+\.kept$/;   // renamed by markKept
 const prevDirName = (name) => name + ".prev-" + process.pid + "-" + crypto.randomBytes(4).toString("hex");
-// keep `file` as it is now (a hard link — the build
-// replaces files by rename, so the link keeps the old content — or a copy),
+// keep `file` as it is now (a hard link; the build
+// replaces files by rename, so the link keeps the old content, or a copy),
 // to put back if the build fails. restore() → the paths it couldn't put back.
 function fileSnapshot(file, backupDir) {
   const kept = path.join(backupDir, path.basename(file));
@@ -423,7 +423,7 @@ function fileSnapshot(file, backupDir) {
 // a server killed mid-build leaves its backup folders
 // behind. Once a later build has committed, source/, media/ and the
 // quarantine are consistent again and those old copies are just stale
-// private data — remove them. A folder marked to keep (markKept) is not stale:
+// private data: remove them. A folder marked to keep (markKept) is not stale:
 // it holds files a failed build couldn't put back, and stays. So does any
 // folder without the clearable mark: nothing says its files are spare.
 function clearStaleBackups() {
@@ -455,11 +455,11 @@ function resolveMediaDir(abs, typed) {
   return problem ? { error: problem } : { dir: abs };
 }
 // Open a native Windows file/folder picker and return the chosen absolute path.
-// `which` ("group" | "headers") only tailors the file dialog's title + filter —
+// `which` ("group" | "headers") only tailors the file dialog's title + filter;
 // the values are constant strings we control, so there's no injection risk.
 // Returns "" on cancel, null when unsupported (not Windows), or { error } when
 // PowerShell couldn't show the dialog (e.g. Constrained Language Mode blocks
-// Add-Type) — so a Windows user isn't told it "only works on Windows".
+// Add-Type), so a Windows user isn't told it "only works on Windows".
 function nativePick(kind, which) {
   if (process.platform !== "win32") return null;
   // Tests set this so a picker request can never open a real, blocking dialog.
@@ -535,7 +535,7 @@ function moveFile(src, dest) {
   }
 }
 
-// The built archive. It is never loaded whole — the
+// The built archive. It is never loaded whole: the
 // server's default heap would have to hold every message body. It is streamed
 // instead, either as a summary (no message is even parsed) or through small
 // collectors that see one message at a time (see server-core.js).
@@ -632,7 +632,7 @@ function resolveSource(body) {
   }
   const wrong = wrongKindMessage(groupKind, "messages", path.basename(groupAbs)) || wrongKindMessage(headersKind, "headers", path.basename(headersAbs));
   if (wrong) return { status: 400, error: wrong };
-  // only the group media folder — never the whole data/ folder (1:1 DMs,
+  // only the group media folder, never the whole data/ folder (1:1 DMs,
   // account details …), which would become servable under personal_data/media/.
   const mediaPick = resolveMediaDir(absOfInput(mediaDirIn), mediaDirIn);
   if (mediaPick.error) return { status: 400, error: mediaPick.error };
@@ -680,7 +680,7 @@ function resolveArchiveRoot(rootIn) {
   };
 }
 // the copy + build in progress, for GET /api/progress
-// and the busy guard — null when none runs. One at a time: a second build,
+// and the busy guard; null when none runs. One at a time: a second build,
 // a save or Start over while one runs gets a 409 instead of racing it.
 let job = null;
 const BUSY = "A build is still running. Wait for it to finish, then try again.";
@@ -707,7 +707,7 @@ async function sourceAndBuild(body, res, progress) {
   // pictures (20230301-IMG_0001.jpg), so the name alone can't tell a Pictures
   // folder from the group media. Only files whose number is a message id in
   // this export are copied, and a folder where none are is refused.
-  // only the media of messages the archive keeps is copied — a removed
+  // only the media of messages the archive keeps is copied; a removed
   // group's or person's media would otherwise sit, unreferenced but servable,
   // in media/ (the camera-roll check below still looks at every message).
   let ids = null, keepIds = null, exportNewest = null;
@@ -727,7 +727,7 @@ async function sourceAndBuild(body, res, progress) {
   const archiveNewest = duringBlocking(() => newestInArchive());
   const older = exportNewest != null && archiveNewest != null && exportNewest < archiveNewest;
   if (ids && mediaAbs) {
-    // The same check as the preview — media the archive
+    // The same check as the preview: media the archive
     // already has (a newer export's folder can hold it) isn't a mismatch
     const mismatch = mediaMismatch(surveyMedia(mediaAbs, ids, ids, knownMediaOf()), mediaAbs);
     if (mismatch) return sendJSON(res, 400, { error: mismatch });
@@ -738,7 +738,7 @@ async function sourceAndBuild(body, res, progress) {
   if (spaceErr) return sendJSON(res, 507, { error: spaceErr });
 
   // an archive whose removals predate the quarantine
-  // has never set its removed messages aside — they are only in the copies of
+  // has never set its removed messages aside; they are only in the copies of
   // the export it was built from, which this merge re-points config away from
   // (and prunes). Rebuild once first with the archive's own, unchanged config,
   // so the quarantine holds them before anything is copied or re-pointed.
@@ -763,7 +763,7 @@ async function sourceAndBuild(body, res, progress) {
   // previous source/ and media/ files, not just config.json.
   const srcJournal = copyJournal(path.join(PERSONAL, prevDirName("source")));
   const mediaJournal = copyJournal(path.join(PERSONAL, prevDirName("media")));
-  // the quarantine too — a build that fails after
+  // the quarantine too: a build that fails after
   // writing it (as a superset, before data.js) must not leave it changed.
   const quarSnap = fileSnapshot(REMOVED_MSGS, path.join(PERSONAL, prevDirName("removed")));
   // Each step runs even when one before it fails. → a sentence for the
@@ -787,7 +787,7 @@ async function sourceAndBuild(body, res, progress) {
   try {
     // Store absolute destinations (not "personal_data/…"-relative-to-ROOT) so this
     // works whether PERSONAL is the real ROOT/personal_data or a GCA_PERSONAL
-    // override (tests) — build.js's own path resolution already accepts absolute
+    // override (tests); build.js's own path resolution already accepts absolute
     // paths as-is, so no change needed there.
     const copyInto = (abs) => {
       const dest = path.join(srcDir, path.basename(abs));
@@ -878,7 +878,7 @@ function legacyQuarantineSources(cfg) {
 }
 // The media folder against this export's message ids: files that will be
 // copied (`files`, `bytes`), files of removed people / groups (`removed`)
-// and picture/video files of no message here (`unmatched`) — unless the
+// and picture/video files of no message here (`unmatched`), unless the
 // archive already has a file of that name (`known`: a newer export's folder
 // can hold media of messages only the archive has). Read-only.
 function surveyMedia(dir, allIds, keepIds, known) {
@@ -899,7 +899,7 @@ function surveyMedia(dir, allIds, keepIds, known) {
   return out;
 }
 // A media file name the built archive already has (in personal_data/media),
-// or null with no archive — shared by the preview and the build's own check.
+// or null with no archive; shared by the preview and the build's own check.
 function knownMediaOf() {
   if (!builtArchiveFiles().length) return null;
   return (name) => fs.existsSync(path.join(PERSONAL, "media", name));
@@ -989,7 +989,7 @@ function apiPreflight(body, res) {
     warnings: preflightWarnings({ swapped: src.swapped, notes: src.notes.concat(legacyQuarantineSources(cfg) === "lost" ? [{ code: "legacy-removed-lost" }] : []), missingParts, survey, media, merge }),
   });
 }
-// "Add a newer export": what the built archive already holds, streamed —
+// "Add a newer export": what the built archive already holds, streamed:
 // its message count, how many of this export's messages it already has
 // (`overlap`), and how many this export would add. null with no archive.
 function surveyMerge(sv) {
@@ -1018,7 +1018,7 @@ function surveyMerge(sv) {
 // the user gets build.js's one-sentence BUILD ERROR (never a raw
 // stack trace); the full stderr goes to this server's console only. The log is
 // shown in the wizard, so ask for plain text (an inherited FORCE_COLOR would
-// wrap every number in ANSI colour codes). The heap is sized to the machine.
+// wrap every number in ANSI color codes). The heap is sized to the machine.
 function buildEnvOf() {
   const buildEnv = Object.assign({}, process.env, { NO_COLOR: "1" });
   delete buildEnv.FORCE_COLOR;
@@ -1075,7 +1075,7 @@ function runBuildAsync() {
     });
   });
 }
-// bytes the wizard is about to write — each export file copied plus
+// bytes the wizard is about to write: each export file copied plus
 // about as much again for data.js, every media file the copy will make (the
 // same plan it runs: not media the archive already has, nor media of removed
 // people / groups), and a margin.
@@ -1096,13 +1096,13 @@ function freeBytesAt(dir) {
   while (!fs.existsSync(d) && path.dirname(d) !== d) d = path.dirname(d);
   try { const st = fs.statfsSync(d); return Number(st.bavail) * Number(st.bsize); } catch (e) { return NaN; }
 }
-// The message ids in these export files: `all` of them, and `keep` — those
+// The message ids in these export files: `all` of them, and `keep`: those
 // the archive keeps (not in a removed group, not from a removed person).
 // Streamed, one message at a time.
 function exportMessageIds(files, ignoredGroups, ignoredUsers) {
   const G = new Set((Array.isArray(ignoredGroups) ? ignoredGroups : []).map(String));
   const U = new Set((Array.isArray(ignoredUsers) ? ignoredUsers : []).map(String));
-  // Each id held once — see idPartition in build-core.js
+  // Each id held once; see idPartition in build-core.js
   const { all, keep, removed } = idPartition();
   let newest = null;
   for (const f of files) {
@@ -1149,7 +1149,7 @@ function apiParts(res, group) {
   const ignoredUsers = [].concat((meta && Array.isArray(meta.ignoredUsers)) ? meta.ignoredUsers : [],
     Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : []).map(String);
   const cols = duringBlocking(() => foldBuilt(() => [createParticipantCollector(group, { ignoredUsers })]));
-  if (!cols) return sendJSON(res, 400, { error: "No built data yet — complete step 1 first." });
+  if (!cols) return sendJSON(res, 400, { error: "No archive is built yet. Complete step 1 first." });
   sendJSON(res, 200, { parts: cols[0].result() });
 }
 
@@ -1167,14 +1167,14 @@ function apiIdentity(body, res) {
   const cfg = loadConfig();
   // What the archive was actually BUILT without comes from
   // data.js's own metadata (build.js records ignoredUsers/ignoredGroups), not
-  // config.json — config is saved before the rebuild runs, so after a failed
+  // config.json: config is saved before the rebuild runs, so after a failed
   // rebuild it would claim the removal had already been applied and the next
   // save would never retry. (An older data.js without them: fall back to config.)
   const builtMeta = readArchiveMeta(path.join(PERSONAL, "data.js"));
   const ignoredBefore = builtMeta && Array.isArray(builtMeta.ignoredUsers) && Array.isArray(builtMeta.ignoredGroups)
     ? { users: builtMeta.ignoredUsers, groups: builtMeta.ignoredGroups }
     : { users: cfg.ignoredUsers, groups: cfg.ignoredGroups };
-  // Carry forward names from a previous save (like pfps/me/gc already do) —
+  // Carry forward names from a previous save (like pfps/me/gc already do);
   // otherwise reopening the wizard and saving with names untyped/unloaded
   // wipes out every name assigned in an earlier run.
   const names = mergeNames(cfg.names, body.names);
@@ -1202,7 +1202,7 @@ function apiIdentity(body, res) {
   }
 
   // Reserve filenames already on disk (from a previous save) so a fresh upload
-  // with the same name doesn't clobber them — person AND group photos.
+  // with the same name doesn't clobber them: person AND group photos.
   const taken = new Set();
   const reserve = (p) => { const bn = String(p || "").split("/").pop(); if (bn) taken.add(bn); };
   if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) reserve(cfg.pfps[id]);
@@ -1234,7 +1234,7 @@ function apiIdentity(body, res) {
   for (const cid of Object.keys(gcIn)) {
     // SECURITY: cid is an attacker-controllable JSON key on the unauthenticated,
     // local POST /api/identity (body.gc). "__proto__" is special-cased on plain
-    // objects — `gcOut[cid] = {...}` below would otherwise invoke the inherited
+    // objects: `gcOut[cid] = {...}` below would otherwise invoke the inherited
     // accessor setter and repoint gcOut's own [[Prototype]] instead of adding a
     // "__proto__" entry (classic prototype-pollution shape). Skip it outright.
     if (cid === "__proto__") continue;
@@ -1264,7 +1264,7 @@ function apiIdentity(body, res) {
   const me = body.me === "" ? null : body.me ? String(body.me) : (cfg.me || null);
 
   // participants the user deleted in the wizard (LOCAL_IGNORED_USERS hides them
-  // in the app now; cfg.ignoredUsers drops them from a future merge-aware build).
+  // in the viewer now; cfg.ignoredUsers drops them from a future merge-aware build).
   const ignoredUsers = Array.isArray(body.ignoredUsers)
     ? body.ignoredUsers.map(String)
     : (Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : []);
@@ -1282,9 +1282,9 @@ function apiIdentity(body, res) {
   delete cfg.gcName; delete cfg.gcPhoto;   // migrated to per-group cfg.gc
   saveConfig(cfg);
 
-  // … and write the app-facing local.js
+  // … and write the viewer-facing local.js
   const out =
-    "/* personal_data/local.js — generated by the setup wizard. Gitignored. */\n" +
+    "/* personal_data/local.js: generated by the setup wizard. Gitignored. */\n" +
     "window.LOCAL_NAMES = " + JSON.stringify(names, null, 2) + ";\n" +
     "window.LOCAL_PFPS = " + JSON.stringify(pfpPaths, null, 2) + ";\n" +
     "window.LOCAL_ME = " + JSON.stringify(me) + ";\n" +
@@ -1294,7 +1294,7 @@ function apiIdentity(body, res) {
   writeFileAtomic(path.join(PERSONAL, "local.js"), out);
   const reply = { ok: true, names: Object.keys(names).length, pfps: Object.keys(pfpPaths).length, ignored: ignoredUsers.length, rebuilt: false };
 
-  // "Remove" promises exclusion, not just hiding — when the removed
+  // "Remove" promises exclusion, not just hiding: when the removed
   // groups / people changed, rebuild data.js without them and delete media
   // no message references any more. (Un-removing rebuilds from the copied
   // export and restores pruned media from the original media folder.)
@@ -1342,7 +1342,7 @@ function apiIdentity(body, res) {
     const after = duringBlocking(() => foldBuilt(() => [createReferencedNames(), createMessageCounter()]));
     if (after && mediaInside && fs.existsSync(mediaDir)) {
       // Media no message references any more is MOVED to
-      // personal_data/.removed/<group|person>/<id>/ — never deleted — so
+      // personal_data/.removed/<group|person>/<id>/, never deleted, so
       // un-removing brings it back even if the original export folder is gone.
       const keep = after[0].result();
       for (const e of fs.readdirSync(mediaDir, { withFileTypes: true })) {
@@ -1371,7 +1371,7 @@ function apiRemovalPreview(body, res) {
 
 /* ---- endpoint: has a build already happened? ----------------------------- */
 // Lets the wizard render its locked state on load (source files can't be changed
-// once built — only Start over clears it) and prefill the group list, plus any
+// once built; only Start over clears it) and prefill the group list, plus any
 // identity already saved (names/me/pfps) so reopening the wizard shows it
 // instead of appearing to have never been filled in.
 function apiStatus(res) {
@@ -1417,11 +1417,11 @@ function apiReset(res) {
   if (fs.existsSync(PERSONAL)) for (const f of fs.readdirSync(PERSONAL)) if (PREV_DIR_RE.test(f) || KEPT_DIR_RE.test(f)) targets.push(f);
   for (const name of targets) {
     const p = path.join(PERSONAL, name);
-    if (!isInsidePersonal(p, PERSONAL)) continue;   // hard guard — never outside personal_data/
+    if (!isInsidePersonal(p, PERSONAL)) continue;   // hard guard: never outside personal_data/
     if (fs.existsSync(p)) { fs.rmSync(p, { recursive: true, force: true }); removed.push(name); }
   }
   // a write interrupted by a crash can leave "<target>.<pid>.<hex>.tmp"
-  // beside its target — it holds the same private data, so erase it too.
+  // beside its target: it holds the same private data, so erase it too.
   if (fs.existsSync(PERSONAL)) {
     for (const f of fs.readdirSync(PERSONAL)) {
       if (!/^(?:config\.json|data\.js|local\.js)\./.test(f) || !TMP_RE.test(f)) continue;
@@ -1446,7 +1446,7 @@ function serveStatic(req, res) {
   // Allowlist gate BEFORE any fs access: only app assets + the identity files
   // the wizard writes may be served, so personal_data/config.json, .../source/,
   // .git/, scripts/, tests/, docs/, node_modules/ etc. never leave localhost
-  // even though they live under ROOT alongside the app. See isServablePath's
+  // even though they live under ROOT alongside the viewer. See isServablePath's
   // own comment for the exact allow/deny shape.
   if (!isServablePath(p)) { res.writeHead(404); return res.end("not found"); }
   // The archive, the names, media and photos are for this origin's own pages
@@ -1456,7 +1456,7 @@ function serveStatic(req, res) {
   // can't <script src> data.js and read window.CHAT_DATA.
   if (isPrivateServedPath(p) && isForeignFetchSite(req.headers)) { res.writeHead(403); return res.end("forbidden"); }
   // with the isolation switch on, the two ROOT-level real-data
-  // overrides are never read from disk at all — treated exactly like a missing
+  // overrides are never read from disk at all, treated exactly like a missing
   // optional override (empty 200) regardless of what actually sits at
   // ROOT/data.js or ROOT/names.local.js. GCA_PERSONAL alone does not stop these
   // two paths from resolving to ROOT (see builtArchiveFiles' own ROOT fallback
@@ -1484,8 +1484,8 @@ function serveStatic(req, res) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) {
       // A missing optional real-data override (data.js / local.js probes) gets an
-      // empty 200 instead of a 404 so the served console stays clean; the app keeps
-      // the bundled sample. Everything else that is missing is a genuine 404.
+      // empty 200 instead of a 404 so the served console stays clean; the viewer keeps
+      // the bundled sample. Everything else that is missing is a plain 404.
       if (OPTIONAL_OVERRIDES.has(p)) { res.writeHead(200, { "Content-Type": "application/javascript" }); return res.end(""); }
       res.writeHead(404); return res.end("not found");
     }
@@ -1536,7 +1536,7 @@ function serveStatic(req, res) {
         // server-injected config is the one inline script we add, so give it a
         // per-response nonce and add that nonce to the page's own CSP so it (and
         // ONLY it) is allowed to run. Over file:// there is no server, no
-        // injection, and no nonce — the static `script-src 'self'` stands alone.
+        // injection, and no nonce: the static `script-src 'self'` stands alone.
         const nonce = crypto.randomBytes(16).toString("base64");
         const injectedData = data
           // Add the nonce to the page's script-src, anchored INSIDE the CSP
@@ -1583,13 +1583,13 @@ function sendFile(file, res, status, headers, range) {
   });
 }
 
-// State-changing routes (writes to disk or spawns a blocking native dialog) —
+// State-changing routes (writes to disk or spawns a blocking native dialog):
 // these get the Origin/Referer CSRF check on top of the universal Host check.
 // The two picker GETs are included even though they're GETs: they freeze the
 // event loop with a blocking native dialog, so a cross-origin page spamming
 // them is a DoS + dialog-spoofing vector, not a harmless read.
 const GUARDED = new Set(["/api/reset", "/api/source", "/api/preflight", "/api/identity", "/api/removal-preview", "/api/pick-file", "/api/pick-folder", "/api/bye"]);
-// the pickers additionally need this per-process token, which only
+// the pickers also need this per-process token, which only
 // the /setup.html page receives (injected into its HTML). Random per start, held in
 // memory only: never logged, printed or written to disk.
 const PICKERS = new Set(["/api/pick-file", "/api/pick-folder"]);
@@ -1604,7 +1604,7 @@ const server = http.createServer(async (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "same-origin");
   try {
-    // Loopback Host allowlist — every request, before any routing. Blocks DNS
+    // Loopback Host allowlist: every request, before any routing. Blocks DNS
     // rebinding (an attacker domain resolving to 127.0.0.1 still sends its own
     // name in Host) and any request that didn't actually target this server.
     if (!isAllowedHost(req.headers.host, PORT)) return sendJSON(res, 403, { error: "forbidden host" });
@@ -1626,7 +1626,7 @@ const server = http.createServer(async (req, res) => {
     // The read-only routes too: a page on another site can't read their
     // replies, but it could still make the server run them (/api/status and
     // /api/parts stream the whole archive; /api/ping keeps a launcher-started
-    // server from shutting down). The wizard and the app only call them from
+    // server from shutting down). The wizard and the viewer only call them from
     // this origin. A browser without Fetch Metadata (Safari before 16.4)
     // still names the page that sent it: a present Origin or Referer must be
     // this server's own (our pages keep their Referer on every same-origin
@@ -1667,16 +1667,16 @@ const server = http.createServer(async (req, res) => {
 });
 // Bind errors (port already taken, permission denied) would otherwise throw an
 // uncaught exception and dump a raw stack trace. Turn the common cases into a
-// clear, actionable message and exit cleanly instead.
+// clear message and exit cleanly instead.
 server.on("error", (err) => {
   if (err && err.code === "EADDRINUSE") {
     console.error(
-      "\nPort " + PORT + " is already in use — the Group Chat Archive may already be running." +
+      "\nPort " + PORT + " is already in use. The Group Chat Archive may already be running." +
       "\nOpen  http://" + HOST + ":" + PORT + "/setup.html  in your browser, or stop the other" +
       "\nprocess and try again. To use a different port, set GCA_PORT (e.g. GCA_PORT=9000).");
   } else if (err && err.code === "EACCES") {
     console.error(
-      "\nCan't bind to port " + PORT + " — permission denied." +
+      "\nCan't bind to port " + PORT + ": permission denied." +
       "\nPick a port above 1024 with GCA_PORT (e.g. GCA_PORT=9000) and try again.");
   } else {
     console.error("\nServer failed to start: " + (err && err.message || err));
@@ -1684,7 +1684,7 @@ server.on("error", (err) => {
   process.exit(1);
 });
 // Only actually bind + listen when this file is run directly (`node
-// scripts/server.js`), never when it's require()d — e.g. by tests that want
+// scripts/server.js`), never when it's require()d, e.g. by tests that want
 // copyMediaFlat() in-process. `server.on("error", ...)` above is a harmless
 // registration either way, so it's left outside the guard.
 if (require.main === module) {
@@ -1698,8 +1698,8 @@ if (require.main === module) {
   server.listen(PORT, HOST, () => {
     // GCA_PORT=0 asks the OS to pick a free port; server.address().port is the
     // ONLY way to learn what it actually bound. Reassign PORT here, before the
-    // startup message (which tests parse — see server-port-zero.test.js) or any
-    // request is handled — the Host-allowlist/CSRF checks above close over this
+    // startup message (which tests parse; see server-port-zero.test.js) or any
+    // request is handled: the Host-allowlist/CSRF checks above close over this
     // same `let` binding, so they immediately see the real port too.
     PORT = server.address().port;
     const setupUrl = "http://" + HOST + ":" + PORT + "/setup.html";
@@ -1713,7 +1713,7 @@ if (require.main === module) {
       try {
         const { cmd, args } = openerCommand(process.platform, setupUrl);
         spawn(cmd, args, { detached: true, stdio: "ignore" }).on("error", () => {}).unref();
-      } catch (e) { /* ignore — the URL is printed above */ }
+      } catch (e) { /* ignore: the URL is printed above */ }
     }
   });
 }

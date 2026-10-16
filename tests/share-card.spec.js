@@ -284,9 +284,9 @@ test.describe("Share at 390px", () => {
   });
 });
 
-// Review fixes: a name said on its own, a stale render racing a newer
+// Edge cases: a name said on its own, a stale render racing a newer
 // one, and both Copy image paths plus a failing Download.
-test.describe("Share: review fixes", () => {
+test.describe("Share: edge cases", () => {
   test("Hide names: a two-letter first name said on its own (\"Jo\") is not drawn", async ({ page }) => {
     const D = { conversations: [conv("A", "Alpha", [
       { i: "j1", s: "u1", t: T, x: "Jo said hi, ask Jo about it" },

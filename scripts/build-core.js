@@ -1,5 +1,5 @@
 /*
- * build-core.js — the pure archive-assembly logic, with NO filesystem I/O.
+ * build-core.js: the pure archive-assembly logic, with NO filesystem I/O.
  *
  * scripts/build.js handles all reading/writing (config, source files, media
  * folder, output data.js) and hands the parsed inputs to assembleConversations()
@@ -9,8 +9,8 @@
  * See tests/build-core.test.js.
  */
 
-// X_LINK (the Twitter/X link matcher) is shared with the viewer + wizard — one
-// source, required here so the build and the app can't disagree. See src/shared-core.js.
+// X_LINK (the Twitter/X link matcher) is shared with the viewer + wizard: one
+// source, required here so the build and the viewer can't disagree. See src/shared-core.js.
 const { X_LINK, createUserNumbering } = require("../src/shared-core.js");
 
 const IMG = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
@@ -20,7 +20,7 @@ const kindOf = (p) => {
   return IMG.has(e) ? "img" : VID.has(e) ? "vid" : "file";
 };
 
-// NaN (not 0 = 1970) for a missing or unparseable time — the accumulator skips
+// NaN (not 0 = 1970) for a missing or unparseable time; the accumulator skips
 // and counts those instead of storing a NaN/null timestamp.
 const toMs = (iso) => (iso ? Date.parse(iso) : NaN);
 
@@ -50,11 +50,9 @@ function rawToRec(mc) {
       const rr = { k: idStr(r.reactionKey), s: idStr(r.senderId) };
       // Custom-emoji reactions (reactionKey "emoji") carry the actual glyph in a
       // separate field so it isn't lost to the generic REACT.emoji placeholder
-      //. ASSUMPTION: field name `emojiReaction` is taken from X's
-      // documented export schema and has NOT been verified against a real
-      // reaction object's keys (PROJECT HARD RULE forbids touching real
-      // personal_data/exports) — flag for human verification. `r.emoji` is a
-      // defensive fallback in case a differently-shaped export uses that name.
+      // ASSUMPTION: field name `emojiReaction` is taken from X's
+      // documented export schema and has not been verified against a real
+      // export. `r.emoji` is a defensive fallback in case a differently-shaped export uses that name.
       if (r.reactionKey === "emoji") {
         const g = textStr(r.emojiReaction) || textStr(r.emoji);
         if (g) rr.e = g;
@@ -109,7 +107,7 @@ function makeConvo(id) {
 function createAccumulator(opts) {
   opts = opts || {};
   const IGNORED = new Set((Array.isArray(opts.ignoredUsers) ? opts.ignoredUsers : []).map(String));
-  // whole group chats the user removed in the wizard — excluded entirely (their
+  // whole group chats the user removed in the wizard, excluded entirely (their
   // messages aren't assembled and their media is never referenced in the output)
   const IGNORED_GROUPS = new Set((Array.isArray(opts.ignoredGroups) ? opts.ignoredGroups : []).map(String));
 
@@ -124,11 +122,11 @@ function createAccumulator(opts) {
   // messages read from the quarantine of removed
   // messages (personal_data/.removed/messages.js), so finish() can tell which
   // of them come back into the archive (their group / person is no longer
-  // removed) — ids only — and which conversations had their events there.
+  // removed), ids only, and which conversations had their events there.
   const quarIds = new Set(), quarEventConvs = new Set();
   // when the archive and the export both have a message,
   // the reactions are united and the text (an edit) comes from whichever is
-  // newer — the export unless its newest message is older than the archive's
+  // newer: the export unless its newest message is older than the archive's
   // (merging an older download). Only the archive copies whose text differs
   // are held aside (displaced) until finish() knows which side is newer.
   const FROM_PREV = Symbol("fromPrev");
@@ -138,7 +136,7 @@ function createAccumulator(opts) {
   const kept = (cid, s) => !IGNORED_GROUPS.has(String(cid)) && !IGNORED.has(String(s));
 
   // 1) baseline = previously built data (so history is never lost).
-  //    opts.quarantine: these are the quarantined removed messages — they
+  //    opts.quarantine: these are the quarantined removed messages: they
   //    never replace a message the archive has, and aren't counted as baseline.
   function addPrev(prev, addOpts) {
     if (!prev) return;
@@ -194,7 +192,7 @@ function createAccumulator(opts) {
   }
 
   // 2c) one entry of the group headers (metadata-only): no message bodies, so it
-  // never adds messages — only completes the participant roster + join/leave/name events.
+  // never adds messages; only completes the participant roster + join/leave/name events.
   function addHeader(convId, m) {
     if (!m || typeof m !== "object") return;
     const c = getConvo(convId);
@@ -231,7 +229,7 @@ function createAccumulator(opts) {
     const conversations = [];
     // what the archive leaves out because its group or
     // person is removed (`removed`, for the quarantine), and the quarantined
-    // messages that come back now (`restored`) — see build.js.
+    // messages that come back now (`restored`); see build.js.
     const removed = [], restored = [];
     const titleOf = (c, events) => {
       const nameEv = events.filter((e) => e.type === "name");
@@ -241,7 +239,7 @@ function createAccumulator(opts) {
     let totalMsgs = 0, totalMedia = 0, groupsSeen = 0;
     for (const c of convos.values()) {
       if (c.type === "group" && c.msgMap.size) groupsSeen++;
-      if (IGNORED_GROUPS.has(String(c.id))) {   // removed group chat — skip wholesale (into the quarantine)
+      if (IGNORED_GROUPS.has(String(c.id))) {   // removed group chat: skip wholesale (into the quarantine)
         if (c.type === "group" && c.msgMap.size) {
           const msgs = [...c.msgMap.values()].sort(byTime);
           const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
@@ -298,8 +296,8 @@ function createAccumulator(opts) {
 }
 
 /**
- * the quarantine written BEFORE data.js — the messages
- * still removed plus the ones coming back — so a build cut off between the
+ * the quarantine written BEFORE data.js: the messages
+ * still removed plus the ones coming back, so a build cut off between the
  * two writes loses nothing (the next build narrows it again). Conversations
  * are joined by id; messages by id, events by key.
  */
@@ -357,7 +355,7 @@ function assembleConversations(opts) {
  * (the documented convention for tweets-partN.js; the exact DM spelling is
  * unconfirmed, so "-partN", "_partN" and ".partN", zero-padded or not, are
  * all accepted). Given a folder listing and the file the user picked, return
- * that file's whole family in part order — or just the file itself when its
+ * that file's whole family in part order, or just the file itself when its
  * name isn't one of the known export names (a renamed file has no family).
  */
 const PART_FAMILIES = [
@@ -403,7 +401,7 @@ function exportFamilies(names) {
  * with paths relative to the archive root. Unknown and missing keys are
  * tolerated: a file is classified by its globalName when it has one, else by
  * its type's name (any case / punctuation; singular or plural "message").
- * Paths are returned exactly as written — the caller decides whether they are
+ * Paths are returned exactly as written; the caller decides whether they are
  * safe to follow (see fs-io locateExport).
  * @returns {{ok: true, messages: string[], headers: string[], mediaDirs: string[], dmFiles: number} | {ok: false, error: string}}
  */
@@ -456,7 +454,7 @@ function parseManifest(text) {
  * "<messageId>-<mediaId>.<ext>"; a message may own several files, so
  * each id maps to ALL of its paths, sorted for a stable order.
  * @param {string[]} names   file names (no directories) in the media folder.
- * @param {string}   relDir  the folder's path as the app should load it.
+ * @param {string}   relDir  the folder's path as the viewer should load it.
  * @returns {Object<string, string[]>}
  */
 function indexMediaFiles(names, relDir) {
@@ -535,16 +533,16 @@ function createExportSink(acc, which) {
  * groups' messages are counted in removedMsgs instead).
  */
 /**
- * an export's message ids, each held ONCE — the ones
+ * an export's message ids, each held ONCE: the ones
  * the archive keeps and the ones it leaves out (removed group / person) are
  * two disjoint Sets, and `all` is a read-only view over both ({ has, size }).
  *
  * Memory: the preview and the server's export scan need every id (to match
  * media files to messages and to count the overlap with the archive), and
  * they run on the setup server's default heap, not the build's sized one.
- * That is one short string per message — roughly 50–90 bytes with its Set
- * entry, so ~60–90 MB for a million messages — and no message text, which is
- * acceptable for the exports this tool sees (the bodies, which are most of an
+ * That is one short string per message: roughly 50–90 bytes with its Set
+ * entry, so ~60–90 MB for a million messages, and no message text, which is
+ * acceptable for the exports the build reads (the bodies, which are most of an
  * export's size, are never kept). Holding the ids twice (all + keep) doubled
  * that for nothing.
  */
@@ -577,7 +575,7 @@ function createExportSurvey(opts) {
       if (which === "headers") return;
       const t = toMs(mc.createdAt);
       if (!Number.isFinite(t)) { st.badTime++; return; }
-      // counted the way the build keeps them — once per
+      // counted the way the build keeps them: once per
       // id (the same message in two part files is one), none without an id
       if (mc.id == null || mc.id === "") return;
       if (mc.senderId == null || mc.senderId === "") { st.noSender++; return; }
@@ -718,7 +716,7 @@ function createParticipantCollector(groupId, opts) {
       if (!inScope(c)) return;
       numbering.conversation(c);
       // everyone on the roster gets a card, even with no messages (a
-      // lurker, or someone known only from the headers file) — plus when they
+      // lurker, or someone known only from the headers file), plus when they
       // joined / left, as a memory jog for naming them.
       for (const id of (c.participants || [])) entry(String(id));
       for (const e of (c.events || [])) {
@@ -1005,7 +1003,7 @@ function createStreamScanner(spec) {
       if (/^\uFEFF?\s*$/.test(head)) fail("The file is empty", 0);
       fail(spec.notThis, 0);
     }
-    if (mode !== M_DONE) fail("The file ends early — it looks truncated or incompletely copied", base);
+    if (mode !== M_DONE) fail("The file ends early: it looks truncated or incompletely copied", base);
     return info;
   }
   return { push, end };
@@ -1053,7 +1051,7 @@ function createExportScanner(handlers) {
 const ARCHIVE_HEAD_OK = /^\uFEFF?\s*(?:window\.CHAT_DATA\s*=\s*)?$/;
 /**
  * with `onMessage`, each message is handed over (with the conversation's
- * fields read so far — id, type, title, participants and count come before
+ * fields read so far: id, type, title, participants and count come before
  * msgs) and NOT kept, so onConversation gets the conversation without `msgs`.
  * With `skipMessages`, messages aren't even parsed (a summary read).
  * @param {{onConversation?: (conv:object)=>void, onMessage?: (conv:object, msg:object)=>void, skipMessages?: boolean}} handlers
@@ -1113,7 +1111,7 @@ function createArchiveScanner(handlers) {
   };
 }
 
-// The plain sentence for a previous data.js that couldn't be read, by cause —
+// The plain sentence for a previous data.js that couldn't be read, by cause,
 // or null when the error isn't one of these (the caller reports it as
 // unexpected). Only real damage is called damaged, and deleting is never
 // suggested without a backup copy first: this file IS the history (messages
@@ -1125,7 +1123,7 @@ function prevArchiveProblem(e, opts) {
   const where = root ? "Your existing archive (the data.js in the project folder)" : "Your existing archive (personal_data/data.js)";
   const code = e && e.code;
   if (e instanceof ExportScanError) {
-    const damaged = where + " couldn't be read — it looks damaged (" + String(e.message).replace(/\.$/, "") + "), perhaps by a crash or a full disk. " +
+    const damaged = where + " couldn't be read: it looks damaged (" + String(e.message).replace(/\.$/, "") + "), perhaps by a crash or a full disk. " +
       "The build stopped so the history in it isn't silently replaced. First make a backup copy of data.js. ";
     // Start over empties personal_data/ only: it can't help with the root file
     if (root) return damaged + "Then restore an older copy of it, or move it out of the project folder to rebuild from this export only.";
@@ -1146,7 +1144,7 @@ function prevArchiveProblem(e, opts) {
 }
 
 /* ---- archive writer ----------------------------------------------- */
-// Yields the built data.js text piece by piece — byte-identical to
+// Yields the built data.js text piece by piece, byte-identical to
 //   "window.CHAT_DATA = " + JSON.stringify({ ...meta, conversations }) + ";\n"
 // but without ever holding the whole (possibly 100s of MB) string at once:
 // each conversation's msgs are stringified `batch` messages at a time.

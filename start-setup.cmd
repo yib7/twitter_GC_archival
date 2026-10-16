@@ -1,14 +1,14 @@
 @echo off
 rem ===========================================================================
 rem  Double-click to set up the Group Chat Archive.
-rem  Starts the local server and opens the setup wizard in your browser.
+rem  Starts the setup server and opens the setup wizard in your browser.
 rem  Needs Node.js 22.13 or newer installed (https://nodejs.org); Node 23 is
 rem  not supported. Closing the browser closes this window automatically; the
 rem  window only stays open if startup failed.
 rem ===========================================================================
 
-rem Run from inside the ZIP (Explorer's zip view), Windows copies just this
-rem file to a temp folder, so the rest of the app isn't next to it.
+rem Started from inside the ZIP (Explorer's zip view): Windows copies just this
+rem file to a temp folder, so the other files aren't next to it.
 if not exist "%~dp0scripts\server.js" goto :not_extracted
 
 where node >nul 2>nul
@@ -35,7 +35,7 @@ exit /b 1
 :no_node
 echo.
 echo   Node.js isn't installed, or Windows can't find it.
-echo   Install the LTS version from https://nodejs.org - it's free - then
+echo   Install the LTS version from https://nodejs.org (it's free), then
 echo   double-click start-setup.cmd again.
 echo.
 pause

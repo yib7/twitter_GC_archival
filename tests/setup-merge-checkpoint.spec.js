@@ -131,7 +131,7 @@ test("3. reopen, add the newer export B: the preview shows the overlap, then it 
 
   await page.locator("#btn-confirm").click();
   await expect(page.locator("#src-result")).toHaveClass(/ok/, { timeout: 15000 });
-  await expect(page.locator("#src-result")).toContainText(/Merged: 4 new messages added — your archive now has 10 messages across 3 group/);
+  await expect(page.locator("#src-result")).toContainText(/Merged: 4 new messages added\. Your archive now has 10 messages across 3 group/);
   await expect(page.locator('[data-pane="2"]')).toBeVisible();
 });
 

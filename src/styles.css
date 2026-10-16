@@ -1,39 +1,38 @@
 /* Fonts: the X --font token uses the system UI stack (X's "Chirp" is
    proprietary and not bundled), so no @font-face is needed and the app stays
-   fully offline, exactly like the mockups. */
+   fully offline. */
 
 /* =========================================================================
-   Group Chat Archive — X design tokens.
-   The :root + three html[data-theme="…"] blocks below are copied VERBATIM from
-   the mockups' tokens.html ("Group Chat Archive — X Design Tokens"). Surfaces
-   swap per theme (lightsout / dim / light); accent, radii and type are constant.
+   Group Chat Archive: X design tokens.
+   The :root + three html[data-theme="…"] blocks below hold the X design tokens.
+   Surfaces swap per theme (lightsout / dim / light); accent, radii and type are constant.
    Accent (and font-size / density) are further overridden at runtime from
    Settings via applyTheme(). data-theme on <html> selects the surface set.
    ========================================================================= */
 
-/* ==== CANONICAL TOKEN BLOCK — identical across every mockup ==== */
+/* ==== CANONICAL TOKEN BLOCK ==== */
 :root{
-  /* Accent — X blue (constant across all three themes) */
+  /* Accent: X blue (constant across all three themes) */
   --accent:#1d9bf0; --accent-hover:#1a8cd8; --accent-deep:#1a8cd8; --accent-soft:#4db2f5; --accent-glow:rgba(29,155,240,.35);
-  /* Accent-2 — the "like" pink */
+  /* Accent-2: the "like" pink */
   --accent-2:#f91880; --accent-2-deep:#c81a6a; --accent-2-glow:rgba(249,24,128,.22);
-  /* Semantic — X repost green / premium yellow / error red */
+  /* Semantic: X repost green / premium yellow / error red */
   --success:#00ba7c; --warning:#ffd400; --danger:#f4212e; --danger-deep:#c81a24;
   --success-text:#00ba7c; /* green as text; Light darkens it to clear 4.5:1 on white */
   --danger-text:#f86f77;  /* red as text: >= 4.5:1 on the dark pages, cards and a danger tint (raw --danger is 3.4-4.3:1) */
   --success-bg:rgba(0,186,124,.12); --warning-bg:rgba(255,212,0,.14); --danger-bg:rgba(244,33,46,.12);
   /* Medals */
   --medal-gold:#e9b949; --medal-silver:#c2ccdc; --medal-bronze:#cd8b5e;
-  /* Person palette — bright (name text) */
+  /* Person palette: bright (name text) */
   --p-rose:#f76d8e; --p-coral:#ff865c; --p-amber:#e8b64c; --p-lime:#9fd15a; --p-emerald:#43c98a;
   --p-teal:#33c2c2; --p-sky:#54a6f5; --p-indigo:#8a8cf2; --p-violet:#b579ef; --p-magenta:#e06fc6;
-  /* Person palette — deep (avatar fill). White initials sit on these, so each
-     is >= 4.9:1 against #fff (the old fills were 2.5-4.6:1). */
+  /* Person palette: deep (avatar fill). White initials sit on these, so each
+     is >= 4.9:1 against #fff. */
   --f-rose:#bf4262; --f-coral:#b3522e; --f-amber:#8d6817; --f-lime:#567a29; --f-emerald:#1f7d54;
   --f-teal:#157c7c; --f-sky:#2770bd; --f-indigo:#6063cf; --f-violet:#924bd5; --f-magenta:#b24496;
-  /* Radii — X uses 16px cards, 12px controls, full pills */
+  /* Radii: X uses 16px cards, 12px controls, full pills */
   --radius-card:16px; --radius-sm:12px; --radius-pill:9999px;
-  /* Spacing — 4px base */
+  /* Spacing: 4px base */
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px; --space-8:64px;
   /* Type */
   --font:"Chirp","TwitterChirp",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -42,9 +41,9 @@
   --focus-ring:0 0 0 2px var(--bg-page),0 0 0 4px var(--accent-ui,var(--accent));
   --selection:rgba(29,155,240,.28);
 }
-/* --text-dim / --text-faint are raised from the mockup values (faint was
-   ~3:1 in every theme) so both reach 4.5:1 on --bg-page AND --bg-card. */
-/* ---- LIGHTS OUT (darkest — pure black, the default) ---- */
+/* --text-dim / --text-faint are set so both reach 4.5:1 on --bg-page AND
+   --bg-card in every theme. */
+/* ---- LIGHTS OUT (darkest: pure black, the default) ---- */
 html[data-theme="lightsout"]{
   --bg-page:#000000; --bg-panel:#000000; --bg-card:#16181c; --bg-hover:#16181c; --bg-inset:#0a0b0d;
   --border:#2f3336; --border-lift:#3d4145; --border-accent:#1d9bf0;
@@ -52,7 +51,7 @@ html[data-theme="lightsout"]{
   --el1:0 0 0 1px rgba(255,255,255,.02); --el2:0 8px 22px -10px rgba(0,0,0,.85);
   --el3:0 0 0 1px rgba(255,255,255,.07),0 24px 60px -16px rgba(0,0,0,.95); --glow-accent:0 0 22px -8px var(--accent-glow);
 }
-/* ---- DIM (dark — X's navy) ---- */
+/* ---- DIM (dark: X's navy) ---- */
 html[data-theme="dim"]{
   --bg-page:#15202b; --bg-panel:#15202b; --bg-card:#1e2732; --bg-hover:#1e2732; --bg-inset:#1a2531;
   --border:#38444d; --border-lift:#4c5864; --border-accent:#1d9bf0;
@@ -68,13 +67,13 @@ html[data-theme="light"]{
   --success-text:#007a52; --danger-text:#b21822;
   --el1:0 0 0 1px #eff3f4; --el2:0 4px 16px -6px rgba(101,119,134,.3);
   --el3:0 0 0 1px #eff3f4,0 24px 50px -16px rgba(101,119,134,.4); --glow-accent:0 0 22px -10px var(--accent-glow);
-  /* the bright name hues above are dark-theme colours (1.8–3.0:1 on
+  /* the bright name hues above are dark-theme colors (1.8–3.0:1 on
      white); Light gets its own set at >= 4.7:1 on --bg-page and --bg-card. */
   --p-rose:#bf4262; --p-coral:#b3522e; --p-amber:#8d6817; --p-lime:#567a29; --p-emerald:#1f7d54;
   --p-teal:#157c7c; --p-sky:#2770bd; --p-indigo:#6063cf; --p-violet:#924bd5; --p-magenta:#b24496;
 }
 
-/* ==== App-only tokens — JS-driven from Settings; NOT part of the X block ==== */
+/* ==== App-only tokens: JS-driven from Settings; NOT part of the X block ==== */
 :root{
   --font-size:15px;         /* customizable (Settings → Font size) */
   --gap:14px;               /* density: row gap (Settings → Density) */
@@ -99,12 +98,12 @@ html[data-theme="light"]{
 }
 
 /* the native parts of every control (date picker and calendar icon, drop-down
-   lists, the colour picker, scrollbars) follow the theme's lightness; it is
+   lists, the color picker, scrollbars) follow the theme's lightness; it is
    set once here and inherited by every field, in the viewer and the wizard */
 :root{--control-scheme:dark;color-scheme:var(--control-scheme)}
 html[data-theme="light"]{--control-scheme:light}
 
-/* ==== Compact theme toggle — sidebar footer (desktop) + More sheet (mobile) ==== */
+/* ==== Compact theme toggle: sidebar footer (desktop) + More sheet (mobile) ==== */
 .theme-toggle{display:inline-flex;gap:2px;padding:3px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-pill)}
 .theme-toggle button{width:30px;height:30px;border:0;background:none;border-radius:var(--radius-pill);display:grid;place-items:center;color:var(--text-dim);cursor:pointer;transition:background .15s,color .15s}
 .theme-toggle button:hover{background:var(--hover);color:var(--text)}
@@ -161,8 +160,8 @@ button, input, select, textarea { font-family: inherit; }
 /* ---- App shell ----------------------------------------------------------- */
 .app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; }
 
-/* Nav rail — X sidebar (mock-timeline.html): flat panel, uppercase group
-   labels, minimal "active = bold" items (per the mockup's X-style overrides). */
+/* Nav rail, X sidebar style: flat panel, uppercase group labels, minimal
+   "active = bold" items. */
 .sidebar {
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
@@ -251,7 +250,7 @@ button, input, select, textarea { font-family: inherit; }
   .s-scope { order: 3; flex-basis: 100%; }
   .s-scope button { flex: 1; min-height: 40px; }
 }
-/* All chats results — one header per chat (name, count, search-only) */
+/* All chats results: one header per chat (name, count, search-only) */
 .s-conv-head {
   display: flex; align-items: center; gap: 4px 10px; flex-wrap: wrap;
   width: 100%; margin: 18px auto 6px; max-width: 920px; font-size: 12px;
@@ -380,8 +379,7 @@ button, input, select, textarea { font-family: inherit; }
 
 /* Initials must clear 4.5:1 on BOTH gradient stops: a person avatar runs from
    its white-safe deep fill to a darker shade of it, with white initials; an
-   avatar with no person uses the accent fill pair and --on-accent. (The old
-   light stop — the bright hue tinted toward white — was ~2:1 under white.) */
+   avatar with no person uses the accent fill pair and --on-accent. */
 .av {
   --p: var(--accent); --f: var(--accent-fill); --f2: var(--accent-grad-end);
   width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%;
@@ -429,7 +427,7 @@ button, input, select, textarea { font-family: inherit; }
 .media-more a.media-more-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .media-more .urlchip { align-self: center; }
 
-/* url chips (mock .linkchip: icon box + bold domain + dim ellipsized label) */
+/* url chips: icon box + bold domain + dim ellipsized label */
 .urls { margin-top: 7px; display: flex; flex-wrap: wrap; gap: 6px; }
 .urlchip {
   display: inline-flex; align-items: center; gap: 9px; max-width: 320px;
@@ -452,7 +450,7 @@ button, input, select, textarea { font-family: inherit; }
   display: block; font-size: 11.5px; color: var(--text-dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* own-message variant — the chip sits on the page bg, so it gets its own
+/* own-message variant: the chip sits on the page bg, so it gets its own
    accent fill, a mix of --accent-fill and --accent-grad-end,
    both derived to clear 4.5:1 against --on-accent and the second one pushed
    *away* from it, so the domain and the label (full --on-accent) stay >= 4.5:1
@@ -528,7 +526,7 @@ button, input, select, textarea { font-family: inherit; }
   transform: translateY(0);
 }
 
-/* system events in timeline (mock .sysevent .chip: dashed inset pill + icon) */
+/* system events in the timeline: dashed inset pill + icon */
 .sysline { display: flex; justify-content: center; margin: 6px auto; max-width: 920px; width: 100%; }
 .sysline .chip {
   display: inline-flex; align-items: center; gap: 9px; font-size: 12.5px; color: var(--text-dim);
@@ -538,13 +536,13 @@ button, input, select, textarea { font-family: inherit; }
 .sysline .chip svg { width: 14px; height: 14px; flex: 0 0 auto; color: var(--text-faint); stroke-width: 1.75; }
 .sysline .chip b { color: var(--text); font-weight: 700; }
 
-/* sticky day pill (mock .day .pill) — sticks within its own .tl-chunk only
-   (chunks are contain:layout paint); visual parity with the mock is the goal */
+/* sticky day pill: sticks within its own .tl-chunk only
+   (chunks are contain:layout paint) */
 .daysep {
   position: sticky; top: 6px; z-index: 10; display: flex; justify-content: center;
   margin: 12px auto; max-width: 920px; width: 100%; pointer-events: none;
 }
-/* the pill is a label, not a control — clicks pass through to the
+/* the pill is a label, not a control: clicks pass through to the
    media / controls it is stuck over, and it is translucent + blurred so what
    is underneath stays visible. */
 .daysep .daypill {
@@ -575,7 +573,7 @@ button, input, select, textarea { font-family: inherit; }
 /* timeline virtual chunks */
 .tl-chunk { position: relative; width: 100%; contain: layout paint; display: flex; flex-direction: column; gap: var(--gap); }
 
-/* timeline toolbar (mock .toolbar — desktop only) */
+/* timeline toolbar (desktop only) */
 .tl-toolbar {
   flex: 0 0 auto; height: 60px; display: flex; align-items: center; gap: 14px; padding: 0 28px;
   border-bottom: 1px solid var(--border);
@@ -621,7 +619,7 @@ button, input, select, textarea { font-family: inherit; }
 .page-sub { color: var(--text-dim); font-size: 13.5px; margin-top: 5px; }
 .page-body { max-width: 980px; margin: 0 auto; }
 
-/* stats hero (mock-stats .hero) */
+/* stats hero */
 .hero {
   position: relative; overflow: hidden;
   background:
@@ -632,7 +630,7 @@ button, input, select, textarea { font-family: inherit; }
   box-shadow: var(--el2), var(--glow-accent);
   display: flex; align-items: center; gap: 28px; flex-wrap: wrap;
 }
-/* The hero's accent-tinted surface is lighter (dark themes) / more coloured
+/* The hero's accent-tinted surface is lighter (dark themes) / more colored
    (Light) than a card, so its secondary text and eyebrow lean toward --text
    to keep 4.5:1 on it (the dim/faint tokens are tuned for plain cards). The
    theme's own values are captured on the page body first: a custom property
@@ -655,12 +653,12 @@ button, input, select, textarea { font-family: inherit; }
 .hero .h-inline .it { display: flex; flex-direction: column; }
 .hero .h-inline .it .v { font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .hero .h-inline .it .l { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-faint); margin-top: 3px; }
-/* hero sparkline (mock-stats .spark) — margin/opacity reset the sidebar .spark base rule */
+/* hero sparkline: margin and opacity reset the sidebar .spark base rule */
 .hero .spark { flex: 0 0 auto; width: 280px; max-width: 100%; margin: 0; opacity: 1; }
 .hero .spark svg { width: 100%; height: 96px; display: block; }
 .hero .spark .cap { font-size: 11px; color: var(--text-faint); margin-top: 6px; text-align: right; }
 
-/* stat tiles (mock-stats .tile) */
+/* stat tiles */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
 .card {
   position: relative; background: var(--bg-card); border: 1px solid var(--border);
@@ -672,7 +670,7 @@ button, input, select, textarea { font-family: inherit; }
 .stat-num.accent { color: var(--accent-text-soft); }
 .stat-lbl { color: var(--text-dim); font-size: 12px; font-weight: 700; margin-top: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
 
-/* superlative cards (mock-stats .super) — .card base keeps the hover lift;
+/* superlative cards: .card base keeps the hover lift;
    --p (person hue) is set inline per card by renderStats */
 .card.super { display: flex; align-items: center; gap: 12px; padding: 15px 16px; }
 .super .s-body { min-width: 0; }
@@ -711,7 +709,7 @@ button.word { font-family: inherit; color: var(--text); line-height: inherit; }
 }
 .person .av { width: 52px; height: 52px; font-size: 18px; }
 /* a narrow People column (a phone, or a tablet beside the sidebar): the
-   colour swatches move under the messages instead of squeezing them */
+   color swatches move under the messages instead of squeezing them */
 #people-body { container-type: inline-size; }
 @container (max-width: 600px) {
   .person { grid-template-columns: auto 1fr; gap: 12px; }
@@ -752,12 +750,12 @@ button.word { font-family: inherit; color: var(--text); line-height: inherit; }
 .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; padding: 0; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px currentColor; }
 /* "Automatic" swatch: the person's hash hue; picking it clears the override. */
-/* The "A" uses the page colour: every --p-* is tuned to 4.5:1 against --bg-page,
+/* The "A" uses the page color: every --p-* is tuned to 4.5:1 against --bg-page,
    so the letter on the fill clears 4.5:1 too, in every theme. */
 .swatch-auto { padding: 0; font-size: 10px; font-weight: 700; line-height: 18px; color: var(--bg-page); background: var(--p); text-align: center; }
 .swatch-auto.sel { color: var(--bg-page); box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px var(--p); }
-/* Platform link bars: theme tokens, never fixed brand hexes — TikTok
-   used to be #222, invisible on Lights out. */
+/* Platform link bars: theme tokens, never fixed brand hexes (a fixed #222
+   for TikTok is invisible on Lights out). */
 .plat-tt { background: var(--text); }
 .plat-yt { background: var(--danger); }
 .plat-tw { background: var(--accent); }
@@ -785,8 +783,8 @@ button.word { font-family: inherit; color: var(--text); line-height: inherit; }
   .set-control { flex-shrink: 1; flex-wrap: wrap; min-width: 0; }
   .set-control.tz-pick { width: 100%; }
 }
-/* Stats two-up sections — side by side when there's room, one column
-   on a narrow screen (replaces inline 1fr 1fr grids + a mobile !important hack). */
+/* Stats two-up sections: side by side when there's room, one column
+   on a narrow screen. */
 .stat-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 20px; }
 /* timezone filter + full zone list, stacked. */
 .set-control.tz-pick { flex-direction: column; align-items: stretch; gap: 6px; width: min(280px, 100%); flex-shrink: 1; }
@@ -843,7 +841,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 
 /* media gallery grid */
 .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; max-width: 980px; margin: 0 auto; }
-/* windowed Search results — a column of 60-row pages (each its own
+/* windowed Search results: a column of 60-row pages (each its own
    list column or .gallery grid) that are emptied to a fixed height off-screen. */
 .list > .res-page { display: flex; flex-direction: column; gap: var(--gap); }
 .gallery-pages { display: flex; flex-direction: column; gap: 8px; max-width: 980px; margin: 0 auto; }
@@ -856,7 +854,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .lightbox { position: fixed; inset: 0; z-index: var(--z-modal); background: rgba(0,0,0,0.88); display: grid; place-items: center; padding: 30px; overflow: hidden; }
 .lightbox img, .lightbox video { max-width: 92vw; max-height: 88vh; border-radius: 10px; transition: transform 0.1s ease-out; cursor: grab; }
 .lightbox img:active, .lightbox video:active { cursor: grabbing; }
-/* the lightbox toolbar — one row in the top safe area */
+/* the lightbox toolbar: one row in the top safe area */
 .lightbox .lb-bar {
   position: absolute; top: 0; left: 0; right: 0; z-index: 110; display: flex; align-items: center; gap: 8px;
   padding: calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 12px calc(16px + env(safe-area-inset-left));
@@ -947,7 +945,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .kb-footer { margin-top: 20px; color: var(--text-faint); font-size: 12px; text-align: center; }
 .kb-footer kbd { background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 11px; font-family: var(--font-mono); }
 
-/* ---- Mobile chrome (mock-timeline.html) — hidden on desktop -------------- */
+/* ---- Mobile chrome: hidden on desktop ------------------------------------ */
 .mobile-topbar, .tabbar, .sheet, .scrim { display: none; }
 
 /* ---- Mobile responsive --------------------------------------------------- */
@@ -957,7 +955,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   /* fixed 56px top bar + fixed 62px tab bar bracket every view */
   .view { height: 100vh; height: 100dvh; padding-top: 56px; padding-bottom: 62px; }
 
-  /* top app bar (mock .mobile-topbar) */
+  /* top app bar */
   .mobile-topbar {
     display: flex; align-items: center; gap: 10px;
     position: fixed; top: 0; left: 0; right: 0; height: 56px; padding: 0 14px;
@@ -968,14 +966,14 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   .mobile-topbar .mpick .nm { font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mobile-topbar .mpick .ct { font-size: 12px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
   .mobile-topbar .mpick .chev { width: 15px; height: 15px; color: var(--text-dim); flex: 0 0 auto; }
-  /* the invisible select overlays the whole picker — native dropdown on tap */
+  /* the invisible select overlays the whole picker: native dropdown on tap */
   .mobile-topbar .mpick select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; border: 0; appearance: none; cursor: pointer; }
   .mobile-topbar .mpick.single .chev { display: none; }
   .mobile-topbar .mpick.single select { pointer-events: none; }
   .mobile-topbar .mic { width: 38px; height: 38px; flex: 0 0 auto; border: 1px solid var(--border); background: var(--bg-card); border-radius: var(--radius-sm); display: grid; place-items: center; color: var(--text-dim); cursor: pointer; }
   .mobile-topbar .mic svg { width: 18px; height: 18px; }
 
-  /* bottom tab bar (mock .tabbar) */
+  /* bottom tab bar */
   .tabbar {
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; height: 62px;
     background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
@@ -992,7 +990,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   .tab.active { color: var(--accent-text); }
   .tab.active svg { color: var(--accent-text); }
 
-  /* "More" sheet + scrim (mock .sheet/.scrim) */
+  /* "More" sheet + scrim */
   .scrim { display: block; position: fixed; inset: 0; background: rgba(2, 4, 9, 0.6); opacity: 0; pointer-events: none; transition: opacity 0.2s ease; z-index: 45; }
   .scrim.on { opacity: 1; pointer-events: auto; }
   .sheet {
@@ -1028,11 +1026,11 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
     box-shadow: var(--el2);
   }
   /* The dimmed backdrop is a real element (#filter-scrim, a sibling inside
-     the lifted toolbar), so a tap outside the sheet lands on it — not on the
-     result underneath — and closes the sheet. It paints over the search row and
+     the lifted toolbar), so a tap outside the sheet lands on it, not on the
+     result underneath, and closes the sheet. It paints over the search row and
      everything outside the toolbar; the sheet (z-modal) sits above it. */
   /* the toolbar's backdrop-filter would make it the sheet's containing block,
-     and its z-index would trap the sheet under the tab bar — lift both while open */
+     and its z-index would trap the sheet under the tab bar; lift both while open */
   .toolbar:has(.filters.open) { backdrop-filter: none; -webkit-backdrop-filter: none; z-index: var(--z-modal); }
   .filters.open .f-sheet-head { display: flex; align-items: center; justify-content: space-between; flex-basis: 100%; margin-bottom: 4px; }
   .f-sheet-title { font-size: 15px; font-weight: 800; color: var(--text); }
@@ -1251,7 +1249,7 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .cmdk-label { min-width: 0; font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cmdk-label mark { background: none; color: var(--accent-text-soft); font-weight: 800; }
 .cmdk-sub { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* message hits — the snippet reads as text, not a command name */
+/* message hits: the snippet reads as text, not a command name */
 .cmdk-msg .cmdk-label { font-weight: 450; }
 .cmdk-msg .cmdk-label mark { font-weight: 700; }
 /* the previous query's hits while the new pass runs */
@@ -1346,25 +1344,25 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   backdrop-filter: blur(3px);
 }
 
-/* ---- Wrapped (Year in Review) — mock-wrapped story mode -------------------
+/* ---- Wrapped (Year in Review): story mode ---------------------------------
    Stage = bordered/glowing frame; #wr-slide swaps a per-kind backdrop wash
-   (mock .s-hero/.s-vol/.s-people/.s-word, all mixed from --accent over
-   --bg-page so all three themes and any custom accent work) under a segmented progress strip.
-   Slide children tagged .st rise in staggered (mock rise keyframes). */
+   (all mixed from --accent over --bg-page so all three themes and any custom
+   accent work) under a segmented progress strip.
+   Slide children tagged .st rise in staggered (wrRise keyframes). */
 .wr-years { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 18px; }
 .wr-yr.active { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); }
 .wr-stage {
   position: relative; height: clamp(420px, 62vh, 680px); border-radius: 20px; overflow: hidden;
   background: var(--bg-panel); border: 1px solid var(--border-accent);
   box-shadow: var(--el3), var(--glow-accent);
-  /* tap zones / swipe / hold are pointer gestures on the stage —
+  /* tap zones / swipe / hold are pointer gestures on the stage:
      vertical panning stays the browser's, a drag never selects text and a
      long press never opens the touch callout */
   touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
   --wr-dur: 8s;   /* autoplay time per slide (the current segment's fill) */
 }
 .wr-stage:focus-visible { outline: 2px solid var(--accent-ui); outline-offset: 3px; }
-/* segmented progress (mock .progress): one flexible seg per slide + context */
+/* segmented progress: one flexible seg per slide + context */
 .wr-progress { position: absolute; top: 16px; left: 20px; right: 20px; z-index: 20; display: flex; align-items: center; gap: 12px; }
 .wr-segs { flex: 1; display: flex; gap: 6px; }
 .wr-seg {
@@ -1382,12 +1380,12 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
   font-size: 12px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap;
   color: color-mix(in srgb, var(--text) 85%, transparent); font-variant-numeric: tabular-nums;
 }
-/* slide + themed backdrops (mock washes; hexes → color-mix over --bg-page) */
+/* slide + themed backdrops (color-mix over --bg-page) */
 .wr-slide { position: absolute; inset: 0; display: flex; overflow-y: auto; text-align: center; padding: 56px 32px 32px; }
 /* The slide washes are strongly tinted (40-46% of the accent at their peak),
    so on Light and Dim text leans toward --text: dim copy, ranks and person
    names keep 4.5:1, the big gradient numbers 3:1. Lights-out's black
-   page keeps the pure name / rank / number colours; only its dim
+   page keeps the pure name / rank / number colors; only its dim
    copy leans a little (20%), which the 390px audit needs on the hero glow.
    The theme's own value is captured on the stage first: a custom property
    that reads itself (--text-dim: …var(--text-dim)) is a cycle, which made
@@ -1402,10 +1400,10 @@ html[data-theme="light"] .wr-slide, html[data-theme="dim"] .wr-slide { --text-di
 html[data-theme="light"] .wr-slide::after {
   background: radial-gradient(130% 130% at 50% 42%, transparent 52%, rgba(0, 0, 0, 0.18));
 }
-/* every wash derives from --accent (a custom accent recolours the
+/* every wash derives from --accent (a custom accent recolors the
    whole story); slides differ by where the glow sits and how far the accent
-   is mixed toward --wr-tint. The tint is the text colour on Light (it deepens
-   a pale accent) but the page colour on the dark themes: mixing toward light
+   is mixed toward --wr-tint. The tint is the text color on Light (it deepens
+   a pale accent) but the page color on the dark themes: mixing toward light
    text there turned a pale accent (#facc15) into a near-white glow behind
    light text (Dim, 4.1:1). */
 .wr-stage { --wr-tint: var(--bg-page); }
@@ -1438,7 +1436,7 @@ html[data-theme="light"] .wr-stage { --wr-tint: var(--text); }
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, var(--bg-page)), var(--bg-page) 74%);
 }
 .wr-inner { margin: auto; max-width: 680px; width: 100%; position: relative; z-index: 2; }
-/* staged entrance (mock .st / rise) — re-armed per slide via .wr-anim */
+/* staged entrance, re-armed per slide via .wr-anim */
 .wr-slide .st { opacity: 0; transform: translateY(20px); }
 .wr-slide.wr-anim .st { animation: wrRise 0.55s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .wr-slide.wr-anim .st:nth-child(1) { animation-delay: 0.12s; }
@@ -1484,7 +1482,7 @@ html[data-theme="light"] .wr-big.wr-big-year, html[data-theme="dim"] .wr-big.wr-
 .wr-tag { font-size: 26px; font-weight: 800; letter-spacing: -0.01em; margin-top: 2px; }
 .wr-label { font-size: 20px; font-weight: 800; margin-top: 8px; color: var(--text); }
 .wr-sub { font-size: 14px; color: var(--text-dim); margin-top: 8px; }
-/* people slide (mock .people-list / .pl-row) */
+/* people slide */
 .wr-people { display: flex; flex-direction: column; gap: 14px; margin: 24px auto 0; max-width: 480px; text-align: left; }
 .pl-row { display: flex; align-items: center; gap: 14px; }
 .pl-rank { font-family: var(--font-mono); font-size: 14px; font-weight: 700; width: 22px; flex: 0 0 auto; color: color-mix(in srgb, var(--text) 55%, transparent); }
@@ -1506,7 +1504,7 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 .wr-wordchip b { color: var(--accent-text); margin-left: 5px; }
 .wr-star { margin: 18px auto 0; max-width: 560px; text-align: left; }
 .wr-star .msg { background: var(--bg-panel); padding: 12px; border-radius: 12px; border: 1px solid var(--border); }
-/* controls (mock .nav-btn pills + elongating dots) */
+/* controls: nav-btn pills + elongating dots */
 .wr-controls { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
 .nav-btn {
   display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 20px;
@@ -1547,7 +1545,7 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 /* New: On This Day Toast, Conversation Threads                            */
 /* ====================================================================== */
 
-/* ---- On This Day Toast (mock .toast) -------------------------------------- */
+/* ---- On This Day Toast ---------------------------------------------------- */
 .otd-toast {
   position: fixed; right: 24px; bottom: 24px; z-index: 130;
   width: 320px; max-width: calc(100vw - 48px);
@@ -1669,12 +1667,12 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 @keyframes battleSlide { from { opacity: 0; transform: translateY(-10px); } }
 .battle-count { font-size: 14px; font-weight: 700; color: var(--text-dim); text-align: center; font-variant-numeric: tabular-nums; }
 .battle-count.battle-winner { color: var(--accent-text); font-size: 16px; }
-/* the winning count wears the winner's colour, like their bar (set on #battle-results) */
+/* the winning count wears the winner's color, like their bar (set on #battle-results) */
 .battle-count.left.battle-winner { color: var(--battle-left, var(--accent-text)); }
 .battle-count.right.battle-winner { color: var(--battle-right, var(--accent-text)); }
 .battle-word { text-align: center; font-weight: 700; font-size: 13px; color: var(--text); text-transform: lowercase; }
 .battle-bar-left { height: 14px; border-radius: 0 7px 7px 0; overflow: hidden; direction: rtl; background: var(--bg-card); }
-/* the fills are the two people's colours (set on #battle-results) */
+/* the fills are the two people's colors (set on #battle-results) */
 .battle-fill-left { height: 100%; border-radius: 0 7px 7px 0; background: var(--battle-left, var(--accent)); transition: width 0.5s ease; }
 .battle-bar-right { height: 14px; border-radius: 7px 0 0 7px; overflow: hidden; background: var(--bg-card); }
 .battle-fill-right { height: 100%; border-radius: 7px 0 0 7px; background: var(--battle-right, var(--accent-2)); transition: width 0.5s ease; }
@@ -1730,7 +1728,7 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 .onboard-dontshow input { accent-color: var(--accent); }
 
 /* ===========================================================================
-   Focus ring — one visible keyboard-focus indicator everywhere, in
+   Focus ring: one visible keyboard-focus indicator everywhere, in
    --accent-ui (>= 3:1 on the page in every theme). Placed after the component
    rules so their `outline: 0` resets can't hide it. Controls that suppress
    their own outline (inputs inside a pill / the search box, the hidden switch
@@ -1744,7 +1742,7 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 /* inside a clipping box (overflow:hidden / paint containment): draw it inset */
 .seg button:focus-visible, .msg:focus-visible, .gcell:focus-visible, .sh-item:focus-visible, .tab:focus-visible { outline-offset: -2px; }
 /* a message photo fills .media{overflow:hidden}, which would clip an
-   outside ring away completely — draw it inside the picture */
+   outside ring away completely; draw it inside the picture */
 .media img:focus-visible { outline-offset: -3px; }
 .msg:focus-visible { border-radius: 12px; }
 .search-box input:focus-visible, .cmdk-input:focus-visible, .pill input:focus-visible, .pill select:focus-visible { outline: none; }
@@ -1771,7 +1769,7 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 }
 
 /* ===========================================================================
-   Reduced motion — honor users who ask the OS to minimize animation.
+   Reduced motion: honor users who ask the OS to minimize animation.
    Collapses transitions and animations (Wrapped slides, fades, skeleton
    shimmer, etc.) to near-instant and disables smooth scrolling.
    ======================================================================== */

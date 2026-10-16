@@ -1,8 +1,8 @@
-/* setup.js — first-run wizard logic. Talks to the local server's /api/*. */
+/* setup.js: first-run wizard logic. Talks to the setup server's /api/*. */
 (function () {
 "use strict";
 
-// The wizard works only through the local server: every step calls its /api.
+// The wizard works only through the setup server: every step calls its /api.
 // src/setup.html opened from disk never runs this file (its src/... paths miss)
 // and shows its start-the-server note. One page does run it from disk: a root
 // setup.html left behind by unzipping this version over a v1.4 folder, whose
@@ -18,7 +18,7 @@ if (location.protocol !== "http:" && location.protocol !== "https:") {
 
 // Avatar color + initials helpers shared with the viewer (src/app.js) and the
 // Node build live in ONE module, loaded as a <script> before this one
-// (src/setup.html) — see src/shared-core.js. Avatars use the viewer's hue rule
+// (src/setup.html); see src/shared-core.js. Avatars use the viewer's hue rule
 // (hueVars) without the settings.colors override, which is viewer-only.
 /* global GCAShared */
 const { initials, hueVars, sanitizePhoto, accentTokens, THEME_BGS } = GCAShared;
@@ -64,7 +64,7 @@ async function pickedPhoto(f) { return shrinkImage(await fileToDataURL(f), f.typ
 
 /* ---- shared image preview/confirm ---------------------------------------- */
 // Before any photo is committed (group or a person), show it big and ask
-// "Is this image good?" — so a wrong or broken file is caught here, not after
+// "Is this image good?", so a wrong or broken file is caught here, not after
 // it's already assigned. Resolves true to use the image, false to discard.
 let imgModal = null;
 function confirmImage(dataURL) {
@@ -103,7 +103,7 @@ function confirmImage(dataURL) {
     msg.hidden = true; msg.textContent = ""; ok.disabled = false;
     img.onerror = () => {
       img.removeAttribute("src"); ok.disabled = true;
-      msg.hidden = false; msg.textContent = "That file isn't a valid image — choose another.";
+      msg.hidden = false; msg.textContent = "That file isn't a valid image. Choose another.";
     };
     img.onload = () => { ok.disabled = false; };
     img.src = dataURL;
@@ -119,7 +119,7 @@ function confirmImage(dataURL) {
 }
 
 /* ---- media lightbox ------------------------------------------------------ */
-// Click a person's shared-media thumbnail to see it full-size — a better look at
+// Click a person's shared-media thumbnail to see it full-size. A better look at
 // what it shows helps you recognize who they are. Closes on Escape, the × button,
 // or a click on the backdrop.
 function viewMedia(src, kind) {
@@ -147,20 +147,20 @@ function viewMedia(src, kind) {
 }
 
 // Collected config, sent to /api/identity on finish.
-//  - `gc` is per-group { convId: { name, photo } } — each group chat keeps its
+//  - `gc` is per-group { convId: { name, photo } }. Each group chat keeps its
 //    own name + photo (the viewer shows the active group's).
 //  - `names`/`pfps` stay keyed by user id (shared across groups: same person,
 //    same name everywhere).
 //  - `ignored` holds the ids of participants the user deleted.
 const state = { me: null, names: {}, pfps: {}, ignored: {}, ignoredGroups: {}, gc: {}, group: "" };
 // Display-only pfp paths ("personal_data/pfps/foo_pfp.jpg", relative to the
-// project root — same shape as window.LOCAL_PFPS in app.js) loaded from a
+// project root, same shape as window.LOCAL_PFPS in app.js) loaded from a
 // previous save, used ONLY to paint an avatar background on reopen. Kept
 // separate from state.pfps, which holds fresh data-URLs that get decoded and
-// written to disk server-side — a path string there would be posted back as
+// written to disk server-side. A path string there would be posted back as
 // if it were image data.
 let savedPfpPaths = {};
-// group photos from an earlier save, for display only — the server
+// group photos from an earlier save, for display only. The server
 // keeps a saved photo unless a new one is uploaded, so they're never re-sent.
 let savedGcPhotos = {};
 // What the last save (or the saved config, on reopen) already removed, so a
@@ -186,7 +186,7 @@ function gcEntry() {
 // Fill both group <select>s and reveal them only when there's more than one group.
 function renderGroupChoosers() {
   const opts = groups.map((g) => {
-    const removed = state.ignoredGroups[String(g.id)] ? " — removed" : "";
+    const removed = state.ignoredGroups[String(g.id)] ? " (removed)" : "";
     return `<option value="${escapeHtml(String(g.id))}">${escapeHtml(g.title || "Group " + String(g.id).slice(-4))} · ${Number(g.count).toLocaleString()}${removed}</option>`;
   }).join("");
   ["gc-group", "people-group"].forEach((id) => { const sel = $("#" + id); if (sel) { sel.innerHTML = opts; sel.value = state.group; } });
@@ -233,7 +233,7 @@ function go(n) {
   if (n === 4) renderFinishReceipt();
 }
 
-// Presentation-only summary card on the Finish step (mock-setup .receipt).
+// Presentation-only summary card on the Finish step.
 // Reads only state the wizard already holds: `groups` from the build, the
 // active group's roster (PARTS, when step 3 loaded it), and saved names/pfps.
 function renderFinishReceipt() {
@@ -247,7 +247,7 @@ function renderFinishReceipt() {
   const e = state.gc[String(g.id)] || {};
   const nm = e.name || g.title || "Group " + String(g.id).slice(-4);
   // These go into an HTML style="" attribute: only a photo the wizard itself
-  // makes (an image data URL or a personal_data/ path) — a hand-edited
+  // makes (an image data URL or a personal_data/ path); a hand-edited
   // config.json's value could otherwise close the url('') and the attribute.
   const gcPhoto = sanitizePhoto(e.photo || savedGcPhotos[String(g.id)]);
   const markStyle = gcPhoto ? ` style="background-image:url('${gcPhoto}')"` : "";
@@ -292,15 +292,15 @@ async function pick(kind, fill, which) {
     // the server only opens a dialog for a request carrying its token
     const r = await fetch(url, { headers: { "X-GCA-Token": String(window.GCA_TOKEN || "") } });
     // tell "refused" / "failed to open" apart from "not on Windows"
-    if (r.status === 403) { flash($("#src-result"), "The server didn't accept this request — it may have been restarted. Reload this page and try again.", "err"); return; }
+    if (r.status === 403) { flash($("#src-result"), "The setup server didn't accept this request (it may have been restarted). Reload this page and try again.", "err"); return; }
     const j = await r.json();
     if (j.error) { flash($("#src-result"), "✗ " + escapeHtml(j.error) + " Paste the full path into the box instead.", "err"); return; }
-    if (!j.supported) { flash($("#src-result"), "The native file browser is only available on Windows — please paste the path instead.", "err"); return; }
+    if (!j.supported) { flash($("#src-result"), "The native file browser is only available on Windows. Paste the path instead.", "err"); return; }
     if (!j.path) { $("#src-result").hidden = true; return; }   // cancelled
     fill(j.path);
     $("#src-result").hidden = true;
   } catch (e) {
-    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? Run start-setup again (or npm start).", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + ". Is the setup server running? Run start-setup again (or npm start).", "err");
   }
 }
 $("#group-browse").onclick = () => pick("file", (p) => { $("#src-group").value = p; hidePreflight(); }, "group");
@@ -310,15 +310,15 @@ $("#root-browse").onclick = () => pick("folder", (p) => { $("#src-root").value =
 
 /* ---- source lock + status ------------------------------------------------ */
 // Once an archive is built, lock the source files so the user can't corrupt the
-// archive by adding mismatched files — only "Start over" clears it.
+// archive by adding mismatched files. Only "Start over" clears it.
 function lockSource(locked) {
   ["#src-root", "#root-browse", "#src-group", "#src-headers", "#src-media", "#group-browse", "#headers-browse", "#media-browse", "#btn-build"]
     .forEach((s) => { const el = $(s); if (el) el.disabled = locked; });
   const banner = $("#src-locked"); if (banner) banner.hidden = !locked;
   if (locked) { merging = false; const m = $("#src-merge"); if (m) m.hidden = true; }
 }
-// "Add a newer export" — unlock the fields to pick a newer
-// download; its preview shows what merging adds, and the build merges it into
+// "Add a newer export": unlock the fields to pick a newer
+// download. Its preview shows what merging adds, and the build merges it into
 // the archive (the existing data.js is the baseline; removals and identity stay).
 let merging = false;
 $("#src-add").onclick = () => {
@@ -341,7 +341,7 @@ function loadStatus() {
       const j = await r.json();
       // a config.json the server can't read: say so now, not at the first click
       if (!r.ok) { flash($("#src-result"), "✗ " + escapeHtml((j && j.error) || "Could not read your saved settings."), "err"); return; }
-      // Prefill previously saved identity regardless of `built` — a reopened
+      // Prefill previously saved identity regardless of `built`: a reopened
       // wizard should show prior names/me/photos even before this run's build.
       state.me = j && j.me != null ? String(j.me) : null;
       state.names = Object.assign({}, j && j.names || {});
@@ -362,14 +362,14 @@ function loadStatus() {
         groups = j.groups || [];
         state.group = groups[0] ? String(groups[0].id) : "";
         (j.ignoredGroups || []).forEach((id) => { state.ignoredGroups[String(id)] = true; savedIgnored.groups[String(id)] = true; });
-        // People removed in an earlier save stay removed —
-        // without this, the next save sent ignoredUsers: [] and un-removed them.
+        // People removed in an earlier save stay removed. Otherwise the next
+        // save would send ignoredUsers: [] and un-remove them.
         (j.ignoredUsers || []).forEach((id) => { state.ignored[String(id)] = true; savedIgnored.users[String(id)] = true; });
         renderGroupChoosers();
         refreshGroupStep();
         lockSource(true);
       }
-    } catch (e) { /* no server / fresh setup — leave unlocked */ }
+    } catch (e) { /* no server / fresh setup: leave unlocked */ }
   })();
 }
 
@@ -383,7 +383,7 @@ function buildLogHtml(log) {
 function buildNotesHtml(j) {
   const n = [];
   if (j.via === "manifest") n.push("Found your group chat files through the archive's <code>data/manifest.js</code>.");
-  if (j.swapped) n.push("Your messages and headers files were picked the other way round — they were swapped back automatically.");
+  if (j.swapped) n.push("Your messages and headers files were picked the other way round. They were swapped back automatically.");
   if (j.mediaDescended) n.push(`Used the <code>${escapeHtml(j.mediaDescended)}</code> folder inside the folder you picked for media.`);
   (j.notes || []).forEach((x) => { if (x && x.text) n.push(escapeHtml(x.text)); });   // worded by the server
   return n.length ? `<ul class="build-notes">${n.map((l) => `<li>${l}</li>`).join("")}</ul>` : "";
@@ -418,7 +418,7 @@ function fmtBytes(n) {
   return n < 1048576 ? Math.round(n / 1024) + " KB" : (n / 1048576).toFixed(n < 10 * 1048576 ? 1 : 0) + " MB";
 }
 // while a build runs, ask the server how far the media
-// copy is and show it — a big media folder used to look frozen for minutes.
+// copy is and show it. A big media folder would otherwise look frozen for minutes.
 function showProgress(p) {
   let html;
   if (p.phase === "copy" && p.totalFiles) {
@@ -462,8 +462,8 @@ function renderPreflight(j) {
   $("#pf-lines").innerHTML = lines;
   $("#pf-groups").innerHTML = (j.groups || []).map((g) => {
     const name = g.title || "Group …" + String(g.id).slice(-4);
-    if (g.removed) return `<li class="pf-removed"><b>${escapeHtml(name)}</b> — removed, stays out</li>`;
-    return `<li><b>${escapeHtml(name)}</b> — ${plural(g.count, "message", "messages")} · ${escapeHtml(fmtSpan(g.first, g.last))} · ${plural(g.participants, "person", "people")}</li>`;
+    if (g.removed) return `<li class="pf-removed"><b>${escapeHtml(name)}</b>: removed, stays out</li>`;
+    return `<li><b>${escapeHtml(name)}</b>: ${plural(g.count, "message", "messages")} · ${escapeHtml(fmtSpan(g.first, g.last))} · ${plural(g.participants, "person", "people")}</li>`;
   }).join("");
   const w = j.warnings || [];
   $("#pf-warnings").innerHTML = w.length
@@ -479,7 +479,7 @@ function renderPreflight(j) {
   // an export the archive already has is re-added, not "older"
   const olderThan = m && Number.isFinite(m.exportNewest) && Number.isFinite(m.archiveNewest) && m.exportNewest < m.archiveNewest;
   $("#pf-older-text").textContent = olderThan
-    ? "This export is older than my archive — merge it anyway (my archive keeps its newer messages)"
+    ? "This export is older than my archive. Merge it anyway (my archive keeps its newer messages)"
     : "Re-add anyway (nothing new will be added)";
   $("#pf-older-ok").checked = false;
   updateConfirm();
@@ -492,12 +492,12 @@ $("#btn-build").onclick = async () => {
   const groupJs = $("#src-group").value.trim();
   const headersJs = $("#src-headers").value.trim();
   const mediaDir = $("#src-media").value.trim();
-  if (!archiveRoot && !groupJs && !headersJs && !mediaDir) { flash($("#src-result"), "Choose your archive folder — or the three files below it.", "err"); return; }
+  if (!archiveRoot && !groupJs && !headersJs && !mediaDir) { flash($("#src-result"), "Choose your archive folder, or the three files below it.", "err"); return; }
   // an archive folder is enough: the server finds the three pieces inside it
   if (!archiveRoot) {
     if (!groupJs) { flash($("#src-result"), "Choose your direct-messages-group.js file.", "err"); return; }
     if (!headersJs) { flash($("#src-result"), "Choose your direct-message-group-headers.js file.", "err"); return; }
-    if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder — it's required.", "err"); return; }
+    if (!mediaDir) { flash($("#src-result"), "Choose your direct_messages_group_media folder. It's required.", "err"); return; }
   }
   const body = archiveRoot ? { archiveRoot } : { groupJs, headersJs, mediaDir };
   hidePreflight();
@@ -513,13 +513,13 @@ $("#btn-build").onclick = async () => {
     pendingSource = body;
     $("#btn-confirm").focus();
   } catch (e) {
-    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? Run start-setup again (or npm start).", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + ". Is the setup server running? Run start-setup again (or npm start).", "err");
   } finally {
     building = false;
     if (!built || merging) $("#btn-build").disabled = false;
   }
 };
-// Step 1, part 2: the user saw the preview and confirmed — copy + build.
+// Step 1, part 2: the user saw the preview and confirmed. Copy + build.
 $("#btn-confirm").onclick = async () => {
   if (building || !pendingSource) return;   // one build at a time
   const body = pendingSource;
@@ -539,10 +539,10 @@ $("#btn-confirm").onclick = async () => {
     state.group = groups[0] ? String(groups[0].id) : "";
     renderGroupChoosers();
     refreshGroupStep();
-    const groupList = groups.map((g) => `<li>${escapeHtml(g.title || "Group " + String(g.id).slice(-4))} — ${Number(g.count).toLocaleString()} messages</li>`).join("");
+    const groupList = groups.map((g) => `<li>${escapeHtml(g.title || "Group " + String(g.id).slice(-4))}: ${Number(g.count).toLocaleString()} messages</li>`).join("");
     flash($("#src-result"),
       (j.merged
-        ? `✓ Merged: <b>${Math.max(0, Number(j.added) || 0).toLocaleString()}</b> new messages added — your archive now has <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)`
+        ? `✓ Merged: <b>${Math.max(0, Number(j.added) || 0).toLocaleString()}</b> new messages added. Your archive now has <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)`
         : `✓ Built <b>${j.totalMsgs.toLocaleString()}</b> messages across <b>${groups.length}</b> group(s)`) +
       (j.partFiles > 1 ? ` from <b>${Number(j.partFiles)}</b> message part files` : "") +
       (j.mediaCopied ? `, copied <b>${j.mediaCopied.toLocaleString()}</b> media files` : "") +
@@ -551,7 +551,7 @@ $("#btn-confirm").onclick = async () => {
     lockSource(true);
     go(2);
   } catch (e) {
-    flash($("#src-result"), "✗ " + escapeHtml(e.message) + " — is the server running? Run start-setup again (or npm start).", "err");
+    flash($("#src-result"), "✗ " + escapeHtml(e.message) + ". Is the setup server running? Run start-setup again (or npm start).", "err");
   } finally {
     building = false;
     if (!built || merging) { $("#btn-build").disabled = false; updateConfirm(); }   // after a success the source stays locked
@@ -565,7 +565,7 @@ $("#gc-name").oninput = (e) => { gcEntry().name = e.target.value; };
 $("#gc-remove").onchange = (e) => {
   const id = state.group;
   if (e.target.checked) state.ignoredGroups[id] = true; else delete state.ignoredGroups[id];
-  renderGroupChoosers();   // refresh the "— removed" option labels
+  renderGroupChoosers();   // refresh the "(removed)" option labels
   refreshGroupStep();
 };
 $("#gc-pick").onclick = () => $("#gc-photo").click();
@@ -633,8 +633,8 @@ function personCard(p) {
   const card = document.createElement("div"); card.className = "su-person";
   const savedName = state.names[p.id];
   // Display-only: paint the avatar from a path saved in an earlier run (already
-  // "personal_data/pfps/…", same as window.LOCAL_PFPS in app.js — served as-is,
-  // relative to the page's URL, /setup.html at the project root). Never written into state.pfps —
+  // "personal_data/pfps/…", same as window.LOCAL_PFPS in app.js; served as-is,
+  // relative to the page's URL, /setup.html at the project root). Never written into state.pfps:
   // that map holds fresh data-URLs to be decoded and saved server-side, and a
   // path string there would be posted back as if it were image data.
   const savedPfp = savedPfpPaths[p.id];
@@ -664,7 +664,7 @@ function personCard(p) {
   name.className = "setup-input su-name"; name.type = "text"; name.placeholder = labelOf(p);
   name.setAttribute("aria-label", "Name for " + labelOf(p) + " (id " + p.id + ")");
   if (savedName) name.value = savedName;
-  // emptying a name keeps the id with "" — the server's signal to forget it.
+  // emptying a name keeps the id with "", the server's signal to forget it.
   name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { state.names[p.id] = ""; if (!state.pfps[p.id]) av.textContent = initials(labelOf(p)); } };
   main.appendChild(name);
 
@@ -793,7 +793,7 @@ $("#btn-save").onclick = async () => {
   }
 };
 async function saveAll() {
-  // Removed participants don't need a name or photo — drop them from the payload.
+  // Removed participants don't need a name or photo; drop them from the payload.
   const ignoredUsers = Object.keys(state.ignored);
   const ignoredGroups = Object.keys(state.ignoredGroups);
   const newPeople = ignoredUsers.filter((id) => !savedIgnored.users[id]).length;

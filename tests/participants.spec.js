@@ -81,9 +81,9 @@ test("one person colour: battles and avatars agree", async ({ page }) => {
   expect(res.name).toBe(want);
 });
 
-// Review fix 6: the "A" (automatic colour) swatch previews the person's hashed
+// The "A" (automatic color) swatch previews the person's hashed
 // hue, not their current override.
-test("the automatic-colour swatch shows the hash hue while an override is set", async ({ page }) => {
+test("the automatic-color swatch shows the hash hue while an override is set", async ({ page }) => {
   await bootViewer(page, DATA);
   await page.locator('.nav-item[data-view="people"]').click();
   const card = page.locator("#people-body .person").first();

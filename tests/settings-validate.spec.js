@@ -104,8 +104,8 @@ test("an imported timezone is validated and applied immediately", async ({ page 
   await page.locator('.nav-item[data-view="search"]').click();
   await expect(page.locator("#s-list .msg-time").first()).toContainText("Mar 9, 2024");
 
-  // Review fix: an invalid imported zone keeps the user's CURRENT zone (it used
-  // to reset to the default), exactly like any other invalid imported field.
+  // An invalid imported zone keeps the user's CURRENT zone (it does not reset to
+  // the default), like any other invalid imported field.
   await importJson(page, { names: {}, timezone: "Not/AZone" });
   await expect(page.locator(".toast").last()).toContainText("imported");
   await expect(page.locator("#set-tz")).toHaveValue("America/New_York");
@@ -124,10 +124,9 @@ test("imported ignored users are filtered out right away", async ({ page }) => {
 });
 
 
-// Review fix (import semantics): Import replaces only what the file carries.
-// A file with no `pfps` used to wipe every saved profile photo (and "me", the
-// appearance, …) back to defaults, while the confirm never mentioned photos,
-// "this is me" or appearance at all.
+// Import replaces only what the file carries. A file with no `pfps` leaves every
+// saved profile photo (and "me", the appearance, …) alone, and the confirm
+// mentions what will change.
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const SEEDED = {
   "gca.pfps": JSON.stringify({ u1: PNG }),

@@ -1,5 +1,5 @@
 /* global module */
-// src/shared-core.js — single source for constants/helpers shared by the viewer
+// src/shared-core.js: single source for constants/helpers shared by the viewer
 // (src/app.js), the setup wizard (src/setup.js), and the Node build (scripts/build-core.js).
 // No bundler: loaded as a plain <script> in index.html/src/setup.html (sets a global) and require()d in Node.
 (function (root, factory) {
@@ -8,7 +8,7 @@
   if (root) root.GCAShared = api;                                              // browser global
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
-  // Avatar colors — 12-color palette assigned by id hash. MUST match everywhere a
+  // Avatar colors: 12-color palette assigned by id hash. MUST match everywhere a
   // person's avatar is drawn (viewer + wizard) or the same person changes color.
   const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
   // Matches messages containing a Twitter/X link (t.co / twitter.com / x.com, with
@@ -35,9 +35,9 @@
     if (p.length === 1) return p[0].slice(0, 2).join("").toUpperCase();
     return (p[0][0] + p[p.length - 1][0]).toUpperCase();
   }
-  // the person hue rule — ONE colour per person in the viewer AND the
+  // the person hue rule: ONE color per person in the viewer AND the
   // setup wizard. 10 hue pairs defined per theme in styles.css: --p-<hue> (the
-  // bright name colour) and --f-<hue> (the deep avatar fill under white
+  // bright name color) and --f-<hue> (the deep avatar fill under white
   // initials). A person maps to one hue by id hash.
   const HUES = ["rose", "coral", "amber", "lime", "emerald", "teal", "sky", "indigo", "violet", "magenta"];
   function personHue(id) { return HUES[hashId(id) % HUES.length]; }
@@ -47,10 +47,10 @@
   // Pure, DOM-free validators for the settings object. The viewer runs every
   // settings source through validateSettings(): the persisted gca.settings blob
   // at boot and an imported JSON file. Kept here (not in app.js) so node:test
-  // can cover them directly — see tests/settings-validate.test.js.
+  // can cover them directly; see tests/settings-validate.test.js.
 
   // photo values reach the DOM as raw style="…url('…')" interpolation or a
-  // CSSOM background-image. Values the app writes itself are always a base64 image
+  // CSSOM background-image. Values the viewer writes itself are always a base64 image
   // data URL or a wizard-saved slug path; anything else collapses to "" (falsy),
   // which every call site treats as "no photo" (initials fallback).
   const PHOTO_RE = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]*$/i;
@@ -59,8 +59,8 @@
     if (typeof v !== "string") return "";
     return (PHOTO_RE.test(v) || PHOTO_PATH_RE.test(v)) ? v : "";
   }
-  // colours are interpolated into style="…" attributes, so only a plain hex
-  // colour (#rgb / #rrggbb / #rrggbbaa) is ever accepted; anything else is "".
+  // colors are interpolated into style="…" attributes, so only a plain hex
+  // color (#rgb / #rrggbb / #rrggbbaa) is ever accepted; anything else is "".
   function sanitizeColor(v) {
     if (typeof v !== "string") return "";
     const s = v.trim();
@@ -68,12 +68,12 @@
   }
   /* ---- Contrast -------------------------------------------
      WCAG 2.x relative luminance + contrast ratio, and two derivations the
-     viewer applies at runtime: readableOn() nudges a colour toward white (on
+     viewer applies at runtime: readableOn() nudges a color toward white (on
      dark backgrounds) or black (on light ones) until it reaches `min` against
-     every background, keeping its hue; accentTokens() derives the text colour
+     every background, keeping its hue; accentTokens() derives the text color
      for a filled accent (--on-accent), the fill itself (only nudged when
      neither white nor near-black text reaches 4.5:1), the .msg.me gradient's
-     far end, accent-as-text and a 3:1 UI/focus-ring colour for the theme. */
+     far end, accent-as-text and a 3:1 UI/focus-ring color for the theme. */
   function parseRgb(c) {
     const s = String(c).trim();
     const m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(s);
@@ -108,8 +108,8 @@
   }
   // [--bg-page, --bg-card, --bg-inset] per theme, mirroring the
   // html[data-theme] blocks in styles.css (tests/theme-bgs.test.js checks
-  // they agree). The viewer and the wizard derive accent and person colours
-  // against these; the viewer's theme-color meta uses the page colour.
+  // they agree). The viewer and the wizard derive accent and person colors
+  // against these; the viewer's theme-color meta uses the page color.
   const THEME_BGS = {
     light: ["#ffffff", "#f7f9f9", "#f7f9f9"],
     dim: ["#15202b", "#1e2732", "#1a2531"],
@@ -137,12 +137,12 @@
      offset(t) is the zone's UTC offset in ms at epoch-ms t, so the wall clock
      is "UTC fields of t + offset(t)" (what Intl.formatToParts would report).
      A zone's offset is constant except on the ~2 days a year it changes its
-     clocks, so it is resolved ONCE per UTC day — at the day's first and last
+     clocks, so it is resolved ONCE per UTC day, at the day's first and last
      millisecond. Equal → the whole day uses it (no zone changes twice within a
      day); different → a transition day, whose change instant is found once by
      bisection. That turns one formatToParts per message (~1.75 µs each, per
      analytics pass) into a few thousand per archive. mode: "utc" (offset 0,
-     no Intl at all — "UTC", "Etc/UTC", …), "local" (native Date getters) or
+     no Intl at all: "UTC", "Etc/UTC", …), "local" (native Date getters) or
      "intl" (any other IANA zone). An invalid zone throws RangeError, like Intl.
      Outliers: the looked-up instant is clamped to [TI_T_LO, TI_T_HI]
      (the same 1900..2199 window buildTimeIndex buckets in; NaN goes low), so
@@ -217,10 +217,10 @@
      wall guess, measure the wall clock the zone shows there and shift by the
      difference; the second pass corrects a DST change straddling the guess.
      A midnight that doesn't exist (DST starting at 00:00) resolves to the
-     transition instant — the earliest instant whose wall clock is at/after
-     00:00 (wall 01:00) — never 23:00 of the day before.
+     transition instant: the earliest instant whose wall clock is at/after
+     00:00 (wall 01:00), never 23:00 of the day before.
 
-     parseJumpDate(input, clock) — the ONE parser behind jump-to-date (command
+     parseJumpDate(input, clock): the ONE parser behind jump-to-date (command
      palette, calendar input) and the Search before:/after: operators:
        "2024-01-07" "2024/1/7" "1/7/2024" (M/D/YYYY) "Jan 7 2024" "Jan 7, 2024"
        "January 7th 2024" "7 Jan 2024"                         -> unit "day"
@@ -230,7 +230,7 @@
           label ("Jan 7, 2024" | "June 2021" | "2021"), start, end }
         start/end: the period as [start, end) epoch ms at midnight in the zone;
      -> { error: "invalid" } when it has a date's shape but the date doesn't
-        exist (2023-02-30, month 13, a year before 1000) — never rolled over;
+        exist (2023-02-30, month 13, a year before 1000), never rolled over;
      -> { error: "order" } for a day-first slashed date (13/01/2024): slashed
         dates are month/day/year;
      -> null when it isn't a date at all. Pure; tests/jump-date.test.js. */
@@ -245,12 +245,12 @@
       guess += delta;
     }
     if (guess + clock.offset(guess) === target) {
-      // A midnight shown twice (DST ending at 01:00 — Gaza): the solve can
+      // A midnight shown twice (DST ending at 01:00, Gaza): the solve can
       // land on the second; the day starts at the first, under the earlier offset.
       const first = target - clock.offset(guess - 26 * 3600000);
       return first < guess && first + clock.offset(first) === target ? first : guess;
     }
-    // No such wall-clock midnight (DST starting AT 00:00 — Santiago, Havana,
+    // No such wall-clock midnight (DST starting AT 00:00: Santiago, Havana,
     // Asunción, old São Paulo): the day starts at the transition, i.e. the
     // earliest instant whose wall clock is at/after the target. Bisect (to the
     // second; offsets are whole seconds) over ±26 h, where the wall clock is
@@ -312,9 +312,9 @@
      The box is read as whitespace-separated tokens (a "quoted run" may hold
      spaces): "…" is a phrase, -word / -"…" an exclusion (key "not"), and
      from:/sender:, before:/after:, has:, is: operators. `open` = the token runs
-     to the very end of the input (no trailing space — the user may still be
+     to the very end of the input (no trailing space; the user may still be
      typing it); `pending` = an operator not ready to apply (empty value, a
-     half-typed has:/is: value or date at the end) — neither a filter nor search
+     half-typed has:/is: value or date at the end): neither a filter nor search
      text. Unknown operators (foo:bar, https://…) and unknown values of a known
      one (bounded has:cats) stay search text. before:/after: dates go through
      parseJumpDate in the clock's zone (date: the period; error: why it was
@@ -373,7 +373,7 @@
         const op = { key, value: value.trim(), raw: s.slice(start, end), start, end, open, quoted: isQ, pending: false };
         let asText = false;
         // An empty value is still being typed at the end of the box (pending);
-        // bounded — "before: lunch", "Note from: Bob" — it is just a word.
+        // bounded: "before: lunch", "Note from: Bob". It is just a word.
         const empty = () => { if (open) op.pending = true; else asText = true; };
         if (!op.value) empty();
         else if (key === "from") {
@@ -388,7 +388,7 @@
         } else {   // before / after
           const p = parseJumpDate(op.value, clock);
           // still being typed (at the end, digit-led or in an open quote):
-          // "2023-0" is on its way to "2023-06" — pending, never an error yet
+          // "2023-0" is on its way to "2023-06": pending, never an error yet
           const typing = open && (/^\d/.test(op.value) || (isQ && !closed));
           if (p && p.error) { if (typing) op.pending = true; else op.error = p.error; }
           else if (p) op.date = p;
@@ -416,7 +416,7 @@
   }
   // The ONE people matcher (from: and its autocomplete): every person whose
   // display name or an alias matches `value`, accent- and case-folded, with
-  // the rank of their best name — 0 exact, 1 a name starts with it, 2 a later
+  // the rank of their best name: 0 exact, 1 a name starts with it, 2 a later
   // word of a name does, 3 a name merely contains it. Only the best tier comes
   // back: names / words starting with the value (ranks 0-2) when there are
   // any, else the substring matches. Nothing typed matches everyone (rank 1).
@@ -444,7 +444,7 @@
   // from: value -> the people it names (rankPeople): an exact name wins, then
   // names (or a later word of one) starting with the value, then names
   // containing it. At the end of the input (open: true) a value that still
-  // names several people is `pending` — the user is choosing between them; a
+  // names several people is `pending`: the user is choosing between them; a
   // bounded one applies to all of them. A value naming nobody applies too (no
   // results), so a typo never silently searches everyone.
   function resolvePeople(value, people, opts) {
@@ -538,7 +538,7 @@
      Patterns over 32 chars follow Fuse's own 32-char chunking (a text matches
      when any chunk does), so the candidate sets are unioned per chunk.
        createBigramIndex(texts) -> { n, start: Int32Array(B+1), post: Int32Array }
-       createBigramIndex.steps(texts, shouldYield) — the same build as a generator
+       createBigramIndex.steps(texts, shouldYield): the same build as a generator
          that yields whenever shouldYield() is true (checked every 1024 texts)
        fuzzyCandidates(index, pattern, threshold) -> Int32Array | null (null = no
          pruning possible for this pattern, e.g. 1-2 chars: search everything) */
@@ -643,7 +643,7 @@
   // isEmojiSeq keeps only sequences that render as emoji: a flag, a keycap, or
   // a pictograph that is emoji-presentation by default or forced by VS16 / a
   // skin tone / a ZWJ. Text-default pictographs alone (©, ®, ™, ☀ without VS16)
-  // are not emoji — the same set /\p{RGI_Emoji}/v matches for real text
+  // are not emoji: the same set /\p{RGI_Emoji}/v matches for real text
   // (tests/text-analysis.test.js checks the two agree), but plain `u`-flag
   // property classes: \p{RGI_Emoji} needs the `v` flag (Chromium 112+,
   // Firefox 116+, Safari 17+) and is ~40x slower in V8 (3 s vs 70 ms for 130k
@@ -669,7 +669,7 @@
   // --- Words -----------------------------------------------------
   // A word is a run of letters / digits / combining marks (so Cyrillic,
   // Arabic, Hebrew, Devanagari and accented Latin survive), optionally joined
-  // by apostrophes — curly ones are folded to ' first, so "don’t" is one token,
+  // by apostrophes; curly ones are folded to ' first, so "don’t" is one token,
   // not "don" + "t". Links, bare domains and @mentions are dropped
   // (plainText). Scripts written without spaces (Han, kana, Thai, …) are split
   // into words by Intl.Segmenter when available, otherwise into grapheme
@@ -677,7 +677,7 @@
   const RE_URL = /https?:\/\/\S+|www\.\S+/gi;
   const RE_APOS = /[\u2018\u2019\u02BC\uFF07]/g, RE_HAS_APOS = /[\u2018\u2019\u02BC\uFF07]/;
   const RE_URL_HINT = /https?:|www\./i;
-  // Bare domains ("youtube.com/watch?v=…", "youtu.be/x", "reddit.com") — a
+  // Bare domains ("youtube.com/watch?v=…", "youtu.be/x", "reddit.com"): a
   // closed list of lowercase TLDs, matched case-sensitively, so a missing
   // space after a full stop stays text: "ok.so", "done.to", "agree.Be". The
   // 2-letter TLDs are everyday words too ("lol.ai is wild"), so they only
@@ -690,7 +690,7 @@
   // @mentions (X handles: letters, digits, underscore) not inside a word, so
   // an email's "me@" survives while its domain goes with RE_DOMAIN.
   const RE_MENTION = /(^|[^\p{L}\p{N}_])@[A-Za-z0-9_]+/gu;
-  // The message with its links and @mentions removed — what the tokenizer and
+  // The message with its links and @mentions removed: what the tokenizer and
   // the keyword, keysmash, caps and question checks read, so a t.co slug
   // ("xkcdbzqwrt") is not a keysmash, a "?" in a query string is not a
   // question and "@thanks_bot" is not gratitude.
@@ -709,9 +709,9 @@
   // mid-word. An emoji ZWJ sequence starts with no letter, so it is no token.
   const RE_TOKEN = /[\p{L}\p{N}](?:[\u200C\u200D]?[\p{L}\p{N}\p{M}])*(?:'[\p{L}\p{N}\p{M}](?:[\u200C\u200D]?[\p{L}\p{N}\p{M}])*)*/gu;
   const RE_NOSPACE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]/u;
-  // No-Segmenter fallback: one no-space-script grapheme cluster at a time — a
+  // No-Segmenter fallback: one no-space-script grapheme cluster at a time: a
   // base character plus its combining marks (Thai vowel signs / tone marks
-  // stay on their consonant) — or a run of anything else.
+  // stay on their consonant), or a run of anything else.
   const RE_NOSPACE_RUNS = /(?:(?!\p{M})[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}])\p{M}*|[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]+/gu;
   const WORDS_SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter("en", { granularity: "word" }) : null;
   // The emoji and text presentation selectors (U+FE0F, U+FE0E) and the keycap
@@ -798,7 +798,7 @@
   // apostrophe- and case-insensitive: "man" never matches "many"/"humans",
   // "dont" matches "don’t". Used by Word Battles and the keyword trend.
   function wordKeys(word) { return tokenize(word).map(wordKey); }
-  // countWord with the word already folded by wordKeys() — for loops over
+  // countWord with the word already folded by wordKeys(), for loops over
   // many messages, so the query is tokenized once, not once per message.
   function countKeys(text, keys) {
     if (!keys.length) return 0;
@@ -841,7 +841,7 @@
   function countMatches(re, text) { if (!text) return 0; const m = text.match(re); return m ? m.length : 0; }
   function countLaughs(text) { return countMatches(KEYWORDS.laugh, text); }
   // A message that is nothing but laughter (laughs + spaces / punctuation /
-  // variation selectors) with at least one laugh — never whitespace alone.
+  // variation selectors) with at least one laugh; never whitespace alone.
   const RE_LAUGH_STRIP = new RegExp(LAUGH_SRC, "giu");
   function isLaughOnly(text) {
     if (!text || !countLaughs(text)) return false;
@@ -999,7 +999,7 @@
   }
 
   // Name redaction for a shared image. people: [{ id, names: [display name,
-  // aliases…] }] — everyone in the chat, not only who is on the card, since a
+  // aliases…] }]: everyone in the chat, not only who is on the card, since a
   // message can name anyone. label(id) gives "Person A", "Person B", … in the
   // order people are first met; text(s) replaces every @handle with
   // "@someone" and every name, alias and word (2+ letters) of a multi-word
@@ -1032,7 +1032,7 @@
     return (c.normalize ? c.normalize("NFD") : c).replace(/\p{M}+/gu, "").toLowerCase().replace(/ς/g, "σ").replace(/ß/g, "ss");
   }
   // The fold plus, for every folded UTF-16 unit, the [start, end) of the
-  // original character it came from — so a match maps back to the text.
+  // original character it came from, so a match maps back to the text.
   function redactFold(s) {
     let out = "";
     const st = [], en = [];
@@ -1292,7 +1292,7 @@
     }
     return n;
   }
-  // custom Word Battles words — strings only, trimmed, ≤40 chars,
+  // custom Word Battles words: strings only, trimmed, ≤40 chars,
   // de-duplicated by battleKey (first spelling wins), at most 30.
   const BATTLE_WORD_MAX = 40, BATTLE_WORDS_MAX = 30;   // per word / per list
   function cleanBattleWords(a) {
@@ -1310,10 +1310,10 @@
   // The ONE gate every settings object passes through. Copies over only fields
   // whose type/shape is valid, field by field; a field that is absent or invalid
   // keeps its FALLBACK instead of throwing, so a malformed file can never brick
-  // boot or inject markup. The fallback is `rules.base` when given — Import passes
+  // boot or inject markup. The fallback is `rules.base` when given. Import passes
   // the user's current settings, so a file only replaces what it actually carries
   // (a file with no `pfps` keeps the photos; an invalid zone keeps the current
-  // zone) — and otherwise `rules.defaults` (boot). Never literals, so changing a
+  // zone), and otherwise `rules.defaults` (boot). Never literals, so changing a
   // default (e.g. the timezone) changes every fallback with it.
   //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
   function validateSettings(raw, rules) {

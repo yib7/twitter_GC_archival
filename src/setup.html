@@ -8,7 +8,7 @@
        Anywhere else they miss and the page shows only a start-the-server note. -->
   <!-- Served-mode defense-in-depth: see index.html for the full rationale.
        Strict script-src 'self'; the theme-boot is a same-origin file (shared
-       with the app), so no inline-script hash to keep in sync. -->
+       with the viewer), so no inline-script hash to keep in sync. -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src 'self';
     script-src 'self';
@@ -65,14 +65,14 @@
       <li>Or, in a terminal in the project folder, run <code>npm start</code> and
         open <code>http://localhost:8765/setup.html</code>.</li>
     </ol>
-    <p>Reading your archive needs no server: <a href="../index.html">open the archive</a>.</p>
+    <p>Reading your archive needs no server: <a href="../index.html">open the viewer</a>.</p>
   </div>
   <div class="setup-shell">
     <header class="setup-head">
       <div class="brand-mark setup-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 3z"/><path d="M8 9h8M8 12.5h5"/></svg></div>
       <div>
         <div class="setup-title">Set up your archive</div>
-        <div class="setup-sub">One-time wizard · runs over the local server</div>
+        <div class="setup-sub">One-time wizard · runs on the setup server</div>
       </div>
     </header>
 
@@ -114,7 +114,7 @@
         <button class="btn ghost setup-browse" id="headers-browse">Browse…</button>
       </div>
       <label class="setup-label" for="src-media">Media folder <code>direct_messages_group_media</code> <span class="setup-req">required</span></label>
-      <p class="setup-p" style="margin:0 0 6px;font-size:12.5px;">Browse… open any file inside the media folder, we will use its folder.</p>
+      <p class="setup-p" style="margin:0 0 6px;font-size:12.5px;">Click Browse… and open any file inside the media folder. The wizard uses that file's folder.</p>
       <div class="setup-pickrow">
         <input id="src-media" class="setup-input" type="text"
           placeholder="Full path to …\data\direct_messages_group_media" />
@@ -137,7 +137,7 @@
         <div class="fr-lines" id="pf-lines"></div>
         <ul class="pf-groups" id="pf-groups"></ul>
         <ul class="pf-warnings" id="pf-warnings"></ul>
-        <label class="pf-older" id="pf-older" hidden><input type="checkbox" id="pf-older-ok"> <span id="pf-older-text">This export is older than my archive — merge it anyway (my archive keeps its newer messages)</span></label>
+        <label class="pf-older" id="pf-older" hidden><input type="checkbox" id="pf-older-ok"> <span id="pf-older-text">This export is older than my archive. Merge it anyway (my archive keeps its newer messages)</span></label>
         <p class="pf-safe">Nothing has been copied yet. Your archive changes only when you press the button below.</p>
         <div class="setup-actions pf-actions">
           <button class="btn ghost" id="btn-pf-cancel">Change files</button>
@@ -146,7 +146,7 @@
       </section>
       <div class="setup-locked" id="src-locked" hidden>
         ✓ Archive already built. Downloaded a newer Twitter/X archive? <b>Add a newer export</b>
-        merges its new messages in — your names, photos, removed people and group chats stay as they are.
+        merges its new messages in. Your names, photos, removed people and group chats stay as they are.
         To begin again from nothing, use <b>Start over</b> at the bottom of the page.
         <div class="setup-actions">
           <button class="btn primary" data-next id="src-continue">Continue to the group &amp; people</button>
@@ -180,7 +180,7 @@
       </div>
       <label class="su-removegroup" id="gc-remove-row">
         <input type="checkbox" id="gc-remove" />
-        <span>Remove this group chat — exclude it from the archive entirely</span>
+        <span>Remove this group chat: exclude it from the archive entirely</span>
       </label>
       <div class="setup-actions">
         <button class="btn ghost" data-back>Back</button>
@@ -192,7 +192,7 @@
     <section class="setup-pane" data-pane="3" hidden>
       <h2>3 · Name everyone <span class="setup-opt">optional</span></h2>
       <p class="setup-p">The export only has numeric IDs. Use each person's sample
-        messages &amp; shared media (Twitter/X links excluded — they don't help) to
+        messages &amp; shared media (Twitter/X links excluded, since they don't help) to
         recognize them. Add a name, a photo, and mark which one is <b>you</b>.</p>
       <div id="people-grouprow" hidden>
         <label class="setup-label" for="people-group" style="margin-top:0;">Which group chat</label>
@@ -226,7 +226,7 @@
     </section>
 
     <div class="setup-danger">
-      <button type="button" class="su-reset-link" id="btn-reset">Start over — erase setup data</button>
+      <button type="button" class="su-reset-link" id="btn-reset">Start over: erase setup data</button>
     </div>
   </div>
 
@@ -234,8 +234,8 @@
     <div class="su-reset-box">
       <div class="su-reset-title">Erase all setup data?</div>
       <p class="su-reset-msg">This deletes everything the wizard created in
-        <code>personal_data/</code> — the built archive, names, photos, and the
-        copied media &amp; source files — so you can start setup from a clean slate.
+        <code>personal_data/</code>: the built archive, names, photos, and the
+        copied media &amp; source files. You can then start setup from a clean slate.
         <b>This cannot be undone.</b></p>
       <p class="su-reset-msg" id="reset-confirm-label">Type <b>RESET</b> to confirm:</p>
       <input id="reset-confirm" class="setup-input" type="text" autocomplete="off" placeholder="RESET" aria-labelledby="reset-confirm-label" />

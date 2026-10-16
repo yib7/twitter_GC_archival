@@ -115,7 +115,7 @@ test("the keyword trend counts an emoji keyword", async ({ page }) => {
   await expect.poll(total).toBe(6);
 });
 
-// Review fix 7: the word cloud and the Wrapped word of the year count a word
+// The word cloud and the Wrapped word of the year count a word
 // once across its spellings (y'all / y’all / yall), shown in the commonest one.
 test("word cloud and word of the year merge apostrophe spellings", async ({ page }) => {
   const lines = ["y'all ready", "y'all coming", "y’all here", "yall sure", "pizza night", "pizza again", "pizza time"];

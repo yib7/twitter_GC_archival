@@ -128,12 +128,12 @@ test("saving a name then reopening prefills it, and a no-op re-save does not wip
 
 // The wizard's own client-side prefill (loadStatus → state.names) means a
 // normal reopen-and-resave never posts an empty names map in practice. But
-// the fix's actual guarantee — the thing that makes the client-side prefill
+// the actual guarantee — the thing that makes the client-side prefill
 // safe to rely on at all — is server-side: apiIdentity must merge posted names
 // over the saved ones, not overwrite. Post directly to /api/identity (bypassing
 // the wizard UI/state entirely) to prove that guarantee in isolation, exactly
-// as the audit finding's observable describes: "POSTing /api/identity with
-// empty names after a save leaves local.js names intact."
+// as the test title says: posting empty names after a save leaves the local.js
+// names intact.
 test("POST /api/identity with empty names after a save leaves local.js names intact", async ({ page }) => {
   await page.goto(BASE + "/setup.html");   // establishes a same-origin page to fetch() from
 

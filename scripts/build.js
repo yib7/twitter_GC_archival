@@ -1,5 +1,5 @@
 /*
- * build.js — builds personal_data/data.js from the setup wizard's config.
+ * build.js: builds personal_data/data.js from the setup wizard's config.
  *
  * Wizard-driven only: it reads personal_data/config.json (written by the setup
  * wizard / scripts/server.js) for the exact source file(s) + media folder, streams the
@@ -14,7 +14,7 @@
  *  - Merge-aware: streams the previous data.js in as a baseline, so re-running
  *    the wizard with a newer export accumulates history instead of losing it.
  *  - Dedupes messages by id, re-sorts chronologically, resolves local media by
- *    the {messageId}-… filename convention. Group chats only — 1:1 DMs are skipped.
+ *    the {messageId}-… filename convention. Group chats only; 1:1 DMs are skipped.
  *
  * Fails loudly: a missing, empty, truncated, unparseable or wrong file,
  * or an export with no group chats, prints ONE plain-language line
@@ -27,7 +27,7 @@
  * GCA_PERSONAL to point at a different personal_data/ folder (used by tests to
  * avoid touching real data).
  *
- * Not meant to be run by hand — use the setup wizard (/setup.html).
+ * Not meant to be run by hand: use the setup wizard (/setup.html).
  */
 
 const fs = require("fs");
@@ -66,7 +66,7 @@ function fail(msg) { throw new BuildError(msg); }
 // The build is driven entirely by personal_data/config.json (written by the
 // setup wizard). No config → nothing to build; point the user at the wizard.
 function loadConfig() {
-  if (!fs.existsSync(CONFIG)) fail("No setup found (personal_data/config.json is missing). Run the setup wizard first: double-click start-setup.cmd (Windows) or start-setup.command (macOS/Linux), or run npm start and open http://localhost:8765/setup.html");
+  if (!fs.existsSync(CONFIG)) fail("No setup found (personal_data/config.json is missing). Run the setup wizard first: double-click start-setup.cmd (Windows) or start-setup.command (macOS), run `sh start-setup.command` (Linux), or run npm start and open http://localhost:8765/setup.html");
   try { return JSON.parse(fs.readFileSync(CONFIG, "utf8").replace(/^\uFEFF/, "")); }
   catch (e) { fail("The setup file personal_data/config.json is damaged. Use Start over in the setup wizard."); }
 }
@@ -76,13 +76,13 @@ const asList = (v) => (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(B
 /* ---- config-driven sources ----------------------------------------------- */
 function findMediaDirs(config) {
   // the wizard copies media into personal_data/media/ and stores that path.
-  // Media paths are emitted relative to the project root, so the app (served
+  // Media paths are emitted relative to the project root, so the viewer (served
   // from the root) resolves them regardless of where data.js lives.
   if (!config.mediaDir) return [];
   const d = resolveHere(config.mediaDir);
   return fs.existsSync(d) ? [d] : [];
 }
-// A media folder as the app loads it. The server serves the personal folder
+// A media folder as the viewer loads it. The server serves the personal folder
 // as /personal_data/ wherever GCA_PERSONAL puts it, so a folder inside it is
 // addressed through that name; relative to the project root it would be
 // "../../…" (or a "D:/…" on another drive), which the server never serves and
@@ -122,7 +122,7 @@ function ingest(acc, file, which) {
   }
   const stats = sink.finish();
   // a headers file picked as the messages file parses fine but every
-  // messageCreate lacks `text` — the build would "succeed" with blank messages.
+  // messageCreate lacks `text`, so the build would "succeed" with blank messages.
   if (which !== "headers" && stats.messages > 0 && stats.withText === 0) {
     fail("\u201c" + label + "\u201d looks like the group headers file: its messages have no text. Pick direct-messages-group.js as the messages file and direct-message-group-headers.js as the headers file.");
   }
@@ -176,7 +176,7 @@ function loadQuarantine(acc) {
   }
 }
 // Write the quarantine (atomically), or remove it when nothing is left in it.
-// While anything is removed it stays, even empty — its
+// While anything is removed it stays, even empty: its
 // presence says this archive's removals have been set aside (an archive with
 // removals and no quarantine predates it; see sourceAndBuild in server.js).
 function writeQuarantine(convs, keepEmpty) {
@@ -268,7 +268,7 @@ function main() {
   const { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings, removed, restored } = acc.finish(mediaIndex);
   if (!groupsSeen) {
     const names = exportFiles.map((f) => "\u201c" + path.basename(f) + "\u201d").join(", ");
-    fail("No group chats were found in " + names + (seen.dm ? " — it only has 1:1 conversations" : "") +
+    fail("No group chats were found in " + names + (seen.dm ? " (it only has 1:1 conversations)" : "") +
       ". Make sure you picked direct-messages-group.js from the data folder of your Twitter/X archive.");
   }
   if (prev) log("Baseline from data.js:", prevCount, "messages.");

@@ -1,5 +1,5 @@
 /*
- * server-core.js — pure, side-effect-free helpers for the setup server.
+ * server-core.js: pure, side-effect-free helpers for the setup server.
  *
  * Kept separate from server.js (which opens a listening socket on require) so
  * these can be unit-tested in isolation, mirroring the build.js / build-core.js
@@ -11,7 +11,7 @@ const path = require("path");
 const { foldConversations } = require("./build-core.js");
 
 // True only when `target` resolves to a location STRICTLY inside `root` (a
-// descendant) — false for `root` itself, a parent, a sibling, or any path that
+// descendant); false for `root` itself, a parent, a sibling, or any path that
 // escapes via "..". The reset endpoint checks every path through this before
 // deleting, so a bug or crafted input can never reach outside personal_data/.
 function isInsidePersonal(target, root) {
@@ -23,7 +23,7 @@ function isInsidePersonal(target, root) {
 // `which` is "headers" or "group" (anything else → group). The headers glob is
 // spelling-agnostic ("*group-headers*.js") because X names that file with the
 // singular "message" (direct-message-group-headers.js) while exports/tools
-// sometimes use the plural — both must show up in the picker.
+// sometimes use the plural; both must show up in the picker.
 function dialogFilter(which) {
   if (which === "headers") {
     return "Group headers (*group-headers*.js)|*group-headers*.js" +
@@ -46,11 +46,11 @@ function sanitizeName(s) {
 // Pick the on-disk filename for a saved photo. A named person/group becomes
 // `<slug>_pfp.<ext>` (easy to find later); an unnamed one keeps the opaque id
 // (`<id>.<ext>`). `taken` is a Set of filenames already chosen in this save, so
-// two people with the same name don't clobber each other — the later one gets a
+// two people with the same name don't clobber each other; the later one gets a
 // short id suffix.
 // SECURITY: `id` is an attacker-controllable JSON key on the unauthenticated,
-// local POST /api/identity (body.pfps / body.gc). It is NEVER trusted as a path
-// — even the no-name fallback runs it through sanitizeName() so a crafted id
+// local POST /api/identity (body.pfps / body.gc). It is NEVER trusted as a path:
+// even the no-name fallback runs it through sanitizeName() so a crafted id
 // like "../../evil" can't smuggle "/" or ".." into the filename and escape
 // personal_data/pfps/. (apiIdentity also containment-checks the resolved path.)
 function pfpFileName(name, id, ext, taken) {
@@ -69,7 +69,7 @@ function pfpFileName(name, id, ext, taken) {
 
 // Merge posted names over previously saved ones so a partial save (or a save
 // with no names typed at all) never wipes out names assigned in an earlier
-// wizard run — the same carry-forward behavior pfps/me/gc already get.
+// wizard run, the same carry-forward behavior pfps/me/gc already get.
 // Returns a fresh object; `prev`/`posted` are never mutated. Non-plain-object
 // arguments (null, undefined, strings, arrays, ...) are treated as {}.
 function asNamesMap(v) {
@@ -77,8 +77,8 @@ function asNamesMap(v) {
 }
 // SECURITY: `posted` is attacker-controllable JSON (body.names on the
 // unauthenticated, local POST /api/identity). Object.assign({}, ...) copies
-// via ordinary [[Set]], so a "__proto__" key — a normal OWN data property on
-// an object JSON.parse produced, not the special object-literal syntax —
+// via ordinary [[Set]], so a "__proto__" key (a normal OWN data property on
+// an object JSON.parse produced, not the special object-literal syntax)
 // would invoke the inherited accessor setter and repoint the merged object's
 // own [[Prototype]] instead of adding a "__proto__" entry (classic
 // prototype-pollution shape). Skip that one key explicitly rather than
@@ -99,17 +99,17 @@ function mergeNames(prev, posted) {
   return out;
 }
 
-// Allowlist gate for serveStatic: true only for URL paths the app actually
+// Allowlist gate for serveStatic: true only for URL paths the viewer actually
 // needs served. Everything else 404s BEFORE any filesystem access, so
 // personal_data/config.json, personal_data/source/**, .git/**, scripts/**,
 // tests/**, docs/**, node_modules/**, and any other file under ROOT stay
 // unreachable over HTTP even though the traversal guard would otherwise let
 // same-directory reads through. `urlPath` is the decoded, query-stripped
-// pathname (e.g. "/src/app.js") — a string, not a filesystem path. Per that
+// pathname (e.g. "/src/app.js"). A string, not a filesystem path. Per that
 // contract there is no legitimate "?"/"#" left in it, so the ".." scan runs
 // on the WHOLE string rather than truncating at the first "?"/"#": serveStatic
 // strips the query from the RAW url before decoding, so an encoded "%3F"/"%23"
-// survives that split and decodes into a literal "?"/"#" inside the pathname —
+// survives that split and decodes into a literal "?"/"#" inside the pathname;
 // scanning only up to it would drop every ".." segment that follows while the
 // allow-check and serveStatic's downstream path.resolve still see the full
 // string. A literal ".." segment anywhere (split on "/" or "\") is rejected
@@ -130,11 +130,11 @@ function servedFileFor(urlPath) { return SERVED_FILE_FOR.get(urlPath) || urlPath
 // The real-data overrides index.html probes with `<script src=... onerror>`. They
 // are gitignored, so on a clean clone / before setup they are absent and a plain
 // 404 prints a console error on every served load. Serving an empty 200 for a
-// MISSING one keeps the served console clean (the app harmlessly keeps the bundled
+// MISSING one keeps the served console clean (the viewer harmlessly keeps the bundled
 // sample/data.sample.js). A present file is served normally, unchanged. (Over file:// there
 // is no server to intercept, so those file-not-found lines are inherent to the
-// zero-setup double-click mode — this only cleans `npm start`.) Keep in sync with
-// the `<script>` probe list in index.html — asserted by server-core.test.js.
+// zero-setup double-click mode; this only cleans `npm start`.) Keep in sync with
+// the `<script>` probe list in index.html; asserted by server-core.test.js.
 const OPTIONAL_OVERRIDES = new Set(["/data.js", "/personal_data/data.js", "/names.local.js", "/personal_data/local.js"]);
 function isServablePath(urlPath) {
   const p = String(urlPath == null ? "" : urlPath);
@@ -142,7 +142,7 @@ function isServablePath(urlPath) {
   // Reject it here so serveStatic 404s before fs.stat(), which throws
   // synchronously on a NUL-byte path (ERR_INVALID_ARG_VALUE). serveStatic runs
   // outside the request handler's try/catch, so that throw would otherwise
-  // surface as an unhandledRejection and crash the whole local server. (A
+  // surface as an unhandledRejection and crash the whole setup server. (A
   // codepoint scan, not a regex, to stay clear of eslint's no-control-regex.)
   for (let i = 0; i < p.length; i++) { if (p.charCodeAt(i) < 32) return false; }
   if (p.split(/[\\/]/).includes("..")) return false;
@@ -172,10 +172,10 @@ function isLoopbackHostname(hostname) {
 // A bare, unbracketed multi-colon string (an IPv6 literal with no brackets,
 // which is not valid per RFC 3986/7230 but could still arrive from a
 // non-browser client) is returned as-is with no port guessed, rather than
-// mis-splitting on the wrong colon — it will simply fail the loopback-name
+// mis-splitting on the wrong colon; it will simply fail the loopback-name
 // check downstream since it won't equal "::1".
 // A MALFORMED bracket (a "[" or "]" present but the full bracketed form above
-// doesn't match — e.g. "[::1" with no closing "]") is rejected outright
+// doesn't match, e.g. "[::1" with no closing "]") is rejected outright
 // (return null → 403). Otherwise it would fall through to the bare-string
 // branch and, because isLoopbackHostname() strips a stray leading "[", "[::1"
 // would normalize to "::1" and be wrongly ALLOWED. Brackets are only ever
@@ -203,7 +203,7 @@ function parseHostHeader(hostHeader) {
 // 127.0.0.1, but the browser still sends that attacker name (not "127.0.0.1")
 // in the Host header, so checking the NAME (not the IP the socket connected
 // to) is what catches it. A missing/malformed Host header is rejected, not
-// treated as "no opinion" — legitimate requests (browser or the loopback
+// treated as "no opinion"; legitimate requests (browser or the loopback
 // smoke/e2e tests) always send one.
 function isAllowedHost(hostHeader, port) {
   const parsed = parseHostHeader(hostHeader);
@@ -225,8 +225,8 @@ function isOwnLoopbackUrl(urlString, port) {
 
 // CSRF guard for state-changing routes only (server.js applies this after
 // isAllowedHost, and only to the guarded route set). A same-origin, non-CORS
-// GET — and any non-browser client (curl, the native app talking to itself)
-// — never sets Origin or Referer, so their absence must be ALLOWED. But a
+// GET, and any non-browser client (curl, the native app talking to itself),
+// never sets Origin or Referer, so their absence must be ALLOWED. But a
 // cross-origin browser request always carries an Origin the page itself
 // cannot spoof or suppress, so any PRESENT value must match our own loopback
 // origin; Referer is the fallback when Origin is absent (older browsers /
@@ -246,7 +246,7 @@ function openerCommand(platform, url) {
   return { cmd: "xdg-open", args: [url] };
 }
 
-// True when the browser heartbeat has been silent longer than `idleMs` — the
+// True when the browser heartbeat has been silent longer than `idleMs`. The
 // launcher uses this to shut the server down once the last tab is closed.
 function isIdleTimedOut(lastPing, now, idleMs) {
   return (now - lastPing) > idleMs;
@@ -255,7 +255,7 @@ function isIdleTimedOut(lastPing, now, idleMs) {
 // Liveness tracker for the launcher's auto-exit watchdog (server.js arms it only
 // under --open), so closing the browser also closes the command window.
 //
-// silence is NOT a close signal — Chromium throttles timers in hidden
+// silence is NOT a close signal: Chromium throttles timers in hidden
 // tabs to about one a minute, sleeping tabs / Memory Saver / a laptop lid stop
 // them entirely, and the old "6 s without a ping" rule shut the server down
 // under a user who had only switched tabs. Each open page pings with its own
@@ -264,7 +264,7 @@ function isIdleTimedOut(lastPing, now, idleMs) {
 // from the wizard to the archive pings again well inside the grace), or after
 // `idleMs` with no contact at all (a killed browser never says goodbye).
 //
-// Server-initiated blocking work — the native pickers and the build — freezes
+// Server-initiated blocking work (the native pickers and the build) freezes
 // the event loop, so nothing can arrive meanwhile; enter()/leave() bracket it,
 // the watchdog holds off while busy, and leave() restarts the clocks.
 // `clock` is injectable for tests.
@@ -312,7 +312,7 @@ function buildFailureMessage(stderr) {
   const m = /^BUILD ERROR: (.+)$/m.exec(s);
   if (m) return m[1].trim();
   if (/heap out of memory|Reached heap limit|Allocation failed|ERR_STRING_TOO_LONG|Invalid string length/i.test(s)) {
-    return "The build ran out of memory — your export is very large. Close other programs and try again.";
+    return "The build ran out of memory because your export is very large. Close other programs and try again.";
   }
   return "The build stopped unexpectedly. The server window has the technical details.";
 }
@@ -328,7 +328,7 @@ function friendlyError(e) {
     case "ENOENT": return "A file or folder couldn't be found" + where + ". Check the path and try again.";
     case "EPERM":
     case "EACCES": return "Access was denied" + where + ". Close any program using it, or move the archive out of a protected folder, and try again.";
-    case "EBUSY": return "A file is in use by another program" + where + " — antivirus or a sync app? Wait a moment and try again.";
+    case "EBUSY": return "A file is in use by another program" + where + " (antivirus or a sync app?). Wait a moment and try again.";
     case "ENOSPC": return "The disk is full. Free up some space and try again.";
     case "EISDIR": return "Expected a file but found a folder" + where + ".";
     case "ENOTDIR": return "Expected a folder but found a file" + where + ".";
@@ -357,7 +357,7 @@ function mediaFolderProblem(dirName, names) {
   }
   if (/^data$/i.test(n) || (names || []).some((f) => /\.js$/i.test(f))) {
     return "“" + n + "” looks like your archive's data folder (it holds .js export files), not the group media folder. " +
-      "Pick the direct_messages_group_media folder inside it — the archive never copies your other private files.";
+      "Pick the direct_messages_group_media folder inside it. The wizard never copies your other private files.";
   }
   return null;
 }
@@ -381,8 +381,8 @@ function buildNodeArgs(buildJs, totalBytes) {
 // more than the Origin/Referer check: an <img referrerpolicy="no-referrer">
 // on any web page sends neither header. They also need the per-process token
 // the server writes into the /setup.html page (a custom header, so a cross-origin page
-// would need a CORS preflight the server never grants), and — when the
-// browser says where the request came from — it must be this very origin.
+// would need a CORS preflight the server never grants), and, when the
+// browser says where the request came from, it must be this very origin.
 function isPickerRequestAllowed(headers, token, port) {
   const h = headers || {};
   const got = typeof h["x-gca-token"] === "string" ? h["x-gca-token"] : "";
@@ -486,8 +486,8 @@ function pathNotFoundHint(platform, name) {
 }
 
 /* ---- which copied media files the archive still uses --------------- */
-// each of these is a collector — message(conv, msg) per message,
-// conversation(conv) once per conversation (msgs excluded), result() — so the
+// each of these is a collector: message(conv, msg) per message,
+// conversation(conv) once per conversation (msgs excluded), result(), so the
 // server folds them over a STREAMED data.js (fs-io foldArchive) and never
 // holds the archive's message bodies. The data-object forms below fold the
 // same collectors over an in-memory archive.
@@ -532,7 +532,7 @@ function createRemovalCounter(ignoredGroups, ignoredUsers) {
 }
 function removalPreview(data, ignoredGroups, ignoredUsers) { return fold(data, createRemovalCounter(ignoredGroups, ignoredUsers)); }
 // Who a media file belonged to, for the quarantine folder
-// personal_data/.removed/<kind>/<id>/ — by message id, from the archive as it
+// personal_data/.removed/<kind>/<id>/, by message id, from the archive as it
 // was BEFORE the rebuild that drops them. Only messages being removed are mapped.
 function createOwnersCollector(ignoredGroups, ignoredUsers) {
   const G = new Set((ignoredGroups || []).map(String)), U = new Set((ignoredUsers || []).map(String));
@@ -584,7 +584,7 @@ const plural = (n, one, many) => fmtN(n) + " " + (n === 1 ? one : many);
 function sourceNoteText(n) {
   const files = (list) => (list || []).map((f) => qn(typeof f === "string" ? f : f.file)).join(", ");
   switch (n && n.code) {
-    case "manifest-missing": return "The archive's manifest lists files that aren't in the folder: " + files(n.files) + ". The archive may not have unzipped completely — their messages will be missing.";
+    case "manifest-missing": return "The archive's manifest lists files that aren't in the folder: " + files(n.files) + ". The archive may not have unzipped completely, so their messages will be missing.";
     case "manifest-extra": return "Also included " + files(n.files) + ": in the archive's data folder, though its manifest doesn't list " + (n.files.length === 1 ? "it" : "them") + ".";
     case "manifest-unsafe": return "Ignored " + plural(n.files.length, "path", "paths") + " in the archive's manifest that point outside the folder you picked.";
     case "manifest-unreadable": return "The archive's manifest couldn't be read, so its files were found by their names instead.";
@@ -592,7 +592,7 @@ function sourceNoteText(n) {
     case "skipped-files": return "Skipped " + files(n.files) + ": empty, or not a group chat file.";
     case "no-headers": return "No group headers file was found, so people who never sent a message won't be listed.";
     case "no-media": return "No group media folder was found, so no photos or videos will be copied.";
-    case "dm-file": return "Your 1:1 direct messages are left out — only group chats are imported.";
+    case "dm-file": return "Your 1:1 direct messages are left out. Only group chats are imported.";
     case "post-archive-step-failed": return "Your archive was updated, but a last step after it failed: " + String(n.error || "").trim() + " Nothing is missing; the next build finishes that step.";
     case "legacy-removed-lost": return "The messages of people and group chats you removed earlier couldn't be kept aside: the export copies they came from are gone. If you un-remove them later, only what this export has comes back.";
     default: return null;
@@ -600,7 +600,7 @@ function sourceNoteText(n) {
 }
 const withText = (n) => Object.assign({}, n, { text: sourceNoteText(n) });
 /**
- * The pre-flight warnings, each { code, text } — in the order the user should
+ * The pre-flight warnings, each { code, text }, in the order the user should
  * read them. `p`: { swapped, notes, missingParts: [file names], survey
  * (createExportSurvey().result()), media: { unmatched } | null, merge:
  * { overlap } | null }.
@@ -610,11 +610,11 @@ function preflightWarnings(p) {
   const add = (code, text, extra) => out.push(Object.assign({ code, text }, extra || {}));
   const sv = p.survey;
   if (sv.totals.messages === 0) add("zero-messages", "This export has no group chat messages to import" + (sv.removedMsgs ? " (every message is from a group chat or person you removed)" : "") + ". Check you picked the right archive.");
-  if (p.swapped) add("swapped", "The messages and headers files were the other way round — they'll be swapped back automatically.");
+  if (p.swapped) add("swapped", "The messages and headers files were the other way round. They'll be swapped back automatically.");
   const missing = p.missingParts || [];
   if (missing.length) {
     const one = missing.length === 1;
-    add("missing-parts", missing.map(qn).join(", ") + (one ? " is" : " are") + " missing from the export — the messages in " + (one ? "it" : "them") +
+    add("missing-parts", missing.map(qn).join(", ") + (one ? " is" : " are") + " missing from the export. The messages in " + (one ? "it" : "them") +
       " won't be imported. Re-extract the archive to get every part.", { files: missing });
   }
   for (const n of p.notes || []) {
@@ -622,7 +622,7 @@ function preflightWarnings(p) {
     const t = sourceNoteText(n);
     if (t) add(n.code === "manifest-missing" ? "missing-parts" : n.code, t, n.files ? { files: n.files } : null);
   }
-  if (sv.dm.conversations) add("dm-ignored", plural(sv.dm.conversations, "1:1 conversation", "1:1 conversations") + " (" + plural(sv.dm.messages, "message", "messages") + ") will be left out — only group chats are imported.");
+  if (sv.dm.conversations) add("dm-ignored", plural(sv.dm.conversations, "1:1 conversation", "1:1 conversations") + " (" + plural(sv.dm.messages, "message", "messages") + ") will be left out. Only group chats are imported.");
   if (p.media && p.media.unmatched) add("unmatched-media", plural(p.media.unmatched, "file", "files") + " in the media folder don't belong to any message in this export and won't be copied.");
   // an older download than the archive (or nothing new
   // in it at all): merging keeps the archive's newer copies, but say so first.

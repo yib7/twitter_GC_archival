@@ -1,5 +1,5 @@
 /*
- * make-sample.js — generates a fully synthetic, publishable demo dataset.
+ * make-sample.js: generates a fully synthetic, publishable set of sample data.
  *
  * Emits, into sample/:
  *   - sample/data.sample.js   (same schema build.js produces, multi-conversation)
@@ -12,7 +12,7 @@
  * and no Math.random(), so running it twice gives byte-identical files and CI
  * can check `node scripts/make-sample.js && git diff --exit-code sample`.
  *
- * Everything here is invented — no real messages, names, ids, or media.
+ * Everything here is invented: no real messages, names, ids, or media.
  * The repo is runnable/demoable with ZERO real data present.
  */
 
@@ -193,7 +193,7 @@ const A = ["1001", "1002", "1003", "1004", "1005"];   // Demo Squad
 const B = ["1002", "1003", "1006"];                    // Weekend Plans
 const C = ["1001", "1003", "1006", "1007"];            // Study Group
 
-// Group chats only (the app is group-chats focused)
+// Group chats only (the viewer is for group chats)
 const conversations = [
   groupConvo({
     id: "900000000000000001", title: "Demo Squad", participants: A, n: 360, from: START, to: END,
@@ -236,11 +236,11 @@ const conversations = [
 conversations.sort((a, b) => b.count - a.count);
 
 const OUT = path.join(OUT_DIR, "data.sample.js");
-// __sample marks this as the synthetic demo so the app can show a first-run
+// __sample marks this as the synthetic sample data so the viewer can show a first-run
 // onboarding prompt; any real build overrides window.CHAT_DATA without it.
 fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: GENERATED_AT, __sample: true, conversations }) + ";\n");
 
 const total = conversations.reduce((s, c) => s + c.count, 0);
-console.log("Wrote", path.relative(process.cwd(), OUT) || OUT, "—", conversations.length, "group conversations,", total, "messages.");
-conversations.forEach((c) => console.log("  ·", c.title, "—", c.count, "msgs"));
+console.log("Wrote", path.relative(process.cwd(), OUT) || OUT, "with", conversations.length, "group conversations,", total, "messages.");
+conversations.forEach((c) => console.log("  ·", c.title, "·", c.count, "msgs"));
 console.log("Wrote", PHOTOS.length, "placeholder photos to " + SAMPLE_DIR + "/.");

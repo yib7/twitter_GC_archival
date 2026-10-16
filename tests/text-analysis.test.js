@@ -64,7 +64,7 @@ test("tokenize: URLs are dropped", () => {
   assert.deepStrictEqual(S.tokenize("look https://example.com/a?b=c and www.foo.org now"), ["look", "and", "now"]);
 });
 
-test("tokenize: @mentions and bare domains are dropped too (review fix 2)", () => {
+test("tokenize: @mentions and bare domains are dropped too", () => {
   assert.deepStrictEqual(S.tokenize("hey @john_doe look"), ["hey", "look"]);
   assert.deepStrictEqual(S.tokenize("see youtube.com/watch?v=abc now"), ["see", "now"]);
   assert.deepStrictEqual(S.tokenize("youtu.be/xyz"), []);
@@ -78,7 +78,7 @@ test("tokenize: @mentions and bare domains are dropped too (review fix 2)", () =
   assert.equal(S.plainText("hi @bob"), "hi  ");
 });
 
-test("tokenize: a missing space before a short TLD-like word keeps both words (review round 2)", () => {
+test("tokenize: a missing space before a short TLD-like word keeps both words", () => {
   assert.deepStrictEqual(S.tokenize("I agree.Be there"), ["i", "agree", "be", "there"]);
   assert.deepStrictEqual(S.tokenize("sentence.De nada"), ["sentence", "de", "nada"]);
   assert.deepStrictEqual(S.tokenize("lol.ai is wild"), ["lol", "ai", "is", "wild"]);
@@ -109,7 +109,7 @@ test("tokenize: the no-Segmenter fallback splits CJK into characters", () => {
   assert.deepStrictEqual(S.tokenizeNoSegmenter("我喜欢猫 ok"), ["我", "喜", "欢", "猫", "ok"]);
 });
 
-test("tokenize: the no-Segmenter fallback keeps combining marks on their base (review fix 3)", () => {
+test("tokenize: the no-Segmenter fallback keeps combining marks on their base", () => {
   // กินข้าว = ก + ิ (vowel sign), น, ข + ้ (tone mark), า, ว — no standalone mark.
   const toks = S.tokenizeNoSegmenter("กินข้าว");
   assert.deepStrictEqual(toks, ["กิ", "น", "ข้", "า", "ว"]);
@@ -169,7 +169,7 @@ test("isCloudWord drops stopwords, fragments and numbers but keeps real words in
   for (const w of ["pizza", "привет", "café", "喜欢", "사랑"]) assert.ok(S.isCloudWord(w), w);
 });
 
-test("topCloudWords groups spellings by wordKey and shows the commonest (review fix 7)", () => {
+test("topCloudWords groups spellings by wordKey and shows the commonest", () => {
   const counts = new Map([["y'all", 2], ["yall", 3], ["pizza", 4], ["the", 9], ["i'm", 5]]);
   assert.deepStrictEqual(S.topCloudWords(counts, 5), [["yall", 5], ["pizza", 4]]);
   // Equal counts: the first-seen spelling wins; order is count, then key.
@@ -177,14 +177,14 @@ test("topCloudWords groups spellings by wordKey and shows the commonest (review 
   assert.deepStrictEqual(S.topCloudWords(new Map([["pizza", 1], ["movie", 2]]), 1), [["movie", 2]]);
 });
 
-test("pronoun contractions never merge into the word they fold to (review round 2)", () => {
+test("pronoun contractions never merge into the word they fold to", () => {
   assert.deepStrictEqual(S.topCloudWords(new Map([["hell", 3], ["he'll", 5]]), 5), [["hell", 3]]);
   assert.deepStrictEqual(S.topCloudWords(new Map([["shell", 2], ["she'll", 4], ["shed", 1], ["she'd", 3]]), 5), [["shell", 2], ["shed", 1]]);
   for (const w of ["he'll", "she'll", "she'd", "we'll", "we're", "i'll", "we'd", "he’ll"]) {
     assert.ok(S.isStopword(S.tokenize(w)[0]), w);
   }
   for (const w of ["hell", "shell", "shed"]) assert.ok(!S.isStopword(w), w);
-  // y'all / yall still merge (review fix 7).
+  // y'all / yall still merge.
   assert.deepStrictEqual(S.topCloudWords(new Map([["y'all", 2], ["yall", 3]]), 5), [["yall", 5]]);
 });
 
@@ -236,13 +236,13 @@ test("isProfane matches the common stems", () => {
   for (const t of ["hello there", "cocktail hour", "dickens novel", "shiitake"]) assert.ok(!S.isProfane(t), t);
 });
 
-test("isKeysmash: a diverse vowel-free run, never a stretched interjection (review fix 4)", () => {
+test("isKeysmash: a diverse vowel-free run, never a stretched interjection", () => {
   for (const t of ["sdfghjkl", "asdfasdf", "hjkl", "jfkdlsjf", "dhsjfkdl", "omg fjdkslfj", "GKDJSHFL"]) assert.ok(S.isKeysmash(t), t);
   for (const t of ["hmmmmm", "shhhhh", "brrrrr", "zzzzzz", "hello world",
     "pfffft", "hmmmmph", "nggghhh", "grrrrrr", "psssst", "tsktsktsk", "pshhhht", "rhythms"]) assert.ok(!S.isKeysmash(t), t);
 });
 
-test("isKeysmash: long home-row rolls and ones with a stray 'a' count; words never do (review round 2)", () => {
+test("isKeysmash: long home-row rolls and ones with a stray 'a' count; words never do", () => {
   for (const t of ["sdkjfhsdkjfhskdjfh", "skdjfhskdjfhsdkjfhksjdhf", "jfkdlsajf", "ajsdhfkjsdhf", "asdfghjkl"]) {
     assert.ok(S.isKeysmash(t), t);
   }
@@ -251,7 +251,7 @@ test("isKeysmash: long home-row rolls and ones with a stray 'a' count; words nev
     "flasks", "klatsch"]) assert.ok(!S.isKeysmash(t), t);
 });
 
-test("isKeysmashPlain skips the link strip for text that is already plainText (review round 2)", () => {
+test("isKeysmashPlain skips the link strip for text that is already plainText", () => {
   assert.equal(typeof S.isKeysmashPlain, "function");
   for (const t of ["sdkjfhsdkjfh ok", "look https://t.co/xkcdbzqwrt lol", "salads", "", "hjkl @asdfbot"]) {
     assert.equal(S.isKeysmashPlain(S.plainText(t)), S.isKeysmash(t), t);
@@ -259,7 +259,7 @@ test("isKeysmashPlain skips the link strip for text that is already plainText (r
   assert.equal(S.isKeysmashPlain(""), false);
 });
 
-test("keyword / keysmash checks never read inside a link (review fix 1)", () => {
+test("keyword / keysmash checks never read inside a link", () => {
   assert.equal(S.isKeysmash("https://t.co/xkcdbzqwrt"), false);
   assert.equal(S.isKeysmash("look https://t.co/xkcdbzqwrt lol"), false);
   assert.equal(S.isKeysmash("sdfghjkl https://t.co/abc"), true);

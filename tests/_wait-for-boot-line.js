@@ -5,10 +5,8 @@ require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 // server.js prints the port it actually bound on stdout instead of the
 // caller guessing/polling one — parse that line rather than assuming.
 //
-// Review fix (dedup): this used to be copy-pasted verbatim into
-// server-host-guard.test.js, server-port-zero.test.js, and
-// setup-prefill.spec.js — three copies to keep in sync by hand. One shared
-// module now backs all three.
+// Shared by server-host-guard.test.js, server-port-zero.test.js, and
+// setup-prefill.spec.js, so the boot-line parsing lives in one place.
 const BOOT_LINE_RE = /Group Chat Archive running at\s+http:\/\/127\.0\.0\.1:(\d+)/;
 
 function waitForBootLine(child, timeoutMs) {

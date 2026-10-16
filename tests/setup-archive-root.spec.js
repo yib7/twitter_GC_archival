@@ -83,7 +83,7 @@ test("picking only the archive folder builds every part, with the media", async 
   await expect(page.locator("#pf-lines")).toContainText(/People\s*5/);
   await expect(page.locator("#pf-lines")).toContainText(/Photos & videos\s*3/);
   await expect(page.locator("#pf-groups li")).toHaveCount(2);
-  await expect(page.locator("#pf-groups")).toContainText(/Synthetic Crew — 5 messages/);
+  await expect(page.locator("#pf-groups")).toContainText(/Synthetic Crew: 5 messages/);
   await expect(page.locator('#pf-warnings li[data-code="dm-ignored"]')).toContainText(/1 1:1 conversation/);
   expect(fs.readdirSync(personal)).toEqual([]);
   // changing a field drops the preview (it no longer describes the fields)

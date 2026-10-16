@@ -45,7 +45,7 @@ test("an older export is merged only after ticking the extra confirm", async ({ 
   await ok.check();
   await confirm.click();
   await expect(page.locator("#src-result")).toHaveClass(/ok/, { timeout: 15000 });
-  await expect(page.locator("#src-result")).toContainText(/Merged: 5 new messages added — your archive now has 12 messages/);
+  await expect(page.locator("#src-result")).toContainText(/Merged: 5 new messages added\. Your archive now has 12 messages/);
 });
 
 test("a newer export shows no extra confirm", async ({ page }) => {

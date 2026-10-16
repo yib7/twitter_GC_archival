@@ -129,7 +129,7 @@ test("Flash / Ghoster medians, Deserter silence, Scholar at a common N", async (
   await expect(card(page, "The Scholar").locator(".s-def")).toContainText("first 100 words");
 });
 
-// Review fix 1: keyword / keysmash / question checks read the message WITHOUT
+// Keyword / keysmash / question checks read the message WITHOUT
 // its links — a t.co slug ("xkcdbzqwrt") is not a keysmash and a "?" in a query
 // string is not a question.
 test("links never count as keysmashes or questions", async ({ page }) => {
@@ -145,8 +145,8 @@ test("links never count as keysmashes or questions", async ({ page }) => {
   await expect(card(page, "The Inquisitor").locator(".s-name")).toHaveText("User 2");
 });
 
-// Review fix 5: the last message of the archive ends its day too — the final
-// day's closer used to be dropped from Thread Killer.
+// The last message of the archive ends its day too, so the final day's closer
+// counts for Thread Killer.
 test("Thread Killer credits the final day", async ({ page }) => {
   const D = (d, h) => Date.UTC(2024, 6, 1 + d, h);
   const out = [
@@ -163,7 +163,7 @@ test("Thread Killer credits the final day", async ({ page }) => {
   await expect(card(page, "Thread Killer").locator(".s-tie")).toHaveCount(0);
 });
 
-// Review fix 8: tied Deserters with different silences — the card must not
+// Tied Deserters with different silences — the card must not
 // quote the first winner's duration as if it were everyone's.
 test("a tied Deserter card only quotes a duration the winners share", async ({ page }) => {
   const out = [];

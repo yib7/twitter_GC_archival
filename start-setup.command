@@ -1,7 +1,8 @@
 #!/bin/sh
 # ============================================================================
-#  Double-click (macOS) or run to set up the Group Chat Archive.
-#  Starts the local server and opens the setup wizard in your browser.
+#  Double-click (macOS) or run `sh start-setup.command` (Linux) to set up the
+#  Group Chat Archive.
+#  Starts the setup server and opens the setup wizard in your browser.
 #  Needs Node.js 22.13 or newer installed (https://nodejs.org); Node 23 is
 #  not supported. The server stops by itself shortly after you close the
 #  browser tab.
@@ -10,7 +11,7 @@
 # ============================================================================
 cd "$(dirname "$0")" || exit 1
 
-# Run from inside a ZIP / disk-image preview, only this file is there.
+# Started from inside a ZIP or disk-image preview, where only this file is present.
 if [ ! -f scripts/server.js ]; then
   echo
   echo "  The Group Chat Archive can't start from inside the ZIP file."

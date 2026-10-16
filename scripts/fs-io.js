@@ -1,5 +1,5 @@
 /*
- * fs-io.js — the small filesystem layer under the ingestion pipeline.
+ * fs-io.js: the small filesystem layer under the ingestion pipeline.
  *
  * build-core.js stays pure (no I/O); this file is the thin shell that feeds
  * it bytes from disk. Shared by scripts/build.js and scripts/server.js.
@@ -77,7 +77,7 @@ function foldArchive(file, collectors, opts) {
   }, opts);
 }
 // The metadata at the head of a data.js (generatedAt, ignoredUsers,
-// ignoredGroups — archiveChunks writes it before "conversations"), without
+// ignoredGroups; archiveChunks writes it before "conversations"), without
 // reading the rest. null when the file is missing or doesn't start that way.
 const ARCHIVE_META_RE = /^\uFEFF?\s*window\.CHAT_DATA\s*=\s*(\{[\s\S]*?),?"conversations"\s*:/;
 function readArchiveMeta(file) {
@@ -88,7 +88,7 @@ function readArchiveMeta(file) {
   try { return JSON.parse(m[1] === "{" ? "{}" : m[1] + "}"); } catch (e) { return null; }
 }
 
-// The first `max` bytes of a file as text — enough to read its window.YTD
+// The first `max` bytes of a file as text, enough to read its window.YTD
 // global without loading the file.
 function readExportHead(file, max) {
   const n = max || 1024;
@@ -112,7 +112,7 @@ const statOr = (p) => { try { return fs.statSync(p); } catch (e) { return null; 
 /**
  * The user picked their unzipped Twitter/X archive (its root, its data/ folder,
  * or any file in either). Find the group messages files (every part, in
- * order), the group headers file(s) and the group media folder — from
+ * order), the group headers file(s) and the group media folder from
  * data/manifest.js when it is there and usable, else by file name.
  * Nothing outside the picked folder is ever used: manifest paths with "..",
  * absolute paths, and anything that resolves (through a symlink or junction)
@@ -193,7 +193,7 @@ function locateExport(pickedIn) {
     messages = fam.messages.filter(inside).map((n) => path.join(dataDir, n));
     headers = fam.headers.filter(inside).map((n) => path.join(dataDir, n));
   } else {
-    // the manifest isn't taken as the complete list — a
+    // the manifest isn't taken as the complete list: a
     // stale one can leave out a part that is right there. Export-named files
     // in the data folder it doesn't list are added, in part order.
     const key = (p) => { const r = path.resolve(p); return process.platform === "win32" ? r.toLowerCase() : r; };
@@ -227,7 +227,7 @@ function locateExport(pickedIn) {
 /* ---- crash-safe writes --------------------------------------------- */
 // Write to a temp file in the SAME directory (so the rename can't cross
 // volumes), flush it, then rename it over the target: readers see either the
-// old file or the complete new one, never a truncated mix — whatever happens
+// old file or the complete new one, never a truncated mix, whatever happens
 // mid-write (crash, power loss, full disk, an AV/OneDrive lock).
 //
 // Windows: renaming over a file another process holds open can fail with
@@ -251,14 +251,14 @@ function unlinkQuiet(f) { try { fs.unlinkSync(f); } catch (e) { /* already gone 
 function heldError(dest, cause) {
   const name = "“" + path.basename(dest) + "”";
   const e = new Error("Couldn't save " + name + ": another program is holding it open (antivirus, OneDrive or an editor?). " +
-    "Close that program and try again — the previous version of " + name + " is unchanged.");
+    "Close that program and try again. The previous version of " + name + " is unchanged.");
   e.code = (cause && cause.code) || "EBUSY";
   e.path = dest;
   e.userMessage = e.message;
   return e;
 }
 // A first save (no file at `dest` yet) whose freshly written temp file another
-// program won't let go of — usually antivirus scanning it.
+// program won't let go of, usually antivirus scanning it.
 function newFileHeldError(dest, cause) {
   const name = "“" + path.basename(dest) + "”";
   const e = new Error("Couldn't save " + name + ": another program (antivirus or a sync app?) is still holding the new file. " +
@@ -288,7 +288,7 @@ function replaceFile(tmp, dest, opts) {
   const aside = tmpNameFor(dest);
   try { rename(dest, aside); }
   catch (e) {
-    // no old file at all (a first save) — what's held is the NEW file
+    // no old file at all (a first save): what's held is the NEW file
     // (antivirus scanning it), and there is no previous version to speak of.
     if (e && e.code === "ENOENT" && !fs.existsSync(dest)) throw newFileHeldError(dest, last);
     throw heldError(dest, last);                       // nothing moved: the caller removes tmp
