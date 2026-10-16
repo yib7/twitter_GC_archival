@@ -171,7 +171,12 @@ describe("media paths in data.js", () => {
     const data = JSON.parse(text.replace(/^window\.CHAT_DATA\s*=\s*/, "").replace(/;\s*$/, ""));
     const m = data.conversations.flatMap((c) => c.msgs).find((x) => x.i === "9002");
     assert.equal(m.m, "personal_data/media/9002-AbCdEf.png");
-    assert.ok(!text.includes(".."), "no path climbing out of the project in data.js");
+    // every media path (not message text, which may say "wait..") stays inside
+    const paths = data.conversations.flatMap((c) => c.msgs).flatMap((x) => [x.m].concat((x.mx || []).map((y) => y && y.m))).filter(Boolean);
+    assert.ok(paths.length > 0);
+    for (const p of paths) {
+      assert.ok(!/(?:^|[\\/])\.\.(?:[\\/]|$)/.test(p) && !path.isAbsolute(p) && !/^[A-Za-z]:/.test(p), "no path climbing out of the project in data.js: " + p);
+    }
     assert.doesNotMatch(r.stdout, /\.\.[\\/]/, "the log names the folder the same way: " + r.stdout);
   });
 });
