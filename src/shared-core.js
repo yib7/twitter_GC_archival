@@ -727,17 +727,24 @@
     if (!m) return [];
     if (!RE_NOSPACE_SCRIPT.test(s)) return m;
     const out = [];
+    // a piece of a no-space run never starts, ends or is made of a joiner
+    const push = (w) => { if (RE_HAS_JOINER.test(w)) w = w.replace(RE_EDGE_JOINERS, ""); if (w) out.push(w); };
     for (const t of m) {
       if (!RE_NOSPACE_SCRIPT.test(t)) { out.push(t); continue; }
-      if (seg) { for (const w of seg.segment(t)) if (w.isWordLike) out.push(w.segment); }
-      else for (const piece of t.match(RE_NOSPACE_RUNS)) out.push(piece);
+      if (seg) { for (const w of seg.segment(t)) if (w.isWordLike) push(w.segment); }
+      else for (const piece of t.match(RE_NOSPACE_RUNS)) push(piece);
     }
     return out;
   }
   function tokenize(text) { return tokenizeWith(text, WORDS_SEG); }
   function tokenizeNoSegmenter(text) { return tokenizeWith(text, null); }
-  // Apostrophe-free form: the key stopwords, word counts and battles compare.
-  function wordKey(t) { return t.indexOf("'") === -1 ? t : t.replace(/'/g, ""); }
+  // Apostrophe- and joiner-free form: the key stopwords, word counts and
+  // battles compare, so "don't" is "dont" and a Persian word typed with or
+  // without its zero-width non-joiner is one word.
+  const RE_HAS_JOINER = /[\u200C\u200D]/, RE_EDGE_JOINERS = /^[\u200C\u200D]+|[\u200C\u200D]+$/g;
+  function wordKey(t) {
+    return t.indexOf("'") === -1 && !RE_HAS_JOINER.test(t) ? t : t.replace(/['\u200C\u200D]/g, "");
+  }
   // One shared stopword list (word cloud, Wrapped word of the year). Entries
   // are apostrophe-free; isStopword() folds the token the same way, so "i'm",
   // "don’t" and "dont" all hit "im" / "dont".
@@ -807,15 +814,12 @@
   function countWord(text, word) { return countKeys(text, wordKeys(word)); }
   // Cheap prefilter before countKeys over many texts: false only when the
   // lower-cased text cannot contain the folded key (apostrophes and the
-  // characters tokenize drops removed).
+  // characters tokenize or wordKey drop removed).
+  const RE_KEY_FOLDED = /['\u2018\u2019\u02BC\uFF07\u200C]|\u200D|[\uFE0F\u20E3]/g, RE_HAS_KEY_FOLDED = /['\u2018\u2019\u02BC\uFF07\u200C]|\u200D|[\uFE0F\u20E3]/;
   function mayContainKey(lowerText, key) {
     if (!lowerText || !key) return false;
     if (lowerText.indexOf(key) !== -1) return true;
-    const apos = lowerText.indexOf("'") !== -1 || RE_HAS_APOS.test(lowerText);
-    if (!apos && !RE_HAS_EMOJI_TAIL.test(lowerText)) return false;
-    let t = lowerText.replace(RE_EMOJI_TAIL, "");
-    if (apos) t = t.replace(RE_APOS, "").split("'").join("");
-    return t.indexOf(key) !== -1;
+    return RE_HAS_KEY_FOLDED.test(lowerText) && lowerText.replace(RE_KEY_FOLDED, "").indexOf(key) !== -1;
   }
 
   // --- Keyword patterns -------------------------------------------------

@@ -136,6 +136,26 @@ test("tokenize: a ZWJ or ZWNJ between letters keeps the word whole", () => {
   assert.equal(S.countWord(RAB, JAB), 0);
 });
 
+// A joiner is never a word or the edge of one: in Japanese or Thai text a
+// stray joiner used to come out as a token of its own (no Segmenter) or stick
+// to the word before it ("日本語" + ZWJ was not "日本語"). Persian is typed
+// with and without the ZWNJ in "mi-khaham", and both spellings are one word.
+test("tokenize: a joiner never ends or makes up a token, and wordKey drops it", () => {
+  const JA = "\u65E5\u672C\u8A9E\u200D\u30C6\u30AD\u30B9\u30C8", TH = "\u0E20\u0E32\u0E29\u0E32\u200C\u0E44\u0E17\u0E22";
+  for (const tok of [S.tokenize, S.tokenizeNoSegmenter]) {
+    for (const t of [JA, TH, "\u65E5\u200D \u200C\u0E44"]) {
+      for (const w of tok(t)) assert.ok(w && !/^[\u200C\u200D]|[\u200C\u200D]$/.test(w), JSON.stringify([t, w]));
+    }
+  }
+  assert.ok(S.tokenize(JA).includes("\u65E5\u672C\u8A9E"), JSON.stringify(S.tokenize(JA)));
+  const MIKHAHAM = "\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645", PLAIN = "\u0645\u06CC\u062E\u0648\u0627\u0647\u0645";
+  assert.equal(S.wordKey(MIKHAHAM), PLAIN);
+  assert.equal(S.wordKey("don't"), "dont");
+  assert.equal(S.countWord(MIKHAHAM + " " + PLAIN, PLAIN), 2);
+  assert.equal(S.countWord(MIKHAHAM + " " + PLAIN, MIKHAHAM), 2);
+  assert.equal(S.mayContainKey(MIKHAHAM, S.wordKey(PLAIN)), true);
+});
+
 test("stopwords are apostrophe-insensitive", () => {
   for (const w of ["i'm", "don't", "can't", "that's", "it's", "everyone's", "didn't", "dont", "im"]) {
     assert.ok(S.isStopword(w), w);
