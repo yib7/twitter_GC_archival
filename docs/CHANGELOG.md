@@ -248,6 +248,7 @@ All notable changes to this project are recorded here.
   It is on by default for Wrapped slides that rank people, and your last
   choice is remembered on this device. A name that is also a common word
   (a lowercase "will") may stay in the message text, so check the preview.
+  A possessive name hides its stem too: "Dad's Phone" also hides "Dad".
 - Wrapped backdrops and highlights are mixed from your accent colour in all
   three themes instead of fixed violet/amber washes.
 - The softer text tweaks made for contrast now apply only to Light and Dim;
