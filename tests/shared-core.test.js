@@ -383,3 +383,19 @@ test("a word of only invisible characters has an empty key and is dropped", () =
   }
   assert.deepStrictEqual(shared.cleanBattleWords(["\u200D", "\uFE0F", "\u200B\u2060", "ok", "\u2764\u200D\u{1F525}"]), ["ok", "\u2764\u200D\u{1F525}"]);
 });
+
+// U+FE0E asks for the text style of an emoji (a plain heart): it is the same
+// heart, and as invisible as U+FE0F. A text-style heart did not count toward
+// an added heart, a lone U+FE0E was a word, and "ok" + U+FE0E was not "ok".
+test("the text-style selector U+FE0E is dropped like U+FE0F", () => {
+  const c = (text, word) => shared.countQuery(text, shared.wordQuery(word));
+  assert.equal(c("I \u2764\uFE0E you \u2764\uFE0F \u2764", "\u2764\uFE0F"), 3);
+  assert.equal(c("\u263A\uFE0E", "\u263A\uFE0F"), 1);
+  assert.equal(shared.battleKey("\u2764\uFE0E"), shared.battleKey("\u2764\uFE0F"));
+  assert.equal(shared.battleKey("\uFE0E"), "");
+  for (const tok of [shared.tokenize, shared.tokenizeNoSegmenter]) assert.deepStrictEqual(tok("ok\uFE0E go"), ["ok", "go"]);
+  assert.equal(shared.countWord("ok\uFE0E", "ok"), 1);
+  const smile = shared.wordQuery(":D");
+  assert.equal(shared.countQuery(":\uFE0ED", smile), 1);
+  assert.equal(shared.queryMayMatch(":\uFE0Ed", smile), true);
+});

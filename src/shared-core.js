@@ -714,10 +714,10 @@
   // stay on their consonant) — or a run of anything else.
   const RE_NOSPACE_RUNS = /(?:(?!\p{M})[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}])\p{M}*|[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]+/gu;
   const WORDS_SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter("en", { granularity: "word" }) : null;
-  // The emoji presentation selector and the keycap mark are dropped before
-  // matching, so a keycap is the digit it shows and a selector never sticks
-  // to the letter before it.
-  const RE_EMOJI_TAIL = /[\uFE0F\u20E3]/g, RE_HAS_EMOJI_TAIL = /[\uFE0F\u20E3]/;
+  // The emoji and text presentation selectors (U+FE0F, U+FE0E) and the keycap
+  // mark are dropped before matching, so a keycap is the digit it shows and a
+  // selector never sticks to the letter before it.
+  const RE_EMOJI_TAIL = /[\uFE0E\uFE0F\u20E3]/g, RE_HAS_EMOJI_TAIL = /[\uFE0E\uFE0F\u20E3]/;
   function tokenizeWith(text, seg) {
     if (!text) return [];
     let s = plainText(text).toLowerCase();
@@ -815,7 +815,7 @@
   // Cheap prefilter before countKeys over many texts: false only when the
   // lower-cased text cannot contain the folded key (apostrophes and the
   // characters tokenize or wordKey drop removed).
-  const RE_KEY_FOLDED = /['\u2018\u2019\u02BC\uFF07\u200C]|\u200D|[\uFE0F\u20E3]/g, RE_HAS_KEY_FOLDED = /['\u2018\u2019\u02BC\uFF07\u200C]|\u200D|[\uFE0F\u20E3]/;
+  const RE_KEY_FOLDED = /['\u2018\u2019\u02BC\uFF07\u200C]|\u200D|[\uFE0E\uFE0F\u20E3]/g, RE_HAS_KEY_FOLDED = /['\u2018\u2019\u02BC\uFF07\u200C]|\u200D|[\uFE0E\uFE0F\u20E3]/;
   function mayContainKey(lowerText, key) {
     if (!lowerText || !key) return false;
     if (lowerText.indexOf(key) !== -1) return true;
@@ -1205,7 +1205,7 @@
   const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
   const RE_SYMBOL_IN_WORD = /[^\p{L}\p{N}\p{M}\p{Cf}\s'\u2018\u2019\u02BC\uFF07][\s\S]*[\p{L}\p{N}]/u;
   const battleText = (s) => s.replace(RE_EMOJI_TAIL, "").toLowerCase().replace(/\s+/g, " ").trim();
-  const RE_INVISIBLE = /[\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/g;
+  const RE_INVISIBLE = /[\uFE0E\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/g;
   function battleKey(word) { return wordQuery(word).key; }
   // A word ready to count over many messages: its key, its whole-word keys,
   // whether it is counted by its text, and a probe for queryMayMatch. A text
