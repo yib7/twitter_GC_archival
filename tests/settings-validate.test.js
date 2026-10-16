@@ -1,6 +1,6 @@
 // Unit coverage for the pure settings validators in src/shared-core.js
-//. The browser-level behavior — boot never bricks, an import is
-// validated before it is saved — is covered end-to-end by
+// The browser-level behavior (boot never bricks, an import is
+// validated before it is saved) is covered end to end by
 // tests/settings-validate.spec.js; this file pins the validators themselves.
 
 require("./_real-data-guard.js");   // refuse to run outside a clean checkout
