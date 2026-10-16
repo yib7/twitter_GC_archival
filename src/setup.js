@@ -334,6 +334,8 @@ function loadStatus() {
     try {
       const r = await fetch("/api/status");
       const j = await r.json();
+      // a config.json the server can't read: say so now, not at the first click
+      if (!r.ok) { flash($("#src-result"), "✗ " + escapeHtml((j && j.error) || "Could not read your saved settings."), "err"); return; }
       // Prefill previously saved identity regardless of `built` — a reopened
       // wizard should show prior names/me/photos even before this run's build.
       state.me = j && j.me != null ? String(j.me) : null;
