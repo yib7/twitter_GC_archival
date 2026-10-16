@@ -589,6 +589,10 @@ button, input, select, textarea { font-family: inherit; }
   font-family: var(--font-mono); font-size: 11px; color: var(--text-faint);
   border: 1px solid var(--border-lift); border-radius: 4px; padding: 1px 5px;
 }
+.tbtn { white-space: nowrap; flex: none; }
+/* beside the sidebar on a small window the toolbar is tight: less padding and
+   no "/" hint, so neither button breaks onto two lines */
+@media (max-width: 900px) { .tl-toolbar { padding: 0 16px; gap: 10px; } .tbtn .kbd { display: none; } }
 @media (max-width: 760px) { .tl-toolbar { display: none; } }
 
 /* empty / hints */

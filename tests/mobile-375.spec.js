@@ -102,3 +102,25 @@ test("at 768px (touch) a People card gives its messages the card's width", async
   const sw = await page.locator("#view-people .person").first().locator(".swatch").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right));
   for (const r of sw) expect(r).toBeLessThanOrEqual(card.x + card.width + 0.5);
 });
+
+// Beside the sidebar on a tablet, the Timeline toolbar's "Jump to date" broke
+// onto two lines inside its pill. Both buttons stay one line and on screen.
+test("at 768px the Timeline toolbar buttons stay on one line", async ({ page }) => {
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "timeline" } });
+  await page.setViewportSize({ width: 768, height: 1024 });
+  const view = await page.locator("#view-timeline").boundingBox();
+  for (const id of ["#tl-jumpdate", "#tl-search"]) {
+    const lines = await page.locator(id).evaluate((b) => {
+      const tops = new Set(), w = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+      for (let n = w.nextNode(); n; n = w.nextNode()) {
+        if (!n.textContent.trim() || n.parentElement.closest(".kbd")) continue;
+        const r = document.createRange(); r.selectNodeContents(n);
+        for (const x of r.getClientRects()) if (x.width > 1) tops.add(Math.round(x.top));
+      }
+      return tops.size;
+    });
+    expect(lines, id).toBe(1);
+    const box = await page.locator(id).boundingBox();
+    expect(box.x + box.width, id).toBeLessThanOrEqual(view.x + view.width);
+  }
+});
