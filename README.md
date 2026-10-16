@@ -278,6 +278,25 @@ with a newer export that no longer has them). Start over erases all of it.
 > copies of messages it already has (reactions from both are kept). To just
 > edit names, use **Continue**.
 
+### Environment variables
+
+None are needed. Three optional ones change how the server and the build run.
+Set them in the shell that starts the server; nothing reads a `.env` file.
+
+| Variable | Default | Effect |
+|----------|---------|--------|
+| `GCA_PORT` | `8765` | Port for the local server. Change it if 8765 is already taken. |
+| `GCA_PERSONAL` | `personal_data/` in the project folder | Folder for your archive and the wizard's files. Use an absolute path **outside** the project folder: only `personal_data*/` is git-ignored, so a folder inside the repo under another name would let `git add .` commit your real names and photos. |
+| `GCA_DEBUG` | unset | `1` prints the stack trace when a build fails unexpectedly, for bug reports. |
+
+```bash
+GCA_PORT=9000 node scripts/server.js           # macOS / Linux
+$env:GCA_PORT=9000; node scripts/server.js     # Windows PowerShell
+```
+
+The switches the test suite uses are listed under Testing in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#testing).
+
 ### Naming participants
 
 X exports contain only numeric user IDs, so everyone shows as User 1, User 2,

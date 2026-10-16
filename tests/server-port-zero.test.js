@@ -50,7 +50,7 @@ test("GCA_PORT=0 makes the server bind an OS-assigned free port, print it, and a
   assert.equal(body.ok, true);
 });
 
-// An invalid GCA_PORT is a setting the user typed (.env.example invites it):
+// An invalid GCA_PORT is a setting the user typed (README's Environment variables invites it):
 // it gets one plain line and exit code 1, never a Node stack trace.
 for (const bad of ["abc", "70000", "-1", "80.5"]) {
   test("GCA_PORT=" + bad + " stops the server with one plain line and no stack trace", () => {

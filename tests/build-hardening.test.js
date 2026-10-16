@@ -153,7 +153,7 @@ describe("what a failed build tells the user", () => {
 });
 
 describe("media paths in data.js", () => {
-  // GCA_PERSONAL (documented in .env.example) puts personal_data somewhere
+  // GCA_PERSONAL (documented in README's Environment variables) puts personal_data somewhere
   // outside the project. Media paths were written relative to the project
   // root ("../../../Users/<name>/…/media/x.png", or "D:/…" on another drive):
   // the server serves that folder as /personal_data/, so every photo was a

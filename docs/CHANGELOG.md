@@ -375,9 +375,10 @@ All notable changes to this project are recorded here.
   `local.js` shapes, the script load order, the CSP and a Testing section;
   README describes the Node versions, project layout and data schema as they
   are, with new screenshots and a new walkthrough recorded from the demo data.
-- `.env.example` lists only the variables a user may set (`GCA_PORT`,
-  `GCA_PERSONAL`, `GCA_DEBUG`); the test switches are documented in
-  ARCHITECTURE.
+- README's Environment variables section lists only the variables a user may
+  set (`GCA_PORT`, `GCA_PERSONAL`, `GCA_DEBUG`); the test switches are
+  documented in ARCHITECTURE. `.env.example` is gone: nothing reads a `.env`
+  file, so it only suggested one was needed.
 - The vendored Fuse.js and Chart.js ship with their license texts, and
   docs/CREDITS.md records where they come from and their SHA-256 hashes.
 

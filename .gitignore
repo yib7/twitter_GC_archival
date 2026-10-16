@@ -50,11 +50,10 @@ exports/
 *.pem
 *.key
 
-# Local environment overrides (the app needs none, but never commit one if added)
+# Local environment files. Nothing here reads one (the optional variables are
+# set in the shell, see README), but a stray .env could hold someone's secrets.
 .env
 .env.*
-# But DO track the example file so users know what vars are available
-!.env.example
 
 # Editor / IDE / tool / AI session files — never published
 .claude/

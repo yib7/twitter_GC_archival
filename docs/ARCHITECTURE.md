@@ -296,7 +296,7 @@ requires `tests/_real-data-guard.js` first, serves on port 8799, and points
 `sample/data.sample.js` or inject their own.
 
 Environment switches used only by the tests and the harness (never needed
-for normal use, so they are not in `.env.example`):
+for normal use, so they are not in the README's Environment variables table):
 
 | Variable | Effect |
 |----------|--------|
