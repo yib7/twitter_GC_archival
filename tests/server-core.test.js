@@ -279,7 +279,7 @@ test("isServablePath allows anything under /src/, /lib/, /sample_media/", () => 
   assert.equal(isServablePath("/src/styles.css"), true);
   assert.equal(isServablePath("/lib/fuse.min.js"), true);
   assert.equal(isServablePath("/lib/chart.min.js"), true);
-  assert.equal(isServablePath("/sample_media/avatar-1.svg"), true);
+  assert.equal(isServablePath("/sample_media/photo-4.svg"), true);
 });
 
 test("isServablePath allows exactly personal_data/data.js and personal_data/local.js", () => {

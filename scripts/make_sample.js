@@ -3,7 +3,7 @@
  *
  * Emits:
  *   - data.sample.js          (same schema build.js produces, multi-conversation)
- *   - sample_media/*.svg      (placeholder photos + generic avatars)
+ *   - sample_media/*.svg      (placeholder photos the messages point at)
  *
  * Run:  node scripts/make_sample.js              (writes into the project root)
  *       node scripts/make_sample.js --out <dir>  (writes into <dir> instead)
@@ -58,10 +58,6 @@ const PHOTOS = [
   placeholder("photo-3.svg", "🌄 Demo Snapshot", "#111726"),
   placeholder("photo-4.svg", "🍕 Demo Dinner", "#16112a"),
 ];
-// a couple of generic avatar swatches (not wired by default — proves the schema)
-["#3b82f6", "#22c55e", "#f59e0b"].forEach((c, i) =>
-  fs.writeFileSync(path.join(MEDIA, `avatar-${i + 1}.svg`),
-    `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" rx="60" fill="${c}"/><text x="60" y="72" font-family="system-ui" font-size="44" fill="#000" text-anchor="middle">U${i + 1}</text></svg>`));
 
 /* ---- content bank -------------------------------------------------------- */
 const LINES = [
@@ -244,4 +240,4 @@ fs.writeFileSync(OUT, "window.CHAT_DATA = " + JSON.stringify({ generatedAt: GENE
 const total = conversations.reduce((s, c) => s + c.count, 0);
 console.log("Wrote", path.relative(process.cwd(), OUT) || OUT, "—", conversations.length, "group conversations,", total, "messages.");
 conversations.forEach((c) => console.log("  ·", c.title, "—", c.count, "msgs"));
-console.log("Wrote", fs.readdirSync(MEDIA).length, "placeholder files to sample_media/.");
+console.log("Wrote", PHOTOS.length, "placeholder photos to sample_media/.");
