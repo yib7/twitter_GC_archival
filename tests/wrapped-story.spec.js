@@ -256,20 +256,26 @@ test.describe("story mechanics", () => {
     await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(held + 1);
   });
 
+  // Autoplay is playing (an 8 s slide, so it can't advance on its own here).
+  // A press that moves past the slop at once and then rests longer than the
+  // hold delay is a drag, not a hold: the story must not pause mid-drag.
   test("autoplay: a drag that moves cancels the hold, so the swipe navigates and autoplay keeps running", async ({ page }) => {
     await openWrapped(page, { motion: true });
-    await page.locator("#wr-play").click();    // user-paused: only the swipe can move the story
+    const stage = page.locator("#wr-stage");
+    await expect(stage).toHaveClass(/\bwr-auto\b/);
+    await expect(stage).not.toHaveClass(/\bwr-paused\b/);
     const b = await stageBox(page);
     const y = b.y + b.height * 0.5;
     await page.mouse.move(b.x + b.width * 0.5, y);
     await page.mouse.down();
-    await page.mouse.move(b.x + b.width * 0.4, y, { steps: 3 });
-    await page.waitForTimeout(400);            // past the hold delay, already moving
+    await page.mouse.move(b.x + b.width * 0.4, y);   // well past the 10 px slop, at once
+    await page.waitForTimeout(400);                    // then still, past the hold delay
+    await expect(stage).not.toHaveClass(/\bwr-paused\b/);
     await page.mouse.move(b.x + b.width * 0.15, y, { steps: 4 });
     await page.mouse.up();
     expect(await slideNo(page)).toBe(2);
-    await page.locator("#wr-play").click();
-    await expect(page.locator("#wr-stage")).not.toHaveClass(/\bwr-paused\b/);
+    await expect(stage).not.toHaveClass(/\bwr-paused\b/);
+    await expect(page.locator("#wr-play")).toHaveAccessibleName(/Pause/);
   });
 
   test("the Pause button stops autoplay and says so; Play resumes", async ({ page }) => {
@@ -353,23 +359,28 @@ test.describe("story mechanics", () => {
     await expect(stage).toHaveClass(/\bwr-paused\b/);
   });
 
+  // Reads the current segment fill's own clock, so nothing here depends on how
+  // long the steps between dialogs take.
   test("autoplay waits behind keyboard help and the command palette", async ({ page }) => {
     await openWrapped(page, { motion: true });
-    await page.addStyleTag({ content: ".wr-stage { --wr-dur: 1500ms !important; }" });
-    await page.locator("#wr-next").click();     // a fresh 1.5 s segment
-    const at = await slideNo(page);
+    const fill = () => page.locator("#wr-segs .wr-seg.cur i").evaluate((i) => {
+      const a = i.getAnimations().find((x) => x.animationName === "wrFill");
+      return a ? { t: a.currentTime, state: a.playState } : null;
+    });
     for (const [open, sel] of [["?", ".kb-modal"], ["Control+k", ".cmdk"]]) {
       await page.locator("#wr-next").focus();
       await page.keyboard.press(open);
       await expect(page.locator(sel)).toBeVisible();
       await expect(page.locator("#wr-stage")).toHaveClass(/\bwr-paused\b/);
-      await page.waitForTimeout(1000);
+      const before = await fill();
+      expect(before.state).toBe("paused");
+      await page.waitForTimeout(600);
+      expect(await fill()).toEqual(before);     // the fill did not move while it was open
       await page.keyboard.press("Escape");
       await expect(page.locator(sel)).toHaveCount(0);
       await expect(page.locator("#wr-stage")).not.toHaveClass(/\bwr-paused\b/);
+      await expect.poll(async () => (await fill()).state).toBe("running");
     }
-    expect(await slideNo(page)).toBe(at);        // 2 s open in all, but under 1.5 s playing
-    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(at + 1);
   });
 
   // Pressing the button blurs the story, and that blur must not rebuild the

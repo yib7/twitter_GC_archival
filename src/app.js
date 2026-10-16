@@ -5586,6 +5586,8 @@ function paintWrappedChrome(n) {
 }
 // A palette command or a calendar jump removes its dialog without restoring
 // focus; this catches those so the story never stays paused behind nothing.
+// It also runs on every toast and live-region append, which is cheap (no
+// stage: early return; same button state: no repaint). Keep it for the jumps.
 new MutationObserver(() => paintWrappedPlay()).observe(document.body, { childList: true });
 // Autoplay classes on the stage + the Pause / Play button (hidden when
 // reduced motion turns autoplay off). A hold or focus pauses the fill but
