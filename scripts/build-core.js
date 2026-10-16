@@ -28,12 +28,26 @@ const toMs = (iso) => (iso ? Date.parse(iso) : NaN);
 const isGroupId = (id) => !/^\d+-\d+$/.test(String(id));
 
 /* ---- normalization ------------------------------------------------------- */
+// The export is untrusted JSON: every field is brought to the type data.js
+// promises (ids and text as strings, lists as lists) or dropped, so a crafted
+// value (an object as the text, a number as the sender) never reaches the
+// viewer or makes a later step throw.
+const idStr = (v) => (typeof v === "string" ? v : typeof v === "number" && Number.isFinite(v) ? String(v) : null);
+const textStr = (v) => (typeof v === "string" ? v : typeof v === "number" || typeof v === "boolean" ? String(v) : "");
+const optStr = (v) => (typeof v === "string" ? v : undefined);
+const idsOf = (v) => (Array.isArray(v) ? v.map(idStr).filter((x) => x != null) : []);
+const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 function rawToRec(mc) {
-  const rec = { i: mc.id, s: mc.senderId, t: toMs(mc.createdAt), x: mc.text || "" };
-  if (mc.urls && mc.urls.length) rec.u = mc.urls.map((u) => ({ s: u.url, e: u.expanded, d: u.display }));
-  if (mc.reactions && mc.reactions.length) {
-    rec.r = mc.reactions.map((r) => {
-      const rr = { k: r.reactionKey, s: r.senderId };
+  const rec = { i: idStr(mc.id), s: idStr(mc.senderId), t: toMs(typeof mc.createdAt === "string" ? mc.createdAt : ""), x: textStr(mc.text) };
+  const urls = Array.isArray(mc.urls)
+    ? mc.urls.filter((u) => isObj(u) && (typeof u.url === "string" || typeof u.expanded === "string"))
+      .map((u) => ({ s: optStr(u.url), e: optStr(u.expanded), d: optStr(u.display) }))
+    : [];
+  if (urls.length) rec.u = urls;
+  const reactions = Array.isArray(mc.reactions) ? mc.reactions.filter((r) => isObj(r) && idStr(r.reactionKey) != null && idStr(r.senderId) != null) : [];
+  if (reactions.length) {
+    rec.r = reactions.map((r) => {
+      const rr = { k: idStr(r.reactionKey), s: idStr(r.senderId) };
       // Custom-emoji reactions (reactionKey "emoji") carry the actual glyph in a
       // separate field so it isn't lost to the generic REACT.emoji placeholder
       //. ASSUMPTION: field name `emojiReaction` is taken from X's
@@ -42,8 +56,8 @@ function rawToRec(mc) {
       // personal_data/exports) — flag for human verification. `r.emoji` is a
       // defensive fallback in case a differently-shaped export uses that name.
       if (r.reactionKey === "emoji") {
-        const g = r.emojiReaction || r.emoji;
-        if (g) rr.e = String(g);
+        const g = textStr(r.emojiReaction) || textStr(r.emoji);
+        if (g) rr.e = g;
       }
       return rr;
     });
@@ -51,22 +65,30 @@ function rawToRec(mc) {
   return rec;
 }
 function toEvent(m) {
-  if (m.conversationNameUpdate) { const e = m.conversationNameUpdate; return { t: toMs(e.createdAt), type: "name", s: e.initiatingUserId, name: e.name }; }
-  if (m.participantsJoin) { const e = m.participantsJoin; return { t: toMs(e.createdAt), type: "join", s: e.initiatingUserId, ids: e.userIds || [] }; }
-  if (m.participantsLeave) { const e = m.participantsLeave; return { t: toMs(e.createdAt), type: "leave", ids: e.userIds || [] }; }
-  if (m.joinConversation) { const e = m.joinConversation; return { t: toMs(e.createdAt), type: "create", s: e.initiatingUserId }; }
+  const at = (e) => toMs(typeof e.createdAt === "string" ? e.createdAt : "");
+  const by = (e) => { const s = idStr(e.initiatingUserId); return s == null ? undefined : s; };
+  if (isObj(m.conversationNameUpdate)) { const e = m.conversationNameUpdate; return { t: at(e), type: "name", s: by(e), name: textStr(e.name) }; }
+  if (isObj(m.participantsJoin)) { const e = m.participantsJoin; return { t: at(e), type: "join", s: by(e), ids: idsOf(e.userIds) }; }
+  if (isObj(m.participantsLeave)) { const e = m.participantsLeave; return { t: at(e), type: "leave", ids: idsOf(e.userIds) }; }
+  if (isObj(m.joinConversation)) { const e = m.joinConversation; return { t: at(e), type: "create", s: by(e) }; }
   return null;
 }
 function eventKey(e) { return [e.type, e.t, e.name || "", (e.ids || []).join(","), e.s || ""].join("|"); }
 
-// two copies' reactions, once each (same key, sender, glyph).
-function unionReactions(a, b) {
-  const out = [], seen = new Set();
-  for (const r of (a || []).concat(b || [])) {
-    const k = [r && r.k, r && r.s, r && r.e || ""].join("|");
-    if (!seen.has(k)) { seen.add(k); out.push(r); }
+// two copies' reactions, once each (same key, sender, glyph). `seen`, when
+// given, already holds the keys of `a`: a message whose id repeats is merged
+// once per copy, and rebuilding the key set every time made a crafted export
+// with thousands of copies take minutes.
+const reactionKey = (r) => [r && r.k, r && r.s, r && r.e || ""].join("|");
+function unionReactions(a, b, seen) {
+  let keys = seen, out;
+  if (keys) out = a || [];   // `a` is the list this built for the previous copy: add to it
+  else {
+    keys = new Set(); out = [];
+    for (const r of a || []) { const k = reactionKey(r); if (!keys.has(k)) { keys.add(k); out.push(r); } }
   }
-  return out.length ? out : null;
+  for (const r of b || []) { const k = reactionKey(r); if (!keys.has(k)) { keys.add(k); out.push(r); } }
+  return { list: out.length ? out : null, keys };
 }
 
 /* ---- per-conversation accumulator ---------------------------------------- */
@@ -110,6 +132,7 @@ function createAccumulator(opts) {
   // (merging an older download). Only the archive copies whose text differs
   // are held aside (displaced) until finish() knows which side is newer.
   const FROM_PREV = Symbol("fromPrev");
+  const REACTION_KEYS = Symbol("reactionKeys");   // the keys of a merged message's reactions
   let prevNewest = -Infinity, exportNewest = -Infinity;
   const displaced = new Map();   // message id -> [convo, the archive's copy]
   const kept = (cid, s) => !IGNORED_GROUPS.has(String(cid)) && !IGNORED.has(String(s));
@@ -155,8 +178,9 @@ function createAccumulator(opts) {
       if (r.t > exportNewest && kept(convId, r.s)) exportNewest = r.t;
       const old = c.msgMap.get(r.i);
       if (old) {
-        const rs = unionReactions(old.r, r.r);
-        if (rs) r.r = rs;
+        const u = unionReactions(old.r, r.r, old[REACTION_KEYS]);
+        if (u.list) r.r = u.list;
+        r[REACTION_KEYS] = u.keys;   // a Symbol key: never written to data.js
         for (const k of ["m", "k", "mx"]) if (old[k] !== undefined && r[k] === undefined) r[k] = old[k];
         if (old[FROM_PREV] && !displaced.has(r.i) && (old.x !== r.x || JSON.stringify(old.u || null) !== JSON.stringify(r.u || null))) displaced.set(r.i, [c, old]);
       }
@@ -235,7 +259,8 @@ function createAccumulator(opts) {
       for (const rec of msgVals) {
         // a message can have several files; the first stays m/k (what
         // every view already reads), the rest go to mx: [{ m, k }, ...].
-        const mp = mediaIndex[rec.i];
+        // an own key only: an id like "constructor" must not find Object.prototype's
+        const mp = Object.prototype.hasOwnProperty.call(mediaIndex, rec.i) ? mediaIndex[rec.i] : null;
         const list = Array.isArray(mp) ? mp : (mp ? [mp] : []);
         if (list.length) {
           rec.m = list[0]; rec.k = kindOf(list[0]);
@@ -442,6 +467,7 @@ function indexMediaFiles(names, relDir) {
     const dash = f.indexOf("-");
     if (dash <= 0) continue;
     const id = f.slice(0, dash);
+    if (!/^\d+$/.test(id)) continue;   // X names media by numeric message id (and "__proto__" must never be a key)
     (idx[id] || (idx[id] = [])).push(prefix + f);
   }
   return idx;
@@ -609,11 +635,16 @@ function createExportSurvey(opts) {
   return { sink, result, allIds, keepIds, removedIds };
 }
 // the part numbers missing from a family (0-based), e.g. [0, 1, 3] → [2].
+// At most MAX_MISSING_PARTS are listed: a part number comes from the file
+// (its first line or its name), and a crafted "part9999999999" would
+// otherwise loop and fill memory until the server died.
+const MAX_MISSING_PARTS = 50;
 function missingPartNumbers(nums) {
   const have = new Set(nums.filter((n) => Number.isInteger(n) && n >= 0));
   if (!have.size) return [];
   const out = [];
-  for (let i = 0; i < Math.max(...have); i++) if (!have.has(i)) out.push(i);
+  const top = Math.max(...have);
+  for (let i = 0; i < top && out.length < MAX_MISSING_PARTS; i++) if (!have.has(i)) out.push(i);
   return out;
 }
 

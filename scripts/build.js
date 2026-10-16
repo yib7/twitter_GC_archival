@@ -82,10 +82,22 @@ function findMediaDirs(config) {
   const d = resolveHere(config.mediaDir);
   return fs.existsSync(d) ? [d] : [];
 }
+// A media folder as the app loads it. The server serves the personal folder
+// as /personal_data/ wherever GCA_PERSONAL puts it, so a folder inside it is
+// addressed through that name; relative to the project root it would be
+// "../../…" (or a "D:/…" on another drive), which the server never serves and
+// which writes the layout of the user's own folders into data.js.
+function mediaUrlDir(d) {
+  const inPersonal = path.relative(PERSONAL, d);
+  if (inPersonal === "" || (!inPersonal.startsWith("..") && !path.isAbsolute(inPersonal))) {
+    return ["personal_data"].concat(inPersonal ? inPersonal.split(path.sep) : []).join("/");
+  }
+  return path.relative(here, d).split(path.sep).join("/");
+}
 function buildMediaIndex(dirs) {
   const idx = {};   // messageId -> [root-relative paths] (all of them)
   for (const d of dirs) {
-    const rel = path.relative(here, d).split(path.sep).join("/");
+    const rel = mediaUrlDir(d);
     const names = fs.readdirSync(d, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
     const part = core.indexMediaFiles(names, rel);
     for (const id of Object.keys(part)) idx[id] = (idx[id] || []).concat(part[id]);
@@ -98,7 +110,7 @@ function buildMediaIndex(dirs) {
 function ingest(acc, file, which) {
   const label = path.basename(file);
   const role = which === "headers" ? "headers file" : "messages file";
-  if (!fs.existsSync(file)) fail("The " + role + " \u201c" + label + "\u201d is missing (" + file + "). Run the setup wizard again and pick your export files.");
+  if (!fs.existsSync(file)) fail("The " + role + " \u201c" + label + "\u201d is missing. Run the setup wizard again and pick your export files.");
   if (!fs.statSync(file).isFile()) fail("The " + role + " \u201c" + label + "\u201d is a folder, not a file. Pick the .js file itself.");
   const wrong = core.wrongKindMessage(core.identifyExport(readExportHead(file)), which, label);
   if (wrong) fail(wrong);
@@ -250,7 +262,7 @@ function main() {
   for (const f of headerFiles) ingest(acc, f, "headers");
 
   const mediaDirs = findMediaDirs(config);
-  log("Media folders:", mediaDirs.map((d) => path.relative(here, d)).join(", ") || "(none)");
+  log("Media folders:", mediaDirs.map(mediaUrlDir).join(", ") || "(none)");
   const mediaIndex = buildMediaIndex(mediaDirs);
 
   const { conversations, totalMsgs, totalMedia, prevCount, groupsSeen, warnings, removed, restored } = acc.finish(mediaIndex);
@@ -283,11 +295,15 @@ function main() {
   log("Group conversations:", conversations.length);
   log("Total messages:", totalMsgs, prev ? "(" + (totalMsgs - prevCount >= 0 ? "+" : "") + (totalMsgs - prevCount) + " since last build)" : "");
   log("With media:", totalMedia);
+  // A group's name is whatever a member typed: one plain line, so a line
+  // break or a terminal escape in it can't fake a line of this log.
   conversations.slice(0, 12).forEach((c) =>
-    log("  ·", String(c.id).slice(-8).padStart(8), fmtN(c.count).padStart(8), c.title || "(group)"));
+    log("  ·", String(c.id).slice(-8).padStart(8), fmtN(c.count).padStart(8), oneLine(c.title) || "(group)"));
   log("Wrote data.js (" + mb + " MB). Open index.html to view.");
 }
 function fmtN(n) { return n.toLocaleString("en-US"); }
+// eslint-disable-next-line no-control-regex -- removing control characters is the point
+function oneLine(s) { return String(s == null ? "" : s).replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ").trim(); }
 
 // Plain-language text for the failures a user can actually hit; anything else
 // is reported as unexpected, still without a stack trace (GCA_DEBUG=1 adds it).
@@ -297,10 +313,14 @@ function describeFailure(e) {
   const code = e && e.code;
   if (code === "ERR_STRING_TOO_LONG") return "A file has a single entry too large to read. Please report this.";
   if (code === "ENOSPC") return "The disk is full. Free up some space and try again.";
-  if (code === "EACCES" || code === "EPERM") return "Permission denied while reading or writing " + (e.path ? "\u201c" + e.path + "\u201d" : "a file") + ". Close any program using it (or move the archive out of a protected folder) and try again.";
+  // a file's own name, never its full path (the user's folders, their name)
+  const named = e && e.path ? "\u201c" + path.basename(String(e.path)) + "\u201d" : "a file";
+  if (code === "EACCES" || code === "EPERM") return "Permission denied while reading or writing " + named + ". Close any program using it (or move the archive out of a protected folder) and try again.";
   if (code === "EBUSY") return "A file is locked by another program (antivirus or a sync app?). Wait a moment and try again.";
   if (e instanceof RangeError && /memory|allocation/i.test(e.message)) return "The build ran out of memory. Close other programs and try again.";
-  return "The build failed unexpectedly: " + String(e && e.message || e);
+  // a system error's message spells out every path it touched
+  if (code && (e.syscall || e.path)) return "The build failed unexpectedly (" + code + ")" + (e.path ? " on " + named : "") + ". Try again.";
+  return "The build failed unexpectedly: " + String(e && e.message || e).split(/\r?\n/)[0];
 }
 
 if (require.main === module) {
@@ -311,3 +331,5 @@ if (require.main === module) {
     process.exit(archiveWritten ? 3 : 2);
   }
 }
+
+module.exports = { describeFailure };

@@ -13,8 +13,10 @@
   const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
   // Matches messages containing a Twitter/X link (t.co / twitter.com / x.com, with
   // optional subdomain + scheme). Used by the viewer and the build to drop link-only
-  // messages from the naming samples.
-  const X_LINK = /(?:https?:\/\/)?(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
+  // messages from the naming samples. The host must start a word: without the
+  // (?<![\w-]) a match could begin anywhere inside a long word, so one long
+  // message took seconds to test (and "netflix.com/" read as an x.com link).
+  const X_LINK = /(?:https?:\/\/)?(?<![\w-])(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
   // Stable 32-bit hash of an id → deterministic palette/hue index. String()-coerces
   // (safe superset: the viewer always passes strings, the wizard passes numeric ids).
   function hashId(id) { id = String(id); let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
