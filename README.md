@@ -409,8 +409,9 @@ CSP header so no other site can frame them. What it checks, and where:
   browser also says (with `Sec-Fetch-Site`) that another site asked for one of
   those private files, the server refuses it with `403`.
 - **Routes that change files or open a dialog** (build, save, Start over, the
-  file pickers) also need an `Origin`/`Referer` that is this server or absent,
-  and are refused when `Sec-Fetch-Site` says another site sent them. The
+  file pickers) also need an `Origin`/`Referer` that is this server or absent.
+  Every setup route, read-only ones included, is refused when
+  `Sec-Fetch-Site` says another site sent it. The
   native file pickers also need a per-run token that only the setup page
   receives.
 

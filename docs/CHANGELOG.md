@@ -338,6 +338,30 @@ All notable changes to this project are recorded here.
   request, so another website can't open them.
 - Pages are sent with `X-Frame-Options: DENY` and `frame-ancestors 'none'`, so
   they can't be framed by another site.
+- Every setup-server route under `/api/`, the read-only ones too, is refused
+  when the browser says another site sent it. Another page could not read
+  their replies, but it could make the server stream the whole archive for
+  `/api/status` or `/api/parts`, or keep a launcher-started server running.
+- A request body that isn't a JSON object gets `400` instead of an error
+  carrying the server's internal message, and a save checks each field's type
+  first: names must be text, and photos must be image data URLs or a photo an
+  earlier save wrote.
+- Error messages name the file, not its full path, so they don't show your
+  user name or folder layout.
+- With `GCA_PERSONAL` set to a folder outside the project, media paths in
+  `data.js` were written relative to the project ("../../…"), which showed
+  your folder layout and broke every photo and video when served. They are
+  now `personal_data/media/…` like the default setup.
+- A crafted export can no longer make the setup server or the build hang or
+  crash: an absurd part number, a very long word in a message (the Twitter/X
+  link check ran in quadratic time), thousands of copies of one message, and
+  fields of the wrong type are all handled.
+- A hand-edited `data.js` or `config.json` can't put markup into the page
+  through a conversation's message count or a saved photo path, or turn a
+  media path into a `javascript:` link.
+- Both pages' CSP adds `form-action 'none'`, and every reply carries
+  `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`, so
+  opening a link in a message doesn't tell that site about your local server.
 
 ### Docs
 

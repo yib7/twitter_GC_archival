@@ -18,9 +18,10 @@ the one config script it injects, and the pages are sent with `X-Frame-Options: 
   that must be its own or absent, and a `Sec-Fetch-Site` that, when the
   browser sends it, must be `same-origin` or `none`; the native file pickers
   also need a per-run token only the setup page receives;
-- for the archive files themselves (`data.js`, `local.js`,
-  `names.local.js`, media and photos under `personal_data/`), the same
-  `Sec-Fetch-Site` rule: another site's request gets `403`.
+- for every other `/api/` route and for the archive files themselves
+  (`data.js`, `local.js`, `names.local.js`, media and photos under
+  `personal_data/`), the same `Sec-Fetch-Site` rule: another site's request
+  gets `403`.
 
 Every reply also carries `Cross-Origin-Resource-Policy: same-origin`, so a
 web page on another site can't read the archive through a `<script>`,

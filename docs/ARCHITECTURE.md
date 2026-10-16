@@ -76,8 +76,15 @@ Server endpoints:
 The routes that change state or open a dialog (`reset`, `source`,
 `preflight`, `identity`, `removal-preview`, `pick-file`, `pick-folder`, `bye`)
 form the server's `GUARDED` set and also need an own-or-absent `Origin` /
-`Referer`, and are refused (`403`) when `Sec-Fetch-Site` is sent and is not
-`same-origin` or `none` (see `scripts/server-core.js` below). While a build runs, `identity`,
+`Referer` (see `scripts/server-core.js` below). Every route under `/api/`,
+the read-only ones included, is refused (`403`) when `Sec-Fetch-Site` is sent
+and is not `same-origin` or `none`. A POST body must be a JSON object (else
+`400`), and `identity` checks each field's type before writing anything:
+`names` values are strings, `pfps` values are image data URLs, a `gc` photo is
+an image data URL or a `personal_data/pfps/<file>` path an earlier save wrote,
+`me` is a string or number, and the two `ignored*` lists hold strings or
+numbers. Every reply carries `X-Content-Type-Options: nosniff` and
+`Referrer-Policy: same-origin`. While a build runs, `identity`,
 `reset`, `removal-preview`, `preflight` and a second `source` get `409`.
 
 ### Content-Security-Policy
@@ -85,7 +92,7 @@ form the server's `GUARDED` set and also need an own-or-absent `Origin` /
 `index.html` and `setup.html` each carry the policy in a `<meta
 http-equiv="Content-Security-Policy">` tag (`default-src 'self'`,
 `script-src 'self'`, `style-src 'self' 'unsafe-inline'`, `img-src 'self'
-data:`, `object-src 'none'`, `base-uri 'self'`, …). Because it is a meta tag,
+data:`, `object-src 'none'`, `base-uri 'self'`, `form-action 'none'`, …). Because it is a meta tag,
 the browser enforces it over `file://` too, where it stands alone with no
 nonce. Every script is a same-origin file, so no hash or `'unsafe-inline'` is
 needed for scripts.
