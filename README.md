@@ -227,15 +227,17 @@ Click **Check export**, read the preview (group chats, message counts, dates,
 people, photos and videos, and any warnings such as missing part files), then
 click **Build archive**. A progress bar shows the media copy.
 
-**Step 4** *(optional: you can rename people later in the viewer's People tab)*.
-Click **Continue to the group & people**, set the group's name and photo, name
-each person (their cards show sample messages and media to tell them apart),
-mark which one is you, then click **Save & finish**.
+**Step 4** *(optional: click **Next** twice to skip it; you can name people
+later in the viewer's People tab)*. After the build the wizard moves on to the
+group: set its name and photo and click **Next**. Then name each person (their
+cards show sample messages and media to tell them apart), mark which one is
+you, and click **Next**.
 
-**Step 5.** Click **Open your archive**. From now on, double-click `index.html`
-whenever you want to read it; the server is only needed to run the wizard
-again. If your browser won't play the videos from `file://`, run `npm start`
-and read the archive at `http://localhost:8765` instead.
+**Step 5.** Click **Save & finish**, then **Open your archive →**. From now on,
+double-click `index.html` whenever you want to read it; the server is only
+needed to run the wizard again. If your browser won't play the videos from
+`file://`, run `npm start` and read the archive at `http://localhost:8765`
+instead.
 
 Everything the wizard writes lands in one git-ignored folder, `personal_data/`
 (`config.json`, the built `data.js`, `local.js`, the copied raw export under
