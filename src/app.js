@@ -5216,11 +5216,13 @@ function buildSidebarSparkline() {
   // the same series as the Stats months chart.
   const vals = timeAgg().monthArr.map((m) => m[1]);
   if (vals.length < 2) return;
-  const W = 240, H = 38, max = Math.max(...vals);
-  const step = W / (vals.length - 1);
-  const pts = vals.map((v, i) => [i * step, H - 3 - (v / max) * (H - 6)]);
+  // the line is inset by the peak dot's radius on every side, so a peak in
+  // the first or last month isn't cut in half by the SVG's edge
+  const W = 240, H = 38, R = 3, max = Math.max(...vals);
+  const step = (W - 2 * R) / (vals.length - 1);
+  const pts = vals.map((v, i) => [R + i * step, H - R - (v / max) * (H - 2 * R)]);
   const line = pts.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
-  const area = "0," + H + " " + line + " " + W + "," + H;
+  const area = R + "," + H + " " + line + " " + (W - R) + "," + H;
   const peak = pts[vals.indexOf(max)] || pts[pts.length - 1];
   const svg = `<div class="spark" title="Monthly message volume — ${vals.length} months">
     <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" width="100%" height="${H}">
