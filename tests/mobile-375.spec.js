@@ -90,3 +90,15 @@ test("at 768px (touch) the Settings accent row fits its card", async ({ page }) 
   const label = await page.locator(".set-row").first().locator(".set-label").boundingBox();
   expect(label.width).toBeGreaterThan(100);
 });
+
+// Same squeeze in People: the 44px colour swatches took a side column and
+// left each person's sample messages a sliver of a few characters.
+test("at 768px (touch) a People card gives its messages the card's width", async ({ page }) => {
+  await bootViewer(page, DATA, { ls: { "gca.lastView": "people" } });
+  await page.setViewportSize({ width: 768, height: 1024 });
+  const card = await page.locator("#view-people .person").first().boundingBox();
+  const main = await page.locator("#view-people .person .person-main").first().boundingBox();
+  expect(main.width).toBeGreaterThan(card.width * 0.6);
+  const sw = await page.locator("#view-people .person").first().locator(".swatch").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right));
+  for (const r of sw) expect(r).toBeLessThanOrEqual(card.x + card.width + 0.5);
+});
