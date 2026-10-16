@@ -740,12 +740,13 @@ button.word { font-family: inherit; color: var(--text); line-height: inherit; }
 }
 .person-side { display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
 .swatches { display: flex; gap: 6px; flex-wrap: wrap; max-width: 150px; justify-content: flex-end; }
-/* under the messages (narrow column), the swatches take the row's width
-   instead of a 150px block of 44px touch targets 5 rows tall; on a phone
-   they drop below "This is me" to get the card's full width */
+/* under the messages (narrow column): "This is me", then the swatches on
+   a row of their own across the card, instead of a 150px block of 44px touch
+   targets 5 rows tall. (Declared after the base .person-side rule, so the
+   row direction applies here too.) */
 @container (max-width: 600px) {
-  .person-side { flex-wrap: wrap; }
-  .swatches { max-width: none; flex: 1 1 220px; justify-content: flex-start; }
+  .person-side { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .swatches { max-width: none; flex: 1 1 100%; justify-content: flex-start; }
 }
 .swatch { width: 22px; height: 22px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; padding: 0; }
 .swatch.sel { border-color: #fff; box-shadow: 0 0 0 2px var(--bg-panel), 0 0 0 4px currentColor; }

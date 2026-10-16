@@ -112,7 +112,10 @@ for (const vp of [{ width: 768, height: 1024, rows: 2 }, { width: 375, height: 8
     const card = await page.locator("#view-people .person").first().boundingBox();
     const sw = await page.locator("#view-people .person").first().locator(".swatch").evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { top: Math.round(r.top), right: r.right }; }));
     expect(sw.length).toBeGreaterThan(5);
-    expect(new Set(sw.map((r) => r.top)).size).toBeLessThanOrEqual(vp.rows);
+    const tops = [...new Set(sw.map((r) => r.top))].sort((x, y) => x - y);
+    expect(tops.length).toBeLessThanOrEqual(vp.rows);
+    // rows packed one under the other (no stretched gap between them)
+    for (let k = 1; k < tops.length; k++) expect(tops[k] - tops[k - 1], "row pitch").toBeLessThanOrEqual(44 + 12);
     for (const r of sw) expect(r.right).toBeLessThanOrEqual(card.x + card.width + 0.5);
   });
 }
