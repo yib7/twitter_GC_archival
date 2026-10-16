@@ -1173,6 +1173,10 @@ function apiIdentity(body, res) {
   const names = mergeNames(cfg.names, body.names);
   const pfpPaths = {};
   const pfps = body.pfps && typeof body.pfps === "object" ? body.pfps : {};
+  // "__proto__" is an own key once JSON.parse has run, but pfpData[id] = …
+  // would go through the prototype setter (and identityBodyProblem doesn't
+  // check that key either): skip it, as the gc loops below do
+  const pfpIds = Object.keys(pfps).filter((id) => id !== "__proto__");
   const gcIn = body.gc && typeof body.gc === "object" ? body.gc : {};
   const gcPrev = cfg.gc || {};
 
@@ -1180,7 +1184,7 @@ function apiIdentity(body, res) {
   // over-size photo can't leave earlier ones orphaned on disk or half a save
   // applied. The 413 names whose photo it was.
   const pfpData = {}, gcData = {};
-  for (const id of Object.keys(pfps)) {
+  for (const id of pfpIds) {
     pfpData[id] = decodeDataUrl(pfps[id], (names[id] ? names[id] + "’s" : "the") + " photo" + (names[id] ? "" : " for User " + String(id).slice(-4)));
   }
   for (const cid of Object.keys(gcIn)) {
@@ -1200,7 +1204,7 @@ function apiIdentity(body, res) {
   // participant pfps (data URLs → files). Named people get <name>_pfp.<ext>;
   // unnamed people keep their opaque id, so the file is easy to relocate later.
   const pfpsDir = path.join(PERSONAL, "pfps");
-  for (const id of Object.keys(pfps)) {
+  for (const id of pfpIds) {
     const d = pfpData[id];
     if (!d) continue;
     const base = pfpFileName(names[id], id, d.ext, taken);
@@ -1214,7 +1218,7 @@ function apiIdentity(body, res) {
     pfpPaths[id] = "personal_data/" + fname;
   }
   // carry forward pfps saved in a previous run that weren't re-uploaded
-  if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) if (!pfpPaths[id]) pfpPaths[id] = cfg.pfps[id];
+  if (cfg.pfps) for (const id of Object.keys(cfg.pfps)) if (id !== "__proto__" && !pfpPaths[id]) pfpPaths[id] = cfg.pfps[id];
 
   // per-group name + photo: { convId: { name, photo } }. Each group keeps its own.
   // photo may be a fresh data URL (→ saved to a per-group file) or an existing

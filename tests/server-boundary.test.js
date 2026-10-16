@@ -239,6 +239,29 @@ describe("POST /api/identity checks each field's type", () => {
   });
 });
 
+// A "__proto__" key in pfps (an own key once JSON.parse has run) skipped the
+// photo check, then went through the object's prototype setter: the save
+// read the prototype back as a photo and wrote pfps/object_object_pfp.img.
+describe("a __proto__ key in the photos is skipped", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  for (const value of ['"data:text/html;base64,PHNjcmlwdD4="', '"data:image/png;base64,iVBORw0KGgo="', '{"buf":1}']) {
+    test("pfps: { __proto__: " + value + " } writes no photo", async () => {
+      fs.rmSync(path.join(S.personal, "pfps"), { recursive: true, force: true });
+      fs.writeFileSync(path.join(S.personal, "config.json"), '{"names":{"1":"Kept"}}\n');
+      const body = '{"names":{"1":"Kept"},"pfps":{"__proto__":' + value + "}}";
+      const r = await raw(S.port, "/api/identity", { method: "POST", headers: { "Content-Type": "application/json" }, body });
+      assert.ok(r.status === 200 || r.status === 400, r.status + " " + r.body);
+      const pfps = path.join(S.personal, "pfps");
+      assert.deepEqual(fs.existsSync(pfps) ? fs.readdirSync(pfps) : [], []);
+      const cfg = JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8"));
+      assert.deepEqual(Object.keys(cfg.pfps || {}), []);
+    });
+  }
+});
+
 // A config.json edited by hand, or written by an older build, may hold a name
 // that isn't text. /api/status handed it to the wizard, the wizard sent it
 // back with every save, and the save was refused ("Names must be text."), with
