@@ -12,7 +12,8 @@ sent to any external service, and your real export stays in the git-ignored
 `<meta>` tag (`script-src 'self'`, `form-action 'none'`, enforced over `file://`
 too). When served, the setup server adds a per-response nonce to that
 `script-src` for the one config script it injects (it holds the server's own
-address; no other inline script is allowed), and sends the pages with
+address and, on the wizard page, the per-run picker token; no other inline
+script is allowed), and sends the pages with
 `X-Frame-Options: DENY` and a `frame-ancestors 'none'` CSP header (they can't
 be framed). The server checks:
 
@@ -45,15 +46,16 @@ The most relevant areas for security reports are therefore:
 
 ## Reporting a vulnerability
 
-Please report privately. Open the repository's **Security** tab and choose
+Please report privately. If the repository's Security tab shows a
 ["Report a vulnerability"](https://github.com/yib7/twitter_GC_archival/security/advisories/new)
-(GitHub's private vulnerability reporting). Include the version or commit, what
-you did, and what happened.
+button (GitHub's private vulnerability reporting), use it. Include the version
+or commit, what you did, and what happened.
 
 If that button isn't there (the repository owner has to switch the feature on),
 don't post the details publicly. Open an issue titled "Security contact
 request" that says only that you have a security report, with no technical
-detail, and a private channel will be arranged from there.
+detail. The maintainer (yib7) replies in that issue and either turns on private
+reporting or gives you a private channel. Share the details only after that.
 
 Expect an initial reply within a few days. Once a fix is out, you are welcome to
 be credited.
