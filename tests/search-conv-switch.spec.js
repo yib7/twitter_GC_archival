@@ -88,3 +88,31 @@ test("changing the timezone re-runs the search with bounds recomputed for the ne
   await expect(page.locator("#f-from")).toHaveValue("2024-03-10");
   await expect(page.locator("#s-list .msg-time").first()).toContainText("Mar 10, 2024, 11:04 AM");
 });
+
+// Each conversation switch rebuilds the search toolbar. The ResizeObserver
+// that fits the placeholder used to be re-created every time without
+// disconnecting the old one, so observers piled up on detached inputs. Only
+// one stays, watching the live input.
+test("switching conversations keeps a single placeholder observer", async ({ page }) => {
+  await page.addInitScript(() => {
+    const Native = window.ResizeObserver;
+    window.__ro = [];
+    window.ResizeObserver = class extends Native {
+      constructor(cb) { super(cb); this.__t = new Set(); window.__ro.push(this); }
+      observe(t, o) { this.__t.add(t); return super.observe(t, o); }
+      unobserve(t) { this.__t.delete(t); return super.unobserve(t); }
+      disconnect() { this.__t.clear(); return super.disconnect(); }
+    };
+  });
+  await bootViewer(page, DATA);
+  await expect(page.locator("#s-list .msg").first()).toBeVisible();
+  for (const c of ["B", "A", "B"]) {
+    await page.locator("#conv-select").selectOption(c);
+    await expect(page.locator("#brand-title")).toHaveText(c === "A" ? "Alpha" : "Beta");
+  }
+  const r = await page.evaluate(() => {
+    const live = window.__ro.filter((o) => [...o.__t].some((t) => t.id === "s-input"));
+    return { count: live.length, connected: live.every((o) => [...o.__t].every((t) => t.isConnected)) };
+  });
+  expect(r).toEqual({ count: 1, connected: true });
+});

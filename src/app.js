@@ -1685,6 +1685,7 @@ function searchOnlyIn(convId) {
   sEls.input.focus();
 }
 
+let searchPhObserver = null;   // fits the search placeholder to the box (ensureSearch)
 function ensureSearch() {
   if (searchBuilt) return;
   searchBuilt = true;
@@ -1761,9 +1762,12 @@ function ensureSearch() {
   };
   sEls.input.dataset.ph = sEls.input.placeholder;
   sEls.input.dataset.phShort = "Search " + fmtNum(N) + " messages…";
+  // one observer for the life of the page: a rebuild (conversation switch)
+  // moves it to the new input instead of leaving one on each detached input
   if (window.ResizeObserver) {
-    const input = sEls.input;
-    new ResizeObserver(() => { if (sEls.input === input) input.placeholder = searchPlaceholder(allScope()); }).observe(input);
+    if (!searchPhObserver) searchPhObserver = new ResizeObserver(() => { if (sEls.input) sEls.input.placeholder = searchPlaceholder(allScope()); });
+    searchPhObserver.disconnect();
+    searchPhObserver.observe(sEls.input);
   }
   sEls.scope.querySelectorAll("button").forEach((b) => { b.onclick = () => setSearchScope(b.dataset.scope); });
   // on a phone the filter bar is a bottom sheet behind "Filters (n)".
