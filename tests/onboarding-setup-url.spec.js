@@ -12,6 +12,10 @@ test("the onboarding card names the server's real setup address", async ({ page 
   const origin = new URL(page.url()).origin;
   expect(await page.evaluate(() => window.GCA_SERVER_URL)).toBe(origin);
   await expect(page.locator("#setup-url-note")).toHaveText(origin + "/setup.html");
+  // served, the server is already running: no "start the server" instructions
+  await expect(page.locator(".onboard-note")).not.toContainText("node scripts/server.js");
+  await expect(page.locator(".onboard-note")).not.toContainText("npm start");
+  await expect(page.locator(".onboard-note")).not.toContainText("start-setup");
 });
 
 // The wizard page lives in src/ and works only through the server, at
@@ -31,6 +35,13 @@ test("from file:// the onboarding button opens the start-the-server note", async
   const { pathToFileURL } = require("node:url");
   await page.goto(pathToFileURL(path.join(__dirname, "..", "index.html")).href);
   expect(await page.evaluate(() => window.CHAT_DATA && window.CHAT_DATA.__sample)).toBe(true);
+  // the note leads with the double-click launchers, like the README and the
+  // start-the-server page, and names npm start (not node scripts/server.js)
+  const note = page.locator(".onboard-note");
+  await expect(note).toContainText("start-setup.cmd");
+  await expect(note).toContainText("start-setup.command");
+  await expect(note).toContainText("npm start");
+  await expect(note).not.toContainText("node scripts/server.js");
   const btn = page.locator(".onboard a.btn.primary");
   const target = pathToFileURL(path.join(__dirname, "..", "src", "setup.html")).href;
   expect(await btn.evaluate((a) => a.href)).toBe(target);

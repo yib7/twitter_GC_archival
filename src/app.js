@@ -4984,9 +4984,13 @@ function maybeShowOnboarding() {
              for a guided walkthrough, or jump to the <b>People</b> tab to name
              participants and mark which one is you.`}
       </div>
-      <div class="onboard-note">The wizard needs the local server: run
-        <code>node scripts/server.js</code> and open
-        <code><span id="setup-url-note">localhost:8765/setup.html</span></code>.</div>
+      <div class="onboard-note">${location.protocol === "file:"
+        ? `The wizard needs the local server: double-click <code>start-setup.cmd</code>
+           (Windows) or <code>start-setup.command</code> (macOS) in the project folder,
+           or run <code>npm start</code> and open
+           <code><span id="setup-url-note">localhost:8765/setup.html</span></code>.`
+        : `The wizard runs on this server, at
+           <code><span id="setup-url-note">localhost:8765/setup.html</span></code>.`}</div>
       <div class="onboard-actions">
         <a class="btn primary" href="${location.protocol === "file:" ? "src/setup.html" : "setup.html"}">Open setup wizard</a>
         <button class="btn ghost" id="onboard-people">Go to People tab</button>

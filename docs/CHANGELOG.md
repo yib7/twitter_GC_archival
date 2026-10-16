@@ -157,7 +157,9 @@ All notable changes to this project are recorded here.
   Opened from disk, that page (or an old `setup.html` left in the folder by
   unzipping this version over an older one) shows only how to start the setup
   server, and so does the viewer's "Open setup wizard" button when the viewer
-  itself is opened from disk.
+  itself is opened from disk. The demo's welcome card names the same ways to
+  start it (the double-click launchers, or `npm start`) instead of
+  `node scripts/server.js`, and once served it just gives the wizard's address.
   `.env.example` is gone: nothing reads a `.env` file, and the optional
   variables are documented in the README. The demo generator is
   `scripts/make-sample.js` (was `make_sample.js`), and it no longer writes
