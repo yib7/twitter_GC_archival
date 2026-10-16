@@ -14,4 +14,4 @@
 *.bat text eol=crlf
 
 # Vendored binaries: leave bytes untouched.
-lib/*.min.js -text
+src/vendor/*.min.js -text

@@ -1,4 +1,4 @@
-Fuse.js v6.6.2 (lib/fuse.min.js)
+Fuse.js v6.6.2 (src/vendor/fuse.min.js)
 Copyright (c) 2022 Kiro Risk (http://kiro.me)
 Licensed under the Apache License, Version 2.0. The full license text follows.
 

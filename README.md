@@ -344,13 +344,13 @@ src/keepalive.js    lets the launcher's server exit once its pages close
 src/styles.css      theme tokens + app styles (Light / Dim / Lights out)
 src/setup.js        setup-wizard logic
 src/setup.css       setup-wizard styles
+src/vendor/         Fuse.js (Apache-2.0) + Chart.js (MIT), vendored, with licenses
 scripts/build.js    config -> personal_data/data.js  (wizard-driven, merge-aware)
 scripts/build-core.js    pure archive-assembly logic used by build.js
 scripts/make_sample.js   synthetic demo generator -> sample/
 scripts/server.js   static server + setup-wizard API (range requests for video)
 scripts/server-core.js   pure server helpers (path allowlist, Host/Origin/Sec-Fetch guards)
 scripts/fs-io.js    streaming export readers + atomic writes
-lib/                Fuse.js (Apache-2.0) + Chart.js (MIT), vendored, with licenses
 sample/             committed synthetic demo data (data.sample.js) + placeholder photos
 tests/              node:test units (*.test.js) + Playwright specs (*.spec.js)
 docs/               architecture, security, changelog, credits, screenshots
@@ -359,7 +359,7 @@ personal_data/      (git-ignored) wizard output: config.json, data.js(.bak), loc
 ```
 
 Built with [Fuse.js](https://www.fusejs.io/) (Apache-2.0) and
-[Chart.js](https://www.chartjs.org/) (MIT), both vendored under `lib/`. Full
+[Chart.js](https://www.chartjs.org/) (MIT), both vendored under `src/vendor/`. Full
 attribution is in [docs/CREDITS.md](docs/CREDITS.md).
 
 For how the raw export, the build step, and the viewer fit together, see

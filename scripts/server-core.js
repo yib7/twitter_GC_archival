@@ -117,7 +117,7 @@ function mergeNames(prev, posted) {
 // relative() traversal guard still runs beneath this call, unchanged, as
 // defense in depth.
 const SERVABLE_EXACT = new Set(["/", "/index.html", "/setup.html", "/favicon.ico", "/data.js", "/names.local.js", "/personal_data/data.js", "/personal_data/local.js"]);
-const SERVABLE_PREFIXES = ["/src/", "/lib/", "/sample/", "/personal_data/media/", "/personal_data/pfps/"];
+const SERVABLE_PREFIXES = ["/src/", "/sample/", "/personal_data/media/", "/personal_data/pfps/"];
 // The real-data overrides index.html probes with `<script src=... onerror>`. They
 // are gitignored, so on a clean clone / before setup they are absent and a plain
 // 404 prints a console error on every served load. Serving an empty 200 for a

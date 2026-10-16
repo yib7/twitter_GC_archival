@@ -9,7 +9,7 @@ require("./_real-data-guard.js");   // refuse to run outside a clean checkout
 const test = require("node:test");
 const assert = require("node:assert");
 
-const Fuse = require("../lib/fuse.min.js");
+const Fuse = require("../src/vendor/fuse.min.js");
 const { createBigramIndex, fuzzyCandidates } = require("../src/shared-core.js");
 const { generateArchive } = require("./fixtures/synthetic-archive.js");
 

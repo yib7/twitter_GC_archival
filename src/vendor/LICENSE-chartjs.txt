@@ -1,4 +1,4 @@
-Chart.js v4.5.1 (lib/chart.min.js)
+Chart.js v4.5.1 (src/vendor/chart.min.js)
 
 The MIT License (MIT)
 

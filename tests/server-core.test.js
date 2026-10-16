@@ -274,11 +274,11 @@ test("isServablePath allows the app shell and its fixed top-level assets", () =>
   assert.equal(isServablePath("/sample/data.sample.js"), true);
 });
 
-test("isServablePath allows anything under /src/, /lib/, /sample/", () => {
+test("isServablePath allows anything under /src/ (the vendored libraries included) and /sample/", () => {
   assert.equal(isServablePath("/src/app.js"), true);
   assert.equal(isServablePath("/src/styles.css"), true);
-  assert.equal(isServablePath("/lib/fuse.min.js"), true);
-  assert.equal(isServablePath("/lib/chart.min.js"), true);
+  assert.equal(isServablePath("/src/vendor/fuse.min.js"), true);
+  assert.equal(isServablePath("/src/vendor/chart.min.js"), true);
   assert.equal(isServablePath("/sample/photo-4.svg"), true);
 });
 

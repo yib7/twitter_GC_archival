@@ -7,7 +7,7 @@ const globals = require("globals");
 module.exports = [
   {
     ignores: [
-      "lib/**",            // vendored Fuse.js + Chart.js (minified)
+      "src/vendor/**",     // vendored Fuse.js + Chart.js (minified)
       "node_modules/**",
       "personal_data*/**",  // private real data + any backup copies (e.g. personal_data.REAL)
       "exports/**",        // raw export stubs (data, not source), gitignored
