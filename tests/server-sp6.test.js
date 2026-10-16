@@ -768,6 +768,35 @@ describe("putting files back when a backup folder or file is held by another pro
   });
 });
 
+// A media copy that fails part-way puts the previous files back too; one that
+// can't be put back is named in that reply as well, not only in the console.
+describe("a media copy fails and a previous file can't be moved back", () => {
+  const PRELOAD = path.join(__dirname, "fixtures", "fs-busy-preload.js");
+  let personal, S;
+  before(async () => {
+    personal = scratch("gca-sp6-copyfail-");
+    const f = X.writeExport(scratch());
+    const S1 = await startServer({}, { personal });
+    try { assert.equal((await source(S1, f.group, f.headers, f.media)).status, 200); }
+    finally { S1.proc.kill(); }
+    // an empty file counts as missing: the copy backs it up, then fails
+    fs.writeFileSync(path.join(personal, "media", "9002-AbCdEf.png"), "");
+    S = await startServer({ GCA_TEST_BUSY_RENAME: String.raw`media\.prev-`, GCA_TEST_BUSY_COPY: String.raw`direct_messages_group_media[\\/]9002-AbCdEf` },
+      { personal, nodeArgs: ["--require", PRELOAD] });
+  });
+  after(() => S.proc.kill());
+
+  test("the reply gives the copy's error and says where the previous file is kept", async () => {
+    const f = X.writeExport(scratch());
+    const r = await source(S, f.group, f.headers, f.media);
+    const j = await r.json();
+    assert.ok(r.status >= 400, JSON.stringify(j));
+    assert.match(j.error, /in use by another program/, "the copy's own error");
+    assert.match(j.error, /\.prev-/, "says where the previous copies are");
+    assert.ok(fs.readdirSync(personal).some((n) => /^media\.prev-/.test(n)), "the previous picture is kept in its backup folder");
+  });
+});
+
 // Media is streamed from disk. A file that stat sees but can't be read must
 // not take the server down, and a video request the browser abandons (a seek,
 // a lazy image scrolled away) must not keep its file open for good.

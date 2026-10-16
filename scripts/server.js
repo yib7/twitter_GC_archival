@@ -753,7 +753,14 @@ async function sourceAndBuild(body, res, progress) {
     // restored from the export if they're un-removed later.
     if (mediaAbs && !(older && cfg.mediaSourceDir)) cfg.mediaSourceDir = mediaAbs;
     saveConfig(cfg);
-  } catch (e) { undo(); throw e; }   // a copy failed part-way (disk full, unreadable file …)
+  } catch (e) {
+    // a copy failed part-way (disk full, unreadable file …): put back what it
+    // replaced, and say in the reply if some previous file couldn't be
+    const left = undo();
+    if (!left) throw e;
+    console.error(e && e.stack || e);
+    throw httpError(e.statusCode || 500, friendlyError(e) + left);
+  }
 
   // building over an existing archive merges into it (build.js streams
   // the old data.js in as the baseline); say how much this export added.
