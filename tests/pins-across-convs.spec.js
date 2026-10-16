@@ -136,3 +136,23 @@ test("a pin from another chat leaves out ignored people's reactions", async ({ p
   await expect(reacts.first().locator(".who")).toHaveText("1");
   await expect(reacts.first()).toHaveAttribute("title", "like — Di");
 });
+
+// The Export / Clear all buttons are a row of ordinary pills, not the search
+// toolbar's full-width stacked bars, on desktop and on a phone.
+for (const vp of [{ width: 1280, height: 900 }, { width: 375, height: 812 }]) {
+  test(`Pinned's Export and Clear all sit side by side at their natural width (${vp.width}px)`, async ({ page }) => {
+    const { bootViewer } = require("./_viewer-fixture.js");
+    await page.setViewportSize(vp);
+    await bootViewer(page, DATA, { ls: { "gca.conv": "A", "gca.lastView": "pins", "gca.settings": JSON.stringify({ pins: ["a2"] }) } });
+    const exp = page.locator("#pins-export"), clr = page.locator("#pins-clear");
+    await expect(exp).toBeVisible();
+    const a = await exp.boundingBox(), b = await clr.boundingBox();
+    expect(Math.abs(a.y - b.y), "same row").toBeLessThan(2);
+    expect(b.x).toBeGreaterThan(a.x + a.width);
+    expect(a.width).toBeLessThan(200);
+    expect(b.width).toBeLessThan(200);
+    // not the sticky, bordered search toolbar
+    const row = exp.locator("xpath=..");
+    await expect(row).not.toHaveClass(/toolbar/);
+  });
+}

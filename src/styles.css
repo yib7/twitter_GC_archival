@@ -869,6 +869,9 @@ input[type="range"] { accent-color: var(--accent); width: 160px; }
 .back-to-top:hover { transform: translateY(-2px) scale(1.05); opacity: 1; box-shadow: 0 6px 24px var(--accent-glow); }
 .back-to-top:active { transform: scale(0.95); }
 
+/* ---- Pinned view's Export / Clear all row -------------------------------- */
+.pins-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+
 /* ---- Clear all filters pill ---------------------------------------------- */
 .pill.danger {
   background: var(--danger-bg); border-color: color-mix(in srgb, var(--danger) 40%, transparent); color: var(--danger);

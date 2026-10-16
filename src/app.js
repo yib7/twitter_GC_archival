@@ -5831,7 +5831,7 @@ function renderPins() {
       <div class="page-sub">${sub}</div>
     </div>
     <div class="page-body">
-      ${total ? '<div class="toolbar" style="padding:0 0 12px;"><button class="pill" id="pins-export">↓ Export</button> <button class="pill danger" id="pins-clear">✕ Clear all</button></div>' : ''}
+      ${total ? '<div class="pins-actions"><button class="pill" id="pins-export">↓ Export</button><button class="pill danger" id="pins-clear">✕ Clear all</button></div>' : ''}
       <div class="list" id="pins-list"></div>
     </div></div>`;
 
