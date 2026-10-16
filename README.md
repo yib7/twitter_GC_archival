@@ -144,7 +144,9 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
   PNG in your theme, fully offline, with an optional "Hide names & photos"
   that swaps names, @handles and photos for Person A/B/C. Check the preview
   before you share: a name that is also a common word (a lowercase "will",
-  say) may be left in the message text.
+  say) may be left in the message text. A one-word name that is a common
+  word or one letter ("Will", "U") goes the other way: that word is hidden
+  everywhere, so a line can read "I Person A go".
 - A setup wizard that takes the unzipped archive folder, shows a read-only
   preview of what it found (chats, counts, dates, people, media, plain
   warnings) before writing anything, and later merges a newer export into the

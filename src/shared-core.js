@@ -936,6 +936,9 @@
   //  - A word of a multi-word name that is also a stopword ("Will" in "Will
   //    Day") is redacted only when written like a name (Will, WILL), so
   //    "will he?" survives. A generic "User N" alias is redacted only whole.
+  //  - A ONE-word name is redacted in any case, even a stopword or one letter
+  //    ("Will", "U ✌️"): "I will go" becomes "I Person A go". Known, and the
+  //    safe direction. A possessive ("Sam's") also redacts the bare "Sam".
   const RE_GENERIC_NAME = /^user\s+\d+$/i;
   // Any @mention for redaction: Unicode letters, digits, marks and "_"
   // (RE_MENTION is ASCII-only, X's handle rule, which left "@someoneé" from
@@ -972,6 +975,17 @@
       return ids.get(id);
     };
     const add = (t, id) => { const k = redactFold(t.trim()).out.replace(/\s+/g, " "); if (k && !byTerm.has(k)) byTerm.set(k, id); };
+    // One word of a name: 2+ letters, not a number; a stopword only as a name
+    // is written (Title case or all caps).
+    const word = (w, id) => {
+      if ([...w].length < 2 || /^\d+$/.test(w)) return;
+      if (isStopword(w.toLowerCase().replace(/[’‘ʼ]/g, "'"))) {
+        const t = w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+        for (const v of [t, w.toUpperCase()]) if (!nameCase.has(v)) nameCase.set(v, id);
+      } else add(w, id);
+    };
+    // "Sam's" → "Sam": a possessive name is the name too
+    const stemOf = (w) => { const m = /^(.*\p{L})['’‘ʼ]s$/iu.exec(w); return m ? m[1] : null; };
     for (const p of people || []) {
       const id = String(p.id);
       for (const raw of p.names || []) {
@@ -982,15 +996,17 @@
         const words = n.split(/[^\p{L}\p{N}\p{M}'’‘ʼ]+/u).filter((w) => /[\p{L}\p{N}]/u.test(w));
         // One word dressed with emoji or punctuation ("Sam 🔥", "Ana!") is
         // that name written plainly: the bare word is redacted the same way.
-        if (words.length === 1) { add(words[0], id); continue; }
+        if (words.length === 1) {
+          add(words[0], id);
+          const st = stemOf(words[0]);
+          if (st) word(st, id);
+          continue;
+        }
         if (words.length < 2) continue;
         for (const w of words) {
-          if ([...w].length < 2 || /^\d+$/.test(w)) continue;
-          if (isStopword(w.toLowerCase().replace(/[’‘ʼ]/g, "'"))) {
-            // only as a name is written: Title case or all caps
-            const t = w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
-            for (const v of [t, w.toUpperCase()]) if (!nameCase.has(v)) nameCase.set(v, id);
-          } else add(w, id);
+          word(w, id);
+          const st = stemOf(w);
+          if (st) word(st, id);
         }
       }
     }

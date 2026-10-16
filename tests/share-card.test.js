@@ -219,3 +219,16 @@ test("redaction: a one-word name with emoji or punctuation redacts the bare word
   assert.strictEqual(createRedactor([{ id: "s", names: ["Sam 🔥"] }]).text("a samovar, Salami"), "a samovar, Salami");
   assert.strictEqual(createRedactor([{ id: "e", names: ["🔥🔥"] }]).text("it was 🔥 tonight"), "it was 🔥 tonight");
 });
+
+// A possessive name ("Sam's", "Sam’s 🔥", "Sam's Phone") is that person's
+// name: the bare "Sam" in a message is redacted too. Apostrophes inside a
+// name (O'Neil) are not a possessive and are left as they are.
+test("redaction: a possessive name also redacts the name without the 's", () => {
+  for (const n of ["Sam's", "Sam's 🔥", "Sam’s ✨", "Sam's Phone"]) {
+    const out = createRedactor([{ id: "1", names: [n] }]).text("Sam is late, sam said");
+    assert.strictEqual(out, "Person A is late, Person A said", n);
+  }
+  // a stopword stem only goes when written like a name, as for any multi-word name
+  assert.strictEqual(createRedactor([{ id: "1", names: ["It's Me"] }]).text("it works, It's late"), "it works, Person A late");
+  assert.strictEqual(createRedactor([{ id: "1", names: ["O'Neil"] }]).text("O went home"), "O went home");
+});
