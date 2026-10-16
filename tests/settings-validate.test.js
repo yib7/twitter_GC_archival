@@ -180,6 +180,14 @@ test("Import: an unmarked UTC in the file does not override the current zone", (
 // the custom Word Battles words persist in settings, so they come
 // through the same gate — strings only, trimmed, ≤40 chars, de-duplicated
 // case-insensitively (first spelling wins), at most 30.
+// A stored or imported list is de-duplicated the way the view counts words:
+// case, punctuation and apostrophes folded ("good" / "good!" / "Good" are one
+// word, "don't" / "dont" one), so no word is counted twice.
+test("validateSettings drops battle words that count as a word already in the list", () => {
+  const s = validateSettings({ battleWords: ["good", "good!", "Good", "don't", "dont", "so literally", "So literally!", "literally"] }, RULES);
+  assert.deepStrictEqual(s.battleWords, ["good", "don't", "so literally", "literally"]);
+});
+
 test("validateSettings keeps battle words as a clean, de-duplicated list", () => {
   const long = "x".repeat(41);
   const s = validateSettings({ battleWords: ["lol", " LOL ", "", "   ", 5, null, {}, long, "bruh", "<img src=x>", "Bruh"] }, RULES);

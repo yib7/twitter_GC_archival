@@ -1184,16 +1184,21 @@
   // zone) — and otherwise `rules.defaults` (boot). Never literals, so changing a
   // default (e.g. the timezone) changes every fallback with it.
   //   rules = { defaults, base?, fontMin, fontMax, densities: [names] }
+  // The key a Word Battles word counts under: its whole-word tokens, apostrophes
+  // and case folded, so "Lol", "lol!" and the built-in "lol" are one word and
+  // "don't" and "dont" are one. A phrase keeps all its tokens; a word with no
+  // letters or digits (an emoji) is its own lowercased text.
+  function battleKey(word) { return wordKeys(word).join(" ") || word.trim().toLowerCase(); }
   // custom Word Battles words — strings only, trimmed, ≤40 chars,
-  // de-duplicated case-insensitively (first spelling wins), at most 30.
+  // de-duplicated by battleKey (first spelling wins), at most 30.
   const BATTLE_WORD_MAX = 40, BATTLE_WORDS_MAX = 30;   // per word / per list
   function cleanBattleWords(a) {
     const seen = new Set(), out = [];
     for (const w of Array.isArray(a) ? a : []) {
       if (typeof w !== "string") continue;
       const t = w.trim();
-      if (!t || t.length > BATTLE_WORD_MAX || seen.has(t.toLowerCase())) continue;
-      seen.add(t.toLowerCase()); out.push(t);
+      if (!t || t.length > BATTLE_WORD_MAX || seen.has(battleKey(t))) continue;
+      seen.add(battleKey(t)); out.push(t);
       if (out.length >= BATTLE_WORDS_MAX) break;
     }
     return out;
@@ -1274,7 +1279,7 @@
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, linkPlatform, plural,
     graphemes, graphemesNoSegmenter, wrapText, createRedactor, createUserNumbering, userLabels,
-    isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
+    isPlainObj, cleanMap, idList, cleanSaved, battleKey, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
     safeMediaUrl,
   };
 });
