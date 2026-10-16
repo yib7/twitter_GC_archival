@@ -4,8 +4,13 @@
 .su-unserved { display: none; }
 .setup-shell { display: block; }
 .setup-body {
-  min-height: 100vh; margin: 0; background: var(--bg-page); color: var(--text);
-  font-family: var(--font); display: grid; place-items: start center; padding: 40px 20px;
+  /* height:auto undoes styles.css's html,body{height:100%}: with a fixed-height
+     body the shell overflows it and the bottom padding below never shows */
+  height: auto; min-height: 100vh; margin: 0; background: var(--bg-page); color: var(--text);
+  font-family: var(--font); display: grid; place-items: start center;
+  /* the bottom padding clears the floating theme switch (16px + 44px tall), so
+     scrolled to the end it never covers the Start over link */
+  padding: 40px 20px 84px;
   /* the one column never grows past the viewport: a grid item's min-content
      (nowrap stepper labels, long paths) would otherwise widen the page */
   grid-template-columns: minmax(0, 680px); justify-content: center;
@@ -350,7 +355,7 @@
 
 /* ---- Phones (390px): no sideways scroll ---------------------------------- */
 @media (max-width: 520px) {
-  .setup-body { padding: 16px 12px; }
+  .setup-body { padding: 16px 12px 76px; }
   .setup-shell { min-width: 0; padding: 20px 16px; border-radius: 16px; }
   .setup-steps li { gap: 6px; font-size: 12px; }
   .setup-steps li::after { min-width: 6px; margin: 0 6px; }

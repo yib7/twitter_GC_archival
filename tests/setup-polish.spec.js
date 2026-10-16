@@ -90,3 +90,19 @@ test("a note the server words (removed messages that couldn't be kept aside) is 
   await page.locator("#btn-confirm").click();
   await expect(page.locator("#src-result .build-notes")).toContainText(text);
 });
+
+// On a phone the floating theme switch sits over the bottom-left of the page.
+// Scrolled all the way down, it must not cover the last control
+// (the "Start over" link), at any phone width.
+for (const width of [375, 390]) {
+  test(`at ${width}px the theme switch does not cover Start over at the bottom of the page`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 812 });
+    await page.goto("/setup.html");
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const sw = await page.locator(".theme-switch").boundingBox();
+    const reset = await page.locator("#btn-reset").boundingBox();
+    const overlaps = reset.x < sw.x + sw.width && reset.x + reset.width > sw.x &&
+      reset.y < sw.y + sw.height && reset.y + reset.height > sw.y;
+    expect(overlaps, `switch ${JSON.stringify(sw)} vs reset ${JSON.stringify(reset)}`).toBe(false);
+  });
+}
