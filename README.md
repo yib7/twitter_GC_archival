@@ -411,7 +411,9 @@ CSP header so no other site can frame them. What it checks, and where:
 - **Routes that change files or open a dialog** (build, save, Start over, the
   file pickers) also need an `Origin`/`Referer` that is this server or absent.
   Every setup route, read-only ones included, is refused when
-  `Sec-Fetch-Site` says another site sent it. The
+  `Sec-Fetch-Site` says another site sent it, or when its `Origin` or
+  `Referer` names another site (for browsers that don't send
+  `Sec-Fetch-Site`, such as Safari before 16.4). The
   native file pickers also need a per-run token that only the setup page
   receives.
 

@@ -78,12 +78,17 @@ The routes that change state or open a dialog (`reset`, `source`,
 form the server's `GUARDED` set and also need an own-or-absent `Origin` /
 `Referer` (see `scripts/server-core.js` below). Every route under `/api/`,
 the read-only ones included, is refused (`403`) when `Sec-Fetch-Site` is sent
-and is not `same-origin` or `none`. A POST body must be a JSON object (else
+and is not `same-origin` or `none`, or when an `Origin` or `Referer` is sent
+that isn't this server's own loopback address (`Origin: null` included); a
+request with neither, such as curl, is served. A POST body must be a JSON
+object (else `400`); `source` and `preflight` take each path as a string and
+`removal-preview` takes the two `ignored*` lists as strings or numbers (else
 `400`), and `identity` checks each field's type before writing anything:
 `names` values are strings, `pfps` values are image data URLs, a `gc` photo is
 an image data URL or a `personal_data/pfps/<file>` path an earlier save wrote,
 `me` is a string or number, and the two `ignored*` lists hold strings or
-numbers. Every reply carries `X-Content-Type-Options: nosniff` and
+numbers. A saved name in `config.json` that isn't a string is ignored: left out
+of `/api/status` and dropped at the next save. Every reply carries `X-Content-Type-Options: nosniff` and
 `Referrer-Policy: same-origin`. While a build runs, `identity`,
 `reset`, `removal-preview`, `preflight` and a second `source` get `409`.
 

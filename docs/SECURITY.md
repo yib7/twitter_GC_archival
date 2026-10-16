@@ -21,7 +21,8 @@ the one config script it injects, and the pages are sent with `X-Frame-Options: 
 - for every other `/api/` route and for the archive files themselves
   (`data.js`, `local.js`, `names.local.js`, media and photos under
   `personal_data/`), the same `Sec-Fetch-Site` rule: another site's request
-  gets `403`.
+  gets `403`. The `/api/` routes also refuse an `Origin` or `Referer` that
+  names another site, for browsers that don't send `Sec-Fetch-Site`.
 
 Every reply also carries `Cross-Origin-Resource-Policy: same-origin`, so a
 web page on another site can't read the archive through a `<script>`,

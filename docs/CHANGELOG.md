@@ -342,11 +342,15 @@ All notable changes to this project are recorded here.
   when the browser says another site sent it. Another page could not read
   their replies, but it could make the server stream the whole archive for
   `/api/status` or `/api/parts`, or keep a launcher-started server running.
+  A browser that doesn't send `Sec-Fetch-Site` (Safari before 16.4) is
+  covered by the `Origin` or `Referer` it sends instead.
 - A request body that isn't a JSON object gets `400` instead of an error
   carrying the server's internal message, and a save checks each field's type
   first: names must be text, and photos must be image data URLs or a photo an
-  earlier save wrote.
-- Error messages name the file, not its full path, so they don't show your
+  earlier save wrote. A path or a removal list of the wrong type gets `400`
+  too, and a name in `config.json` that isn't text is ignored instead of
+  blocking every save.
+- Unexpected errors name the file, not its full path, so they don't show your
   user name or folder layout.
 - With `GCA_PERSONAL` set to a folder outside the project, media paths in
   `data.js` were written relative to the project ("../../…"), which showed
@@ -357,8 +361,9 @@ All notable changes to this project are recorded here.
   link check ran in quadratic time), thousands of copies of one message, and
   fields of the wrong type are all handled.
 - A hand-edited `data.js` or `config.json` can't put markup into the page
-  through a conversation's message count or a saved photo path, or turn a
-  media path into a `javascript:` link.
+  through a conversation's message count or a saved photo path, turn a
+  media path into a `javascript:` link, or point a link, photo or video at a
+  `file:` URL on another machine (a network share).
 - Both pages' CSP adds `form-action 'none'`, and every reply carries
   `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`, so
   opening a link in a message doesn't tell that site about your local server.
