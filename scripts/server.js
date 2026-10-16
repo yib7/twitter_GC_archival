@@ -1356,7 +1356,7 @@ function apiRemovalPreview(body, res) {
   if (job) return sendJSON(res, 409, { error: BUSY });   // a merge started while the body arrived (see apiIdentity)
   const bad = removalListsProblem(body);
   if (bad) return sendJSON(res, 400, { error: bad });
-  const list =(v) => (Array.isArray(v) ? v.map(String) : []);
+  const list = (v) => (Array.isArray(v) ? v.map(String) : []);
   const make = () => [createRemovalCounter(list(body && body.ignoredGroups), list(body && body.ignoredUsers))];
   const cols = duringBlocking(() => foldBuilt(make)) || make();
   sendJSON(res, 200, cols[0].result());

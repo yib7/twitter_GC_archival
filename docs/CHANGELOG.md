@@ -342,8 +342,9 @@ All notable changes to this project are recorded here.
   when the browser says another site sent it. Another page could not read
   their replies, but it could make the server stream the whole archive for
   `/api/status` or `/api/parts`, or keep a launcher-started server running.
-  A browser that doesn't send `Sec-Fetch-Site` (Safari before 16.4) is
-  covered by the `Origin` or `Referer` it sends instead.
+  In a browser that doesn't send `Sec-Fetch-Site` (Safari before 16.4), a
+  request is also refused when its `Origin` or `Referer` names another site.
+  A page there can still leave both headers off.
 - A request body that isn't a JSON object gets `400` instead of an error
   carrying the server's internal message, and a save checks each field's type
   first: names must be text, and photos must be image data URLs or a photo an
