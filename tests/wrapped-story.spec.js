@@ -19,7 +19,12 @@ const LIST = (() => {
 const DATA = { conversations: [conv("A", "Alpha", LIST)] };
 // (a script click: the sidebar is hidden at 390px)
 const go = (page, v) => page.evaluate((name) => document.querySelector('.nav-item[data-view="' + name + '"]').click(), v);
-const slideNo = (page) => page.locator("#wr-segs .wr-seg.cur").evaluate((s) => [...s.parentNode.children].indexOf(s) + 1);
+// one evaluate, so a slide change that rebuilds the segments between finding
+// the current one and reading it can't leave a detached node behind
+const slideNo = (page) => page.evaluate(() => {
+  const s = document.querySelector("#wr-segs .wr-seg.cur");
+  return s ? [...s.parentNode.children].indexOf(s) + 1 : 0;
+});
 const slideCount = (page) => page.locator("#wr-segs .wr-seg").count();
 
 // Every colour stop of the slide wash and of the big year's gradient text.
@@ -237,9 +242,12 @@ test.describe("story mechanics", () => {
     await page.locator("#wr-next").click();    // re-arm the segment with the short duration
     await page.locator("#wr-prev").click();
     await expect(page.locator("#wr-stage")).toHaveClass(/\bwr-auto\b/);
-    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(2);
+    // 1200 ms slides: a backed-off poll can step over one, so wait for "moved
+    // on" rather than for one exact slide
+    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBeGreaterThanOrEqual(2);
     const announced = await live(page).textContent();
-    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(3);
+    const first = await slideNo(page);
+    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBeGreaterThan(first);
     // auto-advance doesn't re-announce every slide (the user isn't driving)
     expect(await live(page).textContent()).toBe(announced);
 
@@ -248,12 +256,18 @@ test.describe("story mechanics", () => {
     await page.mouse.down();
     await expect(page.locator("#wr-stage")).toHaveClass(/\bwr-paused\b/);
     const held = await slideNo(page);
+    // the press can land at any point in the 1200 ms segment; rewind the
+    // paused fill so the release below always has a whole segment ahead of
+    // it, instead of a few ms that a slow machine spends before the check
+    await page.evaluate(() => {
+      for (const a of document.querySelector("#wr-stage .wr-seg.cur i").getAnimations()) a.currentTime = 0;
+    });
     await page.waitForTimeout(1800);           // longer than a slide
     expect(await slideNo(page)).toBe(held);
     await page.mouse.up();                     // in the "next" third, but it was a hold
     expect(await slideNo(page)).toBe(held);
     await expect(page.locator("#wr-stage")).not.toHaveClass(/\bwr-paused\b/);
-    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(held + 1);
+    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBeGreaterThan(held);
   });
 
   // Autoplay is playing (an 8 s slide, so it can't advance on its own here).
