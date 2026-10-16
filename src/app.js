@@ -7,7 +7,7 @@
 // Constants/helpers shared with the setup wizard + Node build live in ONE module,
 // loaded as a <script> before this one (index.html) — see src/shared-core.js.
 /* global GCAShared */
-const { PALETTE, X_LINK, initials, hueVars, userLabels } = GCAShared;
+const { PALETTE, X_LINK, initials, hueVars, HUES, personHue, userLabels } = GCAShared;
 // the platform's modifier — ⌘ on Apple devices, Ctrl elsewhere — shared
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
@@ -7206,6 +7206,7 @@ function drawBattleResults() {
     if (c1 || c2) rows.push({ word, added: false, c1, c2 });
   });
 
+  const [col1, col2] = battleColors(battleP1, battleP2);
   let wins1 = 0, wins2 = 0;
   let html = '<div class="battle-rows">';
   rows.forEach((r) => {
@@ -7215,16 +7216,16 @@ function drawBattleResults() {
   });
   html += '</div>';
   html += `<div class="battle-summary">
-    <span style="color:${esc(personColor(battleP1).p)};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} ${wins1 === 1 ? "win" : "wins"}</span>
+    <span style="color:${esc(col1)};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} ${wins1 === 1 ? "win" : "wins"}</span>
     <span style="color:var(--text-faint)">•</span>
-    <span style="color:${esc(personColor(battleP2).p)};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} ${wins2 === 1 ? "win" : "wins"}</span>
+    <span style="color:${esc(col2)};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} ${wins2 === 1 ? "win" : "wins"}</span>
   </div>`;
 
   container.innerHTML = html;
-  // each side's bars wear that person's name colour (as the summary does),
-  // which reaches 4.5:1 on the page and card in every theme
-  container.style.setProperty("--battle-left", personColor(battleP1).p);
-  container.style.setProperty("--battle-right", personColor(battleP2).p);
+  // each side's bars and winning count wear that person's name colour (as the
+  // summary does), which reaches 4.5:1 on the page and card in every theme
+  container.style.setProperty("--battle-left", col1);
+  container.style.setProperty("--battle-right", col2);
   container.querySelectorAll(".battle-remove").forEach((b) => {
     b.onclick = () => {
       settings.battleWords = settings.battleWords.filter((w) => w !== b.dataset.word);
@@ -7254,6 +7255,22 @@ function addBattleWord(word) {
 // "don't" and "dont" are one. A phrase keeps all its tokens.
 function battleKey(word) { return wordKeys(word).join(" ") || word.trim().toLowerCase(); }
 
+// The two sides' colours: each person's own, but when both come out the same
+// (one in ten automatic pairs, or one colour picked for both) the right-hand
+// side takes the next automatic hue that differs, so the sides stay apart.
+function battleColors(a, b) {
+  const left = personColor(a).p;
+  let right = personColor(b).p;
+  if (right === left) {
+    const at = HUES.indexOf(personHue(b));
+    for (let k = 1; k < HUES.length; k++) {
+      const c = "var(--p-" + HUES[(at + k) % HUES.length] + ")";
+      if (c !== left) { right = c; break; }
+    }
+  }
+  return [left, right];
+}
+
 // An added word's counts, with the same whole-word keys as everything else.
 function battleCounts(word) {
   const keys = wordKeys(word);
@@ -7278,11 +7295,11 @@ function battleRowHtml({ word, added, c1, c2 }) {
   const winner = c1 > c2 ? "left" : c2 > c1 ? "right" : "tie";
 
   return `<div class="battle-row${added ? " battle-added" : ""}">
-    <div class="battle-count ${winner === 'left' ? 'battle-winner' : ''}">${fmtNum(c1)}</div>
+    <div class="battle-count left${winner === "left" ? " battle-winner" : ""}">${fmtNum(c1)}</div>
     <div class="battle-bar-left"><div class="battle-fill-left" style="width:${w1}%"></div></div>
     <div class="battle-word">${esc(word)}</div>
     <div class="battle-bar-right"><div class="battle-fill-right" style="width:${w2}%"></div></div>
-    <div class="battle-count ${winner === 'right' ? 'battle-winner' : ''}">${fmtNum(c2)}</div>
+    <div class="battle-count right${winner === "right" ? " battle-winner" : ""}">${fmtNum(c2)}</div>
     ${added ? `<button class="icon-btn battle-remove" type="button" data-word="${esc(word)}" aria-label="Remove “${esc(word)}”" title="Remove">✕</button>` : ""}
   </div>`;
 }

@@ -1,5 +1,6 @@
 const { test, expect } = require("@playwright/test");
 const { bootViewer, conv, msgs, collectErrors } = require("./_viewer-fixture.js");
+const { contrastFailures } = require("./_contrast.js");
 
 // Word Battles compares two people. A chat with one poster (or whose others
 // are ignored) gets a plain empty state, not two blank pickers.
@@ -116,4 +117,62 @@ test("typing a spelling of a word already added says so and adds no row", async 
   await page.locator("#battle-go").click();
   await expect(page.locator(".toast")).toContainText("already in the battle");
   await expect(page.locator("#view-battles .battle-added")).toHaveCount(1);
+});
+
+// The winning count wears the winner's colour (it was the theme accent on both
+// sides), and stays readable as text on what is behind it (tests/_contrast.js
+// measures every text run in the view at 4.5:1, the winner's count included).
+async function sideColours(page) {
+  return page.evaluate(() => {
+    const spans = document.querySelectorAll("#view-battles .battle-summary > span");
+    const css = (e, p) => getComputedStyle(e)[p];
+    const winners = [...document.querySelectorAll("#view-battles .battle-count.battle-winner")].map((e) => ({
+      side: e.classList.contains("left") ? "left" : e.classList.contains("right") ? "right" : "?", color: css(e, "color"),
+    }));
+    return {
+      p1: css(spans[0], "color"), p2: css(spans[2], "color"),
+      left: css(document.querySelector(".battle-fill-left"), "backgroundColor"),
+      right: css(document.querySelector(".battle-fill-right"), "backgroundColor"),
+      winners,
+    };
+  });
+}
+for (const th of ["lightsout", "dim", "light"]) {
+  test(`the winning count is that person's colour and readable (${th})`, async ({ page }) => {
+    await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.theme": th, "gca.settings": JSON.stringify({ colors: { u1: "#1e40af", u2: "#eab308" } }) } });
+    const r = await sideColours(page);
+    expect(r.winners.length, "both sides have a winning word").toBeGreaterThanOrEqual(2);
+    for (const w of r.winners) {
+      expect(w.color, w.side + " winner is that side's colour").toBe(w.side === "left" ? r.p1 : r.p2);
+    }
+    expect(await contrastFailures(page, "#view-battles")).toEqual([]);
+  });
+  test(`two people with the same colour still read as two sides (${th})`, async ({ page }) => {
+    await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.theme": th, "gca.settings": JSON.stringify({ colors: { u1: "#eab308", u2: "#eab308" } }) } });
+    const r = await sideColours(page);
+    expect(r.p1).not.toBe(r.p2);
+    expect(r.left).not.toBe(r.right);
+    expect(r.left).toBe(r.p1);
+    expect(r.right).toBe(r.p2);
+    for (const w of r.winners) {
+      expect(w.color).toBe(w.side === "left" ? r.p1 : r.p2);
+    }
+    expect(await contrastFailures(page, "#view-battles")).toEqual([]);
+  });
+}
+test("two people whose automatic colours collide get two different colours", async ({ page }) => {
+  const { personHue } = require("../src/shared-core.js");
+  const ids = []; const seen = {};
+  for (let k = 1; k < 200 && ids.length < 2; k++) { const id = "x" + k, h = personHue(id); if (seen[h]) ids.push(seen[h], id); else seen[h] = id; }
+  expect(ids.length).toBe(2);
+  const data = { conversations: [conv("A", "Duo", [
+    { i: "w1", s: ids[0], t: T, x: "lol" }, { i: "w2", s: ids[1], t: T + 60000, x: "bruh" },
+    { i: "w3", s: ids[0], t: T + 120000, x: "nah nah" }, { i: "w4", s: ids[1], t: T + 180000, x: "ok" },
+  ])] };
+  await bootViewer(page, data, { ls: { "gca.lastView": "battles" } });
+  const r = await sideColours(page);
+  expect(r.p1).not.toBe(r.p2);
+  expect(r.left).not.toBe(r.right);
+  expect(r.left).toBe(r.p1);
+  expect(r.right).toBe(r.p2);
 });

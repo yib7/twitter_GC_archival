@@ -1668,6 +1668,9 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
 @keyframes battleSlide { from { opacity: 0; transform: translateY(-10px); } }
 .battle-count { font-size: 14px; font-weight: 700; color: var(--text-dim); text-align: center; font-variant-numeric: tabular-nums; }
 .battle-count.battle-winner { color: var(--accent-text); font-size: 16px; }
+/* the winning count wears the winner's colour, like their bar (set on #battle-results) */
+.battle-count.left.battle-winner { color: var(--battle-left, var(--accent-text)); }
+.battle-count.right.battle-winner { color: var(--battle-right, var(--accent-text)); }
 .battle-word { text-align: center; font-weight: 700; font-size: 13px; color: var(--text); text-transform: lowercase; }
 .battle-bar-left { height: 14px; border-radius: 0 7px 7px 0; overflow: hidden; direction: rtl; background: var(--bg-card); }
 /* the fills are the two people's colours (set on #battle-results) */
