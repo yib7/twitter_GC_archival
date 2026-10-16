@@ -22,7 +22,8 @@ Powers the fuzzy search and the search filters.
 ## Chart.js v4.5.1
 
 - License: MIT, full text in [`src/vendor/LICENSE-chartjs.txt`](../src/vendor/LICENSE-chartjs.txt)
-- Copyright (c) Chart.js Contributors
+- Copyright (c) 2025 Chart.js Contributors (the file header; the bundled license
+  text reads "2014-2024")
 - Site: https://www.chartjs.org/
 - File: `src/vendor/chart.min.js` (original copyright header retained, not modified)
 - Upstream: npm package `chart.js@4.5.1`, UMD build `dist/chart.umd.js`
