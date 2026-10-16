@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, initials, hueVars, userLabels } = GCAShared;
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
 // the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with.
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -1129,22 +1129,11 @@ function renderDaySep(t, cont) {
 // bold domain line + dim ellipsized label. Domain via new URL() in a try/catch;
 // non-URL hrefs (local media paths) fall back to the path's basename.
 const CHIP_LINK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 15l6-6M9.5 8.5l1.4-1.4a3.5 3.5 0 015 5l-1.4 1.4M14.5 15.5l-1.4 1.4a3.5 3.5 0 01-5-5l1.4-1.4"/></svg>';
-// Media paths come from data.js. The build writes relative paths, but a
-// hand-edited or shared archive could put any URL there: only one that opens
-// as a page or a file (http, https, file) becomes a link. javascript:, data:
-// and the rest are left without an href. The URL parser decides, so a tab
-// inside "java	script:" or a leading space can't slip one past. A file: URL
-// must be on this machine: one with a host (file://host/share, which "//host/x"
-// becomes in the file:// viewer) is a network share, and on Windows opening
-// one can send the user's sign-in to that host. The same check gates every
-// photo and video src, which would fetch it without a click.
-function safeHref(p) {
-  if (typeof p !== "string" || !p) return "";
-  let u;
-  try { u = new URL(p, location.href); } catch (err) { return ""; }
-  if (u.protocol === "http:" || u.protocol === "https:") return p;
-  return u.protocol === "file:" && !u.host ? p : "";
-}
+// Media paths come from data.js: only an http(s) URL or a file: URL on this
+// machine becomes a link or a photo/video source (GCAShared.safeMediaUrl has
+// the rules). The same check gates every photo and video src, which would
+// fetch it without a click.
+function safeHref(p) { return safeMediaUrl(p, location.href); }
 function urlChipEl(href, lbl) {
   let dom;
   try { dom = new URL(href).hostname.replace(/^www\./, ""); }

@@ -1226,6 +1226,23 @@
     if (Array.isArray(src.battleWords)) s.battleWords = cleanBattleWords(src.battleWords);
     return s;
   }
+  // Which media paths from data.js may become a link or a photo/video source.
+  // The build writes relative paths, but a hand-edited or shared archive could
+  // put any URL there: only http, https and file URLs survive, and the URL
+  // parser decides, so a tab inside "java	script:" or a leading space can't
+  // slip one past. A file: URL must be on this machine. One that names a host
+  // is a network share, and on Windows opening one can send the user's sign-in
+  // to that host. Browsers disagree on where "file:////host/share" puts the
+  // host (Chromium reads it as the host, the WHATWG parser in Firefox, Safari
+  // and Node leaves the host empty and the path starting "//"), so both shapes
+  // are refused. Returns the path unchanged, or "" when it is refused.
+  function safeMediaUrl(p, base) {
+    if (typeof p !== "string" || !p) return "";
+    let u;
+    try { u = new URL(p, base); } catch (err) { return ""; }
+    if (u.protocol === "http:" || u.protocol === "https:") return p;
+    return u.protocol === "file:" && !u.host && !u.pathname.startsWith("//") ? p : "";
+  }
   return {
     PALETTE, X_LINK, hashId, initials, HUES, personHue, hueVars,
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
@@ -1237,5 +1254,6 @@
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, linkPlatform, plural,
     graphemes, graphemesNoSegmenter, wrapText, createRedactor, createUserNumbering, userLabels,
     isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
+    safeMediaUrl,
   };
 });
