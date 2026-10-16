@@ -1610,7 +1610,8 @@ server.on("error", (err) => {
 // registration either way, so it's left outside the guard.
 if (require.main === module) {
   // A bad GCA_PORT makes listen() throw synchronously (the "error" handler
-  // above never sees it), so check it first and say so in one line.
+  // above never sees it), so check it first and say so in one line. 0 (any
+  // free port, for the tests) is accepted but not offered: users want 1-65535.
   if (!Number.isInteger(PORT) || PORT < 0 || PORT > 65535) {
     console.error("GCA_PORT must be a number from 1 to 65535 (got " + JSON.stringify(process.env.GCA_PORT) + ").");
     process.exit(1);
