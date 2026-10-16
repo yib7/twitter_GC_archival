@@ -360,7 +360,7 @@ A quick tour through search (a fuzzy match, then an operator across All chats), 
 timeline and its date calendar, the media gallery, Hall of Fame, the Wrapped
 recap, and the Stats view (synthetic demo data):
 
-![Animated walkthrough of the Group Chat Archive on synthetic data: typing the fuzzy search "hilarous", searching All chats with an operator, the Timeline and its Jump to date calendar, the media gallery, Hall of Fame, a few Wrapped 2024 slides, and the Stats dashboard](docs/demo.gif)
+![Animated walkthrough of the Group Chat Archive on synthetic data: typing the fuzzy search "hilarous", searching All chats with an operator, the Timeline and its Jump to date calendar, the media gallery, Hall of Fame, a few Wrapped 2024 slides, and the Stats view](docs/demo.gif)
 
 ---
 

@@ -1,5 +1,5 @@
 // Unit coverage for the pure settings validators in src/shared-core.js
-//. The browser-level behaviour — boot never bricks, an import is
+//. The browser-level behavior — boot never bricks, an import is
 // validated before it is saved — is covered end-to-end by
 // tests/settings-validate.spec.js; this file pins the validators themselves.
 

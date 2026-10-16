@@ -14,7 +14,7 @@
   "engines": {
     "node": "^22.13.0 || >=24"
   },
-  "description": "Offline browser for Twitter/X group DM exports.",
+  "description": "Offline viewer for Twitter/X group DM exports.",
   "scripts": {
     "start": "node scripts/server.js",
     "test": "npm run test:unit && npm run test:smoke",
