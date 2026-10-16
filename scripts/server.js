@@ -985,19 +985,31 @@ function buildFailed(stdout, stderrRaw) {
   const log = ((stdout ? plainText(stdout).trim() : "") + "\nBUILD ERROR: " + error).trim();
   return { ok: false, error, log };
 }
+// data.js as it is now ("" when there is none): a new file is renamed into
+// place, so a changed stamp means a complete new archive was written.
+function archiveStamp() {
+  try { const st = fs.statSync(path.join(PERSONAL, "data.js")); return st.ino + ":" + st.mtimeMs + ":" + st.size; }
+  catch (e) { return ""; }
+}
+// Did a failed build write data.js? Exit code 3 says so; a build killed
+// outright (out of memory, ended from outside) can't, so a data.js that
+// exists and changed since the build started says it too.
+const archiveWrittenBy = (code, before) => code === 3 || (archiveStamp() !== "" && archiveStamp() !== before);
 function runBuild() {
+  const before = archiveStamp();
   try {
     const out = duringBlocking(() => execFileSync(process.execPath, buildNodeArgs(path.join(__dirname, "build.js"), os.totalmem()),
       { cwd: ROOT, env: buildEnvOf(), stdio: ["ignore", "pipe", "pipe"] }));
     return { ok: true, log: plainText(out).trim() };
   } catch (e) {
     // exit code 3: data.js was written, a step after it failed (see build.js)
-    return Object.assign(buildFailed(e.stdout, e.stderr ? e.stderr : String(e.message || e)), { archiveWritten: e.status === 3 });
+    return Object.assign(buildFailed(e.stdout, e.stderr ? e.stderr : String(e.message || e)), { archiveWritten: archiveWrittenBy(e.status, before) });
   }
 }
 // the same build without blocking the server (GET /api/progress and the
 // heartbeat keep answering while a big archive builds).
 function runBuildAsync() {
+  const before = archiveStamp();
   return new Promise((resolve) => {
     let child;
     try {
@@ -1011,7 +1023,7 @@ function runBuildAsync() {
     child.on("close", (code) => {
       const stdout = Buffer.concat(out), stderr = Buffer.concat(err);
       if (code === 0) resolve({ ok: true, log: plainText(stdout).trim() });
-      else resolve(Object.assign(buildFailed(stdout, stderr.length ? stderr : "The build exited with code " + code + "."), { archiveWritten: code === 3 }));
+      else resolve(Object.assign(buildFailed(stdout, stderr.length ? stderr : "The build exited with code " + code + "."), { archiveWritten: archiveWrittenBy(code, before) }));
     });
   });
 }

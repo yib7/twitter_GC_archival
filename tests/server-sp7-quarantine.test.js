@@ -231,8 +231,9 @@ describe("a legacy archive whose export copies are gone says its removed message
 // Once data.js is in place, the archive holds the new messages and points at
 // their media. A step that fails after that (narrowing the quarantine, say)
 // must not roll media/, source/ and config.json back under it: the merge or
-// save is kept, and the reply says a last step failed.
-describe("a build that fails after data.js is written keeps what it wrote", () => {
+// save is kept, and the reply says a last step failed. That holds for a build
+// killed outright (no exit code 3) too: the server sees data.js has changed.
+for (const [how, crash] of [["fails", "after-archive"], ["is killed", "kill-after-archive"]]) describe("a build that " + how + " after data.js is written keeps what it wrote", () => {
   let personal, S;
   before(async () => {
     personal = fs.mkdtempSync(path.join(os.tmpdir(), "gca-sp7-post-archive-")); tmpDirs.push(personal);
@@ -241,7 +242,7 @@ describe("a build that fails after data.js is written keeps what it wrote", () =
       assert.equal((await source(S1, X.writeExport(scratch()))).status, 200);
       assert.equal((await identity(S1, ["333"])).status, 200);
     } finally { S1.proc.kill(); }
-    S = await startServer({ GCA_TEST_BUILD_CRASH: "after-archive" }, { personal });
+    S = await startServer({ GCA_TEST_BUILD_CRASH: crash }, { personal });
   });
   after(() => S.proc.kill());
   const note = (j) => (j.notes || []).find((n) => n.code === "post-archive-step-failed");

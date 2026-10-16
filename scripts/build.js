@@ -48,7 +48,11 @@ const BAK = OUT + ".bak";
 const QUAR = path.join(PERSONAL, ".removed", "messages.js");
 const log = (...a) => console.log(...a);
 // Test-only: stop the build at a named point, as a crash would.
-const crashPoint = (name) => { if (process.env.GCA_TEST_BUILD_CRASH === name) fail("Simulated crash (" + name + ")."); };
+// "kill-<name>" ends the process there with no say (a hard kill, an abort)
+const crashPoint = (name) => {
+  if (process.env.GCA_TEST_BUILD_CRASH === name) fail("Simulated crash (" + name + ").");
+  if (process.env.GCA_TEST_BUILD_CRASH === "kill-" + name) process.exit(70);
+};
 
 // Set once the new data.js is in place. A failure after that exits with
 // code 3 instead of 2: the archive already holds the new messages, so the
