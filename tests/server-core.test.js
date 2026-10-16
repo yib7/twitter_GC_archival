@@ -216,6 +216,13 @@ test("mergeNames treats an array (prev or posted) as empty, not as index-keyed d
   assert.deepEqual(mergeNames(["x", "y"], { "1": "Alice" }), { "1": "Alice" });
 });
 
+// a hand-edited config.json may hold a name that isn't text: it is ignored
+// (dropped from the result), never a reason to refuse the save
+test("mergeNames ignores a name that isn't text, saved or posted", () => {
+  assert.deepEqual(mergeNames({ "1": null, "2": { a: 1 }, "3": 7, "4": "Ann" }, {}), { "4": "Ann" });
+  assert.deepEqual(mergeNames({ "4": "Ann" }, { "4": null, "5": ["x"] }), { "4": "Ann" });
+});
+
 // clearing a name in the wizard posts "" for that id — the explicit
 // "forget this name" signal (an id simply missing from the post still means
 // "unchanged", so a partial save never wipes names).

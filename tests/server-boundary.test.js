@@ -239,6 +239,33 @@ describe("POST /api/identity checks each field's type", () => {
   });
 });
 
+// A config.json edited by hand, or written by an older build, may hold a name
+// that isn't text. /api/status handed it to the wizard, the wizard sent it
+// back with every save, and the save was refused ("Names must be text."), with
+// no way out but Start over. Such a name is ignored: left out of the status
+// reply and dropped from config.json at the next save.
+describe("a saved name that isn't text doesn't block saving", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("status leaves it out, and the wizard's next save goes through", async () => {
+    fs.writeFileSync(path.join(S.personal, "config.json"), JSON.stringify({ names: { 1: null, 2: { first: "x" }, 3: "Ann", 4: 7 } }));
+    const st = await (await S.get("/api/status")).json();
+    assert.deepEqual(st.names, { 3: "Ann" });
+    // what setup.js sends: the status names plus what was typed
+    const r = await S.post("/api/identity", { me: null, gc: {}, names: Object.assign({}, st.names, { 5: "Bo" }), pfps: {}, ignoredUsers: [], ignoredGroups: [] });
+    assert.equal(r.status, 200, await r.text());
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8")).names, { 3: "Ann", 5: "Bo" });
+  });
+
+  test("a save that sends no names drops them too", async () => {
+    fs.writeFileSync(path.join(S.personal, "config.json"), JSON.stringify({ names: { 1: null, 3: "Ann" } }));
+    assert.equal((await S.post("/api/identity", {})).status, 200);
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(S.personal, "config.json"), "utf8")).names, { 3: "Ann" });
+  });
+});
+
 // Every reply, JSON included, says not to sniff it, and the pages never send
 // their address to another site when a link in a message is clicked.
 describe("headers on every reply", () => {

@@ -1375,7 +1375,9 @@ function apiStatus(res) {
     // next save un-removes them
     ignoredUsers: Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : [],
     me: cfg.me ?? null,
-    names: cfg.names || {},
+    // text names only: the wizard sends these back with every save, and a
+    // hand-edited null or object there would get each save refused
+    names: mergeNames(cfg.names, {}),
     pfps: cfg.pfps || {},
     // saved group names + photos, so a reopened wizard shows them and
     // its next save doesn't blank them

@@ -85,12 +85,14 @@ function asNamesMap(v) {
 // relying on Object.assign's default copy semantics.
 // a posted empty / blank name is the explicit "forget this name"
 // signal and deletes the id; an id missing from the post is left unchanged.
+// A name that isn't text (a hand-edited or older config.json) is ignored:
+// dropped here, so it never reaches local.js and never blocks a save.
 function mergeNames(prev, posted) {
   const out = {};
   const p = asNamesMap(prev), q = asNamesMap(posted);
-  for (const k of Object.keys(p)) { if (k !== "__proto__") out[k] = p[k]; }
+  for (const k of Object.keys(p)) { if (k !== "__proto__" && typeof p[k] === "string") out[k] = p[k]; }
   for (const k of Object.keys(q)) {
-    if (k === "__proto__") continue;
+    if (k === "__proto__" || typeof q[k] !== "string") continue;
     if (typeof q[k] === "string" && !q[k].trim()) delete out[k];
     else out[k] = q[k];
   }
