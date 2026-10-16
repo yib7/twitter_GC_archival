@@ -62,3 +62,17 @@ for (const width of [768, 900]) {
     await expect.poll(async () => { const r = await placeholderFits(page); return r.need <= r.room; }).toBe(true);
   });
 }
+
+// Beside the sidebar, typing a query (which shows the ✕) must not push the
+// This chat / All chats switch past the edge of the window.
+test("at 768px a typed query keeps the scope switch inside the window", async ({ page }) => {
+  await bootViewer(page, DATA);
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.locator("#s-input").fill("hello number");
+  await expect(page.locator("#s-clear")).toBeVisible();
+  const scope = await page.locator("#s-scope").boundingBox();
+  const view = await page.locator("#view-search").boundingBox();
+  expect(scope.x + scope.width).toBeLessThanOrEqual(view.x + view.width + 0.5);
+  const clear = await page.locator("#s-clear").boundingBox(), box = await page.locator(".search-box").boundingBox();
+  expect(clear.x + clear.width).toBeLessThanOrEqual(box.x + box.width + 0.5);
+});
