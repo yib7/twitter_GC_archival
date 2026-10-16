@@ -367,7 +367,7 @@ All notable changes to this project are recorded here.
 
 ### Security
 
-- While the local server runs, another website can no longer read your
+- While the setup server runs, another website can no longer read your
   archive. Before, any page you visited could load `personal_data/data.js`
   (or `local.js`) with a `<script>` tag and read every message and name. Now
   every reply carries `Cross-Origin-Resource-Policy: same-origin`, and the
@@ -376,7 +376,7 @@ All notable changes to this project are recorded here.
 - Build, save, removal preview and Start over are refused when the browser
   says another site sent the request (`Sec-Fetch-Site`), as the file pickers
   already were.
-- The native file pickers require a per-session token and a same-origin
+- The native file pickers require a per-run token and a same-origin
   request, so another website can't open them.
 - Pages are sent with `X-Frame-Options: DENY` and `frame-ancestors 'none'`, so
   they can't be framed by another site.
@@ -409,7 +409,7 @@ All notable changes to this project are recorded here.
   `file:` URL on another machine (a network share).
 - Both pages' CSP adds `form-action 'none'`, and every reply carries
   `X-Content-Type-Options: nosniff` and `Referrer-Policy: same-origin`, so
-  opening a link in a message doesn't tell that site about your local server.
+  opening a link in a message doesn't tell that site about your setup server.
 
 ### Docs
 

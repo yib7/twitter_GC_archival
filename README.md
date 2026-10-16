@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml/badge.svg)](https://github.com/yib7/twitter_GC_archival/actions/workflows/ci.yml)
 
-An offline browser for Twitter/X group chat (group DM) exports. Search,
+An offline viewer for Twitter/X group chat (group DM) exports. Search,
 read and chart years of group history from one `index.html` opened straight
 from disk.
 
@@ -109,8 +109,8 @@ All from the synthetic demo data (the wizard preview uses a synthetic test expor
 - A mobile layout at 760px and below: top app bar, 5-tab bottom bar and a
   bottom sheet for the other views.
 - Keyboard-reachable controls with a visible focus ring and screen-reader
-  labels, dialogs that hold focus, and WCAG AA text contrast in all three
-  themes.
+  labels, dialogs that hold focus, and WCAG AA contrast for person names,
+  text colors and on-accent text in all three themes.
 
 > Hiding names on share cards is word-based, so check the preview before
 > you share. A name that is also a common word (a lowercase "will") may stay
@@ -298,7 +298,7 @@ Set them in the shell that starts the server; nothing reads a `.env` file.
 
 | Variable | Default | Effect |
 |----------|---------|--------|
-| `GCA_PORT` | `8765` | Port for the local server. Change it if 8765 is already taken. |
+| `GCA_PORT` | `8765` | Port for the setup server. Change it if 8765 is already taken. |
 | `GCA_PERSONAL` | `personal_data/` in the project folder | Folder for your archive and the wizard's files. Use an absolute path outside the project folder: only `personal_data*/` is git-ignored, so a folder inside the repo under another name would let `git add .` commit your real names and photos. |
 | `GCA_DEBUG` | unset | `1` prints the stack trace when a build fails unexpectedly, for bug reports. |
 
@@ -324,10 +324,10 @@ hand-edit `personal_data/local.js` (`window.LOCAL_NAMES` / `LOCAL_PFPS` /
 
 ## Development
 
-Only needed to run the tests or change the code; the app itself installs
-nothing. Run the steps in the project folder (see Quick start, Step 1). It
-needs the same Node.js 22.13 or newer (`.nvmrc` pins 24, the version CI runs on
-every OS).
+Only needed to run the tests or change the code; the viewer and the setup
+server install nothing. Run the steps in the project folder (see Quick
+start, Step 1). It needs the same Node.js 22.13 or newer (`.nvmrc` pins 24,
+the version CI runs on every OS).
 
 Step 1. Install the dev tools at the exact versions in `package-lock.json`:
 
@@ -358,7 +358,7 @@ identical on every run, and CI fails if the committed copy differs.
 
 A quick tour through search (a fuzzy match, then an operator across All chats), the
 timeline and its date calendar, the media gallery, Hall of Fame, the Wrapped
-recap, and the stats dashboard (synthetic demo data):
+recap, and the Stats view (synthetic demo data):
 
 ![Animated walkthrough of the Group Chat Archive on synthetic data: typing the fuzzy search "hilarous", searching All chats with an operator, the Timeline and its Jump to date calendar, the media gallery, Hall of Fame, a few Wrapped 2024 slides, and the Stats dashboard](docs/demo.gif)
 
