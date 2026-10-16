@@ -259,8 +259,8 @@ test.describe("story mechanics", () => {
     // the press can land at any point in the 1200 ms segment; rewind the
     // paused fill so the release below always has a whole segment ahead of
     // it, instead of a few ms that a slow machine spends before the check
-    await page.evaluate(() => {
-      for (const a of document.querySelector("#wr-stage .wr-seg.cur i").getAnimations()) a.currentTime = 0;
+    await page.evaluate(async () => {
+      for (const a of document.querySelector("#wr-stage .wr-seg.cur i").getAnimations()) { await a.ready; a.currentTime = 0; }
     });
     await page.waitForTimeout(1800);           // longer than a slide
     expect(await slideNo(page)).toBe(held);
@@ -422,9 +422,15 @@ test.describe("story mechanics", () => {
   // long the steps between dialogs take.
   test("autoplay waits behind keyboard help and the command palette", async ({ page }) => {
     await openWrapped(page, { motion: true });
-    const fill = () => page.locator("#wr-segs .wr-seg.cur i").evaluate((i) => {
-      const a = i.getAnimations().find((x) => x.animationName === "wrFill");
-      return a ? { t: a.currentTime, state: a.playState } : null;
+    // A pause starts out pending: playState already says "paused" but the
+    // clock runs on until the next frame commits it, which a slow machine can
+    // stretch to ~100 ms. Read the clock only once the pause (or play) is done.
+    const fill = () => page.evaluate(async () => {
+      const i = document.querySelector("#wr-segs .wr-seg.cur i");
+      const a = i && i.getAnimations().find((x) => x.animationName === "wrFill");
+      if (!a) return null;
+      await a.ready;
+      return { t: a.currentTime, state: a.playState };
     });
     for (const [open, sel] of [["?", ".kb-modal"], ["Control+k", ".cmdk"]]) {
       await page.locator("#wr-next").focus();
