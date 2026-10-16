@@ -714,10 +714,15 @@
   // stay on their consonant) — or a run of anything else.
   const RE_NOSPACE_RUNS = /(?:(?!\p{M})[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}])\p{M}*|[^\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}]+/gu;
   const WORDS_SEG = (typeof Intl !== "undefined" && Intl.Segmenter) ? new Intl.Segmenter("en", { granularity: "word" }) : null;
+  // The emoji presentation selector and the keycap mark are dropped before
+  // matching, so a keycap is the digit it shows and a selector never sticks
+  // to the letter before it.
+  const RE_EMOJI_TAIL = /[\uFE0F\u20E3]/g, RE_HAS_EMOJI_TAIL = /[\uFE0F\u20E3]/;
   function tokenizeWith(text, seg) {
     if (!text) return [];
     let s = plainText(text).toLowerCase();
     if (RE_HAS_APOS.test(s)) s = s.replace(RE_APOS, "'");
+    if (RE_HAS_EMOJI_TAIL.test(s)) s = s.replace(RE_EMOJI_TAIL, "");
     const m = s.match(RE_TOKEN);
     if (!m) return [];
     if (!RE_NOSPACE_SCRIPT.test(s)) return m;
@@ -801,12 +806,16 @@
   }
   function countWord(text, word) { return countKeys(text, wordKeys(word)); }
   // Cheap prefilter before countKeys over many texts: false only when the
-  // lower-cased text cannot contain the folded key (apostrophes removed).
+  // lower-cased text cannot contain the folded key (apostrophes and the
+  // characters tokenize drops removed).
   function mayContainKey(lowerText, key) {
     if (!lowerText || !key) return false;
     if (lowerText.indexOf(key) !== -1) return true;
-    if (lowerText.indexOf("'") === -1 && !RE_HAS_APOS.test(lowerText)) return false;
-    return lowerText.replace(RE_APOS, "").split("'").join("").indexOf(key) !== -1;
+    const apos = lowerText.indexOf("'") !== -1 || RE_HAS_APOS.test(lowerText);
+    if (!apos && !RE_HAS_EMOJI_TAIL.test(lowerText)) return false;
+    let t = lowerText.replace(RE_EMOJI_TAIL, "");
+    if (apos) t = t.replace(RE_APOS, "").split("'").join("");
+    return t.indexOf(key) !== -1;
   }
 
   // --- Keyword patterns -------------------------------------------------
@@ -1195,7 +1204,7 @@
   // emoji in it, or with no letters or digits ("?!"), is keyed by its text
   // instead: lowercased, spaces collapsed, U+FE0F dropped (❤️ and ❤ are one).
   const RE_PICTO = /\p{Extended_Pictographic}/u;
-  const battleText = (s) => s.replace(/️/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  const battleText = (s) => s.replace(RE_EMOJI_TAIL, "").toLowerCase().replace(/\s+/g, " ").trim();
   function battleKey(word) {
     const keys = RE_PICTO.test(word) ? [] : wordKeys(word);
     return keys.length ? keys.join(" ") : battleText(word);

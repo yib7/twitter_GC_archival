@@ -242,3 +242,25 @@ test("countBattleText counts a text-keyed word where it appears, outside links",
   assert.equal(c("see https://x.com/s?a=1 ok?", "?"), 1);
   assert.equal(c("", "?"), 0);
 });
+
+// A keycap (1, U+FE0F, U+20E3) is the digit it shows: it used to be a "word"
+// of its own (1 + the two invisible characters) that counted toward words per
+// message, distinct words and the word cloud, and an added 1-keycap and the
+// same keycap typed without U+FE0F were two Battles words.
+test("a keycap or a variation selector after a letter is not part of the word", () => {
+  const KC1 = "1\uFE0F\u20E3", KC1_BARE = "1\u20E3", HASH = "#\uFE0F\u20E3";
+  for (const tok of [shared.tokenize, shared.tokenizeNoSegmenter]) {
+    assert.deepStrictEqual(tok(KC1 + " go"), ["1", "go"]);
+    assert.deepStrictEqual(tok("\u2139\uFE0F info"), ["\u2139", "info"]);
+    assert.deepStrictEqual(tok(HASH + " ok"), ["ok"]);
+  }
+  assert.equal(shared.isCloudWord(shared.tokenize(KC1)[0]), false);
+  assert.equal(shared.battleKey(KC1), shared.battleKey(KC1_BARE));
+  assert.equal(shared.battleKey(HASH), shared.battleKey("#\u20E3"));
+  assert.deepStrictEqual(shared.cleanBattleWords([KC1, KC1_BARE]), [KC1]);
+  // the prefilter still lets through a text whose word only forms once the
+  // invisible characters are gone
+  const two = KC1 + "2\uFE0F\u20E3";
+  assert.equal(shared.countWord(two, "12"), 1);
+  assert.equal(shared.mayContainKey(two.toLowerCase(), "12"), true);
+});
