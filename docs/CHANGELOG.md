@@ -32,6 +32,9 @@ All notable changes to this project are recorded here.
   only) are counted as people; an ignored member's reactions are dropped too.
 - One display name and one colour per person: the People placeholder, Word
   Battles, pinned messages and the quote card match the avatar.
+- Word Battles counts a word you add once however you type it ("Lol", "lol!"),
+  tallies the wins over every row shown, and colours each side's bars and
+  winning count with that person, telling the two apart if they share a colour.
 - Month charts and sparklines show silent months as zero instead of joining
   January to September.
 - Stats charts follow theme and accent changes live; the keyword trend, the
@@ -64,6 +67,9 @@ All notable changes to this project are recorded here.
   initials (deeper avatar fills), link chips in your own messages, the
   secondary text on the Stats hero and on every Wrapped slide, and message
   photos' focus ring (now drawn inside the picture).
+- Drop-downs, date and colour pickers, text fields and scrollbars follow the
+  theme in the viewer and the wizard, so their pop-ups no longer open light on
+  the dark themes.
 - The theme switch lives in the sidebar and the More sheet instead of
   floating over content.
 
