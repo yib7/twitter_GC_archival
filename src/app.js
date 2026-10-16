@@ -92,6 +92,15 @@ function assignGenericNames() {
   PARTS.forEach((p, i) => { GENERIC[p.id] = "User " + (i + 1); });
 }
 
+// renderGallery() only rebuilds when the view is empty — clear it so the next
+// visit rebuilds (unlike timeline/search, gallery has no *Built flag): on a
+// conversation switch, and when its cells' names or dates change (a rename, a
+// timezone change). Guarded: boot calls this before the DOM is ready.
+function resetGallery() {
+  galleryState = { items: [], page: 0 }; galEls = {};
+  if (galleryObserver) { try { galleryObserver.disconnect(); } catch (e) {} galleryObserver = null; }
+  const gv = document.getElementById("view-gallery"); if (gv) gv.innerHTML = "";
+}
 // drop derived caches / per-view state so the next render uses the active conversation
 function resetDerived() {
   STATS = null; MILES = null; HOF = null; fuzzyIdxJob = null; fuzzyForceQ = null;
@@ -100,12 +109,7 @@ function resetDerived() {
   searchBuilt = false; sEls = {};
   if (resPageObs) { try { resPageObs.disconnect(); } catch (e) {} resPageObs = null; }
   invalidateTimeline(); tlResume = null;   // a new conversation opens at its saved reading position, else the newest message
-  galleryState = { items: [], page: 0 }; galEls = {};
-  if (galleryObserver) { try { galleryObserver.disconnect(); } catch (e) {} galleryObserver = null; }
-  // renderGallery() only rebuilds when the view is empty — clear it here
-  // (unlike timeline/search, gallery has no *Built flag). Guarded: boot calls
-  // this before the DOM is ready.
-  const gv = document.getElementById("view-gallery"); if (gv) gv.innerHTML = "";
+  resetGallery();
   hofYear = "all"; wrappedYear = null; wrappedSlide = 0;
   battleP1 = null; battleP2 = null;
   // filters are per-conversation state — another
@@ -4091,6 +4095,7 @@ function personCard(p) {
     const val = input.value.trim();
     if (val) settings.names[p.id] = val; else delete settings.names[p.id];
     saveSettings();
+    resetGallery();   // its cells name the sender
     if (!PFPS[p.id]) av.textContent = initials(nameOf(p.id));
   });
   row.appendChild(input);
@@ -4283,6 +4288,7 @@ function renderSettings() {
     // The timeline rebuilds on its next visit, reopening on the message that
     // was first in view when the user left it (recorded by setView).
     invalidateTimeline();
+    resetGallery();   // its cells carry dates
     updateBrand();   // the sidebar year range is zone-dependent too
     buildSidebarSparkline();
     if (curView && curView !== "settings") setView(curView);
