@@ -140,6 +140,14 @@ All notable changes to this project are recorded here.
   worker, so its timings don't compete with other tests.
 - CI fails when the demo data in `sample/` differs from what the
   generator makes.
+- A smaller project root. The demo data and its photos live together in
+  `sample/` (was `data.sample.js` + `sample_media/`), the vendored Fuse.js and
+  Chart.js in `src/vendor/` (was `lib/`), and the setup wizard page in
+  `src/setup.html`, still opened at `http://localhost:8765/setup.html`.
+  `.env.example` is gone: nothing reads a `.env` file, and the optional
+  variables are documented in the README. The demo generator is
+  `scripts/make-sample.js` (was `make_sample.js`), and it no longer writes
+  three avatar images nothing used.
 
 ### Features
 
@@ -377,8 +385,7 @@ All notable changes to this project are recorded here.
   are, with new screenshots and a new walkthrough recorded from the demo data.
 - README's Environment variables section lists only the variables a user may
   set (`GCA_PORT`, `GCA_PERSONAL`, `GCA_DEBUG`); the test switches are
-  documented in ARCHITECTURE. `.env.example` is gone: nothing reads a `.env`
-  file, so it only suggested one was needed.
+  documented in ARCHITECTURE.
 - The vendored Fuse.js and Chart.js ship with their license texts, and
   docs/CREDITS.md records where they come from and their SHA-256 hashes.
 

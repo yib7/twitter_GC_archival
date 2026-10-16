@@ -2,7 +2,46 @@
 
 A short tour of the codebase for anyone reading or extending it. The whole thing
 is vanilla JavaScript with two vendored libraries (Fuse.js, Chart.js) and no
-build step for the front-end.
+build step for the front-end. The Node scripts use built-in modules only.
+
+## In one minute
+
+Three programs share one data format, `window.CHAT_DATA`:
+
+1. **The viewer** (`index.html` + `src/app.js`) is a static page opened from
+   `file://`. It loads the archive as a plain script, your built
+   `personal_data/data.js` if there is one, else the synthetic demo in
+   `sample/data.sample.js`, and does everything else (search, timeline,
+   stats, Wrapped) in the browser, with no server and no network.
+2. **The setup server** (`scripts/server.js`) runs on `127.0.0.1` only during
+   setup. It serves the viewer and the setup wizard (`src/setup.html`, at the
+   URL `/setup.html`) and the small JSON API the wizard drives: pick the
+   export, preview it, copy it, build, save names and photos.
+3. **The build** (`scripts/build.js`) turns a raw X export into
+   `personal_data/data.js`. The server runs it as a child process. It streams
+   the export, so a multi-GB archive doesn't have to fit in memory.
+
+Everything real lands in the git-ignored `personal_data/`; the repository
+carries only synthetic data.
+
+## Repository layout
+
+```
+index.html                the viewer: open it from file://
+start-setup.cmd           double-click launchers: start the server, open the wizard
+start-setup.command
+src/                      browser code: app.js (viewer), setup.html + setup.js +
+                          setup.css (wizard), shared-core.js (also used by the
+                          build), styles.css, theme-boot.js, keepalive.js
+src/vendor/               Fuse.js and Chart.js, vendored, with their licenses
+scripts/                  Node: server.js + server-core.js, build.js + build-core.js,
+                          fs-io.js, make-sample.js
+sample/                   the synthetic demo archive and its placeholder photos
+tests/                    node:test units (*.test.js), Playwright specs (*.spec.js),
+                          shared helpers (_*.js), fixtures/
+docs/                     this file, security policy, changelog, credits, screenshots
+personal_data/            (git-ignored) config, built archive, copied media, photos
+```
 
 ## The pipeline
 
@@ -55,15 +94,18 @@ migrates it to the per-group `gc` map.
 `config.json` is the wizard↔build contract and the **only** way the build is
 driven: `build.js` reads its `sourceJs` + `headersJs` + `mediaDir` and writes
 `personal_data/data.js`. With no `config.json`, `build.js` exits and tells the
-user to run the wizard. Media paths are emitted **relative to the project root**,
-so they resolve regardless of where `data.js` sits.
+user to run the wizard. Media paths are emitted as `personal_data/media/…`,
+relative to the project root (`mediaUrlDir`), so they resolve the same from
+`file://` and from the server, which serves the personal folder as
+`/personal_data/` wherever `GCA_PERSONAL` puts it. They never spell out the
+user's own folder layout.
 
 Server endpoints:
 
 | Endpoint | Role |
 |----------|------|
 | `GET /api/ping?c=<page id>` · `POST /api/bye?c=<page id>` | Page presence for the double-click launcher (see `src/keepalive.js`): a ping says a page is open, the beacon says it closed. |
-| `GET /api/pick-file?for=group\|headers` · `GET /api/pick-folder[?for=root]` | Open a native Windows dialog (PowerShell `OpenFileDialog`; for a folder, the media folder or with `for=root` the unzipped archive, the user opens any file inside it and the server returns that file's parent directory) and return the chosen absolute path, so users can browse instead of typing. `for` tailors the file dialog's title + filter. Falls back to manual entry off Windows. Both also require the `X-GCA-Token` header carrying the random per-process token the server injects into `setup.html` only (never logged or stored), plus an own-or-absent `Origin` and `Sec-Fetch-Site: same-origin` when sent (`isPickerRequestAllowed`); without it they return `403` before any dialog opens. |
+| `GET /api/pick-file?for=group\|headers` · `GET /api/pick-folder[?for=root]` | Open a native Windows dialog (PowerShell `OpenFileDialog`; for a folder, the media folder or with `for=root` the unzipped archive, the user opens any file inside it and the server returns that file's parent directory) and return the chosen absolute path, so users can browse instead of typing. `for` tailors the file dialog's title + filter. Falls back to manual entry off Windows. Both also require the `X-GCA-Token` header carrying the random per-process token the server injects into the `/setup.html` page only (never logged or stored), plus an own-or-absent `Origin` and `Sec-Fetch-Site: same-origin` when sent (`isPickerRequestAllowed`); without it they return `403` before any dialog opens. |
 | `POST /api/preflight` | Same body as `/api/source`. **Read-only** preview: streams the export (one message at a time) and returns per-group counts, date ranges and participants, totals, 1:1 DM counts, the media that would be copied (and media of no message), what an existing archive already holds (`merge`: overlap, new messages, new / kept group chats) and plain `warnings` (`{code, text}`: zero messages, swapped files, missing parts, manifest problems, DMs left out, unmatched media, overlap, removed people's messages, bad dates). Nothing under `personal_data/` changes; `409` while a build runs. |
 | `POST /api/source` | `{ archiveRoot }` **or** `{ groupJs, headersJs, mediaDir }`. An archive folder (or any file in it) is resolved through `data/manifest.js` (`locateExport` in `scripts/fs-io.js`; never outside the picked folder) united with the export-named files in the data folder (a stale manifest can't hide a part), with a file-name scan as fallback; the three fields are validated (all **required** and existing). Copies the `.js` files into `personal_data/source/` and media into `personal_data/media/` (one file at a time, each to a temp name renamed into place; a non-empty file already there is never replaced), writes `config.json`, runs `build.js` as a child process with the existing `data.js` as the merge baseline, and returns a summary (`merged`, `older`, `previousMsgs`, `added` for a merge). A merge of an export with no group messages is refused (`422`); an export older than the archive doesn't re-point `mediaSourceDir`, and the build keeps the archive's copies of messages both have (reactions united). `build.js` keeps the messages it leaves out for removed people / group chats in `personal_data/.removed/messages.js` (archive format; written as a superset before `data.js`, narrowed after) and folds them back once un-removed (the file stays, empty, while anything is removed; an archive with removals and no such file is rebuilt once with its unchanged config before a merge copies anything, and a failed merge puts the file back). Un-removing restores media from `mediaSourceDir` for the ids in `data.js` and the quarantine. One job at a time: a second build, a save, a removal preview, a preflight or Start over gets `409` while it runs. |
 | `GET /api/progress` | `{ running: false }`, or `{ running: true, phase, files, totalFiles, bytes, totalBytes }` while a build copies media — the wizard's progress bar. |
@@ -92,6 +134,36 @@ of `/api/status` and dropped at the next save. Every reply carries `X-Content-Ty
 `Referrer-Policy: same-origin`. While a build runs, `identity`,
 `reset`, `removal-preview`, `preflight` and a second `source` get `409`.
 
+### Security boundaries at a glance
+
+The archive is private, and every program treats what it reads as untrusted.
+The details are in the endpoint notes above, the CSP below and
+[SECURITY.md](SECURITY.md).
+
+- **Setup server.** Listens on `127.0.0.1` only and checks every request's
+  `Host` against loopback names (no DNS rebinding). Every `/api/` route
+  refuses a request that another site sent (`Sec-Fetch-Site`, `Origin`,
+  `Referer`); the native pickers also need the per-process token only the
+  `/setup.html` page gets. Bodies are JSON objects with typed fields, at most
+  64 MB, and one job runs at a time (`409`).
+- **Served files.** Only an allowlist (`isServablePath`): the two pages,
+  `src/`, `sample/`, the archive and the wizard's identity files. `config.json`,
+  `source/`, `.git/`, `scripts/`, `tests/` and `node_modules/` are never
+  served. The private files (`/data.js`, `/names.local.js`, `/personal_data/…`)
+  get `403` when another site asks for them, and every reply carries
+  `Cross-Origin-Resource-Policy: same-origin`, `X-Content-Type-Options:
+  nosniff` and `Referrer-Policy: same-origin`.
+- **Viewer.** `data.js` may be hand-edited or shared, so message text is
+  escaped before it reaches markup, photos pass `sanitizePhoto` and colours
+  `sanitizeColor`, and a media path becomes a link or a `src` only through
+  `safeMediaUrl` in `src/shared-core.js`: http, https, or a `file:` URL on
+  this machine (or on the network share the viewer itself was opened from).
+  A `file:` URL naming any other host is refused, since on Windows opening it
+  can send the user's sign-in to that host.
+- **Build.** A crafted export can't make it run away (missing part numbers,
+  link matching and reaction merges are bounded), field types are checked, and
+  its error output names files by basename only.
+
 ### Content-Security-Policy
 
 `index.html` and `src/setup.html` each carry the policy in a `<meta
@@ -104,7 +176,7 @@ needed for scripts.
 
 When served, `scripts/server.js` injects one inline config script
 (`window.GCA_SERVER_URL`, plus the picker token `window.GCA_TOKEN` on
-`setup.html` only). For that it generates a fresh random nonce per response,
+the `/setup.html` page only). For that it generates a fresh random nonce per response,
 adds `'nonce-<value>'` to the meta tag's `script-src`, and puts the same
 nonce on the injected `<script>`. A meta CSP can't set `frame-ancestors`, so
 every HTML response also gets two headers: `X-Frame-Options: DENY` and
@@ -121,7 +193,7 @@ served mode; nothing frames a `file://` page.
 | `src/setup.html` · `src/setup.js` · `src/setup.css` | First-run setup wizard. Served only, at `/setup.html` (`servedFileFor` in `scripts/server-core.js`), so its relative asset paths resolve from the project root; opened from disk it shows just a note saying to start the server. Collects source paths, group name/photo, and per-participant names/pfps/"you", talking to the `scripts/server.js` API. |
 | `index.html` | App shell + sidebar markup. Script load order: `src/theme-boot.js` (in `<head>`), `src/keepalive.js`, `sample/data.sample.js`, then gitignored real data that overrides it (`data.js`, then `personal_data/data.js`), then name overrides (`names.local.js`, then `personal_data/local.js`), then `src/vendor/` (Fuse.js, Chart.js), then `src/shared-core.js`, then `src/app.js`. The four optional files are plain `<script src … data-optional>` tags with no `onerror` handler: when served, a missing one comes back as an empty `200`; over `file://` the browser just logs a not-found line. |
 | `src/app.js` | The entire UI. See "Runtime model" below. |
-| `src/shared-core.js` | Single source for the constants/helpers three consumers all need to agree on: `PALETTE` (the person colour swatches), `X_LINK` (Twitter/X link matcher), `hashId`, `initials`, the person hue rule (`personHue`, `hueVars`), plus the text-analysis definitions (emoji, tokenizer, stopwords, keywords, link platforms, `plural`) and the time index (see *Analytics definitions*). Dual-target, no bundler: a UMD-style wrapper sets `window.GCAShared` when loaded as a plain `<script>` (`index.html`/`src/setup.html`, before `app.js`/`setup.js`) and exports the same object via `module.exports` when `require()`d from Node (`scripts/build-core.js`). Replaces three previously-duplicated copies of the same constants; `tests/shared-core.test.js` asserts every consumer wires up this module and none re-declares its own copy. |
+| `src/shared-core.js` | Single source for the constants/helpers three consumers all need to agree on: `PALETTE` (the person colour swatches), `X_LINK` (Twitter/X link matcher), `hashId`, `initials`, the person hue rule (`personHue`, `hueVars`), plus the text-analysis definitions (emoji, tokenizer, stopwords, keywords, link platforms, `plural`), the time index (see *Analytics definitions*), the search-query parser and fuzzy prefilter, the settings validators (`validateSettings`, `sanitizePhoto`, `sanitizeColor`), the contrast helpers and `safeMediaUrl`. All DOM-free, so `node:test` covers them directly. Dual-target, no bundler: a UMD-style wrapper sets `window.GCAShared` when loaded as a plain `<script>` (`index.html`/`src/setup.html`, before `app.js`/`setup.js`) and exports the same object via `module.exports` when `require()`d from Node (`scripts/build-core.js`). Replaces three previously-duplicated copies of the same constants; `tests/shared-core.test.js` asserts every consumer wires up this module and none re-declares its own copy. |
 | `src/theme-boot.js` | Applies the saved `gca.theme` (light/dim/lightsout) to `<html data-theme>` before first paint, avoiding a flash of the wrong theme. Externalized into its own same-origin file (loaded first, in `<head>`, in both `index.html` and `src/setup.html`) rather than an inline `<script>` block, so the `<meta>` CSP's `script-src 'self'` needs no per-inline-script hash or `'unsafe-inline'`. No-op over `file://` (`localStorage` still works there; the `<meta>` CSP applies as-is, with no nonce). |
 | `src/styles.css` | App styles + the X design-token theme system: `html[data-theme]` blocks for Light, Dim, and Lights out. Accent, font size, and density stay JS-driven CSS variables. |
 | `scripts/server.js` | Static file server with HTTP range support (for video), plus the setup-wizard API (the endpoint table above). Serves only an allowlist of paths (`isServablePath`). Not required for daily use, the app runs from `file://`. It adds the per-response CSP nonce and the frame headers described under *Content-Security-Policy*, sends HTML with `Cache-Control: no-store`, checks `Host` on every request and the Origin/`Sec-Fetch-Site` guard on the `GUARDED` routes (below). Every reply carries `Cross-Origin-Resource-Policy: same-origin`, and the private files (`isPrivateServedPath`: `/data.js`, `/names.local.js` and anything under `/personal_data/`) get `403` when `Sec-Fetch-Site` says another site asked (`isForeignFetchSite`), so no other site can `<script src>` the archive. |
@@ -129,6 +201,7 @@ served mode; nothing frames a `file://` page.
 | `scripts/server-core.js` | Pure, side-effect-free server helpers (path allowlist `isServablePath`, `pfpFileName`, `isInsidePersonal`, `openerCommand`, idle-liveness, name merges), split out so the security-sensitive routing rules are unit-tested in isolation (`tests/server-core.test.js`), mirroring the `build.js` / `build-core.js` split. Also owns the **Host/Origin guard**: `isAllowedHost(hostHeader, port)` checks every request's `Host` header against a loopback-hostname allowlist (blocks DNS-rebinding — a malicious external DNS name that resolves to `127.0.0.1` — and any host/port mismatch); `isAllowedOrigin(originHeader, refererHeader, port)` additionally checks `Origin`/`Referer` on the state-changing routes in `server.js`'s `GUARDED` set (`/api/reset`, `/api/source`, `/api/preflight`, `/api/identity`, `/api/removal-preview`, `/api/pick-file`, `/api/pick-folder`, `/api/bye`), rejecting any cross-origin `POST` (CSRF); `isForeignFetchSite(headers)` adds the `Sec-Fetch-Site` check on those same routes. All return `403` on failure; `tests/server-host-guard.test.js` and `tests/server-core.test.js` cover the malformed-header and DNS-rebind edge cases. |
 | `src/keepalive.js` | Page presence for the double-click launcher (which starts the server with `--open`), loaded first (before the archive data) by `index.html`/`src/setup.html` when served over http(s). Each page pings `GET /api/ping?c=<page id>` (every 15 s, and at once when it becomes visible again) and sends a `POST /api/bye?c=<page id>` beacon on `pagehide`. The server exits ~20 s after the last open page said goodbye, or after 30 min with no contact at all (`makeLiveness`), so a throttled or sleeping background tab never stops it, while closing the browser still closes the command window. If a ping fails, the page shows a banner saying the server stopped and how to restart it. No-op over `file://`; harmless against a manually-started server. |
 | `src/vendor/` | Vendored Fuse.js (Apache-2.0) + Chart.js (MIT), with their license texts; hashes and upstream URLs in `docs/CREDITS.md`. |
+| `sample/` | The committed synthetic demo: `data.sample.js` and the placeholder photos its messages point at (`sample/photo-N.svg`, relative to `index.html`). Written only by `scripts/make-sample.js`. |
 
 ## Data schema (`window.CHAT_DATA`)
 
