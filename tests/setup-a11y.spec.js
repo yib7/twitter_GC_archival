@@ -101,5 +101,56 @@ for (const th of THEMES) {
       await expect(page.locator('[data-pane="4"]')).toBeVisible();
       expect(await contrastFailures(page, ".setup-shell")).toEqual([]);
     });
+
+    // The two confirm dialogs sit outside the panes. Erase / Remove are
+    // never pressed; their endpoints are mocked anyway.
+    for (const vp of [{ width: 1280, height: 900 }, { width: 375, height: 812 }]) {
+      test("Start over and Remove dialogs: named field, readable text at " + vp.width, async ({ page }) => {
+        await page.setViewportSize(vp);
+        await routes(page);
+        let erased = false;
+        await page.route("**/api/reset", (route) => { erased = true; route.fulfill({ status: 200, contentType: "application/json", body: "{}" }); });
+        await page.route("**/api/removal-preview", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ messages: 40, media: 0 }) }));
+        await page.goto("/setup.html");
+        await expect(page.locator('body[data-ready="1"]')).toBeAttached();
+        await page.locator("#btn-reset").click();
+        const reset = page.locator("#reset-modal");
+        await expect(reset).toBeVisible();
+        expect(await dialogUnnamedFields(page, "#reset-modal")).toEqual([]);
+        await page.locator("#reset-confirm").fill("RESET");
+        await expect(page.locator("#reset-go")).toBeEnabled();
+        expect(await contrastFailures(page, "#reset-modal")).toEqual([]);
+        await page.locator("#reset-go").hover();
+        expect(await contrastFailures(page, "#reset-modal")).toEqual([]);
+        await page.locator("#reset-cancel").click();
+        await expect(reset).toBeHidden();
+        // Remove: mark a person on step 3, then Save on step 4 asks first
+        await page.locator("#src-group").fill("group.js");
+        await page.locator("#src-headers").fill("headers.js");
+        await page.locator("#src-media").fill("media");
+        await checkAndBuild(page, { mock: true });
+        await page.locator('[data-pane="2"] [data-next]').click();
+        await page.locator(".su-person .su-remove").first().click();
+        await page.locator('[data-pane="3"] [data-next]').click();
+        await page.locator("#btn-save").click();
+        const remove = page.locator("#remove-modal");
+        await expect(remove).toBeVisible();
+        await expect(page.locator("#remove-msg")).toContainText("40 messages");
+        expect(await contrastFailures(page, "#remove-modal")).toEqual([]);
+        await page.locator("#remove-cancel").click();
+        await expect(remove).toBeHidden();
+        expect(erased).toBe(false);
+      });
+    }
   });
+}
+
+// Every visible field inside a dialog is named.
+async function dialogUnnamedFields(page, sel) {
+  return page.locator(sel + " input, " + sel + " select, " + sel + " textarea").evaluateAll((els) => els.filter((e) => {
+    const lb = e.getAttribute("aria-labelledby");
+    const name = e.getAttribute("aria-label") ||
+      (lb ? lb.split(/\s+/).map((id) => (document.getElementById(id) || {}).textContent || "").join(" ") : [...(e.labels || [])].map((l) => l.textContent).join(" "));
+    return !name.trim();
+  }).map((e) => e.id || e.className));
 }

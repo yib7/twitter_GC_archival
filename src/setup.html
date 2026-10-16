@@ -237,8 +237,8 @@
         <code>personal_data/</code> — the built archive, names, photos, and the
         copied media &amp; source files — so you can start setup from a clean slate.
         <b>This cannot be undone.</b></p>
-      <p class="su-reset-msg">Type <b>RESET</b> to confirm:</p>
-      <input id="reset-confirm" class="setup-input" type="text" autocomplete="off" placeholder="RESET" />
+      <p class="su-reset-msg" id="reset-confirm-label">Type <b>RESET</b> to confirm:</p>
+      <input id="reset-confirm" class="setup-input" type="text" autocomplete="off" placeholder="RESET" aria-labelledby="reset-confirm-label" />
       <div class="setup-actions">
         <button type="button" class="btn ghost" id="reset-cancel">Cancel</button>
         <button type="button" class="btn danger" id="reset-go" disabled>Erase &amp; start over</button>
