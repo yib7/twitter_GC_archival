@@ -547,6 +547,8 @@ button, input, select, textarea { font-family: inherit; }
   padding: 6px 15px; border-radius: var(--radius-pill); box-shadow: var(--el2);
 }
 .daysep .daypill b { color: var(--text); }
+/* an earlier day's pill still pinned under the current one (buryStuckPills) */
+.daysep.buried .daypill { opacity: 0; }
 /* continuation pill at the top of a chunk that continues the previous
    chunk's day. Zero height (the -gap cancels the flex gap it would add), the
    pill hangs ABOVE its box: at rest that is outside the chunk and clipped by

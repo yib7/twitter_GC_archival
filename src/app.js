@@ -2849,6 +2849,21 @@ function updateLatestBtn() {
   if (!b || !s) return;
   b.hidden = !N || s.scrollHeight - s.scrollTop - s.clientHeight <= Math.max(200, s.clientHeight / 2);
 }
+// Day pills are sticky siblings inside one chunk, so every day already
+// scrolled past stays pinned at the same spot under the current one and showed
+// through its translucent background as ghost labels. Fade out all but the
+// newest pill at the sticky line (opacity, so they stay in the a11y tree).
+function buryStuckPills() {
+  const s = tlEls.scroll, list = tlEls.list;
+  if (!s || !list) return;
+  const top = s.getBoundingClientRect().top;
+  const pills = [...list.querySelectorAll(".daysep")].map((d) => ({ d, r: d.firstElementChild.getBoundingClientRect() })).filter((p) => p.r.height);
+  let line = Infinity;
+  for (const p of pills) if (p.r.top >= top - 0.5 && p.r.top < line) line = p.r.top;
+  const stuck = pills.filter((p) => Math.abs(p.r.top - line) < 1);
+  const keep = stuck.length ? stuck[stuck.length - 1].d : null;
+  for (const p of pills) p.d.classList.toggle("buried", p.d !== keep && Math.abs(p.r.top - line) < 1);
+}
 const CHUNK_SIZE = 50;
 let numChunks = 0, chunkHeights = [], chunkRendered = [], eventBuckets = [];
 
@@ -2882,7 +2897,7 @@ function ensureTimelineShell() {
   // current (one rAF per scroll burst; the save waits for the scroll to rest).
   let latestRaf = 0, posT = 0;
   tlEls.scroll.addEventListener("scroll", () => {
-    if (!latestRaf) latestRaf = requestAnimationFrame(() => { latestRaf = 0; updateLatestBtn(); });
+    if (!latestRaf) latestRaf = requestAnimationFrame(() => { latestRaf = 0; updateLatestBtn(); buryStuckPills(); });
     clearTimeout(posT); posT = setTimeout(saveTlPos, 250);
   }, { passive: true });
   // The shell was just rebuilt with an EMPTY #tl-list, so the chunk bookkeeping

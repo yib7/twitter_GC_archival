@@ -68,3 +68,34 @@ test("an event closing the previous chunk breaks the sender run", async ({ page 
   expect(c[1].firstMsgConsecutive).toBe(false);
   expect(c[1].inFlowPills).toEqual([]);
 });
+
+// Day pills are sticky siblings inside one chunk, so every day already
+// scrolled past stayed stuck at the same spot under the current one and showed
+// through its translucent background as a stack of ghost labels. Only the
+// newest stuck pill may be visible there.
+test("only one day pill shows at the sticky spot, with no ghost of earlier days under it", async ({ page }) => {
+  // 40 messages, 4 per day over 10 days: all in the first chunk.
+  const list = [];
+  for (let d = 0; d < 10; d++) for (let k = 0; k < 4; k++)
+    list.push({ i: "d" + d + "k" + k, s: k % 2 ? "u2" : "u1", t: T0 + d * 86400000 + k * 60000, x: "day " + d + " message " + k });
+  await bootViewer(page, { conversations: [conv("A", "Alpha", list)] },
+    { ls: { "gca.lastView": "timeline", "gca.settings": JSON.stringify({ timezone: "UTC", tzExplicit: true }) } });
+  await expect(page.locator("#view-timeline .msg").first()).toBeVisible();
+  for (const day of [4, 7]) {
+    // scroll so day `day`'s pill is stuck and earlier days are behind it
+    await page.locator("#tl-list .msg", { hasText: "day " + day + " message 1" }).evaluate((m) => {
+      const s = document.getElementById("tl-scroll");
+      s.scrollTop += m.getBoundingClientRect().top - s.getBoundingClientRect().top - 60;
+    });
+    await expect.poll(() => page.evaluate(() => {
+      // the sticky line: where the earliest pills of the chunk are pinned
+      const s = document.getElementById("tl-scroll").getBoundingClientRect();
+      const pills = [...document.querySelectorAll("#tl-list .daypill")].filter((p) => p.getBoundingClientRect().height);
+      const line = Math.min(...pills.map((p) => p.getBoundingClientRect().top).filter((t) => t >= s.top));
+      return pills.filter((p) => {
+        const r = p.getBoundingClientRect(), cs = getComputedStyle(p);
+        return Math.abs(r.top - line) < 2 && cs.visibility !== "hidden" && +cs.opacity > 0.01;
+      }).map((p) => p.textContent.trim());
+    })).toEqual([new Date(T0 + day * 86400000).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" })]);
+  }
+});
