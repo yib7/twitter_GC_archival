@@ -136,3 +136,16 @@ test("Hall of Fame arrows walk the ranked media set", async ({ page }) => {
   await page.keyboard.press("ArrowRight");
   expect(await lbSrc(page)).toBe("sample/photo-2.svg");   // 1 reaction
 });
+
+// The lightbox is always a dark scrim, so its caption can't use the theme's
+// dim text (Light's is a dark grey: 2.7:1 there). Readable in every theme.
+for (const th of ["lightsout", "dim", "light"]) {
+  test(`the lightbox caption and its controls are readable on the scrim (${th})`, async ({ page }) => {
+    const { contrastFailures } = require("./_contrast.js");
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await bootViewer(page, DATA, { ls: { "gca.lastView": "gallery", "gca.theme": th } });
+    await page.locator("#gal-list > *").first().click();
+    await expect(page.locator(".lightbox .lb-cap")).toBeVisible();
+    expect(await contrastFailures(page, ".lightbox")).toEqual([]);
+  });
+}
