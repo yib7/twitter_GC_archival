@@ -370,6 +370,13 @@ test("a word in quotes or brackets is its words; only an emoticon is its text", 
     assert.equal(shared.wordQuery(w).byText, true, w);
   }
   assert.equal(k("@bob"), "");   // nothing left to count: a mention never is
+  // a one-letter word ending a sentence is still a word, not an emoticon
+  for (const [w, key] of [["k.", "k"], ["u?", "u"], ["K!", "k"], ["y…", "y"]]) {
+    assert.equal(k(w), key, w);
+    assert.equal(shared.wordQuery(w).byText, false, w);
+  }
+  assert.equal(c("k. fine k", "k."), 2);
+  assert.equal(k(":P."), ":p.");   // an emoticon ending a sentence stays one
 });
 
 // The Battles loop skips a message whose lowercased text cannot hold the word

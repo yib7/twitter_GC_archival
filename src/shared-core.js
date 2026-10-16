@@ -1206,7 +1206,9 @@
   // @mention or a link is left out of the word, as it is of every message.
   const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20E3]/u;
   const RE_SYMBOL = /[^\p{L}\p{N}\p{M}\s'\u2018\u2019\u02BC\uFF07]/u;
-  const isEmoticon = (w, keys) => RE_SYMBOL.test(w) && keys.every((k) => [...k].length === 1);
+  // sentence-ending punctuation doesn't make one ("k.", "u?" are words)
+  const RE_END_PUNCT = /[.,!?…]+$/u;
+  const isEmoticon = (w, keys) => RE_SYMBOL.test(w.trim().replace(RE_END_PUNCT, "")) && keys.every((k) => [...k].length === 1);
   const RE_VS = /[\uFE0E\uFE0F]/g, RE_HAS_VS = /[\uFE0E\uFE0F]/;
   const battleText = (s) => s.replace(RE_VS, "").toLowerCase().replace(/\s+/g, " ").trim();
   const RE_INVISIBLE = /[\uFE0E\uFE0F\u20E3\u200B-\u200D\u2060\uFEFF]/g;
