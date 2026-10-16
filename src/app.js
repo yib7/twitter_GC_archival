@@ -7213,9 +7213,9 @@ function drawBattleResults() {
     else if (c2 > c1) wins2++;
   });
   html += `<div class="battle-summary">
-    <span style="color:${esc(personColor(battleP1).p)};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} wins</span>
+    <span style="color:${esc(personColor(battleP1).p)};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} ${wins1 === 1 ? "win" : "wins"}</span>
     <span style="color:var(--text-faint)">•</span>
-    <span style="color:${esc(personColor(battleP2).p)};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} wins</span>
+    <span style="color:${esc(personColor(battleP2).p)};font-weight:700">${esc(nameOf(battleP2))}: ${wins2} ${wins2 === 1 ? "win" : "wins"}</span>
   </div>`;
 
   container.innerHTML = html;

@@ -1612,6 +1612,12 @@ html[data-theme="light"] .pl-name, html[data-theme="dim"] .pl-name { color: colo
   cursor: pointer; color-scheme: dark; outline: none;
 }
 .battle-picker select:focus { border-color: var(--accent); }
+/* the select is capped so two pickers and VS fit in 600px; narrower than that
+   (a phone, or a small window beside the sidebar) they stack with VS between
+   them instead of wrapping with VS stranded beside the first */
+.battle-picker select { max-width: 180px; text-overflow: ellipsis; }
+#view-battles .page-body { container-type: inline-size; }
+@container (max-width: 600px) { .battle-selectors { flex-direction: column; gap: 10px; } }
 .battle-vs {
   font-size: 24px; font-weight: 900; color: var(--accent-text);
   text-shadow: 0 0 20px var(--accent-glow);
