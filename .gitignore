@@ -23,12 +23,13 @@ direct-message-*.js
 # Media folders (real photos & videos)
 direct_messages_media/
 direct_messages_group_media/
+# The pre-wizard manual setup (v1.0) kept photos at the top level; a checkout
+# upgraded from it may still hold them.
 profile_pictures/
 gc_photo.jpg
 
-# Private local overrides (real names / profile pictures). Any *.local.js, to
-# match the lint ignore list.
-names.local.js
+# Private local overrides (real names / profile pictures), e.g. the legacy root
+# names.local.js. Any *.local.js, to match the lint ignore list.
 *.local.js
 
 # Packaged export archives (multi-GB) and other archive formats — never commit
@@ -66,10 +67,10 @@ CLAUDE.md
 # Dependencies
 node_modules/
 
-# Playwright test artifacts
+# Playwright test artifacts (playwright-report/ is the HTML reporter's output,
+# which CI uploads when a run fails)
 test-results/
 playwright-report/
-blob-report/
 
 # Internal planning brief (references real ids / private data). Bare pattern, so
 # it matches PLAN.md at any depth.
