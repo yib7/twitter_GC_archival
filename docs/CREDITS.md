@@ -1,7 +1,7 @@
 # Credits
 
 Third-party code bundled in this repository. Both libraries are vendored
-(committed as minified files under `src/vendor/`) so the app runs fully offline with no
+(committed as minified files under `src/vendor/`) so the viewer runs fully offline with no
 package install at runtime. Each one keeps its original copyright header, and
 its full license text ships next to it in `src/vendor/`. No fonts, icons or
 other third-party assets are bundled: the interface uses the system font stack.
@@ -43,7 +43,7 @@ Renders the charts in the Stats view.
   comes from that header; the license text is the `LICENSE.md` of the
   `@kurkle/color@0.3.2` npm package.
 
-Chart.js uses it to parse and mix colours.
+Chart.js uses it to parse and mix colors.
 
 ### Checking a vendored file
 
