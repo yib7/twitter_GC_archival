@@ -2977,7 +2977,10 @@ function openTimeline(anchor, opts) {
 // pushes the reader's message out of place, and scroll anchoring can't be
 // counted on to undo it (the placeholder itself can be the anchor).
 function renderChunksInView(target, opts) {
-  for (let pass = 0; pass < 4; pass++) {
+  // Pass 2 normally finds nothing: 50 messages are taller than a screen. More
+  // passes happen only when rendered chunks come out shorter than their
+  // placeholder and reveal more; the bound just stops a runaway loop.
+  for (let pass = 0; pass < 8; pass++) {
     const sr = tlEls.scroll.getBoundingClientRect();
     const todo = [];
     tlEls.list.childNodes.forEach((c, i) => {

@@ -35,13 +35,17 @@ test("a timezone change keeps the Timeline reading position and relabels it", as
 // placeholder on screen. One would render a frame later at its real height and
 // push the message the reader was put on out of place (seen on a slow CI
 // machine: 21 messages off). The check runs in the same task as the jump and
-// the reopen, before any IntersectionObserver callback can fill the gap.
-const placeholdersInView = () => {
+// the reopen, before any IntersectionObserver callback can fill the gap. It
+// also reports which message is flashed and which is first on screen, so the
+// test can tell that the jump or reopen really happened in that same task.
+const screenState = () => {
   const sr = document.getElementById("tl-scroll").getBoundingClientRect();
-  return [...document.querySelectorAll("#tl-list .tl-chunk")].filter((c) => {
-    const r = c.getBoundingClientRect();
-    return r.bottom > sr.top && r.top < sr.bottom && !c.querySelector(".msg");
-  }).map((c) => c.dataset.c);
+  const onScreen = (n) => { const r = n.getBoundingClientRect(); return r.bottom > sr.top && r.top < sr.bottom; };
+  const blank = [...document.querySelectorAll("#tl-list .tl-chunk")]
+    .filter((c) => onScreen(c) && !c.querySelector(".msg")).map((c) => c.dataset.c);
+  const flash = document.querySelector("#tl-list .msg.flash");
+  const first = [...document.querySelectorAll("#tl-list .msg")].find((m) => { const t = m.getBoundingClientRect().top; return t >= sr.top && t < sr.bottom; });
+  return { blank, flashed: flash ? +flash.dataset.idx : null, first: first ? +first.dataset.idx : null };
 };
 
 test("a date jump and a reopened reading position leave no unrendered chunk on screen", async ({ page }) => {
@@ -52,15 +56,17 @@ test("a date jump and a reopened reading position leave no unrendered chunk on s
   const afterJump = await page.evaluate((check) => {
     document.querySelector(".cmdk-input").dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     return (0, eval)("(" + check + ")")();
-  }, placeholdersInView.toString());
-  expect(afterJump).toEqual([]);
+  }, screenState.toString());
+  expect(afterJump.flashed).toBeGreaterThan(1500);   // landed on the mid-archive date already
+  expect(afterJump.blank).toEqual([]);
 
-  await settledTimeline(page);
+  const before = await settledTimeline(page);
   await page.locator('.nav-item[data-view="settings"]').click();
   await page.locator("#set-tz").selectOption("America/New_York");
   const afterReopen = await page.evaluate((check) => {
     document.querySelector('.nav-item[data-view="timeline"]').click();
     return (0, eval)("(" + check + ")")();
-  }, placeholdersInView.toString());
-  expect(afterReopen).toEqual([]);
+  }, screenState.toString());
+  expect(afterReopen.first).toBe(before.first);   // reopened at the reading position already
+  expect(afterReopen.blank).toEqual([]);
 });
