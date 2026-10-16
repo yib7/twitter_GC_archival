@@ -77,6 +77,8 @@ test.afterAll(async () => {
 // fields by script — the identity saved on the first visit must survive it.
 async function buildAndGotoPeopleStep(page) {
   await page.goto(BASE + "/setup.html");
+  // the source locks only once /api/status is in; reading it sooner sees it unlocked
+  await expect(page.locator("body")).toHaveAttribute("data-ready", "1");
   const locked = await page.locator("#src-locked").isVisible();
   if (locked) await page.locator("#src-add").click();
   await page.locator("#src-group").fill(path.join(exportDir, "direct-messages-group.js"));

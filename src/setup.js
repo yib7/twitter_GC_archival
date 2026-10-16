@@ -866,4 +866,7 @@ $("#reset-go").onclick = async () => {
 
 go(1);
 loadStatus();
+// The prior save is applied (the source may have just locked): tests wait on
+// this before reading the page, as they do on the viewer's data-ready.
+statusReady.then(() => { document.body.dataset.ready = "1"; });
 })();
