@@ -2964,9 +2964,34 @@ function openTimeline(anchor, opts) {
     }
   }
   
+  renderChunksInView(opts.top || opts.bottom ? null : target, opts);
+
   // Re-enable smooth scrolling after jumping
   setTimeout(() => tlEls.scroll.style.scrollBehavior = "", 10);
   updateLatestBtn();
+}
+
+// Render every placeholder chunk now on screen, in the same task as the jump,
+// and keep the target where it was put. Left to the IntersectionObserver, such
+// a chunk fills in a frame later at its real height; above the target that
+// pushes the reader's message out of place, and scroll anchoring can't be
+// counted on to undo it (the placeholder itself can be the anchor).
+function renderChunksInView(target, opts) {
+  for (let pass = 0; pass < 4; pass++) {
+    const sr = tlEls.scroll.getBoundingClientRect();
+    const todo = [];
+    tlEls.list.childNodes.forEach((c, i) => {
+      if (chunkRendered[i]) return;
+      const r = c.getBoundingClientRect();
+      if (r.bottom > sr.top && r.top < sr.bottom) todo.push(i);
+    });
+    if (!todo.length) return;
+    const before = target ? target.getBoundingClientRect().top : 0;
+    todo.forEach((i) => renderChunk(i, tlEls.list.childNodes[i]));
+    if (target) tlEls.scroll.scrollTop += target.getBoundingClientRect().top - before;
+    else if (opts.bottom) tlEls.scroll.scrollTop = tlEls.scroll.scrollHeight;
+    else if (opts.top) tlEls.scroll.scrollTop = 0;
+  }
 }
 
 function renderChunk(idx, container) {
