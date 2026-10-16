@@ -232,3 +232,22 @@ test("redaction: a possessive name also redacts the name without the 's", () => 
   assert.strictEqual(createRedactor([{ id: "1", names: ["It's Me"] }]).text("it works, It's late"), "it works, Person A late");
   assert.strictEqual(createRedactor([{ id: "1", names: ["O'Neil"] }]).text("O went home"), "O went home");
 });
+
+// A name is matched only where a word starts: not after a letter, digit or
+// "_" (a letter outside the BMP included), while an emoji or punctuation
+// right before it still counts as a word start. Names in scripts written
+// without spaces match anywhere, even where a Latin name at the same spot
+// can't. Pinned here because the word-start check is done without a regex
+// lookbehind (Safari before 16.4 can't parse one).
+test("redaction: a name starts a word, whatever comes before it", () => {
+  const sam = createRedactor([{ id: "s", names: ["Sam"] }]);
+  assert.strictEqual(sam.text("Sam,Sam samSam _sam 9sam"), "Person A,Person A samSam _sam 9sam");
+  assert.strictEqual(sam.text("\u{1D400}Sam 🔥Sam"), "\u{1D400}Sam 🔥Person A");
+  assert.strictEqual(sam.text("Sam"), "Person A");
+  // a name written like a name (a stopword word) follows the same rule
+  const will = createRedactor([{ id: "w", names: ["Will Day"] }]);
+  assert.strictEqual(will.text("xWill Will,Will"), "xWill Person A,Person A");
+  // a Latin name can't start inside "xAn李", a name with Han in it still can
+  const mixed = createRedactor([{ id: "a", names: ["Ann"] }, { id: "b", names: ["An李"] }]);
+  assert.strictEqual(mixed.text("xAn李 Ann xAnn"), "xPerson A Person B xAnn");
+});

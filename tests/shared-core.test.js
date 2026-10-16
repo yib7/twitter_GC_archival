@@ -50,8 +50,9 @@ test("PALETTE is the exact 12-color avatar palette", () => {
 });
 
 test("X_LINK matches Twitter/X links (and not plain text)", () => {
-  // the host starts a word ((?<![\w-])): linear time, and "netflix.com/" isn't an x.com link
-  assert.equal(shared.X_LINK.source, "(?:https?:\\/\\/)?(?<![\\w-])(?:t\\.co|(?:[\\w-]+\\.)?twitter\\.com|(?:[\\w-]+\\.)?x\\.com)\\/");
+  // the host follows its scheme or starts a word: linear time, "netflix.com/"
+  // isn't an x.com link, and no lookbehind (Safari before 16.4 can't parse one)
+  assert.equal(shared.X_LINK.source, "(?:https?:\\/\\/|^|[^\\w-])(?:t\\.co|(?:[\\w-]+\\.)?twitter\\.com|(?:[\\w-]+\\.)?x\\.com)\\/");
   assert.equal(shared.X_LINK.flags, "i");
   for (const s of ["https://t.co/abc", "check twitter.com/x out", "x.com/foo", "HTTP://X.COM/", "sub.twitter.com/y"]) {
     assert.ok(shared.X_LINK.test(s), `X_LINK should match ${s}`);

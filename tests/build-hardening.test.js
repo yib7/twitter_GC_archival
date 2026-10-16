@@ -44,6 +44,16 @@ describe("X_LINK runs in linear time and still finds X links", () => {
     for (const s of ["https://x.com/someone/status/1", "see t.co/abc", "http://mobile.twitter.com/a", "twitter.com/a", "(https://www.x.com/i/x)"]) assert.ok(X_LINK.test(s), s);
     for (const s of ["https://netflix.com/title/1", "dropbox.com/s/abc", "abct.co/x", "just words"]) assert.ok(!X_LINK.test(s), s);
   });
+  test("a link starts a word or follows its scheme, wherever the scheme starts", () => {
+    for (const s of ["x.com/a", "ok\nt.co/a", "ftp://x.com/a", "see:twitter.com/a", "xhttps://x.com/a", "HTTPS://T.CO/A", "[x.com/a]"]) assert.ok(X_LINK.test(s), s);
+    for (const s of ["a-x.com/a", "_t.co/a", "9twitter.com/a", "x.com", "x.co/a", "https://x.comm/a"]) assert.ok(!X_LINK.test(s), s);
+  });
+  test("other long inputs are checked quickly too", () => {
+    for (const s of ["a.".repeat(100000), "-".repeat(200000), " a".repeat(100000), "http://".repeat(30000), "x.co".repeat(50000), "a-".repeat(100000) + "x.com"]) {
+      const took = ms(() => { X_LINK.test(s); });
+      assert.ok(took < 500, s.slice(0, 8) + "… took " + took + " ms");
+    }
+  });
 });
 
 describe("merging many copies of one message stays fast", () => {

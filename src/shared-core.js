@@ -13,10 +13,13 @@
   const PALETTE = ["#3b82f6", "#22c55e", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4", "#ef4444", "#10b981", "#f97316", "#a855f7", "#14b8a6", "#eab308"];
   // Matches messages containing a Twitter/X link (t.co / twitter.com / x.com, with
   // optional subdomain + scheme). Used by the viewer and the build to drop link-only
-  // messages from the naming samples. The host must start a word: without the
-  // (?<![\w-]) a match could begin anywhere inside a long word, so one long
-  // message took seconds to test (and "netflix.com/" read as an x.com link).
-  const X_LINK = /(?:https?:\/\/)?(?<![\w-])(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
+  // messages from the naming samples. The host must follow its scheme or start
+  // a word (the text's start, or after a character other than a letter, digit,
+  // "_" or "-"): a match that could begin anywhere inside a long word made one
+  // long message take seconds to test (and "netflix.com/" read as an x.com
+  // link). No lookbehind: Safari before 16.4 can't parse one, and this file
+  // failing to load stops both the viewer and the wizard.
+  const X_LINK = /(?:https?:\/\/|^|[^\w-])(?:t\.co|(?:[\w-]+\.)?twitter\.com|(?:[\w-]+\.)?x\.com)\//i;
   // Stable 32-bit hash of an id → deterministic palette/hue index. String()-coerces
   // (safe superset: the viewer always passes strings, the wizard passes numeric ids).
   function hashId(id) { id = String(id); let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0; return h; }
@@ -1015,6 +1018,18 @@
     }
     return { out, st, en };
   }
+  // True when a word can start at index i of s: at the start, or after a
+  // character that isn't a letter, digit or "_" (a whole character: a letter
+  // outside the BMP is two UTF-16 units): a negative lookbehind, done by hand.
+  const RE_WORD_CHAR = /^[\p{L}\p{N}_]$/u;
+  function startsWord(s, i) {
+    if (i <= 0) return true;
+    const lo = s.charCodeAt(i - 1), hi = i >= 2 ? s.charCodeAt(i - 2) : 0;
+    const pair = lo >= 0xdc00 && lo <= 0xdfff && hi >= 0xd800 && hi <= 0xdbff;
+    return !RE_WORD_CHAR.test(pair ? s.slice(i - 2, i) : s.charAt(i - 1));
+  }
+  // the index of the character after the one at i (never inside a pair)
+  const nextIndex = (s, i) => i + (s.codePointAt(i) > 0xffff ? 2 : 1);
   function createRedactor(people) {
     const ids = new Map(), byTerm = new Map(), nameCase = new Map();
     let next = 0;
@@ -1061,12 +1076,19 @@
       }
     }
     const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const B0 = "(?<![\\p{L}\\p{N}_])", B1 = "(?![\\p{L}\\p{N}_])";
-    const alt = (t) => { const e = esc(t).replace(/ /g, "\\s+"); return RE_NOBOUND_SCRIPT.test(t) ? e : B0 + e + B1; };
+    // A name (outside the scripts written without spaces) must start and end
+    // a word. The end is a lookahead; the start is checked by hand in
+    // startsWord, because Safari before 16.4 can't compile a lookbehind.
+    const B1 = "(?![\\p{L}\\p{N}_])";
+    const alt = (t) => { const e = esc(t).replace(/ /g, "\\s+"); return RE_NOBOUND_SCRIPT.test(t) ? e : e + B1; };
     const terms = [...byTerm.keys()].sort((a, b) => b.length - a.length);
     const re = terms.length ? new RegExp(terms.map(alt).join("|"), "gu") : null;
+    // the names that may start anywhere, same order: what can still match
+    // where a word doesn't start
+    const freeTerms = terms.filter((t) => RE_NOBOUND_SCRIPT.test(t));
+    const reFree = freeTerms.length ? new RegExp(freeTerms.map(alt).join("|"), "uy") : null;
     const caseTerms = [...nameCase.keys()].sort((a, b) => b.length - a.length);
-    const reCase = caseTerms.length ? new RegExp(B0 + "(?:" + caseTerms.map(esc).join("|") + ")" + B1, "gu") : null;
+    const reCase = caseTerms.length ? new RegExp("(?:" + caseTerms.map(esc).join("|") + ")" + B1, "gu") : null;
     const RE_MARK_AT = /^\p{M}/u;
     const text = (s) => {
       let out = String(s == null ? "" : s);
@@ -1077,6 +1099,14 @@
         re.lastIndex = 0;
         while ((m = re.exec(F.out))) {
           if (!m[0]) { re.lastIndex++; continue; }
+          if (!RE_NOBOUND_SCRIPT.test(m[0]) && !startsWord(F.out, m.index)) {
+            // no word starts here: only a name that may start anywhere can match
+            const at = m.index;
+            m = null;
+            if (reFree) { reFree.lastIndex = at; m = reFree.exec(F.out); }
+            if (!m) { re.lastIndex = nextIndex(F.out, at); continue; }
+            re.lastIndex = at + m[0].length;
+          }
           const a = F.st[m.index];
           let b = F.en[m.index + m[0].length - 1];
           while (b < out.length && RE_MARK_AT.test(out.slice(b))) b++;   // a decomposed accent stays with its letter
@@ -1087,7 +1117,16 @@
         }
         out = res + out.slice(last);
       }
-      if (reCase) out = out.replace(reCase, (w) => label(nameCase.get(w)));
+      if (reCase) {
+        let res = "", last = 0, m;
+        reCase.lastIndex = 0;
+        while ((m = reCase.exec(out))) {
+          if (!startsWord(out, m.index)) { reCase.lastIndex = nextIndex(out, m.index); continue; }
+          res += out.slice(last, m.index) + label(nameCase.get(m[0]));
+          last = m.index + m[0].length;
+        }
+        out = res + out.slice(last);
+      }
       return out;
     };
     return { label, text };
