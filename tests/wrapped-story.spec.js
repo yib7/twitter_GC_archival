@@ -313,6 +313,46 @@ test.describe("story mechanics", () => {
     await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(at + 1);
   });
 
+  // Escape hands focus back to the story from the keyboard, but the user
+  // opened the profile with the mouse: that is not keyboard focus on the
+  // story, so autoplay resumes and the button still tells the truth.
+  test("a profile opened with the mouse and closed with Escape lets autoplay resume", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    await page.addStyleTag({ content: ".wr-stage { --wr-dur: 1500ms !important; }" });
+    const btn = page.locator("#wr-play"), stage = page.locator("#wr-stage");
+    await btn.click();                          // paused while we walk to a ranking slide
+    for (let k = 0; k < 6 && !(await page.locator("#wr-slide .pl-row .av").count()); k++) await page.locator("#wr-next").click();
+    const at = await slideNo(page);
+    await btn.click();
+    await expect(btn).toHaveAccessibleName(/Pause/);
+    await page.locator("#wr-slide .pl-row .av").first().click();
+    await expect(page.locator(".profile-modal")).toBeVisible();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".profile-modal")).toHaveCount(0);
+    await expect(stage).toBeFocused();
+    await expect(stage).not.toHaveClass(/\bwr-paused\b/);
+    await expect(btn).toHaveAccessibleName(/Pause/);
+    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(at + 1);
+  });
+
+  // Keyboard focus on the story before the dialog opened is still a pause
+  // reason after it closes.
+  test("a dialog opened from a keyboard-focused story keeps the story paused after Escape", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    const stage = page.locator("#wr-stage");
+    await stage.focus();
+    await page.keyboard.press("Shift+Tab"); await page.keyboard.press("Tab");
+    await expect(stage).toBeFocused();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+    await page.keyboard.press("?");
+    await expect(page.locator(".kb-modal")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".kb-modal")).toHaveCount(0);
+    await expect(stage).toBeFocused();
+    await expect(stage).toHaveClass(/\bwr-paused\b/);
+  });
+
   test("autoplay waits behind keyboard help and the command palette", async ({ page }) => {
     await openWrapped(page, { motion: true });
     await page.addStyleTag({ content: ".wr-stage { --wr-dur: 1500ms !important; }" });

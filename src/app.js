@@ -777,6 +777,7 @@ function trapTab(e) {
 function applyDialog(box, label, opts) {
   opts = opts || {};
   box._opener = opts.opener !== undefined ? opts.opener : document.activeElement;   // remember who opened it
+  box._wrFocusHeld = wrHolds.has("focus");   // was the story paused by keyboard focus?
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-modal", "true");
   if (label) box.setAttribute("aria-label", label);
@@ -791,7 +792,13 @@ function applyDialog(box, label, opts) {
 function restoreFocus(box) {
   paintWrappedPlay();   // the story resumes once the last dialog is gone
   const o = box && box._opener;
-  if (o && o.focus && document.contains(o) && o !== document.body) { try { o.focus(); } catch (e) {} return; }
+  if (o && o.focus && document.contains(o) && o !== document.body) {
+    try { o.focus(); } catch (e) {}
+    // focus handed back to the story is not the user moving there by keyboard
+    // (Escape makes it :focus-visible): keep the pause only if it was there
+    if (o.id === "wr-stage" && !box._wrFocusHeld) wrHold("focus", false);
+    return;
+  }
   const t = topModal();
   const f = t && focusablesIn(t)[0];
   if (f) { try { f.focus(); } catch (e) {} }
