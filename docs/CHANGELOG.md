@@ -33,13 +33,15 @@ All notable changes to this project are recorded here.
 - One display name and one colour per person: the People placeholder, Word
   Battles, pinned messages and the quote card match the avatar.
 - Word Battles counts a word you add once however you type it ("Lol", "lol!"),
-  in a saved or imported list too, counts an added emoji (or a phrase with
-  one) instead of showing 0 : 0, tallies the wins over every row shown, and
+  in a saved or imported list too, counts an added emoji, emoticon ("<3") or a
+  phrase with one where it appears whole instead of showing 0 : 0 (the keyword
+  trend counts one the same way), tallies the wins over every row shown, and
   colours each side's bars and winning count with that person, telling the
   two apart if they share a colour.
 - Word counts (words per message, distinct words, the word cloud) no longer
   count the invisible character after some emoji, such as the one in ❤️, as a
-  word.
+  word, count a keycap emoji as the digit it shows, and keep a word written
+  with a zero-width joiner (Bengali, Persian, Sinhala) whole.
 - Month charts and sparklines show silent months as zero instead of joining
   January to September.
 - Stats charts follow theme and accent changes live; the keyword trend, the
