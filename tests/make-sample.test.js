@@ -120,3 +120,19 @@ test("a member's messages fall inside their membership (after join, before leave
     }
   }
 });
+
+// An export records one reaction per person per message (a new one replaces
+// the old), so the demo must not show anyone reacting twice to a message.
+test("no message has two reactions from the same person, and every conversation keeps its funny, disagree and custom-emoji reactions", () => {
+  for (const m of allMsgs) {
+    const who = (m.r || []).map((r) => r.s);
+    assert.equal(new Set(who).size, who.length, "message " + m.i + " has two reactions from one person: " + JSON.stringify(m.r));
+    for (const r of m.r || []) assert.notEqual(r.s, m.s, "message " + m.i + ": its sender reacts to it");
+  }
+  for (const c of data.conversations) {
+    const rs = c.msgs.flatMap((m) => m.r || []);
+    assert.ok(rs.some((r) => r.k === "funny"), c.title + " has a funny reaction");
+    assert.ok(rs.some((r) => r.k === "disagree"), c.title + " has a disagree reaction");
+    assert.ok(rs.some((r) => r.k === "emoji" && r.e), c.title + " has a custom-emoji reaction");
+  }
+});

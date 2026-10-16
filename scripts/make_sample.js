@@ -143,13 +143,18 @@ function groupConvo(spec) {
       rec.m = pick(PHOTOS); rec.k = "img";
       rec.x = pick(["check this out", "look 👀", "📷", "", rec.x]);
     }
+    // An export holds one reaction per person per message (a new one replaces
+    // the old), so a person drawn a second time for the same message is
+    // skipped. The draws themselves are unchanged, so the rest of the
+    // generated stream (texts, times, media) stays the same.
     const reactors = members.filter((p) => p !== s);
     if (reactors.length && chance(0.22)) {
       const r = [];
       const howMany = 1 + Math.floor(rnd() * Math.min(3, reactors.length));
       for (let j = 0; j < howMany; j++) {
         const key = pick(REACTS);
-        r.push(key === "emoji" ? { k: key, s: pick(reactors), e: pick(EMOJI_REACTS) } : { k: key, s: pick(reactors) });
+        const one = key === "emoji" ? { k: key, s: pick(reactors), e: pick(EMOJI_REACTS) } : { k: key, s: pick(reactors) };
+        if (!r.some((x) => x.s === one.s)) r.push(one);
       }
       rec.r = r;
     }
@@ -157,10 +162,18 @@ function groupConvo(spec) {
     // conversation (deterministic, not left to chance()) so the "Laugh Track"
     // and "The Hater" superlatives always have a winner, and one custom-emoji
     // reaction (a glyph, not a generic key) so its capture + render is on show.
+    // It goes to the first member who hasn't reacted yet, or replaces the
+    // first member's reaction when everyone has.
+    const guarantee = (key, e) => {
+      const r = rec.r || [];
+      const who = reactors.find((p) => !r.some((x) => x.s === p)) || reactors[0];
+      const one = e ? { k: key, s: who, e } : { k: key, s: who };
+      rec.r = r.filter((x) => x.s !== who).concat([one]);
+    };
     if (reactors.length) {
-      if (k === 0) rec.r = (rec.r || []).concat([{ k: "funny", s: reactors[0] }]);
-      if (k === 1) rec.r = (rec.r || []).concat([{ k: "disagree", s: reactors[0] }]);
-      if (k === 2) rec.r = (rec.r || []).concat([{ k: "emoji", s: reactors[0], e: "🎉" }]);
+      if (k === 0) guarantee("funny");
+      if (k === 1) guarantee("disagree");
+      if (k === 2) guarantee("emoji", "🎉");
     }
     return rec;
   });

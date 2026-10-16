@@ -19,10 +19,12 @@ test.use({ timezoneId: "UTC" });
 // Superlatives are rates per 100 messages with a minimum sample (20 messages
 // per person), median reply times, and tie / all-tie rules. The demo sample
 // spans ~18 months with 130-360 messages per chat, so every award that has a
-// clear winner renders; the golden also pins the "tied with" line.
+// clear winner renders; the golden also pins the "tied with" line (The Flash
+// and Emoji Enthusiast). The reaction cards follow the sample's rule of one
+// reaction per person per message, as in a real export.
 const GOLDEN = [
   { name: "User 4", tie: "", title: "Late Night Owl", stat: "1.5% of msgs 12–5 AM" },
-  { name: "User 1", tie: "", title: "Reaction Magnet", stat: "52 reactions received" },
+  { name: "User 1", tie: "", title: "Reaction Magnet", stat: "45 reactions received" },
   { name: "User 3", tie: "tied with User 4", title: "Emoji Enthusiast", stat: "38.2 emoji / 100 msgs" },
   { name: "User 2", tie: "", title: "Media Hog", stat: "8 files shared" },
   { name: "User 5", tie: "", title: "The Yapper", stat: "6.2 words / msg" },
@@ -30,7 +32,7 @@ const GOLDEN = [
   { name: "User 1", tie: "", title: "The Inquisitor", stat: "8.4% of msgs ask" },
   { name: "User 5", tie: "", title: "The Narcissist", stat: "10.6 \"I/me/my\" / 100 msgs" },
   { name: "User 4", tie: "", title: "The LMAO User", stat: "16.2 laughs / 100 msgs" },
-  { name: "User 3", tie: "", title: "The Giver", stat: "41 reactions given" },
+  { name: "User 3", tie: "", title: "The Giver", stat: "35 reactions given" },
   { name: "User 2", tie: "", title: "The Link Spammer", stat: "1 link shared" },
   { name: "User 4", tie: "", title: "Thread Starter", stat: "16 days started" },
   { name: "User 2", tie: "", title: "Thread Killer", stat: "20 days ended" },
@@ -43,10 +45,10 @@ const GOLDEN = [
   { name: "User 3", tie: "", title: "The Scholar", stat: "141 different words in first 250" },
   { name: "User 2", tie: "", title: "The Deserter", stat: "29 messages from others over 48 days without a word" },
   { name: "User 5", tie: "", title: "The Monologuer", stat: "1.5 runs of 5+ / 100 msgs" },
-  { name: "User 1", tie: "", title: "Crowd Pleaser", stat: "0.63 reactions / msg" },
+  { name: "User 1", tie: "", title: "Crowd Pleaser", stat: "0.54 reactions / msg" },
   { name: "User 2", tie: "", title: "The Ignored", stat: "80% of msgs got no reaction" },
-  { name: "User 1", tie: "tied with User 2", title: "The Laugh Track", stat: "6 laughing reactions given" },
-  { name: "User 3", tie: "", title: "The Hater", stat: "12 👎/😡 reactions given" },
+  { name: "User 2", tie: "", title: "The Laugh Track", stat: "6 laughing reactions given" },
+  { name: "User 3", tie: "", title: "The Hater", stat: "10 👎/😡 reactions given" },
   { name: "User 3", tie: "", title: "Gratitude King", stat: "4.4 thank-yous / 100 msgs" },
   { name: "User 4", tie: "", title: "The Laughing Void", stat: "4.4% of msgs only laughter" },
   { name: "User 2", tie: "", title: "The Exclaimer", stat: "13.3 “!” / 100 msgs" },
