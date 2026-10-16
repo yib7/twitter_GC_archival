@@ -222,7 +222,10 @@ Boot happens at the very end of the IIFE (after all `let`s are declared, so
 
 ### Names & avatars
 The export has only numeric ids. Committed defaults are empty, so people render
-as **User 1…N** (`GENERIC`, assigned per-conversation by message rank). Priority
+as **User 1…N** (`GENERIC`, assigned per-conversation by message rank, then
+members who never posted; one rule, `userLabels` in `src/shared-core.js`, used
+for the active chat, rows from other chats, and the wizard's People step via
+`/api/parts`, so a person has the same label everywhere). Priority
 in `nameOf()`: user-saved (`settings.names`, People tab → localStorage) →
 `window.LOCAL_NAMES` (gitignored `local.js`) → `GENERIC` → `User <id4>`.
 Profile pictures: `PFPS = { ...LOCAL_PFPS, ...settings.pfps }`, where in-app

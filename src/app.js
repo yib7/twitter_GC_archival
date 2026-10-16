@@ -7,7 +7,7 @@
 // Constants/helpers shared with the setup wizard + Node build live in ONE module,
 // loaded as a <script> before this one (index.html) — see src/shared-core.js.
 /* global GCAShared */
-const { PALETTE, X_LINK, initials, hueVars } = GCAShared;
+const { PALETTE, X_LINK, initials, hueVars, userLabels } = GCAShared;
 // the platform's modifier — ⌘ on Apple devices, Ctrl elsewhere — shared
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
@@ -87,9 +87,10 @@ function searchText(m) {
   return (x + extra).toLowerCase();
 }
 
+// "User N" for the active chat: the same rule (shared-core userLabels) as
+// another chat's labels (genericFor) and the setup wizard's People step.
 function assignGenericNames() {
-  GENERIC = {};
-  PARTS.forEach((p, i) => { GENERIC[p.id] = "User " + (i + 1); });
+  GENERIC = CONV ? userLabels(CONV, ignoredUserIds()) : {};
 }
 
 // renderGallery() only rebuilds when the view is empty — clear it so the next
@@ -664,33 +665,18 @@ function nameOf(id) { return settings.names[id] || LOCAL_NAMES[id] || GENERIC[id
 // "User N" (genericFor), so a row from another chat (All chats, Pinned, the
 // export) reads as it does in its own chat. nameIn(CONV, id) is nameOf(id).
 function nameIn(conv, id) { return settings.names[id] || LOCAL_NAMES[id] || (conv ? genericFor(conv)[id] : GENERIC[id]) || ("User " + String(id).slice(-4)); }
-// Another chat's "User N" labels ({ id: label }), numbered the way
-// computeParticipants orders the active chat's (senders by message count,
-// then quiet members: roster, reactions, events; ignored people left out).
-// The active chat's are GENERIC. Cached per chat, keyed like convSearchIdx
-// (the ignored set and the message array).
+// Another chat's "User N" labels ({ id: label }), by the one rule in
+// shared-core userLabels (senders by message count, then quiet members:
+// roster, reactions, events; ignored people left out), as the active chat's
+// GENERIC and the setup wizard number them. Cached per chat, keyed like
+// convSearchIdx (the ignored set and the message array).
 const genericCache = new Map();
 function genericFor(conv) {
   if (CONV && conv.id === CONV.id) return GENERIC;
   const { set: ignored, key } = ignoredKeyed();
   let g = genericCache.get(conv.id);
   if (!g || g.key !== key || g.src !== conv.msgs) {
-    const counts = new Map();
-    for (const m of conv.msgs || []) if (!ignored.has(String(m.s))) counts.set(m.s, (counts.get(m.s) || 0) + 1);
-    const order = [...counts].sort((a, b) => b[1] - a[1]).map((x) => x[0]);
-    const seen = new Set(counts.keys());
-    const quiet = (id) => {
-      if (id == null || id === "") return;
-      id = String(id);
-      if (seen.has(id) || ignored.has(id)) return;
-      seen.add(id); order.push(id);
-    };
-    (conv.participants || []).forEach(quiet);
-    for (const m of conv.msgs || []) if (m.r && !ignored.has(String(m.s))) m.r.forEach((x) => quiet(x.s));
-    (conv.events || []).forEach((e) => { (e.ids || []).forEach(quiet); quiet(e.s); });
-    const names = {};
-    order.forEach((id, i) => { names[id] = "User " + (i + 1); });
-    g = { key, src: conv.msgs, names };
+    g = { key, src: conv.msgs, names: userLabels(conv, ignored) };
     genericCache.set(conv.id, g);
   }
   return g.names;

@@ -1062,7 +1062,14 @@ function partSiblings(abs) {
 // `group` (optional) scopes the roster to one conversation so the wizard names
 // one group chat at a time, instead of merging everyone across all groups.
 function apiParts(res, group) {
-  const cols = duringBlocking(() => foldBuilt(() => [createParticipantCollector(group)]));
+  // the people the viewer leaves out of its "User N" numbering: those the
+  // archive was built without (data.js) and those local.js hides (config)
+  const meta = builtArchiveFiles().map((f) => readArchiveMeta(f)).find(Boolean);
+  let cfg = {};
+  try { cfg = loadConfig(); } catch (e) { /* a damaged config: number without it */ }
+  const ignoredUsers = [].concat((meta && Array.isArray(meta.ignoredUsers)) ? meta.ignoredUsers : [],
+    Array.isArray(cfg.ignoredUsers) ? cfg.ignoredUsers : []).map(String);
+  const cols = duringBlocking(() => foldBuilt(() => [createParticipantCollector(group, { ignoredUsers })]));
   if (!cols) return sendJSON(res, 400, { error: "No built data yet — complete step 1 first." });
   sendJSON(res, 200, { parts: cols[0].result() });
 }

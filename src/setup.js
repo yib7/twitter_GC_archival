@@ -235,7 +235,7 @@ function renderFinishReceipt() {
     const style = pfp
       ? `background-image:url('${pfp}')`
       : hueStyle(p.id);
-    const txt = pfp ? "" : escapeHtml(initials(state.names[p.id] || "User " + String(p.id).slice(-4)));
+    const txt = pfp ? "" : escapeHtml(initials(state.names[p.id] || labelOf(p)));
     return `<span class="fr-av" style="${style}">${txt}</span>`;
   }).join("");
   const more = keptParts.length > 6 ? `<span class="fr-more">+${keptParts.length - 6} more</span>` : "";
@@ -619,6 +619,11 @@ function renderRemovedPeople() {
   $$("[data-bring-back]", host).forEach((b) => b.onclick = () => { delete state.ignored[b.dataset.bringBack]; renderRemovedPeople(); });
 }
 
+// An unnamed person's label: the viewer's "User N" for this chat (the server
+// numbers it with the viewer's rule, shared-core userLabels), else the end of
+// their id.
+function labelOf(p) { return p.label || "User " + String(p.id).slice(-4); }
+
 function personCard(p) {
   const card = document.createElement("div"); card.className = "su-person";
   const savedName = state.names[p.id];
@@ -633,7 +638,7 @@ function personCard(p) {
   const av = document.createElement("div"); av.className = "su-av";
   paintHue(av, p.id);
   if (savedPfp) { av.style.backgroundImage = `url('${savedPfp}')`; av.style.backgroundSize = "cover"; av.style.backgroundPosition = "center"; }
-  else av.textContent = initials(savedName || "User " + String(p.id).slice(-4));
+  else av.textContent = initials(savedName || labelOf(p));
   const file = document.createElement("input"); file.type = "file"; file.accept = "image/*"; file.style.display = "none";
   const pick = document.createElement("button"); pick.className = "btn ghost su-pick"; pick.textContent = savedPfp ? "Change photo" : "Add photo";
   pick.onclick = () => file.click();
@@ -651,10 +656,10 @@ function personCard(p) {
 
   const main = document.createElement("div"); main.className = "su-main";
   const name = document.createElement("input");
-  name.className = "setup-input su-name"; name.type = "text"; name.placeholder = "User " + String(p.id).slice(-4);
+  name.className = "setup-input su-name"; name.type = "text"; name.placeholder = labelOf(p);
   if (savedName) name.value = savedName;
   // emptying a name keeps the id with "" — the server's signal to forget it.
-  name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { state.names[p.id] = ""; if (!state.pfps[p.id]) av.textContent = initials("User " + String(p.id).slice(-4)); } };
+  name.oninput = () => { const v = name.value.trim(); if (v) { state.names[p.id] = v; av.dataset.named = "1"; if (!state.pfps[p.id]) av.textContent = initials(v); } else { state.names[p.id] = ""; if (!state.pfps[p.id]) av.textContent = initials(labelOf(p)); } };
   main.appendChild(name);
 
   const meta = document.createElement("div"); meta.className = "su-meta";

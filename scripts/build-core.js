@@ -11,7 +11,7 @@
 
 // X_LINK (the Twitter/X link matcher) is shared with the viewer + wizard — one
 // source, required here so the build and the app can't disagree. See src/shared-core.js.
-const { X_LINK } = require("../src/shared-core.js");
+const { X_LINK, createUserNumbering } = require("../src/shared-core.js");
 
 const IMG = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 const VID = new Set(["mp4", "mov", "webm", "m4v"]);
@@ -644,10 +644,12 @@ function wrongKindMessage(info, expected, label) {
  *
  * @param {object} data        built CHAT_DATA ({ conversations: [...] }).
  * @param {string} [groupId]   conversation id to scope to; falsy = all groups.
- * @returns {Array<{id, count, samples: string[], media: Array}>}
+ * @param {object} [opts]      { ignoredUsers }: left out of the "User N" labels.
+ * @returns {Array<{id, count, samples: string[], media: Array, label?: string}>}
+ *   label: the viewer's "User N" for that person in this chat (shared-core userLabels).
  */
-function collectParticipants(data, groupId) {
-  return foldConversations(data, [createParticipantCollector(groupId)])[0].result();
+function collectParticipants(data, groupId, opts) {
+  return foldConversations(data, [createParticipantCollector(groupId, opts)])[0].result();
 }
 /**
  * collectParticipants as a collector, so the server can fold it over a
@@ -655,10 +657,13 @@ function collectParticipants(data, groupId) {
  * message(conv, msg) per message (conv = the conversation's fields, msgs
  * excluded), conversation(conv) once its fields are all read, result().
  */
-function createParticipantCollector(groupId) {
+function createParticipantCollector(groupId, opts) {
   const scoped = groupId != null && groupId !== "";
   const inScope = (c) => !scoped || c.id == null || String(c.id) === String(groupId);
   const map = new Map();
+  // each person's "User N", as the viewer numbers this chat (opts.ignoredUsers
+  // are the people the viewer leaves out)
+  const numbering = createUserNumbering((opts && opts.ignoredUsers) || []);
   const entry = (id) => {
     let p = map.get(id);
     if (!p) { p = { id, count: 0, samples: [], _seen: new Set(), media: [] }; map.set(id, p); }
@@ -667,6 +672,7 @@ function createParticipantCollector(groupId) {
   return {
     message(c, m) {
       if (!inScope(c) || !m) return;
+      numbering.message(m);
       const p = entry(m.s);
       p.count++;
       const t = (m.x || "").trim();
@@ -679,6 +685,7 @@ function createParticipantCollector(groupId) {
     },
     conversation(c) {
       if (!inScope(c)) return;
+      numbering.conversation(c);
       // everyone on the roster gets a card, even with no messages (a
       // lurker, or someone known only from the headers file) — plus when they
       // joined / left, as a memory jog for naming them.
@@ -693,10 +700,12 @@ function createParticipantCollector(groupId) {
       }
     },
     result() {
+      const labels = numbering.result();
       return [...map.values()]
         .sort((a, b) => b.count - a.count || (String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0))
         .map((p) => {
           const out = { id: p.id, count: p.count, samples: p.samples.slice().sort((a, b) => b.length - a.length).slice(0, 10), media: p.media };
+          if (labels[p.id]) out.label = labels[p.id];
           if (p.joined != null) out.joined = p.joined;
           if (p.left != null) out.left = p.left;
           return out;

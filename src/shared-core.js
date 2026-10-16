@@ -918,6 +918,54 @@
     out[maxLines - 1] = gs.join("").replace(/\s+$/, "") + "…";
     return { lines: out, truncated: true };
   }
+  // "User N" labels for a chat's unnamed people: ONE rule for the viewer and
+  // the setup wizard, so a person has the same label everywhere. Senders by
+  // message count (ties: who posted first), then members who never posted, in
+  // the order first seen: roster, reactions, events (their ids, then who did
+  // it). Ignored people are left out, and so are reactions on their messages.
+  // Streamed: message(m) for each message in archive order, conversation(c)
+  // with its participants and events, then result() -> { id: "User N" }.
+  function createUserNumbering(ignored) {
+    const ign = ignored instanceof Set ? ignored : new Set((ignored || []).map(String));
+    const counts = new Map(), reactors = new Set(), roster = [], events = [];
+    return {
+      message(m) {
+        if (!m || ign.has(String(m.s))) return;
+        const s = String(m.s);
+        counts.set(s, (counts.get(s) || 0) + 1);
+        if (Array.isArray(m.r)) for (const x of m.r) if (x && x.s != null) reactors.add(String(x.s));
+      },
+      conversation(c) {
+        if (!c) return;
+        for (const id of c.participants || []) roster.push(id);
+        for (const e of c.events || []) events.push(e);
+      },
+      result() {
+        const order = [...counts].sort((a, b) => b[1] - a[1]).map((x) => x[0]);
+        const seen = new Set(order);
+        const quiet = (id) => {
+          if (id == null || id === "") return;
+          id = String(id);
+          if (seen.has(id) || ign.has(id)) return;
+          seen.add(id); order.push(id);
+        };
+        roster.forEach(quiet);
+        reactors.forEach(quiet);
+        for (const e of events) { (e.ids || []).forEach(quiet); quiet(e.s); }
+        const out = {};
+        order.forEach((id, i) => { out[id] = "User " + (i + 1); });
+        return out;
+      },
+    };
+  }
+  // The same for a chat in memory: { msgs, participants, events }.
+  function userLabels(conv, ignored) {
+    const n = createUserNumbering(ignored);
+    for (const m of (conv && conv.msgs) || []) n.message(m);
+    n.conversation(conv);
+    return n.result();
+  }
+
   // Name redaction for a shared image. people: [{ id, names: [display name,
   // aliases…] }] — everyone in the chat, not only who is on the card, since a
   // message can name anyone. label(id) gives "Person A", "Person B", … in the
@@ -1146,7 +1194,7 @@
     createBigramIndex, fuzzyCandidates,
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, linkPlatform, plural,
-    graphemes, graphemesNoSegmenter, wrapText, createRedactor,
+    graphemes, graphemesNoSegmenter, wrapText, createRedactor, createUserNumbering, userLabels,
     isPlainObj, cleanMap, idList, cleanSaved, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
   };
 });

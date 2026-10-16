@@ -310,6 +310,35 @@ describe("header-only members reach the naming step", () => {
   });
 });
 
+// The People step labels an unnamed person with the viewer's "User N" for the
+// chat (shared-core userLabels over the built chat), and a removed person is
+// left out of the numbering as the viewer leaves them out.
+describe("/api/parts labels people as the viewer numbers them", () => {
+  let S;
+  before(async () => { S = await startServer(); });
+  after(() => S.stop());
+
+  test("each part's label is the chat's User N; a removed person shifts the rest", async () => {
+    const { userLabels } = require("../src/shared-core.js");
+    const f = X.writeExport(scratch());
+    assert.equal((await source(S, f.group, f.headers, f.media)).status, 200);
+    const labelsOf = async () => {
+      const j = await (await S.get("/api/parts?group=1000000001")).json();
+      return Object.fromEntries(j.parts.filter((p) => p.label).map((p) => [p.id, p.label]));
+    };
+    const conv = () => readData(S.personal).conversations.find((c) => String(c.id) === "1000000001");
+    const before = await labelsOf();
+    assert.ok(Object.keys(before).length >= 3, JSON.stringify(before));
+    assert.deepEqual(before, userLabels(conv()));
+    const first = Object.keys(before).find((id) => before[id] === "User 1");
+    const r = await S.post("/api/identity", { names: {}, pfps: {}, gc: {}, ignoredUsers: [first], ignoredGroups: [] });
+    assert.equal(r.status, 200, await r.text());
+    const after = await labelsOf();
+    assert.equal(after[first], undefined);
+    assert.deepEqual(after, userLabels(conv(), [first]));
+  });
+});
+
 describe("paths are accepted the way people paste them", () => {
   let S, home;
   before(async () => {

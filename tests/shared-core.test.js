@@ -167,3 +167,40 @@ test("every consumer wires up src/shared-core.js", () => {
   assert.ok(/src\/shared-core\.js/.test(read("index.html")), "index.html must load src/shared-core.js");
   assert.ok(/src\/shared-core\.js/.test(read("setup.html")), "setup.html must load src/shared-core.js");
 });
+
+/* ---- "User N" labels (viewer and wizard share one rule) ---------------- */
+
+test("userLabels numbers senders by message count, ties by who posted first, then quiet members", () => {
+  const conv = {
+    participants: ["9", "1", "8"],
+    msgs: [
+      { s: "3", t: 1 }, { s: "1", t: 2, r: [{ s: "7", k: "like" }, { s: "8", k: "like" }] },
+      { s: "2", t: 3 }, { s: "1", t: 4 }, { s: "2", t: 5 }, { s: "4", t: 6 },
+    ],
+    events: [{ type: "join", ids: ["6", "7"], s: "5" }],
+  };
+  // 1 and 2 post twice (1 first), then 3 and 4 once (3 first); quiet: roster
+  // 9, 8; reactions 7; events 6, then the event's initiator 5
+  assert.deepStrictEqual(shared.userLabels(conv), {
+    1: "User 1", 2: "User 2", 3: "User 3", 4: "User 4", 9: "User 5", 8: "User 6", 7: "User 7", 6: "User 8", 5: "User 9",
+  });
+});
+
+test("userLabels leaves ignored people out, with the reactions on their messages", () => {
+  const conv = {
+    participants: [],
+    msgs: [{ s: "1", t: 1, r: [{ s: "5", k: "like" }] }, { s: "1", t: 2 }, { s: "2", t: 3 }, { s: "3", t: 4, r: [{ s: "6", k: "like" }] }],
+    events: [{ type: "leave", ids: ["1"] }],
+  };
+  assert.deepStrictEqual(shared.userLabels(conv, ["1"]), { 2: "User 1", 3: "User 2", 6: "User 3" });
+  assert.deepStrictEqual(shared.userLabels(conv, new Set(["1"])), { 2: "User 1", 3: "User 2", 6: "User 3" });
+});
+
+test("createUserNumbering streamed message by message gives the same labels", () => {
+  const conv = { participants: ["4"], msgs: [{ s: "2" }, { s: "1" }, { s: "1", r: [{ s: "3" }] }], events: [] };
+  const n = shared.createUserNumbering([]);
+  for (const m of conv.msgs) n.message(m);
+  n.conversation(conv);
+  assert.deepStrictEqual(n.result(), shared.userLabels(conv));
+  assert.deepStrictEqual(n.result(), { 1: "User 1", 2: "User 2", 4: "User 3", 3: "User 4" });
+});

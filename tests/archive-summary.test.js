@@ -89,3 +89,19 @@ test("the old whole-archive functions still work on an in-memory archive (they n
   assert.deepEqual([...sc.referencedMediaNames(DATA)].sort(), ["2-a.png", "2-b.mp4", "4-c.jpg", "5-e.gif"]);
   assert.equal(core.collectParticipants(DATA, "G1").find((p) => p.id === "d").count, 0, "a joiner with no messages keeps a card");
 });
+
+// the wizard's People step labels an unnamed person with the viewer's
+// "User N" for that chat (shared-core userLabels), streamed or in memory.
+test("participants carry the chat's User N label, ignored people none", () => {
+  const f = writeArchive();
+  const label = (parts) => Object.fromEntries(parts.map((p) => [p.id, p.label]));
+  for (const chunkSize of [3, 1 << 20]) {
+    const plain = core.createParticipantCollector("G1");
+    const ign = core.createParticipantCollector("G1", { ignoredUsers: ["c"] });
+    fsio.foldArchive(f, [plain, ign], { chunkSize });
+    assert.deepEqual(label(plain.result()), { a: "User 1", b: "User 2", c: "User 3", d: "User 4" });
+    assert.deepEqual(label(ign.result()), { a: "User 1", b: "User 2", c: undefined, d: "User 3" });
+  }
+  const shared = require("../src/shared-core.js");
+  assert.deepEqual(label(core.collectParticipants(DATA, "G1")), shared.userLabels(CONVS[0]));
+});

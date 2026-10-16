@@ -6,10 +6,11 @@ const { checkAndBuild } = require("./_setup-helpers.js");
 // headers file) still gets a card in step 3, so they can be named instead of
 // staying "User 1234". Their card says "No messages" and, when known, when
 // they joined / left. All server routes are mocked with made-up data.
+// label: the viewer's "User N" for that chat, which /api/parts sends along
 const PARTS = [
-  { id: "1111", count: 40, samples: ["hello there friend"], media: [] },
-  { id: "4444", count: 0, samples: [], media: [], joined: Date.UTC(2021, 2, 15, 12), left: Date.UTC(2022, 6, 20, 12) },
-  { id: "5555", count: 0, samples: [], media: [] },
+  { id: "1111", count: 40, samples: ["hello there friend"], media: [], label: "User 1" },
+  { id: "4444", count: 0, samples: [], media: [], joined: Date.UTC(2021, 2, 15, 12), left: Date.UTC(2022, 6, 20, 12), label: "User 2" },
+  { id: "5555", count: 0, samples: [], media: [], label: "User 3" },
 ];
 
 test.beforeEach(async ({ page }) => {
@@ -51,4 +52,22 @@ test("a quiet member can be named and saved like anyone else", async ({ page }) 
   await page.locator("#btn-save").click();
   await expect(page.locator("#finish-result")).toContainText(/Saved/);
   expect(saved.names["4444"]).toBe("Quiet Quinn");
+});
+
+// An unnamed person reads as the viewer's "User N" for this chat, here as in
+// the archive, not "User 1234" from the end of their id.
+test("an unnamed person's card uses the chat's User N, as the viewer does", async ({ page }) => {
+  const cards = page.locator(".su-person");
+  for (const [k, label, ini] of [[0, "User 1", "U1"], [1, "User 2", "U2"], [2, "User 3", "U3"]]) {
+    await expect(cards.nth(k).locator(".su-name")).toHaveAttribute("placeholder", label);
+    await expect(cards.nth(k).locator(".su-av")).toHaveText(ini);
+  }
+  // a name typed and cleared again goes back to the label
+  await cards.nth(1).locator(".su-name").fill("Quinn");
+  await expect(cards.nth(1).locator(".su-av")).toHaveText("QU");
+  await cards.nth(1).locator(".su-name").fill("");
+  await expect(cards.nth(1).locator(".su-av")).toHaveText("U2");
+  // the Finish summary's avatars too
+  await page.locator('[data-pane="3"] [data-next]').click();
+  await expect(page.locator("#fin-receipt .fr-av")).toHaveText(["U1", "U2", "U3"]);
 });
