@@ -268,106 +268,83 @@ describe("destructive & security-sensitive route coverage", () => {
     assert.equal(res.status, 413);
   });
 
-  // Review fix: readBody used to drain an oversized body's remaining bytes
-  // FOREVER once it rejected with 413 — fine for a normal client (which
-  // finishes sending and the socket naturally reaches 'end'), but a client
-  // that never finishes sending (stalled upload, or deliberately, a
-  // slowloris-style attacker) kept the connection — and its socket — open
-  // indefinitely even though the 413 had long since been flushed. The server now
-  // closes the connection once the upload has gone quiet for a second. This
-  // uses a raw net socket (not fetch, which doesn't let us hold the request
-  // open past the point the server responds) so it can watch that the SERVER
-  // actively ends its side of the connection while this test is still mid-way
-  // through sending an oversized body it deliberately never finishes.
-  test("a 413 over a still-open connection gets the connection closed by the server instead of draining forever", async () => {
-    // Declare a Content-Length far bigger than we ever actually send — this is
-    // the slowloris shape: the server must 413 as soon as the CAP (64 MB) is
-    // exceeded, without waiting for (or fully draining) the declared length.
-    const declaredLen = 200 * 1024 * 1024;
-    const sentLen = 65 * 1024 * 1024;   // past the 64 MB cap, but far short of declaredLen — the rest is never sent
-    await new Promise((resolve, reject) => {
-      const socket = net.connect(qPort, "127.0.0.1", () => {
+  // After a 413 the server only half-closes (a FIN after the response) and
+  // keeps draining, so a client reading late still gets the 413 (next test but
+  // one). A client that never finishes its body and ignores that FIN, the
+  // slowloris shape, must still lose the connection: the server hard-closes it
+  // once the upload has been quiet for about a second, or 10 s after the 413
+  // whatever the client does. This helper is that client. It uploads just past
+  // the 64 MB cap on a body declared far longer, waits for the 413, then keeps
+  // its own side open (allowHalfOpen, 'end' ignored) and lets `after413(socket)`
+  // decide what it sends next. It resolves with how long after the 413 the
+  // server's hard close showed up here: a write or read erroring, or 'close'.
+  // A raw socket because fetch can't hold a request open past the response.
+  function holdOpenAfter413(port, after413) {
+    return new Promise((resolve, reject) => {
+      let head = "", at413 = 0, settled = false, ticker = null;
+      const finish = (err, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer); clearInterval(ticker);
+        socket.destroy();
+        if (err) reject(err); else resolve(value);
+      };
+      const timer = setTimeout(() => finish(new Error(at413
+        ? "the server still had the connection open " + (Date.now() - at413) + " ms after the 413"
+        : "never saw a 413 while uploading past the 64 MB cap")), 30000);
+      const socket = net.connect({ port, host: "127.0.0.1", allowHalfOpen: true }, () => {
         socket.write(
           "POST /api/source HTTP/1.1\r\n" +
-          "Host: 127.0.0.1:" + qPort + "\r\n" +
+          "Host: 127.0.0.1:" + port + "\r\n" +
           "Content-Type: application/json\r\n" +
-          "Content-Length: " + declaredLen + "\r\n" +
+          "Content-Length: " + (200 * 1024 * 1024) + "\r\n" +
           "Connection: keep-alive\r\n\r\n",
         );
-        // Send just past the cap, then deliberately stop — the declared
-        // Content-Length is never fulfilled, simulating a stalled/slowloris
-        // client that keeps the request "open" from the server's point of view.
-        socket.write(Buffer.alloc(sentLen, 0x61));
+        socket.write(Buffer.alloc(65 * 1024 * 1024, 0x61));   // the rest is never sent
       });
-      let sawStatus413 = false;
-      let sawConnectionClose = false;
-      let head = "";
-      let settled = false;
-      let closeTimer = null;
-      const fail = (err) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(uploadTimer);
-        clearTimeout(closeTimer);
-        reject(err);
-      };
-      // the close bound used to be measured
-      // from UPLOAD START, so a slow machine that simply took >2s to push the
-      // 65 MB body would fail even with the fix in place. The upload itself
-      // gets a generous budget; the tight bound below starts only once the
-      // 413 has actually been seen.
-      const uploadTimer = setTimeout(() => {
-        fail(new Error("never saw a 413 while uploading past the 64 MB cap"));
-      }, 30000);
       socket.on("data", (chunk) => {
-        if (sawStatus413) return;
+        if (at413) return;
         head += chunk.toString("latin1");
-        if (!head.includes(" 413 ")) return;
-        sawStatus413 = true;
-        // The 413 must tell the client the connection is going away — without
-        // it, a Linux/macOS peer can see the server's close as a RST that
-        // discards the not-yet-read 413 (the original reset-mid-upload bug).
-        sawConnectionClose = /\r\nconnection:\s*close\r\n/i.test(head.split("\r\n\r\n")[0] + "\r\n");
-        // Deliberately well under Node's own default server.keepAliveTimeout
-        // (5000ms) — that default WILL eventually reap an idle keep-alive
-        // connection on its own, so a generous timeout here would pass even
-        // without the fix (it did, at ~6s, when this was sabotaged for RED
-        // verification). The server closes the connection about 1s after this
-        // client's upload stops (it stops right at the 413), so 2500ms from
-        // the 413 cleanly separates "closed because of the fix" from "closed
-        // because Node eventually gave up anyway".
-        closeTimer = setTimeout(() => {
-          fail(new Error("server never closed the connection after the 413 — still draining a body declared as " + declaredLen + " bytes"));
-        }, 2500);
+        const end = head.indexOf("\r\n\r\n");
+        if (end === -1) return;
+        const headers = head.slice(0, end + 2);
+        if (!/^HTTP\/1\.1 413\b/.test(headers)) return finish(new Error("expected a 413, got " + headers.split("\r\n")[0]));
+        // without it a client has no way to know the connection is going away
+        if (!/\r\nconnection:\s*close\r\n/i.test(headers)) return finish(new Error("the 413 response did not carry `Connection: close`"));
+        at413 = Date.now();
+        ticker = after413(socket);
       });
-      const done = () => {
-        if (settled) return;
-        if (!sawStatus413) return fail(new Error("connection closed before the 413 response was ever seen"));
-        if (!sawConnectionClose) return fail(new Error("the 413 response did not carry `Connection: close`"));
-        settled = true;
-        clearTimeout(uploadTimer);
-        clearTimeout(closeTimer);
-        resolve();
-      };
-      socket.on("close", done);
-      // Actively closing a still-open connection (req.destroy(), the fix under
-      // test) tears down BOTH directions at once, which can surface here as an
-      // abrupt ECONNRESET/EPIPE — this test is still mid-write of its 65 MB
-      // body when that happens — rather than a graceful end. Either shape
-      // proves the same thing (the server didn't just sit there draining
-      // forever), as long as it happened after the 413 was actually seen.
-      socket.on("error", (e) => {
-        if (settled) return;
-        if (sawStatus413 && (e.code === "ECONNRESET" || e.code === "EPIPE")) return done();
-        fail(e);
-      });
+      socket.on("end", () => {});   // the server's FIN: this client keeps its side open regardless
+      const closed = () => (at413
+        ? finish(null, Date.now() - at413)
+        : finish(new Error("connection closed before the 413 response was ever seen")));
+      socket.on("error", closed);
+      socket.on("close", closed);
     });
+  }
+
+  test("a client that goes quiet after the 413 but keeps its side open is closed by the server", async () => {
+    // A probe byte every 1.2 s, from 1.5 s on, finds out when the server has
+    // closed (a write to a closed connection draws a reset, and the next write
+    // or read errors). Probes are spaced past the 1 s quiet gap so they can't
+    // keep the connection alive themselves.
+    const elapsed = await holdOpenAfter413(qPort, (socket) => {
+      let ms = 0;
+      return setInterval(() => { ms += 300; if (ms >= 1500 && (ms - 1500) % 1200 === 0) socket.write("a"); }, 300);
+    });
+    // under the 10 s cap, so it was the quiet close that did it
+    assert.ok(elapsed < 6000, "closed " + elapsed + " ms after the 413");
+  });
+
+  test("a client that keeps trickling bytes after the 413 is cut off at the 10 s cap", async () => {
+    const elapsed = await holdOpenAfter413(qPort, (socket) => setInterval(() => socket.write("a"), 300));
+    assert.ok(elapsed >= 8000 && elapsed < 15000, "closed " + elapsed + " ms after the 413");
   });
 
   // A real browser keeps uploading an oversized save after the server's 413
-  // and only reads the response once its upload is done (or a slow link takes
-  // a while to finish it). Closing the connection while those bytes are still
-  // arriving makes the server's side answer with a RST, and a RST throws away
+  // and reads the response only once its upload is over. Closing the
+  // connection while those bytes are still arriving makes the server's side
+  // answer with a RST, and a RST throws away
   // the 413 the client hasn't read yet: it sees a reset, not the message. The
   // server has to keep draining while the upload is still moving.
   test("a client still uploading after the 413, reading only at the end, still gets the 413", async () => {

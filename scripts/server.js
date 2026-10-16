@@ -104,35 +104,40 @@ function sendJSON(res, code, obj) {
   res.end(body);
 }
 // After a 413: drain the rest of the upload, then close. See readBody.
+// Returns tick(), called for every chunk drained, which restarts the quiet timer.
 const LINGER_IDLE_MS = 1000, LINGER_MAX_MS = 10000;
 function lingerThenClose(req, res) {
   const sock = req.socket;
   sock.destroySoon = function () { if (this.writable) this.end(); };
-  let idle = null;
+  let idle = null, done = false;
   const cap = setTimeout(() => sock.destroy(), LINGER_MAX_MS);
   // the upload is over or has gone quiet: close as soon as the 413 is out
   const close = () => {
+    if (done) return;
+    done = true;
     clearTimeout(idle);
-    req.lingerTick = null;
     if (res.writableFinished) sock.destroy(); else res.once("finish", () => sock.destroy());
   };
-  req.lingerTick = () => {
+  const tick = () => {
+    if (done) return;
     clearTimeout(idle);
     idle = setTimeout(close, LINGER_IDLE_MS);
     if (idle.unref) idle.unref();
   };
   if (cap.unref) cap.unref();
-  req.lingerTick();
+  tick();
   req.once("end", close);
   sock.once("close", () => { clearTimeout(idle); clearTimeout(cap); });
+  return tick;
 }
 function readBody(req, res) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let size = 0;
     let tooLarge = false;
+    let lingerTick = null;
     req.on("data", (c) => {
-      if (tooLarge) { if (req.lingerTick) req.lingerTick(); return; }   // draining after the 413
+      if (tooLarge) { if (lingerTick) lingerTick(); return; }   // draining after the 413
       size += c.length;
       if (size > MAX_JSON_BODY) {
         tooLarge = true;
@@ -148,7 +153,7 @@ function readBody(req, res) {
         // it open.
         if (res) {
           if (!res.headersSent) res.setHeader("Connection", "close");
-          lingerThenClose(req, res);
+          lingerTick = lingerThenClose(req, res);
         }
         reject(httpError(413, "This save is too large to send in one go. Use smaller photos, or save a few at a time."));
         return;
