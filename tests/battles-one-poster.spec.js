@@ -55,3 +55,21 @@ test("at 375px VS sits between the stacked pickers", async ({ page }) => {
   expect(Math.abs(mid(vs) - mid(p1))).toBeLessThan(4);
   expect(Math.abs(mid(vs) - mid(p2))).toBeLessThan(4);
 });
+
+// The win tally counts every row on screen, the words added in settings too
+// (it used to loop only the built-in list). A built-in word the user also
+// added is one row, counted once.
+test("words added to the battle count toward the wins", async ({ page }) => {
+  await bootViewer(page, ONE_EACH, { ls: { "gca.lastView": "battles", "gca.settings": JSON.stringify({ battleWords: ["ok", "lol"] }) } });
+  const v = page.locator("#view-battles");
+  await expect(v.locator(".battle-word")).toHaveText(["ok", "lol", "bruh", "nah"]);
+  const sum = v.locator(".battle-summary");
+  await expect(sum).toContainText("User 1: 2 wins");   // lol, nah
+  await expect(sum).toContainText("User 2: 2 wins");   // ok (added), bruh
+  // adding one more word that User 2 wins moves the tally live
+  await page.locator("#battle-word").fill("bruh");
+  await page.locator("#battle-go").click();
+  await expect(v.locator(".battle-word")).toHaveText(["bruh", "ok", "lol", "nah"]);
+  await expect(sum).toContainText("User 2: 2 wins");
+});
+

@@ -7175,7 +7175,7 @@ function drawBattleResults() {
 
   // Whole-word token counts (the shared tokenizer, apostrophe-folded keys) —
   // "lol!" is the word lol, "many" is not "man". The custom rows added
-  // by addBattleRow() count the very same way.
+  // (battleCounts()) count the very same way.
   const counts1 = new Map(), counts2 = new Map();
   for (let i = 0; i < N; i++) {
     const m = MSGS[i];
@@ -7187,35 +7187,28 @@ function drawBattleResults() {
     }
   }
 
-  const battleWords = ["lol", "lmao", "bruh", "nah", "bro", "damn", "like", "yeah", "fuck", "man", "shit", "good", "love", "dead", "fire", "real", "nice", "wait", "facts", "honestly", "literally", "actually", "think", "know", "gonna"];
+  const BUILT_IN = ["lol", "lmao", "bruh", "nah", "bro", "damn", "like", "yeah", "fuck", "man", "shit", "good", "love", "dead", "fire", "real", "nice", "wait", "facts", "honestly", "literally", "actually", "think", "know", "gonna"];
 
-  let html = '<div class="battle-rows">';
-  settings.battleWords.forEach((word) => { html += battleRowHtml(word); });
-  battleWords.forEach(word => {
-    const c1 = counts1.get(wordKey(word)) || 0;
-    const c2 = counts2.get(wordKey(word)) || 0;
-    if (c1 === 0 && c2 === 0) return;
-    const max = Math.max(c1, c2, 1);
-    const w1 = (c1 / max * 100).toFixed(0);
-    const w2 = (c2 / max * 100).toFixed(0);
-    const winner = c1 > c2 ? "left" : c2 > c1 ? "right" : "tie";
-
-    html += `<div class="battle-row">
-      <div class="battle-count ${winner === 'left' ? 'battle-winner' : ''}">${fmtNum(c1)}</div>
-      <div class="battle-bar-left"><div class="battle-fill-left" style="width:${w1}%"></div></div>
-      <div class="battle-word">${esc(word)}</div>
-      <div class="battle-bar-right"><div class="battle-fill-right" style="width:${w2}%"></div></div>
-      <div class="battle-count ${winner === 'right' ? 'battle-winner' : ''}">${fmtNum(c2)}</div>
-    </div>`;
+  // One row per word: the added words first (always shown, removable), then
+  // each built-in word either person used that isn't already an added row.
+  // The wins are tallied over exactly these rows.
+  const rows = settings.battleWords.map((word) => Object.assign({ word, added: true }, battleCounts(word)));
+  const addedKeys = new Set(settings.battleWords.map((w) => wordKey(w)));
+  BUILT_IN.forEach((word) => {
+    const k = wordKey(word);
+    if (addedKeys.has(k)) return;
+    const c1 = counts1.get(k) || 0, c2 = counts2.get(k) || 0;
+    if (c1 || c2) rows.push({ word, added: false, c1, c2 });
   });
-  html += '</div>';
 
   let wins1 = 0, wins2 = 0;
-  battleWords.forEach(w => {
-    const c1 = counts1.get(wordKey(w)) || 0, c2 = counts2.get(wordKey(w)) || 0;
-    if (c1 > c2) wins1++;
-    else if (c2 > c1) wins2++;
+  let html = '<div class="battle-rows">';
+  rows.forEach((r) => {
+    if (r.c1 > r.c2) wins1++;
+    else if (r.c2 > r.c1) wins2++;
+    html += battleRowHtml(r);
   });
+  html += '</div>';
   html += `<div class="battle-summary">
     <span style="color:${esc(personColor(battleP1).p)};font-weight:700">${esc(nameOf(battleP1))}: ${wins1} ${wins1 === 1 ? "win" : "wins"}</span>
     <span style="color:var(--text-faint)">•</span>
@@ -7247,9 +7240,8 @@ function addBattleWord(word) {
   if (inp) inp.value = "";
 }
 
-// One custom-word row: counted with the same whole-word keys as everything
-// else, removable.
-function battleRowHtml(word) {
+// An added word's counts, with the same whole-word keys as everything else.
+function battleCounts(word) {
   const keys = wordKeys(word);
   const probe = keys.length ? keys.reduce((a, b) => (b.length > a.length ? b : a)) : "";
   let c1 = 0, c2 = 0;
@@ -7260,19 +7252,24 @@ function battleRowHtml(word) {
     if (s === battleP1) c1 += c;
     if (s === battleP2) c2 += c;
   }
+  return { c1, c2 };
+}
 
+// One row: both counts and bars, the word between them; an added word can be
+// removed.
+function battleRowHtml({ word, added, c1, c2 }) {
   const max = Math.max(c1, c2, 1);
   const w1 = (c1 / max * 100).toFixed(0);
   const w2 = (c2 / max * 100).toFixed(0);
   const winner = c1 > c2 ? "left" : c2 > c1 ? "right" : "tie";
 
-  return `<div class="battle-row battle-added">
+  return `<div class="battle-row${added ? " battle-added" : ""}">
     <div class="battle-count ${winner === 'left' ? 'battle-winner' : ''}">${fmtNum(c1)}</div>
     <div class="battle-bar-left"><div class="battle-fill-left" style="width:${w1}%"></div></div>
     <div class="battle-word">${esc(word)}</div>
     <div class="battle-bar-right"><div class="battle-fill-right" style="width:${w2}%"></div></div>
     <div class="battle-count ${winner === 'right' ? 'battle-winner' : ''}">${fmtNum(c2)}</div>
-    <button class="icon-btn battle-remove" type="button" data-word="${esc(word)}" aria-label="Remove “${esc(word)}”" title="Remove">✕</button>
+    ${added ? `<button class="icon-btn battle-remove" type="button" data-word="${esc(word)}" aria-label="Remove “${esc(word)}”" title="Remove">✕</button>` : ""}
   </div>`;
 }
 
