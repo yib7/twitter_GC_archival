@@ -187,19 +187,29 @@ test("restoring a hash for another conversation goes through the normal switch: 
   await expect(page.locator("#f-media")).not.toHaveClass(/active/);
 });
 
+// Jump to a day from the palette and return the landed message's k (id "a<k>").
+// Waits on #m= instead of the .flash class, which is gone 1.7 s after the jump,
+// so a slow runner can miss it.
+async function paletteJump(page, day) {
+  await page.keyboard.press("Control+K");
+  await page.locator(".cmdk-input").fill(day);
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => (await params(page)).m).toMatch(/^a\d+$/);
+  return +(await params(page)).m.slice(1);
+}
+const alphaMsg = (page, k) => page.locator("#tl-list .msg", { has: page.locator(".bubble", { hasText: new RegExp("^alpha note " + k + " ") }) });
+
 test("Copy link to message copies an ids-only link that opens the message", async ({ page, context, browserName }) => {
   test.skip(browserName !== "chromium", "clipboard permissions");
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await boot(page, "", { "gca.lastView": "timeline" });
-  await page.keyboard.press("Control+K");
-  await page.locator(".cmdk-input").fill("2023-01-11");
-  await page.keyboard.press("Enter");
-  const msg = page.locator('#tl-list .msg[data-idx="' + await page.locator("#tl-list .msg.flash").getAttribute("data-idx") + '"]');
+  const k = await paletteJump(page, "2023-01-11");
+  const msg = alphaMsg(page, k);
+  await expect(msg).toBeInViewport();
   await msg.hover();
   await msg.getByRole("button", { name: "Copy link to message" }).click();
   await expect(page.locator(".toast")).toHaveText("Copied link to message");
   const link = await page.evaluate(() => navigator.clipboard.readText());
-  const k = (await msg.locator(".bubble").textContent()).match(/alpha note (\d+)/)[1];
   expect(link).toBe(page.url().split("#")[0] + "#v=timeline&c=A&m=a" + k);
   expect(link).not.toMatch(/alpha|note|User/);
 
@@ -259,11 +269,9 @@ const textInView = (page, text) => expect(page.locator("#tl-list .msg", { has: p
 
 test("reload after a jump and reading on reopens the reading position, not the jump target", async ({ page }) => {
   await boot(page, "", { "gca.lastView": "timeline" });
-  await page.keyboard.press("Control+K");
-  await page.locator(".cmdk-input").fill("2023-01-11");
-  await page.keyboard.press("Enter");
-  const target = (await page.locator("#tl-list .msg.flash .bubble").textContent()).trim();
-  expect((await params(page)).m).toBeDefined();
+  const k = await paletteJump(page, "2023-01-11");
+  await expect(alphaMsg(page, k)).toBeInViewport();
+  const target = (await alphaMsg(page, k).locator(".bubble").textContent()).trim();
   const reading = await readOn(page, -6000);   // ~70 messages up
   expect(reading).not.toBe(target);
   await page.reload();
