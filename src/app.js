@@ -12,7 +12,7 @@ const { PALETTE, X_LINK, initials, hueVars, HUES, personHue, userLabels } = GCAS
 // by the timeline's palette button and the keyboard help.
 const MOD_KEY = /Mac|iP(hone|ad|od)/.test(navigator.platform || "") ? "⌘" : "Ctrl";
 // Pure settings validators — also unit-tested under Node.
-const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, battleKey, countBattleText, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
+const { sanitizePhoto, sanitizeColor, isPlainObj, readableOn, accentTokens, THEME_BGS, battleKey, wordQuery, queryMayMatch, countQuery, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, safeMediaUrl } = GCAShared;
 // the one definition of an emoji / word / stopword / keyword / platform
 // link that every analytics view counts with.
 const { extractEmojis, tokenize, wordKey, wordKeys, countKeys, mayContainKey, topCloudWords, KEYWORDS, countMatches,
@@ -7270,20 +7270,16 @@ function battleColors(a, b) {
 }
 
 // An added word's counts, with the same whole-word keys as everything else.
-// A word keyed by its text (an emoji in it, or no letters or digits: see
-// battleKey) is counted each time that text appears instead.
+// A word keyed by its text (an emoji or emoticon in it, or no letters or
+// digits: see battleKey) is counted each time that text appears, whole.
 function battleCounts(word) {
-  const keys = wordKeys(word), key = battleKey(word);
-  if (!key) return { c1: 0, c2: 0 };
-  const byText = key !== keys.join(" ");
-  // cheap prefilter: the longest token, or the text's first character
-  const probe = byText ? String.fromCodePoint(key.codePointAt(0)) : keys.reduce((a, b) => (b.length > a.length ? b : a));
+  const q = wordQuery(word);
   let c1 = 0, c2 = 0;
+  if (!q.key) return { c1, c2 };
   for (let i = 0; i < N; i++) {
     const s = MSGS[i].s;
-    if ((s !== battleP1 && s !== battleP2) || !MSGS[i].x) continue;
-    if (byText ? LOWER[i].indexOf(probe) === -1 : !mayContainKey(LOWER[i], probe)) continue;
-    const c = byText ? countBattleText(MSGS[i].x, key) : countKeys(MSGS[i].x, keys);
+    if ((s !== battleP1 && s !== battleP2) || !MSGS[i].x || !queryMayMatch(LOWER[i], q)) continue;
+    const c = countQuery(MSGS[i].x, q);
     if (s === battleP1) c1 += c;
     if (s === battleP2) c2 += c;
   }

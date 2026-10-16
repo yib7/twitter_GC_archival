@@ -1210,10 +1210,29 @@
   const RE_PICTO = /[\p{Extended_Pictographic}\p{Regional_Indicator}]/u;
   const RE_SYMBOL_IN_WORD = /[^\p{L}\p{N}\p{M}\p{Cf}\s'‘’ʼ＇][\s\S]*[\p{L}\p{N}]/u;
   const battleText = (s) => s.replace(RE_EMOJI_TAIL, "").toLowerCase().replace(/\s+/g, " ").trim();
-  function battleKey(word) {
+  function battleKey(word) { return wordQuery(word).key; }
+  // A word ready to count over many messages: its key, its whole-word keys,
+  // whether it is counted by its text, and a probe for queryMayMatch. A text
+  // probe is the key's first emoji, or else its longest run without a space:
+  // neither can span a space or a U+FE0F that battleText removed.
+  function wordQuery(word) {
     const keys = RE_PICTO.test(word) || RE_SYMBOL_IN_WORD.test(word) ? [] : wordKeys(word);
-    return keys.length ? keys.join(" ") : battleText(word);
+    if (keys.length) return { key: keys.join(" "), keys, byText: false, probe: keys.reduce((a, b) => (b.length > a.length ? b : a)) };
+    const key = battleText(word);
+    const pic = key.match(RE_PICTO);
+    const probe = pic ? String.fromCodePoint(pic[0].codePointAt(0)) : key.split(" ").reduce((a, b) => (b.length > a.length ? b : a));
+    return { key, keys, byText: true, probe };
   }
+  // Cheap prefilter: false only when a message whose lowercased text (plus
+  // link text) is `lowerText` cannot count the word.
+  function queryMayMatch(lowerText, q) {
+    if (!lowerText || !q.key) return false;
+    if (!q.byText) return mayContainKey(lowerText, q.probe);
+    if (lowerText.indexOf(q.probe) !== -1) return true;
+    return RE_HAS_EMOJI_TAIL.test(lowerText) && lowerText.replace(RE_EMOJI_TAIL, "").indexOf(q.probe) !== -1;
+  }
+  // How often a message uses the word: whole words, or its text (see below).
+  function countQuery(text, q) { return q.byText ? countBattleText(text, q.key) : countKeys(text, q.keys); }
   // How often a text-keyed battle word (its battleKey) appears in a message,
   // links and @mentions left out as for every other word count. A hit counts
   // only when it starts and ends between two graphemes (a whole emoji: the US
@@ -1221,23 +1240,36 @@
   // skin-toned one) and, where the key starts or ends with a letter or digit,
   // with no letter, digit, mark or word joiner beside it there ("ok" plus an
   // emoji is not inside "book" plus that emoji).
+  // Segmenting the message is skipped when the characters beside a hit
+  // settle it: a grapheme always breaks between a printable ASCII character
+  // or a pictograph and a key that does not start with a character that
+  // joins what is before it (a mark, a format character such as ZWJ, a skin
+  // tone, a spacing vowel) or end with one that may join what is after it
+  // (a Prepend: a format character or one of a few Brahmic letters).
   const RE_WORD_START = /^[\p{L}\p{N}]/u, RE_WORD_END = /[\p{L}\p{N}]$/u;
   const RE_GLUED_START = /^[\p{L}\p{N}\p{M}\u200C\u200D]/u, RE_GLUED_END = /[\p{L}\p{N}\p{M}\u200C\u200D]$/u;
+  const RE_JOINS_BEFORE = /^[\p{M}\p{Cf}\p{Emoji_Modifier}\u0E33\u0EB3\uFF9E\uFF9F]/u, RE_JOINS_AFTER = /(?:\p{Cf}|\u0D4E|[\u{11000}-\u{11FFF}])$/u;
+  const RE_CLEAN_BEFORE = /(?:[\x20-\x7E]|\p{Extended_Pictographic})$/u, RE_CLEAN_AFTER = /^(?:[\x20-\x7E]|\p{Extended_Pictographic})/u;
   function countBattleText(text, key) {
     if (!text || !key) return 0;
     const s = battleText(plainText(text));
     const edgeL = RE_WORD_START.test(key), edgeR = RE_WORD_END.test(key);
+    const cleanL = !RE_JOINS_BEFORE.test(key), cleanR = !RE_JOINS_AFTER.test(key);
     let n = 0, bounds = null;
-    for (let at = s.indexOf(key); at !== -1;) {
-      const end = at + key.length;
+    const isBound = (p) => {
       if (!bounds) {
         bounds = new Set([0]);
-        let p = 0;
-        for (const g of graphemes(s)) bounds.add(p += g.length);
+        let q = 0;
+        for (const g of graphemes(s)) bounds.add(q += g.length);
       }
-      const ok = bounds.has(at) && bounds.has(end) &&
-        !(edgeL && RE_GLUED_END.test(s.slice(Math.max(0, at - 2), at))) &&
-        !(edgeR && RE_GLUED_START.test(s.slice(end, end + 2)));
+      return bounds.has(p);
+    };
+    for (let at = s.indexOf(key); at !== -1;) {
+      const end = at + key.length;
+      const before = s.slice(Math.max(0, at - 2), at), after = s.slice(end, end + 2);
+      const ok = !(edgeL && RE_GLUED_END.test(before)) && !(edgeR && RE_GLUED_START.test(after)) &&
+        (at === 0 || (cleanL && RE_CLEAN_BEFORE.test(before)) || isBound(at)) &&
+        (end === s.length || (cleanR && RE_CLEAN_AFTER.test(after)) || isBound(end));
       if (ok) n++;
       at = s.indexOf(key, ok ? end : at + 1);
     }
@@ -1334,7 +1366,7 @@
     extractEmojis, extractEmojisRGI, tokenize, tokenizeNoSegmenter, wordKey, isStopword, isCloudWord, topCloudWords, countWord, wordKeys, countKeys, mayContainKey,
     KEYWORDS, countMatches, countLaughs, isLaughOnly, isProfane, isKeysmash, isKeysmashPlain, plainText, linkPlatform, plural,
     graphemes, graphemesNoSegmenter, wrapText, createRedactor, createUserNumbering, userLabels,
-    isPlainObj, cleanMap, idList, cleanSaved, battleKey, countBattleText, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
+    isPlainObj, cleanMap, idList, cleanSaved, battleKey, wordQuery, queryMayMatch, countQuery, countBattleText, cleanBattleWords, BATTLE_WORD_MAX, BATTLE_WORDS_MAX, validateSettings,
     safeMediaUrl,
   };
 });

@@ -314,3 +314,62 @@ test("battleKey keeps an emoticon or a word led by a symbol as its text", () => 
   assert.equal(c("i <3 u, 3 cats, <33", "<3"), 1);
   assert.equal(c("xD :D :Dd", ":D"), 1);
 });
+
+// The Battles loop skips a message whose lowercased text cannot hold the word
+// before counting it. For a word counted by its text the probe used to be its
+// first character, so "lol" plus an emoji probed for "l" and let nearly every
+// message through. It is now the first emoji, or else the longest run without
+// a space, and it never skips a message that would count.
+test("wordQuery probes with the emoji or the longest run, and never skips a match", () => {
+  const JOY = "\u{1F602}", KC = (d) => d + "\uFE0F\u20E3";
+  const q = shared.wordQuery;
+  assert.equal(q("lol " + JOY).probe, JOY);
+  assert.equal(q(JOY + " lol").probe, JOY);
+  assert.equal(q(":D").probe, ":d");
+  assert.equal(q("so, literally").probe, "literally");
+  assert.deepStrictEqual([q("Lol!").byText, q("Lol!").probe, q("<3").byText], [false, "lol", true]);
+  // the information-source emoji is a letter too: counted by text with or without U+FE0F
+  assert.deepStrictEqual([q("\u2139").byText, q("\u2139").key], [true, q("\u2139\uFE0F").key]);
+  assert.equal(shared.queryMayMatch("lol only", q("lol " + JOY)), false);
+  const words = ["lol " + JOY, JOY, ":D", "<3", "#x", "12", "so, literally", "\u2764\uFE0F", "ok " + JOY, "?!"];
+  const texts = ["LOL " + JOY + " ok", "trollol " + JOY, "xD :D", "i <3 u", "#\uFE0F\u20E3x", KC("1") + KC("2"),
+    "so, literally", "I \u2764 u", "OK " + JOY, "wait?!", "see https://x.com/?! ok?!"];
+  for (const w of words) for (const t of texts) {
+    const wq = q(w);
+    if (shared.countQuery(t, wq) > 0) assert.ok(shared.queryMayMatch(t.toLowerCase(), wq), JSON.stringify([w, t]));
+  }
+  assert.equal(shared.countQuery("#\uFE0F\u20E3x", q("#x")), 1);
+  assert.equal(shared.countQuery(KC("1") + KC("2"), q("12")), 1);
+});
+
+// countBattleText only segments a message into graphemes when the characters
+// beside a hit do not settle it; it must agree with always segmenting.
+test("countBattleText agrees with a full grapheme split on mixed text", () => {
+  const POOL = ["a", "b", "1", " ", "!", "<", "3", ":", "d", "\u0301", "\u093F", "\u0915", "\u094D", "\u200D", "\u200C",
+    "\u{1F602}", "\u{1F44D}", "\u{1F3FD}", "\u2764", "\uFE0F", "\u{1F525}", "\u{1F1FA}", "\u{1F1F8}", "\u{1F1E6}",
+    "\u1100", "\u1161", "\uAC00", "\u0600", "\u0E33", "\u0E01", "\uFF76", "\uFF9E", "\u{E0067}", "\u20E3", "#"];
+  const KEYS = ["\u{1F602}", "a \u{1F602}", "\u{1F602} a", "\u{1F44D}", "\u{1F44D}\u{1F3FD}", "\u{1F1FA}\u{1F1F8}", "<3", ":d",
+    "\u2764", "\u2764\u200D\u{1F525}", "!", "\u0915", "\u0600", "\u0301", "\u200D", "\uAC00", "\u1161", "#"];
+  const ref = (text, key) => {
+    const s = shared.plainText(text).replace(/[\uFE0F\u20E3]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+    const b = new Set([0]); let p = 0;
+    for (const g of shared.graphemes(s)) b.add(p += g.length);
+    const L = /^[\p{L}\p{N}]/u.test(key), R = /[\p{L}\p{N}]$/u.test(key), W = /[\p{L}\p{N}\p{M}\u200C\u200D]/u;
+    let n = 0;
+    for (let at = s.indexOf(key); at !== -1;) {
+      const end = at + key.length;
+      const ok = b.has(at) && b.has(end) && !(L && at > 0 && W.test(String.fromCodePoint(s.codePointAt(at - 1 - (/[\uDC00-\uDFFF]/.test(s[at - 1]) ? 1 : 0)))))
+        && !(R && end < s.length && W.test(String.fromCodePoint(s.codePointAt(end))));
+      if (ok) n++;
+      at = s.indexOf(key, ok ? end : at + 1);
+    }
+    return n;
+  };
+  let seed = 7;
+  const rnd = (n) => (seed = (seed * 48271) % 2147483647) % n;
+  for (let i = 0; i < 4000; i++) {
+    let t = "";
+    for (let k = 0, len = 1 + rnd(12); k < len; k++) t += POOL[rnd(POOL.length)];
+    for (const key of KEYS) assert.equal(shared.countBattleText(t, key), ref(t, key), JSON.stringify([t, key]));
+  }
+});
