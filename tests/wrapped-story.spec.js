@@ -287,6 +287,51 @@ test.describe("story mechanics", () => {
     await expect(btn).toHaveAccessibleName(/Pause/);
   });
 
+  // Every dialog pauses the story, not just Share: a slide must not change
+  // under an open profile, and focus must come back to its opener.
+  test("autoplay waits behind a profile opened from a slide, then resumes with focus back on its opener", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    await page.addStyleTag({ content: ".wr-stage { --wr-dur: 1500ms !important; }" });
+    const btn = page.locator("#wr-play");
+    await btn.click();                          // paused while we walk to a ranking slide
+    for (let k = 0; k < 6 && !(await page.locator("#wr-slide .pl-row .av").count()); k++) await page.locator("#wr-next").click();
+    const at = await slideNo(page);
+    await btn.click();                          // playing again, with a fresh 1.5 s segment
+    await expect(btn).toHaveAccessibleName(/Pause/);
+    await page.locator("#wr-slide .pl-row .av").first().click();
+    await expect(page.locator(".profile-modal")).toBeVisible();
+    await expect(page.locator("#wr-stage")).toHaveClass(/\bwr-paused\b/);
+    await page.waitForTimeout(2200);            // longer than a slide
+    expect(await slideNo(page)).toBe(at);
+    // closed with the mouse: (Escape would hand keyboard focus back to the
+    // story, and keyboard focus on the story is its own pause reason)
+    await page.locator(".profile-card-close").click();
+    await expect(page.locator(".profile-modal")).toHaveCount(0);
+    // the avatar is not a focus stop: the press focused the story around it
+    await expect(page.locator("#wr-stage")).toBeFocused();
+    await expect(page.locator("#wr-stage")).not.toHaveClass(/\bwr-paused\b/);
+    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(at + 1);
+  });
+
+  test("autoplay waits behind keyboard help and the command palette", async ({ page }) => {
+    await openWrapped(page, { motion: true });
+    await page.addStyleTag({ content: ".wr-stage { --wr-dur: 1500ms !important; }" });
+    await page.locator("#wr-next").click();     // a fresh 1.5 s segment
+    const at = await slideNo(page);
+    for (const [open, sel] of [["?", ".kb-modal"], ["Control+k", ".cmdk"]]) {
+      await page.locator("#wr-next").focus();
+      await page.keyboard.press(open);
+      await expect(page.locator(sel)).toBeVisible();
+      await expect(page.locator("#wr-stage")).toHaveClass(/\bwr-paused\b/);
+      await page.waitForTimeout(1000);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(sel)).toHaveCount(0);
+      await expect(page.locator("#wr-stage")).not.toHaveClass(/\bwr-paused\b/);
+    }
+    expect(await slideNo(page)).toBe(at);        // 2 s open in all, but under 1.5 s playing
+    await expect.poll(() => slideNo(page), { timeout: 4000 }).toBe(at + 1);
+  });
+
   // Pressing the button blurs the story, and that blur must not rebuild the
   // button under the pointer (a rebuilt button never receives the click).
   test("the Pause button works right after a press on the story", async ({ page }) => {

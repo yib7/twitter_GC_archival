@@ -783,11 +783,13 @@ function applyDialog(box, label, opts) {
   if (!box._trapped) { box.addEventListener("keydown", trapTab); box._trapped = true; }   // a reused box (the More sheet) traps once
   const initial = (opts.initial && box.querySelector(opts.initial)) || focusablesIn(box)[0];
   if (initial && initial.focus) { try { initial.focus(); } catch (e) {} }
+  paintWrappedPlay();   // any dialog pauses the Wrapped story
 }
 // Call after `box` has been removed. Falls back to the first focusable of the
 // layer now on top when the opener is gone, so focus never drops to <body>
 // behind a still-open modal.
 function restoreFocus(box) {
+  paintWrappedPlay();   // the story resumes once the last dialog is gone
   const o = box && box._opener;
   if (o && o.focus && document.contains(o) && o !== document.body) { try { o.focus(); } catch (e) {} return; }
   const t = topModal();
@@ -5292,11 +5294,13 @@ const WR_BG = { intro: "wr-bg-hero", outro: "wr-bg-hero", stat: "wr-bg-vol", per
 // current segment's fill is a CSS animation (--wr-dur) whose end advances the
 // story, so pausing is animation-play-state and resuming continues the fill.
 // Pause reasons: the Pause button (wrUserPaused), a press-and-hold, keyboard
-// focus on the story, an open dialog (the share preview) — `wrHolds`.
+// focus on the story (`wrHolds`), and any open dialog (`topModal()`). Dialogs
+// repaint on open and close: applyDialog / restoreFocus, plus an observer for
+// the few that are removed without restoring focus.
 let wrUserPaused = false, wrEnded = false;
 const wrHolds = new Set();
 const wrAutoplayAllowed = () => !matchMedia("(prefers-reduced-motion: reduce)").matches;
-const wrPlaying = () => wrAutoplayAllowed() && !wrUserPaused && !wrEnded && !wrHolds.size;
+const wrPlaying = () => wrAutoplayAllowed() && !wrUserPaused && !wrEnded && !wrHolds.size && !topModal();
 function wrHold(reason, on) {
   if (on) wrHolds.add(reason); else wrHolds.delete(reason);
   paintWrappedPlay();
@@ -5554,6 +5558,9 @@ function paintWrappedChrome(n) {
   if (next) next.innerHTML = wrappedSlide === n - 1 ? "Restart" + WR_ICON.restart : "Next" + WR_ICON.next;
   paintWrappedPlay();
 }
+// A palette command or a calendar jump removes its dialog without restoring
+// focus; this catches those so the story never stays paused behind nothing.
+new MutationObserver(() => paintWrappedPlay()).observe(document.body, { childList: true });
 // Autoplay classes on the stage + the Pause / Play button (hidden when
 // reduced motion turns autoplay off). A hold or focus pauses the fill but
 // doesn't flip the button — only the button's own choice (or the end) does.
@@ -6152,7 +6159,7 @@ function drawShareCard(canvas, model, T) {
 
 // The Share dialog (a modal-stack layer): live preview, "Hide names", Copy
 // image (where the browser can put a PNG on the clipboard) and Download PNG.
-// build(redact, theme) → card model. opts: { kind, defaultRedact, onClose }.
+// build(redact, theme) → card model. opts: { kind, defaultRedact }.
 function openShareDialog(build, opts) {
   opts = opts || {};
   document.querySelectorAll(".share-modal").forEach((m) => { if (m._close) m._close(); else m.remove(); });
@@ -6192,7 +6199,6 @@ function openShareDialog(build, opts) {
   };
   modal._close = () => {
     modal.remove();
-    if (opts.onClose) opts.onClose();
     restoreFocus(modal);
   };
   close.onclick = modal._close;
@@ -6226,10 +6232,9 @@ function shareMessage(i, hof, opener) {
 function shareWrappedSlide() {
   const w = computeWrapped(wrappedYear), slides = wrappedSlides(w), k = wrappedSlide, s = slides[k];
   if (!s) return;
-  wrHold("share", true);
   // a slide that ranks people starts with names hidden
   openShareDialog((redact, T, R) => shareModelWrapped(s, w, k, R, T),
-    { kind: s.kind === "person" ? "wrapped-ranking" : "wrapped", defaultRedact: s.kind === "person", onClose: () => wrHold("share", false) });
+    { kind: s.kind === "person" ? "wrapped-ranking" : "wrapped", defaultRedact: s.kind === "person" });
 }
 
 /* ===========================================================================
