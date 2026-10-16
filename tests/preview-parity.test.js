@@ -66,6 +66,15 @@ describe("the survey counts what the build keeps", () => {
     const w = core2.preflightWarnings({ survey: Object.assign({ dm: { conversations: 0 } }, r) });
     assert.ok(w.some((x) => x.code === "no-sender" && /no sender/.test(x.text)), JSON.stringify(w));
   });
+  test("a blank sender is nobody: not a participant, as the build leaves it off the roster", () => {
+    const sv = core.createExportSurvey({});
+    const blank = X.gmsg(2, 111, X.T0 + 1000, "who");
+    blank.messageCreate.senderId = "";
+    const r = feed(sv, [X.conv("1000000001", [X.gmsg(1, 111, X.T0, "a"), blank])]);
+    assert.equal(r.noSender, 1);
+    assert.equal(r.groups[0].participants, 1);
+    assert.equal(r.totals.participants, 1);
+  });
 });
 
 describe("preview numbers equal the built archive's", () => {

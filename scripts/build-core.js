@@ -71,7 +71,7 @@ function unionReactions(a, b) {
 
 /* ---- per-conversation accumulator ---------------------------------------- */
 function makeConvo(id) {
-  return { id, type: isGroupId(id) ? "group" : "dm", msgMap: new Map(), eventMap: new Map(), headerParts: new Set(), headerIds: new Set() };
+  return { id, type: isGroupId(id) ? "group" : "dm", msgMap: new Map(), eventMap: new Map(), headerParts: new Set(), headerIds: new Set(), skippedIds: new Set() };
 }
 
 /**
@@ -149,8 +149,9 @@ function createAccumulator(opts) {
     if (m.messageCreate) {
       const r = rawToRec(m.messageCreate);
       if (!r.i) return;
-      if (!Number.isFinite(r.t)) { warnings.badTime++; return; }   // skip + warn
-      if (r.s == null || r.s === "") { warnings.noSender++; return; }   // nobody to show it as
+      // skip + warn; skippedIds keeps a skipped body from also reading as missing
+      if (!Number.isFinite(r.t)) { warnings.badTime++; c.skippedIds.add(String(r.i)); return; }
+      if (r.s == null || r.s === "") { warnings.noSender++; c.skippedIds.add(String(r.i)); return; }   // nobody to show it as
       if (r.t > exportNewest && kept(convId, r.s)) exportNewest = r.t;
       const old = c.msgMap.get(r.i);
       if (old) {
@@ -246,7 +247,7 @@ function createAccumulator(opts) {
       const msgs = msgVals.sort(byTime);
       const events = [...c.eventMap.values()].sort((a, b) => a.t - b.t);
       if (!msgs.length || c.type !== "group") continue;   // group chats only; drop empty + 1:1 DMs
-      for (const hid of c.headerIds) if (!c.msgMap.has(hid)) warnings.missingBodies++;
+      for (const hid of c.headerIds) if (!c.msgMap.has(hid) && !c.skippedIds.has(hid)) warnings.missingBodies++;
 
       const headerParts = [...(c.headerParts || [])].filter((id) => !IGNORED.has(String(id)));
       const participants = [...new Set([...msgs.map((m) => m.s), ...headerParts])];
@@ -546,7 +547,7 @@ function createExportSurvey(opts) {
     const g = groupOf(cid);
     const mc = m.messageCreate;
     if (mc) {
-      if (mc.senderId != null) g.people.add(String(mc.senderId));
+      if (mc.senderId != null && mc.senderId !== "") g.people.add(String(mc.senderId));
       if (which === "headers") return;
       const t = toMs(mc.createdAt);
       if (!Number.isFinite(t)) { st.badTime++; return; }

@@ -260,6 +260,23 @@ test("a message with no senderId is skipped and counted; no null joins the roste
   assert.equal(res.warnings.noSender, 3);
 });
 
+// A skipped message the headers also list has a body: it is not "missing" (that
+// warning tells the user to look for -partN files, which is the wrong advice).
+test("a skipped message the headers list is not also counted as a missing body", () => {
+  const res = assemble({
+    exportDatas: [[conv("G1", [
+      msg("m1", "5", "2020-05-01T10:00:00Z", "fine"),
+      { messageCreate: { id: "m2", createdAt: iso("2020-05-01T10:01:00Z"), text: "who sent this" } },
+      { messageCreate: { id: "m3", senderId: "5", createdAt: "not a date", text: "bad time" } },
+    ])]],
+    headerDatas: [[conv("G1", [msg("m1", "5", "2020-05-01T10:00:00Z", ""), msg("m2", "5", "2020-05-01T10:01:00Z", ""),
+      msg("m3", "5", "2020-05-01T10:02:00Z", ""), msg("m4", "5", "2020-05-01T10:03:00Z", "")])]],
+  });
+  assert.equal(res.warnings.noSender, 1);
+  assert.equal(res.warnings.badTime, 1);
+  assert.equal(res.warnings.missingBodies, 1, "only m4 has no body anywhere");
+});
+
 // ---- every media file of a message is kept --------------------------
 test("indexMediaFiles groups ALL files per message id, sorted, ignoring non-matching names", () => {
   const { indexMediaFiles } = require("../scripts/build-core.js");
