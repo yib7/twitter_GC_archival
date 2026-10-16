@@ -4,6 +4,14 @@ All notable changes to this project are recorded here.
 
 ## Unreleased
 
+### Requirements
+
+- The setup wizard and its server now need Node.js 22.13 or newer (Node 23
+  is not supported), the versions CI tests. v1.4.0 asked for Node 18, which
+  like Node 20 is end-of-life and was never tested. The double-click
+  launchers check the version and say what to install. Browsing an archive
+  still needs only a browser.
+
 ### Fixes
 
 #### Analytics
@@ -97,9 +105,9 @@ All notable changes to this project are recorded here.
 - A save (names, photos, removals) whose upload was still arriving when a
   build started now waits for the build ("try again") instead of running in
   the middle of it, where the build could overwrite what it saved.
-- The double-click launchers say plainly when Node.js is missing or older
-  than 18, or when they are run from inside the ZIP, instead of showing a raw
-  error. The launchers and the server need Node 18 or newer.
+- The double-click launchers say plainly when Node.js is missing or a
+  version the project doesn't support, or when they are run from inside the
+  ZIP, instead of showing a raw error.
 - A reopened wizard shows the saved group name and photo, and saving no
   longer blanks a group name saved earlier.
 - A person has the same avatar colour in the wizard as in the archive.
@@ -133,9 +141,11 @@ All notable changes to this project are recorded here.
 
 #### Tooling
 
-- `package.json` `engines` is now `^22.13.0 || >=24`, the versions the
-  dev tooling (ESLint 10, Playwright, `node --test` with a glob) really needs.
-  The app itself still runs on Node 18.
+- One supported Node.js range everywhere: `package.json` `engines` is now
+  `^22.13.0 || >=24` (what ESLint 10, Playwright and `node --test` with a
+  glob need), CI runs the suite on Node 22.13.0 as well as Node 24, and the
+  launchers and the README ask for the same versions. Node 18 and 20, which
+  are end-of-life and were never tested, are no longer accepted.
 - The 100k-message performance test runs after the rest of the suite, on one
   worker, so its timings don't compete with other tests.
 - CI fails when the demo data in `sample/` differs from what the

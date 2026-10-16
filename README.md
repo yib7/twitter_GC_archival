@@ -179,19 +179,18 @@ npm run test:smoke
 
 ## Requirements
 
-- Browsing an archive needs only a modern browser. No install, no Node, no
-  internet. Double-click `index.html`.
-- The setup wizard and the local server need [Node.js](https://nodejs.org) 18 or
-  newer. They use only Node's built-in modules (and nothing newer than Node
-  18 offers), so there is nothing to `npm install` to run them, and the
-  double-click launchers check for 18. CI runs them on Node 24 (`.nvmrc`), and
-  that is the only version they are tested on.
-- Developing (`npm install`, the tests and lint) needs Node 22.13 or newer
-  (`package.json` `engines`: `^22.13.0 || >=24`): ESLint 10 and Playwright
-  require it, and `npm run test:unit` uses `node --test` with a glob, which
-  Node 21 added.
-- The wizard's Browse buttons open native file dialogs on Windows. On macOS and
-  Linux the wizard still works, but you paste the file and folder paths by hand.
+- **To browse an archive (the demo included):** a modern browser. Nothing to
+  install and no internet connection. The test suite runs in Chromium, so
+  Chrome and Edge are the tested browsers.
+- **To import your own export:** [Node.js](https://nodejs.org) 22.13 or newer
+  for the setup wizard. CI tests Node 22.13.0 and Node 24; Node 23 and anything
+  older than 22.13 are not supported, and the double-click launchers say so
+  instead of starting. The wizard uses only Node's built-in modules, so there
+  is nothing to `npm install`.
+- **Operating system:** Windows, macOS or Linux. The wizard's Browse buttons
+  open native file dialogs on Windows only; on macOS and Linux you paste the
+  folder path instead.
+- No account, no API key, and nothing is uploaded anywhere.
 
 ## Quick start (demo, zero real data)
 

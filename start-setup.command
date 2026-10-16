@@ -2,7 +2,8 @@
 # ============================================================================
 #  Double-click (macOS) or run to set up the Group Chat Archive.
 #  Starts the local server and opens the setup wizard in your browser.
-#  Needs Node.js 18 or newer installed (https://nodejs.org). Ctrl+C to stop.
+#  Needs Node.js 22.13 or newer installed (https://nodejs.org); Node 23 is
+#  not supported. Ctrl+C to stop.
 #  First time on macOS/Linux: run `chmod +x start-setup.command` once.
 # ============================================================================
 cd "$(dirname "$0")" || exit 1
@@ -26,9 +27,11 @@ if ! command -v node >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! node -e "process.exit(Number(process.versions.node.split('.')[0]) >= 18 ? 0 : 1)" >/dev/null 2>&1; then
+# Accepts what package.json "engines" admits: 22.13 or a later 22.x, or 24 and newer.
+if ! node -e "var v = process.versions.node.split('.').map(Number); process.exit(v[0] >= 24 ? 0 : v[0] == 22 ? (v[1] >= 13 ? 0 : 1) : 1)" >/dev/null 2>&1; then
   echo
-  echo "  Your Node.js is too old for the Group Chat Archive: it needs version 18 or newer."
+  echo "  This version of Node.js can't run the Group Chat Archive."
+  echo "  It needs Node.js 22.13 or newer (Node 23 is not supported)."
   echo "  Install the current LTS version from https://nodejs.org, then run"
   echo "  start-setup.command again."
   echo

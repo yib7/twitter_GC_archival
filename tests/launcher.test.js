@@ -1,6 +1,6 @@
 /*
  * the double-click launchers explain the three ways starting can fail
- * (no Node, run from inside the ZIP, Node too old) instead of showing raw
+ * (no Node, run from inside the ZIP, a Node outside package.json engines) instead of showing raw
  * "'node' is not recognized" / "Cannot find module" output. Runs the launcher
  * for this platform (start-setup.cmd on Windows, start-setup.command elsewhere)
  * with a doctored PATH and stand-in `node` scripts; it never starts a server.
@@ -59,12 +59,86 @@ test("started from inside the ZIP (launcher alone, no scripts folder) it says to
   assert.doesNotMatch(r.out, /Cannot find module/);
 });
 
-test("with a Node.js older than 18 it asks for a newer one", () => {
-  const old = fakeNode("gca-fake-node-old-", ["echo v12.22.0", "exit /b 1"], ["echo v12.22.0", "exit 1"]);
-  const r = run(path.join(ROOT, LAUNCHER), old);
-  assert.notEqual(r.status, 0);
-  assert.match(r.out, /18 or newer/);
-  assert.match(r.out, /https:\/\/nodejs\.org/);
+// A stand-in `node` whose `node -e <check>` runs the launcher's REAL version
+// check under the real Node with process.versions.node spoofed to `version`;
+// any other call (the server start) is only recorded, never run.
+function spoofedNode(version) {
+  const d = scratch("gca-spoof-node-");
+  const pre = path.join(d, "spoof.js");
+  fs.writeFileSync(pre, "Object.defineProperty(process, 'versions', { value: Object.assign({}, process.versions, { node: " +
+    JSON.stringify(version) + " }), configurable: true });\n");
+  if (WIN) {
+    fs.writeFileSync(path.join(d, "node.cmd"), ["@echo off",
+      'if "%~1"=="-e" (',
+      '  "' + process.execPath + '" -r "' + pre + '" %*',
+      "  exit /b",
+      ")",
+      "echo FAKE-NODE %*", "exit /b 0", ""].join("\r\n"));
+  } else {
+    fs.writeFileSync(path.join(d, "node"), ["#!/bin/sh",
+      'if [ "$1" = "-e" ]; then exec "' + process.execPath + '" -r "' + pre + '" "$@"; fi',
+      'echo FAKE-NODE "$@"', "exit 0", ""].join("\n"));
+    fs.chmodSync(path.join(d, "node"), 0o755);
+  }
+  return d;
+}
+
+// What package.json "engines" admits, evaluated directly from its text: each
+// "||" part is "^X.Y.Z" (same major, at least X.Y.Z) or ">=N" (major N or later).
+function enginesAdmit(range, version) {
+  const [maj, min, pat] = version.split(".").map(Number);
+  return range.split("||").map((p) => p.trim()).some((p) => {
+    let m = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(p);
+    if (m) {
+      const [a, b, c] = m.slice(1).map(Number);
+      return maj === a && (min > b || (min === b && pat >= c));
+    }
+    m = /^>=(\d+)$/.exec(p);
+    if (m) return maj >= Number(m[1]);
+    throw new Error("enginesAdmit: unhandled range part " + JSON.stringify(p));
+  });
+}
+const ENGINES = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).engines.node;
+// EOL and odd releases included on purpose: 18 and 20 are end-of-life and never
+// tested; 23 is outside engines; 22.13.0 is CI's node-floor leg, 24 is .nvmrc.
+const VERSIONS = ["12.22.0", "18.20.4", "20.19.0", "21.7.3", "22.12.0", "22.13.0", "22.20.0",
+  "23.11.1", "24.0.0", "24.11.0", "25.1.0", "30.0.0"];
+
+for (const v of VERSIONS.filter((x) => !enginesAdmit(ENGINES, x))) {
+  test("with Node.js " + v + " (outside engines) the launcher refuses and names the supported versions", () => {
+    const r = run(path.join(ROOT, LAUNCHER), spoofedNode(v));
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /22\.13 or newer/);
+    assert.match(r.out, /https:\/\/nodejs\.org/);
+    assert.doesNotMatch(r.out, /FAKE-NODE/, "the server must not start");
+  });
+}
+for (const v of ["22.13.0", "24.0.0"]) {
+  test("with Node.js " + v + " (the versions CI runs) the launcher's real check passes and starts the server", () => {
+    const r = run(path.join(ROOT, LAUNCHER), spoofedNode(v));
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /FAKE-NODE .*server\.js.* --open/);
+  });
+}
+
+// Both launchers carry the same one-line check; evaluate it for every version
+// in the table (no shell needed, so the .command check is covered on Windows too).
+function launcherCheck(file) {
+  const m = /node -e "([^"]+)"/.exec(fs.readFileSync(path.join(ROOT, file), "utf8"));
+  assert.ok(m, file + " has a node -e version check");
+  return m[1];
+}
+test("both launchers accept exactly the Node versions package.json engines admits", () => {
+  const cmd = launcherCheck("start-setup.cmd");
+  assert.equal(launcherCheck("start-setup.command"), cmd, "the two launchers' checks differ");
+  // cmd.exe: no %, ^, & or | in the check (call re-parses % and ^; & and | are risky).
+  assert.doesNotMatch(cmd, /[%^&|]/);
+  for (const v of VERSIONS) {
+    let code = null;
+    const fakeProcess = { versions: { node: v }, exit: (c) => { code = c; } };
+    new Function("process", cmd)(fakeProcess);
+    assert.equal(code === 0, enginesAdmit(ENGINES, v), "Node " + v + ": launcher " + (code === 0 ? "accepts" : "refuses") + ", engines " + ENGINES);
+  }
 });
 
 test("with a usable Node.js it starts the server with --open (a stand-in node records the call)", () => {
@@ -74,17 +148,25 @@ test("with a usable Node.js it starts the server with --open (a stand-in node re
   assert.match(r.out, /FAKE-NODE .*server\.js.* --open/);
 });
 
-// Two floors: the launchers and the server only need Node 18 (they use core
-// modules only), but package.json covers npm install / test / lint, whose
-// tools need more: ESLint 10 wants ^20.19 || ^22.13 || >=24, Playwright >=20,
-// and `node --test "tests/**/*.test.js"` needs Node 21+ for the glob.
-test("package.json declares the Node versions its dev tooling supports", () => {
-  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
-  assert.equal(pkg.engines && pkg.engines.node, "^22.13.0 || >=24");
+// One floor everywhere: engines is what CI runs (22.13.0 in the node-floor leg,
+// .nvmrc's 24 in the OS matrix). The launchers mirror it (above), and the
+// README's Requirements and the launchers' messages name the same floor.
+test("package.json engines is the range CI tests", () => {
+  assert.equal(ENGINES, "^22.13.0 || >=24");
+  assert.equal(fs.readFileSync(path.join(ROOT, ".nvmrc"), "utf8").trim(), "24");
+  assert.match(fs.readFileSync(path.join(ROOT, ".github/workflows/ci.yml"), "utf8"), /node-version: "22\.13\.0"/);
 });
 
-test("the launchers still accept Node 18, the server's own floor", () => {
-  for (const f of ["start-setup.cmd", "start-setup.command"]) {
-    assert.match(fs.readFileSync(path.join(ROOT, f), "utf8"), />= 18 \? 0 : 1/, f);
+test("the README's Requirements and the launchers name the same Node floor, and nothing still promises Node 18", () => {
+  const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8");
+  const at = readme.search(/^## Requirements$/m);
+  assert.ok(at >= 0, "README.md has a ## Requirements section");
+  const rest = readme.slice(readme.indexOf("\n", at) + 1);
+  const req = rest.slice(0, rest.search(/^#{1,2} /m));
+  assert.match(req, /Node\.js\]\(https:\/\/nodejs\.org\) 22\.13 or newer/);
+  for (const f of ["README.md", "start-setup.cmd", "start-setup.command"]) {
+    const text = fs.readFileSync(path.join(ROOT, f), "utf8");
+    assert.doesNotMatch(text, /Node(\.js)? 18|18 or newer|>= 18/, f);
+    if (f !== "README.md") assert.match(text, /Node\.js 22\.13 or newer/, f);
   }
 });
