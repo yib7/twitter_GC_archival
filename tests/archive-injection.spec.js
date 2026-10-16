@@ -54,6 +54,34 @@ test("the lightbox's Download link refuses a javascript: media path", async ({ p
   expect(href == null || !/^\s*javascript:/i.test(href), String(href)).toBe(true);
 });
 
+// A file: URL with a host is a network share (on Windows, file://host/share
+// is a UNC path, and opening one can send the user's Windows sign-in to that
+// host). In the file:// viewer a path like "//host/share/x" resolves to one.
+// Only a file: URL on this machine is a link or a photo/video source.
+test("media paths that name another machine never become links or sources", async ({ page }) => {
+  const far = "file://attacker.example/share/";
+  const list = [
+    { i: "m1", s: "u1", t: T0, x: "a file", k: "file", m: far + "x.pdf" },
+    { i: "m2", s: "u2", t: T0 + 60e3, x: "a photo", k: "img", m: far + "p.jpg",
+      mx: [{ k: "img", m: far + "q.jpg" }, { k: "vid", m: far + "v.mp4" }, { k: "file", m: far + "y.pdf" }] },
+    { i: "m3", s: "u1", t: T0 + 120e3, x: "a video", k: "vid", m: far + "w.mp4" },
+    { i: "m4", s: "u2", t: T0 + 180e3, x: "local", k: "file", m: "file:///C:/archive/ok.pdf" },
+  ];
+  await bootViewer(page, { conversations: [conv("G1", "Alpha", list)] });
+  await expect(page.locator(".media").first()).toBeVisible();
+  const attrs = await page.locator(".media a, .media img, .media video").evaluateAll((els) =>
+    els.map((e) => e.getAttribute("href") || e.getAttribute("src") || ""));
+  expect(attrs.length).toBeGreaterThan(5);
+  for (const a of attrs) expect(a, a).not.toContain("attacker.example");
+  expect(attrs).toContain("file:///C:/archive/ok.pdf");
+  // the lightbox and its Download link too
+  await page.locator(".media img").first().dispatchEvent("click");
+  await expect(page.locator(".lb-dl")).toBeAttached();
+  expect(String(await page.locator(".lb-dl").getAttribute("href"))).not.toContain("attacker.example");
+  const lb = await page.locator(".lightbox img, .lightbox video").evaluateAll((els) => els.map((e) => e.getAttribute("src") || ""));
+  for (const a of lb) expect(a, a).not.toContain("attacker.example");
+});
+
 test.describe("the setup wizard's last step", () => {
   let S, exportRoot;
   test.beforeAll(async () => {

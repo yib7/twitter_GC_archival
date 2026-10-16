@@ -1133,11 +1133,17 @@ const CHIP_LINK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColo
 // hand-edited or shared archive could put any URL there: only one that opens
 // as a page or a file (http, https, file) becomes a link. javascript:, data:
 // and the rest are left without an href. The URL parser decides, so a tab
-// inside "java	script:" or a leading space can't slip one past.
+// inside "java	script:" or a leading space can't slip one past. A file: URL
+// must be on this machine: one with a host (file://host/share, which "//host/x"
+// becomes in the file:// viewer) is a network share, and on Windows opening
+// one can send the user's sign-in to that host. The same check gates every
+// photo and video src, which would fetch it without a click.
 function safeHref(p) {
   if (typeof p !== "string" || !p) return "";
-  try { return /^(?:https?|file):$/.test(new URL(p, location.href).protocol) ? p : ""; }
-  catch (err) { return ""; }
+  let u;
+  try { u = new URL(p, location.href); } catch (err) { return ""; }
+  if (u.protocol === "http:" || u.protocol === "https:") return p;
+  return u.protocol === "file:" && !u.host ? p : "";
 }
 function urlChipEl(href, lbl) {
   let dom;
@@ -1350,7 +1356,7 @@ function btnEl(cls, html, label, pressed) {
 function renderMedia(m, i) {
   const d = el("div", "media");
   if (m.k === "img") {
-    const img = el("img"); img.loading = "lazy"; img.src = m.m;
+    const img = el("img"); img.loading = "lazy"; img.src = safeHref(m.m);
     img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
     // A search result walks the result media; anywhere else (timeline, a
     // Context peek — even over Search) walks the conversation's media.
@@ -1360,7 +1366,7 @@ function renderMedia(m, i) {
     img.addEventListener("click", (e) => e.stopPropagation());   // not the card's own click
     d.appendChild(img);
   } else if (m.k === "vid") {
-    const v = document.createElement("video"); v.src = m.m; v.controls = true; v.preload = "none";
+    const v = document.createElement("video"); v.src = safeHref(m.m); v.controls = true; v.preload = "none";
     v.setAttribute("aria-label", "Video from " + nameOf(m.s) + " · " + DT.format(m.t));
     v.addEventListener("click", (e) => e.stopPropagation());
     d.appendChild(v);
@@ -1389,11 +1395,11 @@ function appendMoreMedia(d, m, name) {
       if (safe) node.href = safe;
       node.target = "_blank"; node.rel = "noopener";
       node.setAttribute("aria-label", "Open photo " + (j + 2) + " of " + total + " from " + who);
-      const img = el("img"); img.loading = "lazy"; img.src = x.m; img.alt = "";
+      const img = el("img"); img.loading = "lazy"; img.src = safeHref(x.m); img.alt = "";
       node.appendChild(img);
     } else if (x.k === "vid") {
       node = document.createElement("video"); node.className = "media-more-item";
-      node.src = x.m; node.controls = true; node.preload = "none";
+      node.src = safeHref(x.m); node.controls = true; node.preload = "none";
       node.setAttribute("aria-label", "Video " + (j + 2) + " of " + total + " from " + who);
     } else {
       node = urlChipEl(x.m, "media file");
@@ -1513,10 +1519,10 @@ function renderLightbox() {
   
   let mediaEl;
   if (m.k === "vid") {
-    mediaEl = document.createElement("video"); mediaEl.src = m.m; mediaEl.controls = true; mediaEl.autoplay = true;
+    mediaEl = document.createElement("video"); mediaEl.src = safeHref(m.m); mediaEl.controls = true; mediaEl.autoplay = true;
     mediaEl.onclick = (e) => e.stopPropagation();
   } else {
-    mediaEl = el("img"); mediaEl.src = m.m; mediaEl.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
+    mediaEl = el("img"); mediaEl.src = safeHref(m.m); mediaEl.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t);
     let scale = 1, panning = false, pointX = 0, pointY = 0, start = { x: 0, y: 0 };
     mediaEl.onmousedown = (e) => { e.preventDefault(); start = { x: e.clientX - pointX, y: e.clientY - pointY }; panning = true; };
     mediaEl.onmouseup = () => (panning = false);
@@ -2373,8 +2379,8 @@ function galleryCell(i, list) {
   // is neither "img" nor "vid", so it must not fall into the video branch
   // (which renders an empty, broken <video>). Reuse renderMedia's file-chip
   // markup instead of forking a third pattern.
-  if (m.k === "img") { const img = el("img"); img.loading = "lazy"; img.src = m.m; img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t); c.appendChild(img); }
-  else if (m.k === "vid") { const v = document.createElement("video"); v.src = m.m; v.preload = "metadata"; c.appendChild(v); c.appendChild(el("div", "play", "▶")); }
+  if (m.k === "img") { const img = el("img"); img.loading = "lazy"; img.src = safeHref(m.m); img.alt = "Photo from " + nameOf(m.s) + " · " + DT.format(m.t); c.appendChild(img); }
+  else if (m.k === "vid") { const v = document.createElement("video"); v.src = safeHref(m.m); v.preload = "metadata"; c.appendChild(v); c.appendChild(el("div", "play", "▶")); }
   else { const chip = renderMedia(m, i); chip.classList.add("gallery-cell"); c.appendChild(chip); }
   c.title = nameOf(m.s) + " · " + DT.format(m.t);
   // a file cell is just its link chip — it must not also open a lightbox.
@@ -4161,10 +4167,10 @@ function personCard(p) {
     const mw = el("div", "person-media");
     p.media.forEach((it) => {
       if (it.k === "vid") {
-        const v = el("video", "person-media-thumb"); v.src = it.m; v.muted = true; v.preload = "metadata";
+        const v = el("video", "person-media-thumb"); v.src = safeHref(it.m); v.muted = true; v.preload = "metadata";
         mw.appendChild(v);
       } else {
-        const img = el("img", "person-media-thumb"); img.src = it.m; img.loading = "lazy"; img.alt = "";
+        const img = el("img", "person-media-thumb"); img.src = safeHref(it.m); img.loading = "lazy"; img.alt = "";
         mw.appendChild(img);
       }
     });
@@ -5867,11 +5873,11 @@ function renderForeignPin(conv, m, needles) {
     // no cross-conversation lightbox — media clicks just travel to the message
     const d = el("div", "media");
     if (m.k === "img") {
-      const img = el("img"); img.loading = "lazy"; img.src = m.m;
+      const img = el("img"); img.loading = "lazy"; img.src = safeHref(m.m);
       img.alt = "Photo from " + who(m.s) + " · " + DT.format(m.t);
       d.appendChild(img);
     } else if (m.k === "vid") {
-      const vd = document.createElement("video"); vd.src = m.m; vd.controls = true; vd.preload = "none";
+      const vd = document.createElement("video"); vd.src = safeHref(m.m); vd.controls = true; vd.preload = "none";
       vd.setAttribute("aria-label", "Video from " + who(m.s) + " · " + DT.format(m.t));
       vd.addEventListener("click", (e) => e.stopPropagation());
       d.appendChild(vd);
