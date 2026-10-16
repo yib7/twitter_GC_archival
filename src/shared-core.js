@@ -1232,16 +1232,27 @@
   // parser decides, so a tab inside "java	script:" or a leading space can't
   // slip one past. A file: URL must be on this machine. One that names a host
   // is a network share, and on Windows opening one can send the user's sign-in
-  // to that host. Browsers disagree on where "file:////host/share" puts the
-  // host (Chromium reads it as the host, the WHATWG parser in Firefox, Safari
-  // and Node leaves the host empty and the path starting "//"), so both shapes
-  // are refused. Returns the path unchanged, or "" when it is refused.
+  // to that host. The exception is the share the viewer itself was opened
+  // from, since its own media resolves there. Browsers disagree on where
+  // "file:////host/share" puts the host (Chromium reads it as the host, the
+  // WHATWG parser in Firefox, Safari and Node leaves the host empty and the
+  // path starting "//"), so both shapes are read. Returns the path unchanged,
+  // or "" when it is refused.
+  function fileHost(u) {
+    if (u.protocol !== "file:") return "";
+    if (u.host) return u.host.toLowerCase();
+    const m = /^\/{2,}([^/]+)/.exec(u.pathname);
+    return m ? m[1].toLowerCase() : "";
+  }
   function safeMediaUrl(p, base) {
     if (typeof p !== "string" || !p) return "";
-    let u;
+    let u, b = null;
     try { u = new URL(p, base); } catch (err) { return ""; }
     if (u.protocol === "http:" || u.protocol === "https:") return p;
-    return u.protocol === "file:" && !u.host && !u.pathname.startsWith("//") ? p : "";
+    if (u.protocol !== "file:") return "";
+    try { b = new URL(base); } catch (err) { /* no page URL: only this machine counts */ }
+    const host = fileHost(u);
+    return !host || (b && host === fileHost(b)) ? p : "";
   }
   return {
     PALETTE, X_LINK, hashId, initials, HUES, personHue, hueVars,

@@ -41,3 +41,18 @@ test("a file: URL that names another machine is refused, however the share is sp
     assert.equal(safeMediaUrl(bad, VIEWER), "", bad);
   }
 });
+
+test("a viewer opened from a network share keeps its own media, and only its own", () => {
+  // \\nas\share\archive\index.html reaches the page as either URL shape,
+  // depending on the browser's parser
+  for (const base of ["file://nas/share/archive/index.html", "file:////nas/share/archive/index.html"]) {
+    for (const ok of ["sample_media/photo-1.svg", "personal_data/media/a b.jpg", "https://example.test/x.png",
+      "file://nas/share/archive/personal_data/x.jpg", "file://NAS/share/other/x.jpg"]) {
+      assert.equal(safeMediaUrl(ok, base), ok, ok + " from " + base);
+    }
+    for (const bad of ["file://attacker.example/share/x.pdf", "file:////attacker.example/share/x.pdf",
+      "//attacker.example/share/x.pdf", "javascript:alert(1)"]) {
+      assert.equal(safeMediaUrl(bad, base), "", bad + " from " + base);
+    }
+  }
+});
