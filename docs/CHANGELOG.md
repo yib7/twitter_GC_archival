@@ -144,6 +144,10 @@ All notable changes to this project are recorded here.
   `sample/` (was `data.sample.js` + `sample_media/`), the vendored Fuse.js and
   Chart.js in `src/vendor/` (was `lib/`), and the setup wizard page in
   `src/setup.html`, still opened at `http://localhost:8765/setup.html`.
+  Opened from disk, that page (or an old `setup.html` left in the folder by
+  unzipping this version over an older one) shows only how to start the setup
+  server, and so does the viewer's "Open setup wizard" button when the viewer
+  itself is opened from disk.
   `.env.example` is gone: nothing reads a `.env` file, and the optional
   variables are documented in the README. The demo generator is
   `scripts/make-sample.js` (was `make_sample.js`), and it no longer writes
