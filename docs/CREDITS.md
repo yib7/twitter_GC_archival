@@ -3,7 +3,8 @@
 Third-party code bundled in this repository. Both libraries are vendored
 (committed as minified files under `src/vendor/`) so the app runs fully offline with no
 package install at runtime. Each one keeps its original copyright header, and
-its full license text ships next to it in `src/vendor/`.
+its full license text ships next to it in `src/vendor/`. No fonts, icons or
+other third-party assets are bundled: the interface uses the system font stack.
 
 ## Fuse.js v6.6.2
 
@@ -31,6 +32,18 @@ Powers the fuzzy search and the search filters.
 
 Renders the charts in the Stats view.
 
+### @kurkle/color v0.3.2 (inside Chart.js)
+
+- License: MIT, full text in [`src/vendor/LICENSE-kurkle-color.txt`](../src/vendor/LICENSE-kurkle-color.txt)
+- Copyright (c) 2018-2021 Jukka Kurkela (the bundled header reads "(c) 2023")
+- Site: https://github.com/kurkle/color
+- Not a separate file: Chart.js's UMD build includes it, and the header comment
+  naming it is kept in the middle of `src/vendor/chart.min.js`. Its version
+  comes from that header; the license text is the `LICENSE.md` of the
+  `@kurkle/color@0.3.2` npm package.
+
+Chart.js uses it to parse and mix colours.
+
 ### Checking a vendored file
 
 `.gitattributes` marks `src/vendor/*.min.js` as binary (`-text`), so a checkout has the
@@ -49,5 +62,5 @@ here in the same commit.
 
 Everything else in this repository (the viewer, the build and setup scripts, the
 synthetic sample data, and the placeholder SVG media) is original work released
-under the MIT License in [LICENSE](../LICENSE). The two bundled licenses above
+under the MIT License in [LICENSE](../LICENSE). The bundled licenses above
 (Apache-2.0 and MIT) are permissive and compatible with that release.
