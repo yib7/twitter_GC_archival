@@ -561,9 +561,6 @@ button, input, select, textarea { font-family: inherit; }
   height: var(--daypill-h); line-height: 16px; white-space: nowrap;
 }
 
-/* load-more buttons (timeline) */
-.loadmore { display: none; }
-
 /* timeline virtual chunks */
 .tl-chunk { position: relative; width: 100%; contain: layout paint; display: flex; flex-direction: column; gap: var(--gap); }
 

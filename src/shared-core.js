@@ -30,9 +30,6 @@
     if (p.length === 1) return p[0].slice(0, 2).join("").toUpperCase();
     return (p[0][0] + p[p.length - 1][0]).toUpperCase();
   }
-  // Shared kernel of colorOf: the plain palette lookup with no user-override. The
-  // viewer wraps this to honor settings.colors first; the wizard uses it directly.
-  function paletteColor(id) { return PALETTE[hashId(id) % PALETTE.length]; }
   // the person hue rule — ONE colour per person in the viewer AND the
   // setup wizard. 10 hue pairs defined per theme in styles.css: --p-<hue> (the
   // bright name colour) and --f-<hue> (the deep avatar fill under white
@@ -1125,7 +1122,7 @@
     return s;
   }
   return {
-    PALETTE, X_LINK, hashId, initials, paletteColor, HUES, personHue, hueVars,
+    PALETTE, X_LINK, hashId, initials, HUES, personHue, hueVars,
     PHOTO_RE, PHOTO_PATH_RE, sanitizePhoto, sanitizeColor, isValidTimeZone,
     relLuminance, contrastRatio, readableOn, accentTokens, createZoneClock, buildTimeIndex,
     TI_T_LO, TI_T_HI, clampInstant, zonedDayStart, parseJumpDate, MONTH_NAMES,

@@ -5,7 +5,7 @@
 //
 // The extraction collapsed those copies into ONE module (src/shared-core.js), so "drift
 // between copies" is no longer possible. This test instead:
-//   1. pins the shared logic — hashId / paletteColor / initials produce exactly
+//   1. pins the shared logic — hashId / initials produce exactly
 //      the expected outputs over the same ID/NAME batteries the drift test used,
 //      so a refactor of the single source can't quietly change avatar
 //      colors/initials; and
@@ -31,7 +31,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
 /* ---- API surface --------------------------------------------------------- */
 
 test("shared-core exports the full API", () => {
-  for (const k of ["PALETTE", "X_LINK", "hashId", "initials", "paletteColor",
+  for (const k of ["PALETTE", "X_LINK", "hashId", "initials",
     "PHOTO_RE", "PHOTO_PATH_RE", "sanitizePhoto", "sanitizeColor", "isValidTimeZone",
     "isPlainObj", "cleanMap", "idList", "cleanSaved", "validateSettings"]) {
     assert.ok(k in shared, `src/shared-core.js must export ${k}`);
@@ -40,7 +40,6 @@ test("shared-core exports the full API", () => {
   assert.ok(shared.X_LINK instanceof RegExp, "X_LINK is a RegExp");
   assert.equal(typeof shared.hashId, "function");
   assert.equal(typeof shared.initials, "function");
-  assert.equal(typeof shared.paletteColor, "function");
 });
 
 test("PALETTE is the exact 12-color avatar palette", () => {
@@ -70,10 +69,6 @@ const ID_BATTERY = [
   "920000000000000007", "some-long-mixed-ID_42", "🙂🙂",
 ];
 const EXPECT_HASH = [0, 48, 49, 3676, 3677, 96354, 3419089176, 1830741280, 4044068280, 1705592330];
-const EXPECT_COLOR = [
-  "#3b82f6", "#3b82f6", "#22c55e", "#8b5cf6", "#06b6d4", "#ef4444",
-  "#3b82f6", "#8b5cf6", "#3b82f6", "#f59e0b",
-];
 
 const NAME_BATTERY = [
   "", "   ", "a", "Al", "Alice", "alice bob", "Alice Bob Carol",
@@ -90,18 +85,6 @@ test("hashId returns the expected 32-bit hash for every id in the battery", () =
 test("hashId String()-coerces (numeric id hashes same as its string form)", () => {
   assert.equal(shared.hashId(1), shared.hashId("1"));
   assert.equal(shared.hashId(900000000000000001n.toString()), shared.hashId("900000000000000001"));
-});
-
-test("paletteColor maps each id to the expected avatar color", () => {
-  ID_BATTERY.forEach((id, i) => {
-    assert.equal(shared.paletteColor(id), EXPECT_COLOR[i], `paletteColor(${JSON.stringify(id)})`);
-  });
-});
-
-test("paletteColor is exactly the PALETTE[hashId(id) % len] kernel", () => {
-  for (const id of ID_BATTERY) {
-    assert.equal(shared.paletteColor(id), shared.PALETTE[shared.hashId(id) % shared.PALETTE.length]);
-  }
 });
 
 test("initials returns the expected monogram for every name in the battery", () => {

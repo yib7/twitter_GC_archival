@@ -4302,7 +4302,6 @@ function renderSettings() {
     resetGallery();   // its cells carry dates
     updateBrand();   // the sidebar year range is zone-dependent too
     buildSidebarSparkline();
-    if (curView && curView !== "settings") setView(curView);
     toast("Timezone updated");
   };
 
